@@ -1,0 +1,19 @@
+{
+  "name": "intelli-health-care",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:user": "npm run dev -w @ihc/user-mobile",
+    "dev:admin": "npm run dev -w @ihc/admin-console",
+    "dev:all": "node ./scripts/dev-all.mjs",
+    "dev:page": "node ./scripts/dev-page.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "create:page": "node ./scripts/create-page.mjs",
+    "prompt:page": "node ./scripts/codex-prompt.mjs"
+  }
+}
+
