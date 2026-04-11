@@ -1,171 +1,269 @@
 # 成员开发手册
 
-## 1. 你先要知道的事
+这份手册面向第一次进入 IntelliHealthCare 仓库的成员，帮助你快速理解当前代码结构、启动方式和页面开发流程。
+
+## 1. 先知道这些
 
 - 当前主开发端是网页端，不是小程序端
-- 已有小程序原型代码保留在 `legacy/miniprogram-user/`
-- 日常开发只需要关心 `apps/user-web/`
-- 每个人尽量只负责自己分到的页面目录
+- 网页端基于 `Vue 3 + TypeScript + Vite`
+- 历史小程序代码保留在 `legacy/miniprogram-user/`
+- 页面协作以“页面目录”为最小单元
 
-## 2. 日常开发最常用的命令
+如果你只负责业务页面开发，日常主要会接触：
 
-安装依赖后，最常用的是下面 4 个命令：
+```text
+apps/user-web/
+packages/page-core/
+docs/
+```
+
+## 2. 安装与启动
+
+建议环境：
+
+- `Node.js >= 20`
+- `npm >= 10`
+
+安装依赖：
+
+```bash
+npm install
+```
+
+启动整站预览：
 
 ```bash
 npm run dev:user
 ```
 
-作用：
-
-- 直接打开整站首页
-- 适合看整体接入效果
+启动单页预览：
 
 ```bash
 npm run dev:page -- --page home/dashboard
 ```
 
-作用：
+建议在浏览器开发者工具中切换到移动端设备模式，并按 `390 x 844` 进行调试。
 
-- 只打开一个页面
-- 适合专注做样式、交互和局部联调
+## 3. 常用命令速查
 
 ```bash
-npm run create:page -- --group health --page blood-pressure --title "血压监测" --owner "成员A"
+npm run dev:user
 ```
 
-作用：
+- 启动整站开发模式
 
-- 自动创建新的页面目录和基础文件
+```bash
+npm run dev:page -- --page auth/login
+```
+
+- 启动某个页面的单页预览
 
 ```bash
 npm run check
 ```
 
-作用：
+- 运行页面目录校验与 TypeScript 类型检查
 
-- 校验页面目录和 `pages.manifest.json` 是否一致
+```bash
+npm run build
+```
 
-## 3. 项目目录怎么找
+- 构建生产包
 
-### 业务代码
+```bash
+npm run create:page -- --group health --page blood-pressure --title "血压监测" --owner "成员A"
+```
+
+- 创建新页面脚手架并登记到清单
+
+## 4. 仓库目录怎么理解
+
+### 业务页面
 
 ```text
 apps/user-web/src/pages/
 ```
 
-这里是所有页面的主目录。
+所有业务页面都放在这里，按 `领域/页面` 组织。
 
-### 共享能力
+### 应用壳与运行时装配
+
+```text
+apps/user-web/src/app/
+```
+
+这里负责：
+
+- 页面清单
+- 运行模式解析
+- 动态页面加载
+- 栈式导航
+- Toast 队列
+
+### 公共组件
+
+```text
+apps/user-web/src/components/
+```
+
+这里放 Vue 组件级别的公共能力，例如：
+
+- 底部导航
+- Toast 视图
+- 占位页组件
+
+### 共享运行时工具
 
 ```text
 packages/page-core/src/
 ```
 
-这里放可复用的公共运行时能力，例如：
+这里放跨页面可复用、但不强依赖具体页面 UI 的公共逻辑，例如：
 
-- 底部导航
-- toast 提示
-- 页面占位渲染
-- 页面 id 处理
+- 页面类型定义
+- 页面状态元数据
+- 页面 id 规范化
+- 初始页面解析
 
-### 旧原型参考
+### 历史参考代码
 
 ```text
 legacy/miniprogram-user/
 ```
 
-如果你要参考之前的小程序页面结构和视觉，可以来这里看，但不要继续在这里做新开发。
+这里只用于参考，不再作为主开发目录。
 
-## 4. 页面目录规范
+## 5. 页面目录规范
 
 每个页面固定放在：
 
 ```text
 apps/user-web/src/pages/<domain>/<page>/
-  page.js
-  mock.js
+  Page.vue
+  mock.ts
   README.md
 ```
 
 三个文件分别负责：
 
-- `page.js`：页面结构、事件、页面渲染逻辑
-- `mock.js`：本页调试数据
-- `README.md`：页面职责、边界、开发说明
+- `Page.vue`：页面组件实现
+- `mock.ts`：本页调试数据
+- `README.md`：页面职责、协作说明、特殊注意事项
 
-## 5. 怎么找到自己要写的页面
+## 6. 怎么找到自己负责的页面
 
-先打开：
+先查看：
 
 ```text
 apps/user-web/src/app/pages.manifest.json
 ```
 
-这里是整站页面清单，能看到：
+你可以在这里找到：
 
 - 页面 id
 - 页面标题
-- 分组
+- 页面分组
 - 当前状态
 - 页面目录
-- 是否已经有历史原型参考
+- 历史原型参考路径
 
-如果你被分配的是“健康数据”，先找 `health/health-data`，再去对应目录开发。
+如果页面已经在清单中登记，优先以清单为准，不要自己临时发明新的页面路径。
 
-## 6. 推荐开发流程
+## 7. 页面开发推荐流程
 
 ### 场景 A：页面已经存在
 
-1. 在 `pages.manifest.json` 里找到页面 id
+1. 在 `pages.manifest.json` 中找到页面 id
 2. 打开对应页面目录
-3. 先运行 `npm run dev:page -- --page <page-id>`
-4. 在浏览器开发者工具里切到移动端设备模式，按 `390 x 844` 调试
-5. 修改 `mock.js` 和 `page.js`
-6. 完成后再用 `npm run dev:user` 看整站效果
+3. 先运行：
+
+```bash
+npm run dev:page -- --page <page-id>
+```
+
+4. 优先补 `mock.ts`
+5. 再完善 `Page.vue`
+6. 完成后验证：
+
+```bash
+npm run check
+npm run build
+```
 
 ### 场景 B：页面还不存在
 
-1. 先运行 `npm run create:page ...`
-2. 确认脚手架已经生成目录
-3. 在 `mock.js` 中先补调试数据
-4. 在 `page.js` 中实现页面
-5. 运行 `npm run check`
+1. 先运行：
 
-## 7. 团队协作建议
+```bash
+npm run create:page -- --group <group> --page <page> --title "<title>" --owner "<owner>"
+```
 
-- 不要跨目录顺手改别人的页面
-- 如果必须改共享能力，优先改 `packages/page-core`
-- 不要把页面私有逻辑直接塞进共享目录
-- mock 数据优先放当前页面的 `mock.js`
-- 真实接口没接好之前，先保证静态结构和本地交互稳定
+2. 确认脚手架已经生成
+3. 在 `mock.ts` 中补充调试数据
+4. 在 `Page.vue` 中实现页面
+5. 再执行 `npm run check`
 
-## 8. 提交前检查清单
+## 8. 什么时候改页面内，什么时候改公共层
 
-提交前至少确认这几件事：
+优先在页面内解决问题的情况：
 
-1. 页面能通过 `npm run dev:page -- --page <page-id>` 正常打开
-2. 整站入口 `npm run dev:user` 不受影响
+- 当前逻辑只服务于一个页面
+- 还没有第二个复用场景
+- 只是局部样式和交互调整
+
+优先提取到公共层的情况：
+
+- 两个及以上页面已经在复用同一段逻辑
+- 是页面导航、页面状态或清单处理相关逻辑
+- 是通用 Vue 组件，不属于某一个业务页面
+
+一般来说：
+
+- 工具与类型进 `packages/page-core`
+- 通用 Vue 组件进 `apps/user-web/src/components`
+
+## 9. 提交前检查清单
+
+提交前至少确认：
+
+1. 页面可通过 `npm run dev:page -- --page <page-id>` 正常打开
+2. 整站可通过 `npm run dev:user` 正常启动
 3. `npm run check` 通过
-4. 页面仍然在 `pages.manifest.json` 中正确登记
-5. 没有误改别人的页面目录
+4. 必要时 `npm run build` 通过
+5. 页面仍正确登记在 `pages.manifest.json`
+6. 没有顺手改动无关页面
 
-## 9. 当前已经接入网页端的页面
+## 10. 常见问题
 
-目前能直接运行的页面有：
+### `npm install` 失败
 
-- `onboarding/intro`
-- `auth/login`
-- `home/dashboard`
-- `community/circle`
-- `community/publish`
+优先检查用户级 `.npmrc` 是否配置了失效代理，例如：
 
-其他功能模块已经有目录占位，可以继续往下补。
+```text
+C:\Users\<用户名>\.npmrc
+```
 
-## 10. 如果要让 Codex 帮你写页面
+如果里面存在：
 
-推荐流程：
+```ini
+proxy=http://127.0.0.1:10809
+https-proxy=http://127.0.0.1:10809
+```
 
-1. 先确认页面目录
-2. 运行 `npm run prompt:page -- --page <page-id>`
-3. 把生成的提示词交给 Codex
-4. 完成后用单页和整站两种方式验证
+但本地代理程序没有启动，就会导致 `ECONNREFUSED`。
+
+### `npm run dev:user` 在 Windows 报 `spawn EINVAL`
+
+当前脚本已兼容 Windows，会通过 `cmd.exe /c npm ...` 启动子进程。若仍出错，优先确认：
+
+- `npm` 本身是否可在当前终端执行
+- `node` 和 `npm` 版本是否正常
+- 本地是否有异常 shell 或代理注入
+
+## 11. 推荐阅读顺序
+
+如果你刚加入项目，建议按下面顺序阅读：
+
+1. 本文档
+2. [architecture.md](./architecture.md)
+3. [codex-workflow.md](./codex-workflow.md)

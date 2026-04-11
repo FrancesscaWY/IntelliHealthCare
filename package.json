@@ -11,7 +11,7 @@
     "dev:user": "node ./scripts/dev-user.mjs",
     "dev:page": "node ./scripts/dev-page.mjs",
     "build": "node ./scripts/build-user-web.mjs",
-    "check": "node ./scripts/validate-workspace.mjs",
+    "check": "node ./scripts/validate-workspace.mjs && npm run typecheck --workspace @ihc/user-web",
     "create:page": "node ./scripts/create-page.mjs",
     "prompt:page": "node ./scripts/codex-prompt.mjs"
   }

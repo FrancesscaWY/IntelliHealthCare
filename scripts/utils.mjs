@@ -32,7 +32,7 @@ export function parseArgs(argv) {
 }
 
 export function normalizePageId(rawPageId) {
-  return (rawPageId || "").replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  return String(rawPageId || "").replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
 export function loadManifest() {
@@ -81,10 +81,10 @@ export function buildPageEntry({
     route: `/${normalizedId}`,
     owner: owner || "待分配",
     status,
-    summary: summary || "待补充页面职责说明。",
+    summary: summary || "请根据原型补充页面职责说明。",
     folderPath: `/apps/user-web/src/pages/${normalizedId}`,
-    modulePath: `/apps/user-web/src/pages/${normalizedId}/page.js`,
-    mockPath: `/apps/user-web/src/pages/${normalizedId}/mock.js`,
+    modulePath: `/apps/user-web/src/pages/${normalizedId}/Page.vue`,
+    mockPath: `/apps/user-web/src/pages/${normalizedId}/mock.ts`,
     legacySources: [],
   };
 }

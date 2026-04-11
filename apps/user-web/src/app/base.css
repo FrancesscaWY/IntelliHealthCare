@@ -1,10 +1,14 @@
 :root {
   color-scheme: light;
-  --text: #15213a;
-  --muted: #607089;
-  --brand: #2457f5;
-  --accent: #ff7b61;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --text: #162033;
+  --muted: #66758b;
+  --brand: #2361eb;
+  --accent: #ff7d4d;
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-strong: rgba(255, 255, 255, 0.98);
+  --line: rgba(35, 82, 173, 0.12);
+  --shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 * {
@@ -17,7 +21,7 @@ body {
   min-height: 100%;
   background:
     radial-gradient(circle at top left, rgba(55, 110, 255, 0.16), transparent 24%),
-    radial-gradient(circle at right 12%, rgba(255, 123, 97, 0.12), transparent 22%),
+    radial-gradient(circle at right 12%, rgba(255, 125, 77, 0.12), transparent 22%),
     linear-gradient(180deg, #eef3fb 0%, #f8fafc 48%, #eef4fb 100%);
   color: var(--text);
 }
@@ -45,15 +49,19 @@ a {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 0;
 }
 
 .app-canvas {
   width: min(100%, 390px);
   min-height: 844px;
-  overflow-y: auto;
   overflow-x: hidden;
+  overflow-y: auto;
   background: linear-gradient(180deg, #e8f0ff 0%, #f8fbff 48%, #f0f5fb 100%);
+}
+
+.mobile-page-root {
+  min-height: 844px;
+  padding: 18px;
 }
 
 .page-eyebrow {
@@ -65,11 +73,6 @@ a {
   text-transform: uppercase;
 }
 
-.mobile-page-root {
-  min-height: 844px;
-  padding: 18px;
-}
-
 .command-chip {
   padding: 8px 12px;
   border: 1px dashed rgba(36, 87, 245, 0.22);
@@ -79,111 +82,40 @@ a {
   font-size: 13px;
 }
 
-.placeholder-page {
-  display: grid;
-  gap: 16px;
-}
-
-.placeholder-page__hero,
-.placeholder-page__notice {
-  padding: 20px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-}
-
-.placeholder-page__hero h1 {
-  margin: 8px 0 10px;
-  font-size: 30px;
-  line-height: 1.15;
-}
-
-.placeholder-page__hero p,
-.placeholder-page__notice p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.placeholder-page__notice strong {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 18px;
-}
-
-.toast-root {
-  position: fixed;
-  left: 50%;
-  bottom: 28px;
-  z-index: 999;
-  display: grid;
-  gap: 8px;
-  transform: translateX(-50%);
-}
-
-.toast-item {
-  padding: 10px 14px;
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.88);
-  color: #fff;
-  font-size: 13px;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.toast-item--visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.mobile-tabbar {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  padding: 14px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 40px rgba(24, 42, 77, 0.08);
-}
-
-.mobile-tabbar__item {
-  border: 0;
-  background: transparent;
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  color: #8a96ac;
-}
-
-.mobile-tabbar__item.is-active {
-  color: var(--brand);
-}
-
-.mobile-tabbar__item.is-center .mobile-tabbar__icon {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #ffad61);
-  color: #fff;
-}
-
-.mobile-tabbar__icon {
-  font-size: 18px;
+  font-size: 12px;
   font-weight: 700;
 }
 
-.mobile-tabbar__label {
-  font-size: 11px;
+.status-pill--implemented {
+  background: rgba(45, 167, 116, 0.12);
+  color: #1a7d53;
+}
+
+.status-pill--in-progress {
+  background: rgba(36, 97, 235, 0.1);
+  color: #2357c8;
+}
+
+.status-pill--planned {
+  background: rgba(255, 125, 77, 0.12);
+  color: #cf5b2d;
+}
+
+.page-loader {
+  padding: 28px 20px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 @media (max-width: 560px) {
-  .app-shell {
-    padding: 0;
-  }
-
   .app-canvas {
     width: 100%;
     min-height: 100vh;

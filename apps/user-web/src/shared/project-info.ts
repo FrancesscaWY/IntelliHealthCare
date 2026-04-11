@@ -1,26 +1,21 @@
 export const projectInfo = {
-  name: "智诊康养",
-  summary: "面向老年用户及家属的康养服务平台，支持服务下单、健康监测、生活圈互动与档案管理。",
-  delivery: "网页端优先，后续再封装为移动端 App 与小程序。",
+  name: "智养康护",
+  summary: "面向老年用户及家属的康养服务平台，支持服务下单、健康监测、社区互动与档案管理。",
+  delivery: "网页端优先，后续可继续封装为移动端 App 与小程序。",
   homePageId: "onboarding/intro",
   teamSize: 4,
   prototypeUrl: "https://www.axureshop.com/ys/2278800",
-  featureHighlights: [
-    "家政护理、康复理疗、上门体检",
-    "健康数据、设备中心、用药信息、健康膳食",
-    "健康资讯、疾病宝典、健康档案、订单管理",
-    "生活圈、老年活动、发布动态",
-  ],
+  featureHighlights: ["家政护理", "康复理疗", "上门体检", "健康数据", "社区互动", "档案管理"],
 };
 
 export const groupMeta = {
   onboarding: {
     title: "启动引导",
-    description: "首次打开 App 的欢迎、品牌与转化链路。",
+    description: "首次打开应用时的欢迎介绍、价值说明与转化入口。",
   },
   auth: {
     title: "登录与身份",
-    description: "手机号、验证码、第三方登录等入口。",
+    description: "手机号、验证码与第三方快捷登录入口。",
   },
   home: {
     title: "首页总览",
@@ -32,7 +27,7 @@ export const groupMeta = {
   },
   health: {
     title: "健康管理",
-    description: "健康数据、设备中心、用药与饮食管理。",
+    description: "健康数据、设备中心、用药与膳食管理。",
   },
   content: {
     title: "内容资讯",

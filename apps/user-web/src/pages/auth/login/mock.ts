@@ -1,4 +1,4 @@
-export default {
+const mock = {
   thirdPartyOptions: [
     { key: "wechat", short: "微", label: "微信" },
     { key: "alipay", short: "支", label: "支付宝" },
@@ -6,3 +6,5 @@ export default {
     { key: "weibo", short: "博", label: "微博" },
   ],
 };
+
+export default mock;

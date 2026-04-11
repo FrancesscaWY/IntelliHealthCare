@@ -22,19 +22,19 @@ export function validateWorkspace() {
     }
 
     const readmePath = path.join(folderPath, "README.md");
-    const pageFilePath = path.join(folderPath, "page.js");
-    const mockFilePath = path.join(folderPath, "mock.js");
+    const pageFilePath = path.join(folderPath, "Page.vue");
+    const mockFilePath = path.join(folderPath, "mock.ts");
 
     if (entry.status === "implemented") {
       if (!fs.existsSync(pageFilePath)) {
-        errors.push(`已实现页面缺少 page.js：${entry.id}`);
+        errors.push(`已实现页面缺少 Page.vue：${entry.id}`);
       }
 
       if (!fs.existsSync(mockFilePath)) {
-        errors.push(`已实现页面缺少 mock.js：${entry.id}`);
+        errors.push(`已实现页面缺少 mock.ts：${entry.id}`);
       }
     } else if (!fs.existsSync(readmePath) && !fs.existsSync(pageFilePath)) {
-      errors.push(`规划页面至少需要 README.md 或 page.js：${entry.id}`);
+      errors.push(`规划页面至少需要 README.md 或 Page.vue：${entry.id}`);
     }
   }
 

@@ -2,5 +2,9 @@
   "name": "@ihc/page-core",
   "private": true,
   "version": "0.2.0",
-  "type": "module"
+  "type": "module",
+  "exports": {
+    "./runtime": "./src/runtime.ts",
+    "./types": "./src/types.ts"
+  }
 }

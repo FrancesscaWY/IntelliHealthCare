@@ -1,4 +1,4 @@
-export default {
+const mock = {
   slides: [
     {
       key: "archive",
@@ -23,3 +23,5 @@ export default {
   ],
   highlights: ["服务下单", "设备联动", "家属协同", "生活圈互动"],
 };
+
+export default mock;

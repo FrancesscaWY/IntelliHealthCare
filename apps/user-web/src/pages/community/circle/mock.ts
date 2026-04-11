@@ -1,9 +1,9 @@
-export default {
+const mock = {
   banners: [
     {
       key: "photo",
       subtitle: "摄影大赛",
-      title: "桂花小区 春日摄影招募",
+      title: "桂花小区春日摄影招募",
     },
     {
       key: "lecture",
@@ -25,14 +25,14 @@ export default {
     hot: [
       {
         author: "亲如一家",
-        date: "1月3日",
+        date: "1 天前",
         content: "今天在公园散步，和老邻居聊了很久。这样的生活圈让日常照护之外也有陪伴感。",
         likes: 86,
         comments: 18,
       },
       {
         author: "银龄时光",
-        date: "1月5日",
+        date: "1 天前",
         content: "社区广场特别热闹，大家一起晒太阳、做操、聊天，感觉整个人都轻松了。",
         likes: 64,
         comments: 10,
@@ -41,7 +41,7 @@ export default {
     follow: [
       {
         author: "安康驿站",
-        date: "1月7日",
+        date: "1 天前",
         content: "活动室的读书分享会收获很多，围绕养生、旅行和退休生活聊了不少。",
         likes: 43,
         comments: 7,
@@ -49,3 +49,5 @@ export default {
     ],
   },
 };
+
+export default mock;

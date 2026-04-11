@@ -1,4 +1,4 @@
-export default {
+const mock = {
   searchTags: ["高血压", "冠心病", "如何控制血糖"],
   services: [
     { title: "家政护理", desc: "快速上门服务", icon: "护", pageId: "service/home-care" },
@@ -13,10 +13,10 @@ export default {
     { title: "健康档案", icon: "档", pageId: "archive/health-records" },
     { title: "老年活动", icon: "乐", pageId: "community/senior-activities" },
     { title: "健康资讯", icon: "讯", pageId: "content/health-news" },
-    { title: "健康膳食", icon: "食", pageId: "health/diet-plan" },
+    { title: "健康膳食", icon: "餐", pageId: "health/diet-plan" },
     { title: "订单管理", icon: "单", pageId: "orders/order-management" },
   ],
-  diseases: ["白内障", "高血压", "中风", "阿尔兹海默症", "糖尿病", "心率不齐"],
+  diseases: ["白内障", "高血压", "中风", "阿尔茨海默症", "糖尿病", "心率不齐"],
   articles: [
     {
       title: "老年人如何控制血糖？",
@@ -34,3 +34,5 @@ export default {
     },
   ],
 };
+
+export default mock;
