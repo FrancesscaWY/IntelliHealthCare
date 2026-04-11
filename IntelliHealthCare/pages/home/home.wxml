@@ -1,0 +1,147 @@
+<view class="home-page">
+  <scroll-view class="home-scroll" scroll-y enable-flex>
+    <view class="safe-space" style="height: {{statusBarHeight}}px;"></view>
+
+    <view class="topbar">
+      <view class="ip-block">
+        <view class="ip-icon">
+          <view class="ip-dot"></view>
+        </view>
+        <text class="ip-text">当前IP {{currentIp}}</text>
+      </view>
+
+      <view class="scan-btn" bindtap="handleScanDevice">
+        <view class="scan-corner corner-top-left"></view>
+        <view class="scan-corner corner-top-right"></view>
+        <view class="scan-corner corner-bottom-left"></view>
+        <view class="scan-corner corner-bottom-right"></view>
+      </view>
+    </view>
+
+    <view class="search-area">
+      <view class="search-box">
+        <view class="search-icon"></view>
+        <input
+          class="search-input"
+          placeholder="搜索"
+          placeholder-class="search-placeholder"
+          value="{{searchValue}}"
+          bindinput="handleSearchInput"
+          confirm-type="search"
+          bindconfirm="handleSearchConfirm"
+        />
+      </view>
+
+      <view class="tag-list">
+        <block wx:for="{{searchTags}}" wx:key="*this">
+          <view class="tag-item" data-keyword="{{item}}" bindtap="handleTagTap">{{item}}</view>
+        </block>
+      </view>
+    </view>
+
+    <view class="service-grid">
+      <block wx:for="{{serviceCards}}" wx:key="key">
+        <view class="service-card" data-title="{{item.title}}" bindtap="handleServiceTap">
+          <view class="service-icon">
+            <text class="service-icon-text">{{item.iconText}}</text>
+          </view>
+          <view class="service-title">{{item.title}}</view>
+          <view class="service-desc">{{item.desc}}</view>
+        </view>
+      </block>
+    </view>
+
+    <view class="feature-panel">
+      <view class="feature-grid">
+        <block wx:for="{{featureItems}}" wx:key="key">
+          <view class="feature-item" data-title="{{item.title}}" bindtap="handleFeatureTap">
+            <view class="feature-icon {{item.colorClass}}">
+              <text class="feature-icon-text">{{item.iconText}}</text>
+            </view>
+            <view class="feature-title">{{item.title}}</view>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view class="reminder-card">
+      <view class="reminder-side">健康提醒</view>
+      <view class="reminder-divider"></view>
+      <view class="reminder-content">
+        <view class="reminder-title">用药提醒</view>
+        <view class="reminder-desc">服药时间：06:30 卡托普利 2片</view>
+      </view>
+    </view>
+
+    <view class="section-header">
+      <view class="section-title">疾病宝典</view>
+      <view class="section-more" bindtap="handleMoreDisease">
+        <text>更多</text>
+        <view class="more-arrow"></view>
+      </view>
+    </view>
+
+    <view class="disease-list">
+      <block wx:for="{{diseaseList}}" wx:key="*this">
+        <view class="disease-chip" data-name="{{item}}" bindtap="handleDiseaseTap">{{item}}</view>
+      </block>
+    </view>
+
+    <view class="article-list">
+      <block wx:for="{{articles}}" wx:key="key">
+        <view class="article-card">
+          <view class="article-title">{{item.title}}</view>
+          <view class="article-desc">{{item.desc}}</view>
+
+          <view class="article-images">
+            <block wx:for="{{item.images}}" wx:key="label">
+              <view class="article-image {{item.className}}">
+                <text class="article-image-label">{{item.label}}</text>
+              </view>
+            </block>
+          </view>
+
+          <view class="article-actions">
+            <view class="article-action" data-action="分享" bindtap="handleArticleAction">
+              <view class="action-icon share-icon"></view>
+            </view>
+            <view class="article-action action-with-text" data-action="点赞" bindtap="handleArticleAction">
+              <view class="action-icon like-icon"></view>
+              <text>{{item.stats.likes}}</text>
+            </view>
+            <view class="article-action action-with-text" data-action="收藏" bindtap="handleArticleAction">
+              <view class="action-icon star-icon"></view>
+              <text>{{item.stats.stars}}</text>
+            </view>
+            <view class="article-action action-with-text" data-action="评论" bindtap="handleArticleAction">
+              <view class="action-icon comment-icon"></view>
+              <text>{{item.stats.comments}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view class="bottom-space"></view>
+  </scroll-view>
+
+  <view class="tabbar">
+    <block wx:for="{{tabItems}}" wx:key="key">
+      <view
+        class="tab-item {{item.key === 'publish' ? 'tab-item-center' : ''}}"
+        data-key="{{item.key}}"
+        data-label="{{item.label}}"
+        bindtap="handleTabTap"
+      >
+        <view
+          class="tab-icon {{activeTab === item.key ? 'tab-icon-active' : ''}} {{item.key === 'publish' ? 'tab-icon-publish' : ''}}"
+        >
+          <text class="tab-icon-text">{{item.iconText}}</text>
+        </view>
+        <view wx:if="{{item.label}}" class="tab-label {{activeTab === item.key ? 'tab-label-active' : ''}}">
+          {{item.label}}
+        </view>
+      </view>
+    </block>
+  </view>
+</view>

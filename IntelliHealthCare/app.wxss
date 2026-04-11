@@ -1,0 +1,10 @@
+page {
+  min-height: 100%;
+  background: #f6f8fc;
+  color: #2a3152;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+button {
+  border: 0;
+}
