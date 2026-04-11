@@ -1,37 +1,51 @@
 # Codex 协作规范
 
-## 1. 目标
+## 1. 推荐流程
 
-使用 Codex 开发页面时，最容易失控的是：
+1. 先确认目标页面在 `apps/user-web/src/pages/<domain>/<page>/`
+2. 如果目录不存在，先运行 `npm run create:page ...`
+3. 先补 `mock.js`，确保可以单页调试
+4. 用 `npm run dev:page -- --page <page-id>` 做页面开发
+5. 再用 `npm run dev:user` 看整站接入效果
 
-- 页面写到了错误目录。
-- 导出接口不统一，无法自动接入。
-- 为了实现单个页面改动了别人的页面。
-- 没有 mock 数据，单页无法自测。
+## 2. 给 Codex 的最小上下文
 
-所以这里把 Codex 的工作方式也标准化。
+至少提供以下信息：
 
-## 2. 推荐流程
-
-1. 用 `npm run create:page ...` 创建页面目录。
-2. 用 `npm run prompt:page ...` 生成本页提示词。
-3. 把提示词交给 Codex 完成页面。
-4. 用 `npm run dev:page ...` 检查单页。
-5. 用 `npm run dev:user` 或 `npm run dev:admin` 检查集成。
-
-## 3. Codex 提示词必须包含的信息
-
+- 页面 id，例如 `health/health-data`
 - 页面目录
-- 页面规范文件位置
-- mock 文件位置
-- 默认导出接口格式
-- 允许修改的文件范围
+- `page.js` 位置
+- `mock.js` 位置
+- 是否允许改 `packages/page-core`
 - 验证命令
 
-## 4. 对成员的建议
+## 3. 允许的修改范围
 
-- 尽量让一个 Codex 任务只负责一个页面目录。
-- 不要让 Codex 顺手重构整个项目。
-- 如果页面需要公共组件，先确认确实会复用，再提取到 `packages/`。
-- 如果原型未完全明确，先完成静态结构和 mock 场景，再补交互。
+默认只允许修改：
 
+- 当前页面目录
+- 确有必要的 `packages/page-core`
+- 文档中与该页面直接相关的说明
+
+不要顺手重构整个项目。
+
+## 4. 推荐命令
+
+生成页面脚手架：
+
+```bash
+npm run create:page -- --group health --page blood-pressure --title "血压监测"
+```
+
+生成页面提示词：
+
+```bash
+npm run prompt:page -- --page health/health-data
+```
+
+## 5. 页面完成后的最低验证
+
+- 单页预览通过
+- 整站首页能正常打开
+- mock 数据仍然可用
+- 页面目录和 manifest 一致

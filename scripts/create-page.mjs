@@ -1,30 +1,25 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { getAppConfig, normalizePageId, parseArgs, resolvePageFolder } from "./utils.mjs";
+import { buildPageEntry, loadManifest, normalizePageId, parseArgs, resolvePageFolder, saveManifest } from "./utils.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, "..");
 const args = parseArgs(process.argv.slice(2));
-
-const appId = args.app;
-const moduleName = args.module;
+const group = args.group || args.module;
 const pageName = args.page;
 const title = args.title || "未命名页面";
 const owner = args.owner || "待分配";
-const route = args.route || `/${moduleName}/${pageName}`;
+const summary = args.summary || "请根据原型补充页面职责说明。";
 
-if (!appId || !moduleName || !pageName) {
+if (!group || !pageName) {
   console.error(
-    "用法：npm run create:page -- --app user-mobile --module service-order --page list --title \"服务下单列表\" --owner \"张三\"",
+    "用法：npm run create:page -- --group health --page health-data --title \"健康数据\" --owner \"成员A\"",
   );
   process.exit(1);
 }
 
-getAppConfig(appId);
-
-const pageId = normalizePageId(`${moduleName}/${pageName}`);
-const pageFolder = resolvePageFolder(rootDir, appId, pageId);
+const pageId = normalizePageId(`${group}/${pageName}`);
+const pageFolder = resolvePageFolder(pageId);
+const escapedGroup = JSON.stringify(group.toUpperCase());
+const escapedTitle = JSON.stringify(title);
 
 if (fs.existsSync(pageFolder)) {
   console.error(`页面目录已存在：${pageFolder}`);
@@ -33,78 +28,69 @@ if (fs.existsSync(pageFolder)) {
 
 fs.mkdirSync(pageFolder, { recursive: true });
 
-const spec = {
-  id: pageId,
-  app: appId,
-  module: moduleName,
-  route,
-  title,
-  navLabel: title,
-  description: "请根据原型补充页面描述。",
-  owner,
-  status: "planned",
-  prototype: {
-    reference: "请补充原型链接或页面编号",
-    notes: ["请补充关键交互说明"],
-  },
-};
-
-fs.writeFileSync(path.join(pageFolder, "page.spec.json"), `${JSON.stringify(spec, null, 2)}\n`, "utf8");
-
 fs.writeFileSync(
-  path.join(pageFolder, "page.mocks.ts"),
+  path.join(pageFolder, "mock.js"),
   [
-    'import type { MockScenario } from "@ihc/page-core";',
-    "",
-    "export interface GeneratedPageMock {",
-    "  title: string;",
-    "  summary: string;",
-    "}",
-    "",
-    "export const generatedPageScenes: MockScenario<GeneratedPageMock>[] = [",
-    "  {",
-    '    id: "default",',
-    '    label: "默认场景",',
-    '    description: "用于单页联调的基础场景。",',
-    "    data: {",
-    `      title: "${title}",`,
-    '      summary: "请根据页面业务补充 mock 数据。",',
-    "    },",
-    "  },",
-    "];",
+    "export default {",
+    `  title: ${JSON.stringify(title)},`,
+    `  summary: ${JSON.stringify(summary)},`,
+    "  sections: [],",
+    "};",
     "",
   ].join("\n"),
   "utf8",
 );
 
 fs.writeFileSync(
-  path.join(pageFolder, "page.tsx"),
+  path.join(pageFolder, "page.js"),
   [
-    'import { definePageModule, type PageRenderContext } from "@ihc/page-core";',
-    'import spec from "./page.spec.json";',
-    'import { generatedPageScenes, type GeneratedPageMock } from "./page.mocks";',
+    'import mock from "./mock.js";',
+    'import { createPlaceholderMarkup } from "/packages/page-core/src/runtime.js";',
     "",
-    "function GeneratedPage({ scene, mode }: PageRenderContext<GeneratedPageMock>) {",
-    "  return (",
-    '    <section className=\"page-card\">',
-    "      <header>",
-    "        <p className=\"eyebrow\">{mode === \"page\" ? \"单页预览\" : \"集成预览\"}</p>",
-    "        <h1>{scene.data.title}</h1>",
-    "      </header>",
-    "      <p>{scene.data.summary}</p>",
-    "    </section>",
-    "  );",
+    "export const styles = `",
+    "",
+    "`;",
+    "",
+    "export function mount({ root }) {",
+    "  root.innerHTML = createPlaceholderMarkup({",
+    `    group: ${escapedGroup},`,
+    `    title: ${escapedTitle},`,
+    "    summary: mock.summary,",
+    "  });",
     "}",
-    "",
-    "export default definePageModule({",
-    "  spec,",
-    "  scenes: generatedPageScenes,",
-    "  Component: GeneratedPage,",
-    "});",
     "",
   ].join("\n"),
   "utf8",
 );
+
+fs.writeFileSync(
+  path.join(pageFolder, "README.md"),
+  [
+    `# ${title}`,
+    "",
+    `- 页面 id：\`${pageId}\``,
+    `- 页面目录：\`apps/user-web/src/pages/${pageId}\``,
+    `- 负责人：${owner}`,
+    "",
+    "开发约定：",
+    "- 在 `page.js` 中编写页面结构和交互。",
+    "- 在 `mock.js` 中维护单页调试数据。",
+    "- 如果需要复用能力，优先抽到 `packages/page-core`。",
+    "",
+  ].join("\n"),
+  "utf8",
+);
+
+const manifest = loadManifest();
+manifest.push(
+  buildPageEntry({
+    id: pageId,
+    title,
+    group,
+    summary,
+    owner,
+  }),
+);
+saveManifest(manifest);
 
 console.log(`已创建页面：${pageFolder}`);
-

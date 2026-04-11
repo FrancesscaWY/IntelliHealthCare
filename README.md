@@ -1,86 +1,75 @@
-# IntelliHealthCare Frontend Workspace
+# IntelliHealthCare
 
-这个仓库不是一次性把所有页面写完，而是先把团队协作和 AI 协作的骨架固定下来。
+智诊康养网页端项目。当前仓库已经提供两种直接可用的开发运行方式：
 
-## 目标
+- `npm run dev:user`：直接打开整站首页体验
+- `npm run dev:page -- --page <page-id>`：直接打开某个子页面
 
-- 每个成员只维护自己的页面目录，互不干扰。
-- 每个页面都能独立预览、独立验证。
-- 用户端和后台端都能做整体验证。
-- 使用 Codex 时，每个页面都遵守统一的输入输出接口。
-
-## 目录
-
-```text
-apps/
-  user-mobile/      用户端预览壳
-  admin-console/    后台端预览壳
-packages/
-  page-core/        页面契约与共享类型
-scripts/
-  dev-page.mjs      按页面启动
-  dev-all.mjs       同时启动双端
-  create-page.mjs   生成标准页面目录
-  codex-prompt.mjs  生成 Codex 提示词
-docs/
-  architecture.md
-  codex-workflow.md
-```
-
-## 快速开始
+## 启动命令
 
 ```bash
-npm install
 npm run dev:user
 ```
 
-单页预览：
+默认进入整站首页 `home/dashboard`，可以在页面内继续跳转到已接入的子页面。
+建议在浏览器开发者工具中使用移动端设备模式调试，目标分辨率为 `390 x 844`。
 
 ```bash
-npm run dev:page -- --app user-mobile --page health-data/overview
-npm run dev:page -- --app admin-console --page elder-profile/list
+npm run dev:page -- --page auth/login
 ```
 
-双端联调：
+只运行一个子页面，适合开发和调试局部功能。
 
 ```bash
-npm run dev:all
+npm run check
+npm run build
 ```
 
-创建新页面：
+分别用于结构校验和输出静态预览文件。
 
-```bash
-npm run create:page -- --app user-mobile --module service-order --page list --title "服务下单列表" --owner "张三"
-```
-
-生成给 Codex 的统一提示词：
-
-```bash
-npm run prompt:page -- --app user-mobile --page health-data/overview
-```
-
-## 页面约定
-
-每个页面必须放在固定目录中：
+## 目录概览
 
 ```text
-src/pages/<module>/<page>/
-  page.spec.json
-  page.mocks.ts
-  page.tsx
+apps/
+  user-web/                 当前网页端应用
+packages/
+  page-core/                共享运行时和通用 UI 能力
+legacy/
+  miniprogram-user/         保留的小程序原型代码
+scripts/
+  dev-user.mjs              整站入口
+  dev-page.mjs              单页入口
+  create-page.mjs           页面脚手架
+  codex-prompt.mjs          页面开发提示词
+docs/
+  architecture.md
+  codex-workflow.md
+  member-development-manual.md
 ```
 
-- `page.spec.json`：页面身份、路由、原型引用、负责人、状态。
-- `page.mocks.ts`：本页独立调试用 mock 场景。
-- `page.tsx`：页面实现，默认导出 `definePageModule(...)`。
+## 页面目录规范
 
-## 推荐协作方式
+每个页面固定放在：
 
-1. 先用 `create:page` 创建目录。
-2. 成员只修改自己负责的页面目录。
-3. 本地先跑 `dev:page` 验证单页。
-4. 再跑 `dev:user` 或 `dev:admin` 验证集成效果。
-5. 如果使用 Codex，先用 `prompt:page` 生成统一提示词。
+```text
+apps/user-web/src/pages/<domain>/<page>/
+  page.js
+  mock.js
+  README.md
+```
 
-详细说明见 [docs/architecture.md](./docs/architecture.md) 和 [docs/codex-workflow.md](./docs/codex-workflow.md)。
+## 已保留的页面
 
+目前已经接入网页端运行的页面：
+
+- `onboarding/intro`
+- `auth/login`
+- `home/dashboard`
+- `community/circle`
+- `community/publish`
+
+## 团队开发手册
+
+成员开发请优先看：
+
+- [docs/member-development-manual.md](./docs/member-development-manual.md)
