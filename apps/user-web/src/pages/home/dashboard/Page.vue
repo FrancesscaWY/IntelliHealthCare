@@ -204,7 +204,7 @@ function showAction(label: string) {
   <section class="home-page">
     <main class="home-scroll">
       <header class="home-topbar">
-        <button class="location-btn" type="button" @click="showAction('定位')">
+        <button class="location-btn" type="button" @click="openPage('home/location-select', '选择地区')">
           <img class="location-icon" :src="locationIcon" alt="定位" draggable="false" />
           <span>{{ mock.city }}</span>
           <span class="location-caret" aria-hidden="true"></span>
@@ -216,10 +216,10 @@ function showAction(label: string) {
       </header>
 
       <section class="search-wrap">
-        <label class="search-box">
+        <button class="search-box" type="button" @click="openPage('home/search', '搜索')">
           <span class="search-icon" aria-hidden="true"></span>
-          <input v-model="searchValue" type="search" placeholder="搜索" />
-        </label>
+          <span class="search-placeholder">搜索</span>
+        </button>
 
         <div class="search-tags">
           <button v-for="tag in mock.searchTags" :key="tag" type="button" @click="applyTag(tag)">{{ tag }}</button>
@@ -261,7 +261,13 @@ function showAction(label: string) {
         </button>
       </section>
 
-      <section class="reminder-card">
+      <section
+        class="reminder-card"
+        role="button"
+        tabindex="0"
+        @click="openPage('health/medication-info', '用药信息')"
+        @keydown.enter="openPage('health/medication-info', '用药信息')"
+      >
         <div class="reminder-label">
           <span>健康</span>
           <span>提醒</span>
@@ -286,7 +292,7 @@ function showAction(label: string) {
         </header>
 
         <div class="disease-list">
-          <button v-for="item in mock.diseases" :key="item" type="button" class="disease-pill" @click="showAction(item)">
+          <button v-for="item in mock.diseases" :key="item" type="button" class="disease-pill" @click="openPage('content/disease-guide', item)">
             {{ item }}
           </button>
         </div>
@@ -415,6 +421,7 @@ function showAction(label: string) {
 
 .location-btn,
 .scan-btn,
+.search-box,
 .search-tags button,
 .service-card,
 .feature-item,
@@ -480,6 +487,7 @@ function showAction(label: string) {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
   height: 40px;
   padding: 0 28px;
   border: 3px solid transparent;
@@ -511,18 +519,9 @@ function showAction(label: string) {
   transform: rotate(45deg);
 }
 
-.search-box input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #252939;
-  font-size: 16px;
-}
-
-.search-box input::placeholder {
+.search-placeholder {
   color: #a7a9b0;
+  font-size: 16px;
 }
 
 .search-tags {
@@ -647,6 +646,7 @@ function showAction(label: string) {
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 14px 30px rgba(82, 105, 148, 0.06);
+  cursor: pointer;
 }
 
 .reminder-label {
