@@ -1,27 +1,39 @@
+import medicalExamIllustration from "@/assets/onboarding/体检.png";
+import housekeepingIllustration from "@/assets/onboarding/家政.png";
+import healthDataIllustration from "@/assets/onboarding/健康数据.png";
+import homeVisitIllustration from "@/assets/onboarding/上门.png";
+
 const mock = {
   slides: [
     {
       key: "archive",
       title: "健康档案",
-      desc: "多维度健康信息沉淀，帮助家属和医护更快了解老人状态。",
+      descLines: ["多维度健康信息，实时记录老人健康状况"],
+      image: medicalExamIllustration,
+      imageAlt: "健康档案插画",
     },
     {
-      key: "service",
+      key: "housekeeping",
       title: "家政护理",
-      desc: "从日常照护到康复理疗，在线预约后即可安排上门服务。",
+      descLines: ["贴心上门服务，多种护理服务可供选择"],
+      image: housekeepingIllustration,
+      imageAlt: "家政护理插画",
     },
     {
       key: "data",
       title: "健康数据",
-      desc: "连接设备后可实时查看血压、血糖、睡眠等核心指标。",
+      descLines: ["设备互联，实现健康数据实时检测"],
+      image: healthDataIllustration,
+      imageAlt: "健康数据插画",
     },
     {
-      key: "exam",
+      key: "home-exam",
       title: "上门体检",
-      desc: "支持套餐选择、预约时间和报告解读，减少老人奔波。",
+      descLines: ["多种体检项目，在线看体检报告，", "提供报告解读"],
+      image: homeVisitIllustration,
+      imageAlt: "上门体检插画",
     },
   ],
-  highlights: ["服务下单", "设备联动", "家属协同", "生活圈互动"],
 };
 
 export default mock;
