@@ -4,7 +4,6 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
-
 const form = reactive({
   realName: "",
   idCard: "",
@@ -81,7 +80,41 @@ function saveProfile() {
       <h1>实名认证</h1>
     </header>
 
+    <section class="verify-hero">
+      <div>
+        <h2>实名认证</h2>
+        <p>更加真实，更受欢迎</p>
+      </div>
+      <span class="verify-icon" aria-hidden="true">
+        <svg viewBox="0 0 128 128" focusable="false">
+          <defs>
+            <linearGradient id="shieldBody" x1="22" y1="18" x2="106" y2="112" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#e5ecff" />
+              <stop offset="0.5" stop-color="#6f8dff" />
+              <stop offset="1" stop-color="#8c6cf5" />
+            </linearGradient>
+            <linearGradient id="shieldFace" x1="33" y1="23" x2="98" y2="105" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#f7fbff" stop-opacity="0.72" />
+              <stop offset="0.52" stop-color="#7692ff" stop-opacity="0.72" />
+              <stop offset="1" stop-color="#8a72fb" stop-opacity="0.78" />
+            </linearGradient>
+            <linearGradient id="shieldCheck" x1="43" y1="64" x2="87" y2="64" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#ecfbff" />
+              <stop offset="1" stop-color="#ffffff" />
+            </linearGradient>
+          </defs>
+          <path class="shield-shadow" d="M64 8 108 26v31c0 29-17.5 49.3-44 61-26.5-11.7-44-32-44-61V26L64 8Z" />
+          <path class="shield-body" d="M64 8 108 26v31c0 29-17.5 49.3-44 61-26.5-11.7-44-32-44-61V26L64 8Z" />
+          <path class="shield-face" d="M64 20 97 34v24c0 21.8-12.8 37.8-33 48-20.2-10.2-33-26.2-33-48V34L64 20Z" />
+          <path class="shield-split" d="M64 20v86c20.2-10.2 33-26.2 33-48V34L64 20Z" />
+          <path class="shield-check" d="M43 64.5 57.4 78 87 49" />
+        </svg>
+      </span>
+    </section>
+
     <section class="profile-form">
+      <h2>请您使用有效身份证信息认证</h2>
+
       <label class="profile-row" for="realName">
         <span class="profile-label">真实姓名<em>*</em></span>
         <input id="realName" v-model="form.realName" class="profile-input" type="text" placeholder="请填写您的真实姓名" />
@@ -113,13 +146,16 @@ function saveProfile() {
         <span class="profile-label">家庭住址</span>
         <input id="address" v-model="form.address" class="profile-input" type="text" placeholder="请填写目前的家庭住址" />
       </label>
+
+      <div class="card-actions">
+        <button class="save-btn" type="button" @click="saveProfile">立即认证</button>
+      </div>
     </section>
 
-    <div class="real-name-fill" aria-hidden="true"></div>
-
-    <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveProfile">保存</button>
-    </footer>
+    <p class="real-name-note">
+      <span aria-hidden="true">i</span>
+      实名仅用于确认本人身份，不会对信息做任何采集与传播，请放心使用。
+    </p>
 
     <div v-if="activePicker" class="picker-mask" @click="closePicker">
       <section class="picker-panel" @click.stop>
@@ -159,19 +195,20 @@ function saveProfile() {
   min-height: min(844px, calc(100vh - 36px));
   max-height: 844px;
   margin: -18px 0;
-  padding-bottom: 112px;
   transform: translateX(-50%);
   overflow: hidden;
-  background: #f5f6f7;
+  background:
+    linear-gradient(180deg, #4f6ff5 0, #6287ff 118px, #83b8ff 248px, #f6f7fb 328px, #f6f7fb 100%);
   color: #333333;
+  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
 }
 
 .real-name-nav {
   display: flex;
   align-items: center;
-  height: 70px;
-  padding: 0 19px;
-  background: #ffffff;
+  height: 64px;
+  padding: 0 28px;
+  background: transparent;
 }
 
 .back-btn {
@@ -188,46 +225,132 @@ function saveProfile() {
 .back-arrow {
   width: 13px;
   height: 13px;
-  border-bottom: 3px solid #3b3b3b;
-  border-left: 3px solid #3b3b3b;
+  border-bottom: 3px solid #ffffff;
+  border-left: 3px solid #ffffff;
   transform: rotate(45deg);
 }
 
 .real-name-nav h1 {
-  margin: 0 0 0 2px;
-  color: #333333;
-  font-size: 24px;
+  display: none;
+}
+
+.verify-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: start;
+  min-height: 205px;
+  padding: 18px 20px 0 31px;
+  overflow: visible;
+}
+
+.verify-hero > div {
+  transform: translateY(26px);
+}
+
+.verify-icon {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 168px;
+  height: 168px;
+  filter: drop-shadow(0 24px 24px rgba(40, 72, 164, 0.24));
+  transform: translate(-18px, 0) rotate(-8deg);
+}
+
+.verify-icon svg {
+  display: block;
+  width: 168px;
+  height: 168px;
+}
+
+.shield-shadow {
+  fill: rgba(255, 255, 255, 0.38);
+  transform: translate(5px, -4px);
+}
+
+.shield-body {
+  fill: url(#shieldBody);
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 7;
+}
+
+.shield-face {
+  fill: url(#shieldFace);
+}
+
+.shield-split {
+  fill: rgba(68, 82, 223, 0.16);
+}
+
+.shield-check {
+  fill: none;
+  stroke: url(#shieldCheck);
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 5px 5px rgba(65, 86, 188, 0.28));
+}
+
+.verify-hero h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 25px;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.verify-hero p {
+  margin: 11px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 15px;
+  letter-spacing: 0.04em;
 }
 
 .profile-form {
+  position: relative;
+  z-index: 3;
+  margin: -46px 28px 0;
+  overflow: hidden;
+  padding: 25px 19px 21px;
+  border-radius: 12px;
   background: #ffffff;
+  box-shadow: 0 16px 34px rgba(66, 86, 124, 0.08);
+}
+
+.profile-form h2 {
+  margin: 0 0 20px;
+  color: #1f2530;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .profile-row {
   position: relative;
   display: grid;
-  grid-template-columns: 139px minmax(0, 1fr) 20px;
+  grid-template-columns: 80px minmax(0, 1fr) 14px;
   align-items: center;
   width: 100%;
-  height: 65px;
-  padding: 0 18px 0 22px;
+  min-height: 45px;
+  margin-top: 12px;
+  padding: 0 16px 0 18px;
   border: 0;
-  border-top: 1px solid #f0f0f0;
-  background: #ffffff;
+  border-radius: 999px;
+  background: #f8f9fb;
   text-align: left;
 }
 
 .profile-row:first-child {
-  border-top: 0;
+  margin-top: 0;
 }
 
 .profile-label {
-  color: #9a9a9a;
-  font-size: 20px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
+  color: #5f6672;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -241,7 +364,7 @@ function saveProfile() {
 .profile-value {
   min-width: 0;
   color: #333333;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 400;
 }
 
@@ -254,42 +377,60 @@ function saveProfile() {
 
 .profile-input::placeholder,
 .profile-placeholder {
-  color: #b6b6b6;
+  color: #b4bac4;
   opacity: 1;
 }
 
 .profile-arrow {
   justify-self: end;
-  width: 10px;
-  height: 10px;
-  border-top: 3px solid #d2d2d2;
-  border-right: 3px solid #d2d2d2;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #cbd0d8;
+  border-right: 2px solid #cbd0d8;
   transform: rotate(45deg);
 }
 
-.real-name-fill {
-  height: 524px;
-  background: #f5f6f7;
-}
-
-.save-area {
-  position: absolute;
-  right: 18px;
-  bottom: 29px;
-  left: 18px;
+.card-actions {
+  margin-top: 18px;
 }
 
 .save-btn {
   width: 100%;
-  height: 66px;
+  height: 50px;
   border: 0;
-  border-radius: 16px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #9b73ff 0%, #5269f8 100%);
+  box-shadow: 0 14px 30px rgba(93, 105, 248, 0.22);
   color: #ffffff;
-  font-size: 23px;
+  font-size: 17px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+}
+
+.real-name-note {
+  display: flex;
+  gap: 9px;
+  margin: 16px 28px 0;
+  padding: 15px 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #969da8;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.real-name-note span {
+  display: grid;
+  flex: 0 0 17px;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #d8dce4;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .picker-mask {
@@ -381,17 +522,30 @@ function saveProfile() {
 }
 
 @media (max-width: 389px) {
-  .profile-row {
-    grid-template-columns: 118px minmax(0, 1fr) 18px;
-    padding-right: 16px;
-    padding-left: 18px;
+  .profile-form {
+    margin-right: 14px;
+    margin-left: 14px;
   }
 
-  .profile-label,
+  .real-name-note {
+    margin-right: 14px;
+    margin-left: 14px;
+  }
+
+  .profile-row {
+    grid-template-columns: 88px minmax(0, 1fr) 16px;
+    padding-right: 13px;
+    padding-left: 15px;
+  }
+
+  .profile-label {
+    font-size: 14px;
+  }
+
   .profile-input,
   .profile-placeholder,
   .profile-value {
-    font-size: 18px;
+    font-size: 15px;
   }
 }
 </style>
