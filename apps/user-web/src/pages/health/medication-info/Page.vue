@@ -54,19 +54,6 @@ function editMedication() {
     </header>
 
     <main class="medication-scroll">
-      <section class="overview-card">
-        <div class="overview-copy">
-          <span>{{ mock.overview.eyebrow }}</span>
-          <h2>{{ mock.overview.title }}</h2>
-          <p>下一次提醒：{{ mock.overview.next }}</p>
-        </div>
-        <div class="overview-metrics">
-          <strong>{{ mock.overview.total }}</strong>
-          <small>今日总计</small>
-          <em>{{ mock.overview.completed }}</em>
-        </div>
-      </section>
-
       <article v-for="meal in mock.meals" :key="meal.key" class="meal-card">
         <header class="meal-header">
           <span class="meal-icon" aria-hidden="true">
@@ -158,7 +145,7 @@ function editMedication() {
 
 .medication-scroll {
   height: calc(100% - 74px);
-  padding: 24px 31px 116px;
+  padding: 20px 31px 104px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -167,104 +154,13 @@ function editMedication() {
   display: none;
 }
 
-.overview-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 82px;
-  gap: 16px;
-  min-height: 128px;
-  padding: 20px 18px 20px 20px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 22px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 255, 0.92) 48%, rgba(226, 252, 244, 0.88) 100%);
-  box-shadow: 0 18px 42px rgba(72, 104, 148, 0.1);
-}
-
-.overview-card::after {
-  position: absolute;
-  right: -22px;
-  bottom: -25px;
-  width: 106px;
-  height: 106px;
-  content: "";
-  border-radius: 50%;
-  background: rgba(102, 112, 240, 0.08);
-}
-
-.overview-copy {
-  position: relative;
-  z-index: 1;
-}
-
-.overview-copy span {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 11px;
-  border-radius: 999px;
-  background: rgba(102, 112, 240, 0.1);
-  color: #6670f0;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.overview-copy h2 {
-  margin: 13px 0 0;
-  color: #293445;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.overview-copy p {
-  margin: 9px 0 0;
-  color: #7f8998;
-  font-size: 14px;
-}
-
-.overview-metrics {
-  position: relative;
-  z-index: 1;
-  align-self: center;
-  display: grid;
-  place-items: center;
-  width: 78px;
-  height: 78px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, #6872f0 0%, #62d8be 100%);
-  box-shadow: 0 16px 28px rgba(102, 112, 240, 0.18);
-  color: #ffffff;
-}
-
-.overview-metrics strong {
-  margin-top: 4px;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.overview-metrics small {
-  margin-top: -2px;
-  font-size: 11px;
-  opacity: 0.9;
-}
-
-.overview-metrics em {
-  margin-top: -2px;
-  font-size: 12px;
-  font-style: normal;
-  opacity: 0.78;
-}
-
 .meal-card {
   overflow: hidden;
-  margin-top: 16px;
+  margin-top: 10px;
   border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 20px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 15px 34px rgba(72, 104, 148, 0.075);
+  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.06);
 }
 
 .meal-card:first-child {
@@ -273,29 +169,29 @@ function editMedication() {
 
 .meal-header {
   display: grid;
-  grid-template-columns: 48px auto minmax(0, 1fr);
-  gap: 13px;
-  height: 69px;
-  padding: 0 31px;
+  grid-template-columns: 32px auto minmax(0, 1fr);
+  gap: 8px;
+  height: 47px;
+  padding: 0 20px;
   background: linear-gradient(90deg, rgba(247, 249, 255, 0.9) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
 .meal-icon {
   display: grid;
   place-items: center;
-  width: 47px;
-  height: 47px;
+  width: 32px;
+  height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.84);
   border-radius: 50%;
   background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
   box-shadow: 0 8px 18px rgba(54, 67, 92, 0.06);
-  transform: translateY(5px);
+  transform: translateY(4px);
 }
 
 .meal-icon svg {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 19px;
+  height: 19px;
   fill: none;
   stroke: #30343f;
   stroke-width: 2.15;
@@ -304,32 +200,32 @@ function editMedication() {
 }
 
 .meal-header h2 {
-  margin: 16px 0 0;
+  margin: 12px 0 0;
   color: #30343f;
-  font-size: 23px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: 0.03em;
   white-space: nowrap;
 }
 
 .meal-header p {
-  margin: 20px 0 0;
+  margin: 14px 0 0;
   color: #b7b7bb;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
 }
 
 .medicine-list {
-  padding: 0 29px 6px 31px;
+  padding: 0 20px 4px;
 }
 
 .medicine-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 66px 56px;
+  grid-template-columns: minmax(0, 1fr) 48px 42px;
   align-items: center;
   width: 100%;
-  height: 52px;
+  height: 37px;
   padding: 0;
   border-top: 1px solid #eeeeee;
   border-right: 0;
@@ -342,27 +238,27 @@ function editMedication() {
 .medicine-name {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   color: #30343f;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .medicine-name span {
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #c8d1df;
 }
 
 .medicine-dose {
   justify-self: end;
-  min-width: 64px;
-  height: 29px;
+  min-width: 46px;
+  height: 22px;
   border-radius: 999px;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 29px;
+  line-height: 22px;
   text-align: center;
 }
 
@@ -384,7 +280,7 @@ function editMedication() {
 .medicine-time {
   justify-self: end;
   color: #8e8f94;
-  font-size: 19px;
+  font-size: 14px;
   font-weight: 400;
 }
 
@@ -398,19 +294,19 @@ function editMedication() {
 
 .add-area {
   position: absolute;
-  right: 31px;
-  bottom: 26px;
-  left: 31px;
+  right: 54px;
+  bottom: 28px;
+  left: 54px;
 }
 
 .add-btn {
   width: 100%;
-  height: 66px;
-  border-radius: 13px;
+  height: 54px;
+  border-radius: 11px;
   background: #6670f0;
   box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
   color: #ffffff;
-  font-size: 24px;
+  font-size: 19px;
   font-weight: 500;
   letter-spacing: 0.04em;
 }

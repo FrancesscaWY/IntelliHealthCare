@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { nextTick, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const scrollRef = ref<HTMLElement | null>(null);
+const activeLetter = ref(mock.cityGroups[0]?.letter || "A");
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -23,8 +26,43 @@ function selectCity(city: string) {
 
 function jumpToLetter(letter: string) {
   const target = document.getElementById(`city-${letter}`);
-  target?.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (!target || !scrollRef.value) {
+    return;
+  }
+
+  activeLetter.value = letter;
+  scrollRef.value.scrollTo({
+    top: target.offsetTop - scrollRef.value.offsetTop,
+    behavior: "smooth",
+  });
 }
+
+function syncActiveLetter() {
+  const container = scrollRef.value;
+  if (!container) {
+    return;
+  }
+
+  const baseline = container.getBoundingClientRect().top + 12;
+  let current = mock.cityGroups[0]?.letter || "A";
+
+  for (const group of mock.cityGroups) {
+    const target = document.getElementById(`city-${group.letter}`);
+    if (!target) {
+      continue;
+    }
+
+    if (target.getBoundingClientRect().top <= baseline) {
+      current = group.letter;
+    } else {
+      break;
+    }
+  }
+
+  activeLetter.value = current;
+}
+
+nextTick(syncActiveLetter);
 </script>
 
 <template>
@@ -36,7 +74,7 @@ function jumpToLetter(letter: string) {
       <h1>{{ mock.title }}</h1>
     </header>
 
-    <main class="location-scroll">
+    <main ref="scrollRef" class="location-scroll" @scroll.passive="syncActiveLetter">
       <section class="current-section">
         <h2>当前定位城市</h2>
         <div class="current-row">
@@ -84,7 +122,7 @@ function jumpToLetter(letter: string) {
         v-for="letter in mock.indexLetters"
         :key="letter"
         type="button"
-        :class="{ 'letter-index--active': letter === 'A' }"
+        :class="{ 'letter-index--active': letter === activeLetter }"
         @click="jumpToLetter(letter)"
       >
         {{ letter }}
