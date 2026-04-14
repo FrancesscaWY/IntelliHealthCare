@@ -103,6 +103,19 @@
     "legacySources": []
   },
   {
+    "id": "health/add-data",
+    "title": "添加数据",
+    "group": "health",
+    "route": "/health/add-data",
+    "owner": "joy",
+    "status": "planned",
+    "summary": "添加步数、睡眠时长、血压血糖等各项健康数据",
+    "folderPath": "/apps/user-web/src/pages/health/add-data",
+    "modulePath": "/apps/user-web/src/pages/health/add-data/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/add-data/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/data-bloodglucose",
     "title": "血糖",
     "group": "health",

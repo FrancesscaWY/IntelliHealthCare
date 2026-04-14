@@ -76,6 +76,13 @@ function goBack() {
     window.history.back();
   }
 }
+
+// 添加体重数据跳转
+function goToAddData() {
+  sessionStorage.setItem('addMetric', 'weight');
+  props.navigation.navigateTo('health/add-data');
+}
+
 </script>
 
 <template>
@@ -155,6 +162,12 @@ function goBack() {
     <div v-else class="error-card">
       <strong>数据加载失败</strong>
       <p>请检查 mock.ts 文件，确保导出了有效的 `list` 数组。</p>
+    </div>
+
+    <div class="add-button-container">
+      <button class="add-data-btn" @click="goToAddData">
+        + 添加体重记录
+      </button>
     </div>
   </section>
 </template>
@@ -393,5 +406,27 @@ function goBack() {
   color: #2f7cf6;
   font-weight: 600;
   margin: 0 0 4px;
+}
+
+.add-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+.add-data-btn {
+  background: linear-gradient(135deg, #2f7cf6, #6ba7ff);
+  border: none;
+  border-radius: 40px;
+  padding: 12px 24px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(47,124,246,0.3);
+}
+.add-data-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(47,124,246,0.4);
 }
 </style>
