@@ -304,8 +304,6 @@ const standaloneMetrics = computed(() => {
         ||(pair.summary.key === 'weight' && props.navigation.navigateTo('health/data-weight'))
         ||(pair.summary.key === 'bloodSugar' && props.navigation.navigateTo('health/data-bloodglucose'))
         ||(pair.summary.key === 'oxygen' && props.navigation.navigateTo('health/data-spo2'))
-        || (pair.summary.key === 'bloodPressure' && props.navigation.navigateTo('health/data-bloodpressure'))
-        || (pair.summary.key === 'stress' && props.navigation.navigateTo('health/data-pressure'))
         ">        
         <!-- 数字卡片部分（复用原有样式，移除背景和阴影） -->
         <div
@@ -358,6 +356,8 @@ const standaloneMetrics = computed(() => {
         :key="card.key"
         class="summary-card"
         :class="`summary-card--${card.tone}`"
+        @click="(card.key === 'bloodPressure' && props.navigation.navigateTo('health/data-bloodpressure')) ||
+            (card.key === 'stress' && props.navigation.navigateTo('health/data-pressure'))"
       >
         <span>{{ card.label }}</span>
         <strong>{{ card.value }}</strong>
