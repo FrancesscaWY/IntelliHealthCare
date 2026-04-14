@@ -78,6 +78,7 @@ function goBack() {
 // 添加数据跳转（使用 sessionStorage 传递指标类型）
 function goToAddData() {
   sessionStorage.setItem('addMetric', 'steps');
+  sessionStorage.setItem('addReturnPath', 'health/data-steps');
   props.navigation.navigateTo('health/add-data');
 }
 </script>

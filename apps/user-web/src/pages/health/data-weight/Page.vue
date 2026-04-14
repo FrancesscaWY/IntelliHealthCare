@@ -80,6 +80,7 @@ function goBack() {
 // 添加体重数据跳转
 function goToAddData() {
   sessionStorage.setItem('addMetric', 'weight');
+  sessionStorage.setItem('addReturnPath', 'health/data-weight');
   props.navigation.navigateTo('health/add-data');
 }
 
