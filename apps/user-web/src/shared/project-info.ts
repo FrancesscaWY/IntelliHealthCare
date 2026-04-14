@@ -1,5 +1,5 @@
 export const projectInfo = {
-  name: "智养康护",
+  name: "智诊康养",
   summary: "面向老年用户及家属的康养服务平台，支持服务下单、健康监测、社区互动与档案管理。",
   delivery: "网页端优先，后续可继续封装为移动端 App 与小程序。",
   homePageId: "onboarding/intro",

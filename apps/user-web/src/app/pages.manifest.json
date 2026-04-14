@@ -30,6 +30,45 @@
     ]
   },
   {
+    "id": "auth/forgot-password",
+    "title": "忘记密码",
+    "group": "auth",
+    "route": "/auth/forgot-password",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "忘记密码时通过手机号和验证码完成身份验证。",
+    "folderPath": "/apps/user-web/src/pages/auth/forgot-password",
+    "modulePath": "/apps/user-web/src/pages/auth/forgot-password/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/auth/forgot-password/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "auth/reset-password",
+    "title": "设置密码",
+    "group": "auth",
+    "route": "/auth/reset-password",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "忘记密码验证码验证成功后的新密码设置页面。",
+    "folderPath": "/apps/user-web/src/pages/auth/reset-password",
+    "modulePath": "/apps/user-web/src/pages/auth/reset-password/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/auth/reset-password/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "auth/real-name",
+    "title": "实名认证",
+    "group": "auth",
+    "route": "/auth/real-name",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "登录成功后的真实姓名、身份证号、性别、出生日期、联系电话与家庭住址补充页面。",
+    "folderPath": "/apps/user-web/src/pages/auth/real-name",
+    "modulePath": "/apps/user-web/src/pages/auth/real-name/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/auth/real-name/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "community/circle",
     "title": "生活圈",
     "group": "community",
@@ -82,11 +121,24 @@
     "group": "content",
     "route": "/content/disease-guide",
     "owner": "待分配",
-    "status": "planned",
-    "summary": "疾病知识、风险提示、康复建议与关联服务推荐。",
+    "status": "implemented",
+    "summary": "疾病宝典科室分类、疾病搜索和列表浏览页面。",
     "folderPath": "/apps/user-web/src/pages/content/disease-guide",
     "modulePath": "/apps/user-web/src/pages/content/disease-guide/Page.vue",
     "mockPath": "/apps/user-web/src/pages/content/disease-guide/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "content/disease-detail",
+    "title": "疾病详情",
+    "group": "content",
+    "route": "/content/disease-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "疾病详情介绍、症状和并发症内容页。",
+    "folderPath": "/apps/user-web/src/pages/content/disease-detail",
+    "modulePath": "/apps/user-web/src/pages/content/disease-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/disease-detail/mock.ts",
     "legacySources": []
   },
   {
@@ -264,11 +316,37 @@
     "group": "health",
     "route": "/health/medication-info",
     "owner": "待分配",
-    "status": "planned",
-    "summary": "处方药、服药提醒、补药记录与家属协同。",
+    "status": "implemented",
+    "summary": "早餐、午餐、晚餐分组展示用药提醒和添加用药入口。",
     "folderPath": "/apps/user-web/src/pages/health/medication-info",
     "modulePath": "/apps/user-web/src/pages/health/medication-info/Page.vue",
     "mockPath": "/apps/user-web/src/pages/health/medication-info/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "health/medication-add",
+    "title": "添加用药信息",
+    "group": "health",
+    "route": "/health/medication-add",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "新增药品名称、用药时间、频率、单位、计量和提醒开关。",
+    "folderPath": "/apps/user-web/src/pages/health/medication-add",
+    "modulePath": "/apps/user-web/src/pages/health/medication-add/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/medication-add/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "health/medication-edit",
+    "title": "编辑用药提醒",
+    "group": "health",
+    "route": "/health/medication-edit",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "编辑药品名称、用药时间、频率、单位、计量和提醒开关。",
+    "folderPath": "/apps/user-web/src/pages/health/medication-edit",
+    "modulePath": "/apps/user-web/src/pages/health/medication-edit/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/medication-edit/mock.ts",
     "legacySources": []
   },
   {
@@ -300,6 +378,32 @@
       "/legacy/miniprogram-user/src/pages/home/home.wxml",
       "/legacy/miniprogram-user/src/pages/home/home.wxss"
     ]
+  },
+  {
+    "id": "home/location-select",
+    "title": "选择地区",
+    "group": "home",
+    "route": "/home/location-select",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "首页定位入口的城市与地区选择页面。",
+    "folderPath": "/apps/user-web/src/pages/home/location-select",
+    "modulePath": "/apps/user-web/src/pages/home/location-select/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/location-select/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/search",
+    "title": "搜索",
+    "group": "home",
+    "route": "/home/search",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "首页搜索输入和历史记录页面。",
+    "folderPath": "/apps/user-web/src/pages/home/search",
+    "modulePath": "/apps/user-web/src/pages/home/search/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/search/mock.ts",
+    "legacySources": []
   },
   {
     "id": "onboarding/intro",
