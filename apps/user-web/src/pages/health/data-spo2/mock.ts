@@ -1,45 +1,93 @@
-export default {
+const mock = {
   title: "血氧",
-  summary: "查看每日血氧饱和度变化趋势与明细",
-  sections: [],
-  nextSteps: [
-    "接入真实血氧监测 API",
-    "添加低氧预警分析",
-    "支持血氧与心率关联分析"
-  ],
+  summary: "查看每日血氧变化趋势",
   list: [
+    { date: "2026-04-01", oxygen: 96 },
+    { date: "2026-04-02", oxygen: 97 },
+    { date: "2026-04-03", oxygen: 98 },
+    { date: "2026-04-04", oxygen: 97 },
+    { date: "2026-04-05", oxygen: 99 },
+    { date: "2026-04-06", oxygen: 98 },
+    { date: "2026-04-07", oxygen: 98, time: "23:59" },
+  ],
+  dailyTimeline: [
     {
-      date: '2026-04-01',
-      steps: 8000,
-      sleep: 7,
-      weight: 65,
-      heartRate: 75,
-      bloodSugar: 5.6,
-      bloodPressure: '120/80',
-      oxygen: 98,
-      stress: 40
+      date: "2026-04-01",
+      items: [
+        { time: "00:00", value: 95 },
+        { time: "06:00", value: 96 },
+        { time: "12:00", value: 97 },
+        { time: "18:00", value: 96 },
+        { time: "24:00", value: 97 },
+      ],
     },
     {
-      date: '2026-04-02',
-      steps: 9200,
-      sleep: 6,
-      weight: 65.2,
-      heartRate: 72,
-      bloodSugar: 5.8,
-      bloodPressure: '125/82',
-      oxygen: 97,
-      stress: 50
+      date: "2026-04-02",
+      items: [
+        { time: "00:00", value: 96 },
+        { time: "06:00", value: 97 },
+        { time: "12:00", value: 97 },
+        { time: "18:00", value: 96 },
+        { time: "24:00", value: 97 },
+      ],
     },
     {
-      date: '2026-04-03',
-      steps: 7000,
-      sleep: 8,
-      weight: 64.8,
-      heartRate: 80,
-      bloodSugar: 6.1,
-      bloodPressure: '130/85',
-      oxygen: 96,
-      stress: 60
-    }
-  ]
+      date: "2026-04-03",
+      items: [
+        { time: "00:00", value: 97 },
+        { time: "06:00", value: 98 },
+        { time: "12:00", value: 98 },
+        { time: "18:00", value: 97 },
+        { time: "24:00", value: 98 },
+      ],
+    },
+    {
+      date: "2026-04-04",
+      items: [
+        { time: "00:00", value: 96 },
+        { time: "06:00", value: 97 },
+        { time: "12:00", value: 98 },
+        { time: "18:00", value: 97 },
+        { time: "24:00", value: 97 },
+      ],
+    },
+    {
+      date: "2026-04-05",
+      items: [
+        { time: "00:00", value: 97 },
+        { time: "06:00", value: 98 },
+        { time: "12:00", value: 99 },
+        { time: "18:00", value: 98 },
+        { time: "24:00", value: 99 },
+      ],
+    },
+    {
+      date: "2026-04-06",
+      items: [
+        { time: "00:00", value: 96 },
+        { time: "06:00", value: 98 },
+        { time: "12:00", value: 99 },
+        { time: "18:00", value: 97 },
+        { time: "24:00", value: 98 },
+      ],
+    },
+    {
+      date: "2026-04-07",
+      items: [
+        { time: "00:00", value: 95 },
+        { time: "06:00", value: 97 },
+        { time: "12:00", value: 97 },
+        { time: "18:00", value: 99 },
+        { time: "24:00", value: 99 },
+      ],
+    },
+  ],
+  monthlyData: [
+    { label: "第1周", min: 95, max: 98, avg: 97 },
+    { label: "第2周", min: 96, max: 99, avg: 98 },
+    { label: "第3周", min: 95, max: 99, avg: 97 },
+    { label: "第4周", min: 96, max: 98, avg: 97 },
+  ],
 };
+
+export default mock;

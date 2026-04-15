@@ -5,11 +5,43 @@ import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 
+const metricColorMap: Record<string, string> = {
+  steps: "#ff7b64",
+  heartRate: "#ff9a6c",
+  sleep: "#33b18a",
+  weight: "#6670f0",
+  bloodSugar: "#f3c44c",
+  bloodPressure: "#5c6cfa",
+  oxygen: "#16a085",
+  stress: "#f0b90b",
+};
+
 type HealthDataItem = (typeof mock.list)[number];
 
 const dataList = computed<HealthDataItem[]>(() => mock.list);
 const latest = computed(() => dataList.value[dataList.value.length - 1]);
 const previous = computed(() => dataList.value[dataList.value.length - 2] ?? latest.value);
+
+const weightTrend = computed(() => {
+  const weights = dataList.value.map((item) => item.weight);
+  const current = latest.value.weight;
+  const prev = previous.value.weight;
+
+  if (weights.length < 2) {
+    return {
+      change: current - prev,
+      isStable: true,
+    };
+  }
+
+  const weightRange = Math.max(...weights) - Math.min(...weights);
+  const dailyJump = Math.abs(current - prev);
+
+  return {
+    change: current - prev,
+    isStable: weightRange <= 1.2 && dailyJump <= 0.8,
+  };
+});
 
 const summaryCards = computed(() => {
   const current = latest.value;
@@ -40,14 +72,13 @@ const summaryCards = computed(() => {
       change: current.sleep - prev.sleep,
       tone: current.sleep >= 7 ? "good" : "warn",
     },
-
     {
       key: "weight",
       label: "体重",
       value: `${current.weight}`,
       unit: "kg",
-      change: current.weight - prev.weight,
-      tone: current.weight <= prev.weight ? "good" : "warn",
+      change: weightTrend.value.change,
+      tone: weightTrend.value.isStable ? "good" : "warn",
     },
     {
       key: "bloodSugar",
@@ -61,9 +92,9 @@ const summaryCards = computed(() => {
       key: "bloodPressure",
       label: "血压",
       value: current.bloodPressure,
-      unit: "",
-      change: 0,
-      tone: "good",
+      unit: "mmHg",
+      change: parseInt((current.bloodPressure as string).split('/')[0]) - parseInt((prev.bloodPressure as string).split('/')[0]),
+      tone: parseInt((current.bloodPressure as string).split('/')[0]) <= 140 && parseInt((current.bloodPressure as string).split('/')[1]) <= 90 ? "good" : "warn",
     },
     {
       key: "oxygen",
@@ -99,567 +130,852 @@ const scoreLabel = computed(() => {
   return "建议关注";
 });
 
-const trendText = computed(() => {
-  const current = latest.value;
-  const prev = previous.value;
-  const trend: string[] = [];
+const addDevicePageId = "health/add-device-placeholder";
 
-  trend.push(current.steps >= prev.steps ? "最近活动量有回升" : "最近活动量略有下降");
-  trend.push(current.sleep >= 7 ? "睡眠时长达标" : "睡眠时长偏少");
-  trend.push(current.heartRate <= 80 ? "静息心率稳定" : "心率偏高，注意休息");
+const profileSummary = computed(() => ({
+  name: "JOY",
+  age: 65,
+  height: 172,
+  weight: latest.value.weight.toFixed(1),
+  deviceCount: 3,
+}));
 
-  // ✅ 新增
-  trend.push(current.bloodSugar <= 6 ? "血糖正常" : "血糖偏高");
-  trend.push(current.oxygen >= 95 ? "血氧正常" : "血氧偏低");
-  trend.push(current.stress <= 50 ? "压力较低" : "压力偏高");
+const healthAlerts = computed(() =>
+  summaryCards.value
+    .filter((item) => item.key !== "bloodPressure")
+    .filter((item) => item.tone === "warn")
+    .slice(0, 2)
+    .map((item) => `${item.label}偏高`)
+);
 
-  return `${trend.join("，")}。`;
-});
+const linkedDevices = [
+  { id: "watch-alpha", name: "智能手表 A" },
+  { id: "watch-beta", name: "智能手表 B" },
+  { id: "watch-gamma", name: "智能手表 C" },
+];
 
-const insights = computed(() => {
-  const stepsPeak = [...dataList.value].sort((a, b) => b.steps - a.steps)[0];
-  const sleepPeak = [...dataList.value].sort((a, b) => b.sleep - a.sleep)[0];
-  const heartRateLow = [...dataList.value].sort((a, b) => a.heartRate - b.heartRate)[0];
-
-  // ✅ 新增
-  const sugarBest = [...dataList.value].sort((a, b) => a.bloodSugar - b.bloodSugar)[0];
-  const stressLowest = [...dataList.value].sort((a, b) => a.stress - b.stress)[0];
-
-  return [
-    `最佳活动日：${stepsPeak.date}，步数 ${stepsPeak.steps.toLocaleString()}。`,
-    `最佳睡眠日：${sleepPeak.date}，睡眠 ${sleepPeak.sleep} 小时。`,
-    `最平稳心率：${heartRateLow.date}，心率 ${heartRateLow.heartRate} bpm。`,
-
-    // ✅ 新增
-    `最佳血糖：${sugarBest.date}，血糖 ${sugarBest.bloodSugar} mmol/L。`,
-    `最低压力日：${stressLowest.date}，压力 ${stressLowest.stress}。`,
-  ];
-});
-
-function createSparkline(values: number[]) {
-  const width = 300;
-  const height = 84;
-  const padding = 10;
+// sparkline
+function createMiniSparkline(values: number[], stroke: string, width = 180, height = 82) {
+  const padding = 6;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+  const barWidth = Math.min(14, Math.max(8, innerWidth / Math.max(1, values.length * 1.6)));
 
-  const points = values
-    .map((value, index) => {
-      const x = padding + (index * (width - padding * 2)) / Math.max(1, values.length - 1);
-      const y = height - padding - ((value - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const pointList = values.map((v, i) => {
+    const x = padding + (i * innerWidth) / Math.max(1, values.length - 1);
+    const y = height - padding - ((v - min) / range) * innerHeight;
+    return { x, y };
+  });
 
-  return { points, width, height };
-}
-
-const trendCharts = computed(() => {
-  const stepsValues = dataList.value.map((item) => item.steps);
-  const heartRateValues = dataList.value.map((item) => item.heartRate);
-  const sleepValues = dataList.value.map((item) => item.sleep);
-
-  // ✅ 新增
-  const weightValues = dataList.value.map((item) => item.weight);
-  const sugarValues = dataList.value.map((item) => item.bloodSugar);
-  const oxygenValues = dataList.value.map((item) => item.oxygen);
-
-  return [
-    {
-      key: "steps",
-      title: "步数趋势",
-      unit: "步",
-      values: stepsValues,
-      average: Math.round(stepsValues.reduce((s, v) => s + v, 0) / stepsValues.length),
-      stroke: "#2f7cf6",
-      sparkline: createSparkline(stepsValues),
-    },
-    {
-      key: "heartRate",
-      title: "心率趋势",
-      unit: "bpm",
-      values: heartRateValues,
-      average: Math.round(heartRateValues.reduce((s, v) => s + v, 0) / heartRateValues.length),
-      stroke: "#ff7b64",
-      sparkline: createSparkline(heartRateValues),
-    },
-    {
-      key: "sleep",
-      title: "睡眠趋势",
-      unit: "小时",
-      values: sleepValues,
-      average: Math.round((sleepValues.reduce((s, v) => s + v, 0) / sleepValues.length) * 10) / 10,
-      stroke: "#33b18a",
-      sparkline: createSparkline(sleepValues),
-    },
-
-    // ✅ 新增
-    {
-      key: "weight",
-      title: "体重趋势",
-      unit: "kg",
-      values: weightValues,
-      average: Math.round(weightValues.reduce((s, v) => s + v, 0) / weightValues.length),
-      stroke: "#8e44ad",
-      sparkline: createSparkline(weightValues),
-    },
-    {
-      key: "bloodSugar",
-      title: "血糖趋势",
-      unit: "mmol/L",
-      values: sugarValues,
-      average: Math.round(sugarValues.reduce((s, v) => s + v, 0) / sugarValues.length * 10) / 10,
-      stroke: "#e67e22",
-      sparkline: createSparkline(sugarValues),
-    },
-    {
-      key: "oxygen",
-      title: "血氧趋势",
-      unit: "%",
-      values: oxygenValues,
-      average: Math.round(oxygenValues.reduce((s, v) => s + v, 0) / oxygenValues.length),
-      stroke: "#16a085",
-      sparkline: createSparkline(oxygenValues),
-    },
-  ];
-});
-
-const stepBars = computed(() => {
-  const maxSteps = Math.max(...dataList.value.map((item) => item.steps), 1);
-
-  return dataList.value.map((item) => ({
-    ...item,
-    ratio: `${Math.max(12, Math.round((item.steps / maxSteps) * 100))}%`,
+  const points = pointList.map(p => `${p.x},${p.y}`).join(" ");
+  const areaPoints = `${points} ${width - padding},${height - padding} ${padding},${height - padding}`;
+  const barRects = pointList.map(point => ({
+    x: point.x - barWidth / 2,
+    y: point.y,
+    width: barWidth,
+    height: height - padding - point.y,
   }));
+
+  return { points, areaPoints, pointList, barRects, width, height, stroke, padding };
+};
+
+const trendDataMap = computed(() => {
+  const d = dataList.value;
+
+  return {
+    steps: { values: d.map(i => i.steps), stroke: "#6670f0" },
+    heartRate: { values: d.map(i => i.heartRate), stroke: "#ff7b64" },
+    sleep: { values: d.map(i => i.sleep), stroke: "#33b18a" },
+    weight: { values: d.map(i => i.weight), stroke: "#8e44ad" },
+    bloodSugar: { values: d.map(i => i.bloodSugar), stroke: "#e67e22" },
+    oxygen: { values: d.map(i => i.oxygen), stroke: "#16a085" },
+    bloodPressure: { values: d.map(i => parseInt((i.bloodPressure as string).split('/')[0])), stroke: "#5c6cfa" },
+    stress: { values: d.map(i => i.stress), stroke: "#f0b90b" },
+  };
 });
 
-function formatDelta(value: number, unit: string) {
-  if (value === 0) {
-    return `较前一天持平`;
-  }
+const compactMetricsList = computed(() => {
+  const chartKeys = ["steps", "heartRate", "sleep", "weight", "bloodSugar", "oxygen", "bloodPressure", "stress"];
 
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${value} ${unit}`;
+  return summaryCards.value.map(card => {
+    let chartData = null;
+
+    if (chartKeys.includes(card.key)) {
+      const trend = trendDataMap.value[card.key as keyof typeof trendDataMap.value];
+      chartData = createMiniSparkline(trend.values, trend.stroke);
+    }
+
+    return {
+      ...card,
+      chartData,
+      color: metricColorMap[card.key] || "#c8d1df",
+    };
+  });
+});
+
+function getNavigateKey(key: string) {
+  const map: Record<string, string> = {
+    steps: "health/data-steps",
+    heartRate: "health/data-heartrate",
+    sleep: "health/data-sleep",
+    weight: "health/data-weight",
+    bloodSugar: "health/data-bloodglucose",
+    oxygen: "health/data-spo2",
+    bloodPressure: "health/data-bloodpressure",
+    stress: "health/data-pressure",
+  };
+  return map[key];
 }
 
-// 将summary和chart配对（仅用于有趋势图的指标）
-const pairedMetrics = computed(() => {
-  const pairs = [];
-  const pairedKeys = ['steps', 'heartRate', 'sleep', 'weight', 'bloodSugar', 'oxygen'];
-  for (const key of pairedKeys) {
-    const summary = summaryCards.value.find(card => card.key === key);
-    const chart = trendCharts.value.find(chart => chart.key === key);
-    if (summary && chart) {
-      pairs.push({ summary, chart });
-    }
+function goToHome() {
+  if (props.navigation?.navigateTo) {
+    props.navigation.navigateTo("home/dashboard");
+  } else {
+    window.location.href = "/";
   }
-  return pairs;
-});
+}
 
-// 没有趋势图的指标（血压、压力）
-const standaloneMetrics = computed(() => {
-  return summaryCards.value.filter(card => !['steps', 'heartRate', 'sleep', 'weight', 'bloodSugar', 'oxygen'].includes(card.key));
-});
+function goToAddDevice() {
+  if (props.navigation?.navigateTo) {
+    props.navigation.navigateTo(addDevicePageId);
+  }
+}
 </script>
 
 <template>
   <section class="health-data-page">
-    <article class="hero-card">
-      <div>
-        <p class="page-eyebrow">Health Data</p>
-        <h1>健康数据可视页</h1>
-        <p class="hero-card__desc">
-          汇总最近 {{ dataList.length }} 天的步数、心率和睡眠数据，帮助快速判断身体状态变化。
-        </p>
-      </div>
+    <header class="medication-nav">
+      <button class="back-btn" type="button" aria-label="返回" @click="goToHome">
+        <span class="back-arrow" aria-hidden="true"></span>
+      </button>
+      <h1>健康数据</h1>
+    </header>
 
-      <div class="score-card">
-        <span>健康评分</span>
-        <strong>{{ healthScore }}</strong>
-        <em>{{ scoreLabel }}</em>
-      </div>
-    </article>
-
-    <article class="insight-card">
-      <div class="insight-card__header">
-        <div>
-          <p class="page-eyebrow">Insight</p>
-          <h2>趋势分析</h2>
-        </div>
-        <!-- 查看报告按钮已删除 -->
-      </div>
-      <p class="insight-card__copy">{{ trendText }}</p>
-      <div class="insight-list">
-        <div v-for="item in insights" :key="item" class="insight-item">{{ item }}</div>
-      </div>
-    </article>
-
-    <!-- 配对区域：每个指标的数字卡片 + 趋势图 -->
-    <div class="paired-metrics-grid">
-      <div v-for="pair in pairedMetrics" :key="pair.summary.key" class="metric-pair" :class="{ 'clickable-metric': pair.summary.key === 'steps' }"
-        @click="(pair.summary.key === 'steps' && props.navigation.navigateTo('health/data-steps'))
-        || (pair.summary.key === 'heartRate' && props.navigation.navigateTo('health/data-heartrate'))
-        ||(pair.summary.key === 'sleep' && props.navigation.navigateTo('health/data-sleep'))
-        ||(pair.summary.key === 'weight' && props.navigation.navigateTo('health/data-weight'))
-        ||(pair.summary.key === 'bloodSugar' && props.navigation.navigateTo('health/data-bloodglucose'))
-        ||(pair.summary.key === 'oxygen' && props.navigation.navigateTo('health/data-spo2'))
-        ">        
-        <!-- 数字卡片部分（复用原有样式，移除背景和阴影） -->
-        <div
-          class="summary-card pair-summary"
-          :class="`summary-card--${pair.summary.tone}`"
-        >
-          <span>{{ pair.summary.label }}</span>
-          <strong>{{ pair.summary.value }}</strong>
-          <small>{{ pair.summary.unit }}</small>
-          <p>{{ formatDelta(pair.summary.change, pair.summary.unit) }}</p>
-        </div>
-
-        <!-- 趋势图部分（复用原有图表卡片样式，移除背景和阴影） -->
-        <div class="chart-card pair-chart">
-          <div class="chart-card__header">
-            <div>
-              <p class="page-eyebrow">Trend</p>
-              <h3>{{ pair.chart.title }}</h3>
+    <main class="medication-scroll">
+      <section class="overview-card">
+        <div class="overview-device">
+          <div class="overview-profile">
+            <div class="profile-avatar" aria-hidden="true">
+              <span class="profile-avatar__eye profile-avatar__eye--left"></span>
+              <span class="profile-avatar__eye profile-avatar__eye--right"></span>
+              <span class="profile-avatar__blush profile-avatar__blush--left"></span>
+              <span class="profile-avatar__blush profile-avatar__blush--right"></span>
+              <span class="profile-avatar__smile"></span>
             </div>
-            <strong>均值 {{ pair.chart.average }} {{ pair.chart.unit }}</strong>
+            <div class="profile-copy">
+              <h2>{{ profileSummary.name }}</h2>
+            </div>
+            <div class="profile-alerts">
+              <span v-for="alert in healthAlerts" :key="alert" class="profile-alert-chip">{{ alert }}</span>
+            </div>
           </div>
 
-          <svg
-            class="trend-chart"
-            :viewBox="`0 0 ${pair.chart.sparkline.width} ${pair.chart.sparkline.height}`"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <polyline
-              :points="pair.chart.sparkline.points"
-              fill="none"
-              :stroke="pair.chart.stroke"
-              stroke-width="4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <div class="device-panel">
+            <div class="device-stats">
+              <div class="device-stat">
+                <span>年龄</span>
+                <strong>{{ profileSummary.age }}</strong>
+              </div>
+              <div class="device-stat">
+                <span>身高</span>
+                <strong>{{ profileSummary.height }}<small>cm</small></strong>
+              </div>
+              <div class="device-stat">
+                <span>体重</span>
+                <strong>{{ profileSummary.weight }}<small>kg</small></strong>
+              </div>
+            </div>
 
-          <div class="chart-card__labels">
-            <span v-for="item in dataList" :key="`${pair.summary.key}-${item.date}`">{{ item.date.slice(5) }}</span>
+            <p class="device-panel__meta">已绑定{{ profileSummary.deviceCount }}个设备</p>
+
+            <div class="device-list">
+              <div v-for="device in linkedDevices" :key="device.id" class="device-tile" :title="device.name">
+                <div class="device-watch">
+                  <span class="device-watch__screen"></span>
+                </div>
+              </div>
+
+              <button class="device-tile device-tile--add" type="button" aria-label="添加设备" @click="goToAddDevice">
+                <span class="device-plus" aria-hidden="true"></span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 独立指标（无趋势图）血压 & 压力 -->
-    <div class="standalone-metrics-grid">
-      <article
-        v-for="card in standaloneMetrics"
-        :key="card.key"
-        class="summary-card"
-        :class="`summary-card--${card.tone}`"
-        @click="(card.key === 'bloodPressure' && props.navigation.navigateTo('health/data-bloodpressure')) ||
-            (card.key === 'stress' && props.navigation.navigateTo('health/data-pressure'))"
-      >
-        <span>{{ card.label }}</span>
-        <strong>{{ card.value }}</strong>
-        <small>{{ card.unit }}</small>
-        <p>{{ formatDelta(card.change, card.unit) }}</p>
-      </article>
-    </div>
-
-    <article class="detail-card">
-      <div class="detail-card__header">
-        <div>
-          <p class="page-eyebrow">Daily View</p>
-          <h2>每日对比</h2>
+        <div class="overview-copy">
+          <span>最近 {{ dataList.length }} 天健康数据分析</span>
+          <h2>健康评分</h2>
+          <p>{{ scoreLabel }}</p>
         </div>
-        <span class="detail-card__date">最新记录 {{ latest.date }}</span>
-      </div>
+        <div class="overview-metrics">
+          <strong>{{ healthScore }}</strong>
+          <small>健康评分</small>
+          <em>{{ scoreLabel }}</em>
+        </div>
+      </section>
 
-      <div class="day-list">
-        <article v-for="item in stepBars" :key="item.date" class="day-item">
-          <div class="day-item__top">
-            <strong>{{ item.date }}</strong>
-            <span>{{ item.steps.toLocaleString() }} 步</span>
-          </div>
-          <div class="day-item__bar">
-            <span class="day-item__fill" :style="{ width: item.ratio }"></span>
-          </div>
-          <div class="day-item__meta">
-            <span>心率 {{ item.heartRate }} bpm</span>
-            <span>睡眠 {{ item.sleep }} 小时</span>
-          </div>
+      <section class="metric-card-list">
+        <article
+          v-for="item in compactMetricsList"
+          :key="item.key"
+          class="metric-card"
+        >
+          <button class="metric-card-button" type="button" @click="props.navigation?.navigateTo(getNavigateKey(item.key))">
+            <div class="metric-card-header">
+              <div class="metric-card-label">
+                <div>
+                  <div class="metric-card-title">{{ item.label }}</div>
+                  <div class="metric-card-subtitle">近7天趋势</div>
+                </div>
+              </div>
+              <div class="metric-card-value">
+                <strong>{{ item.value }}</strong>
+                <small>{{ item.unit }}</small>
+              </div>
+            </div>
+
+            <div class="metric-card-detail">
+              <span class="metric-card-change" :class="item.tone">{{ item.change >= 0 ? `+${item.change}` : item.change }}</span>
+              <span class="metric-card-status" :class="`metric-card-status--${item.tone}`">{{ item.tone === 'good' ? '状态正常' : '需要关注' }}</span>
+            </div>
+
+            <div class="metric-card-chart" v-if="item.chartData">
+              <svg :viewBox="`0 0 ${item.chartData.width} ${item.chartData.height}`">
+                <defs>
+                  <linearGradient :id="`sparkline-${item.key}`" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" :stop-color="item.chartData.stroke" stop-opacity="0.24" />
+                    <stop offset="100%" :stop-color="item.chartData.stroke" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+
+                <g class="metric-card-grid">
+                  <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.25" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.25" />
+                  <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.5" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.5" />
+                  <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.75" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.75" />
+                </g>
+
+                <polygon
+                  :points="item.chartData.areaPoints"
+                  :fill="`url(#sparkline-${item.key})`"
+                  opacity="0.95"
+                />
+
+                <polyline
+                  :points="item.chartData.points"
+                  fill="none"
+                  :stroke="item.chartData.stroke"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+
+                <g v-for="(point, index) in item.chartData.pointList" :key="`${item.key}-dot-${index}`">
+                  <circle :cx="point.x" :cy="point.y" :r="index === item.chartData.pointList.length - 1 ? 4.5 : 3.5" fill="#ffffff" :stroke="item.chartData.stroke" stroke-width="2" />
+                </g>
+              </svg>
+            </div>
+          </button>
         </article>
-      </div>
-    </article>
+      </section>
+
+      <p class="no-more">没有更多了</p>
+    </main>
   </section>
 </template>
 
 <style scoped>
 .health-data-page {
-  display: grid;
-  gap: 18px;
-}
-
-.hero-card,
-.insight-card,
-.detail-card,
-.summary-card,
-.chart-card {
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 26px;
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-}
-
-.hero-card,
-.insight-card,
-.detail-card {
-  padding: 20px;
-}
-
-.hero-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: stretch;
+  position: relative;
+  left: 50%;
+  width: min(390px, 100vw);
+  height: min(844px, calc(100vh - 36px));
+  min-height: min(844px, calc(100vh - 36px));
+  max-height: 844px;
+  margin: -18px 0;
+  overflow: hidden;
   background:
-    radial-gradient(circle at top right, rgba(43, 136, 255, 0.18), transparent 28%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 246, 255, 0.98));
+    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
+  color: #30343f;
+  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  transform: translateX(-50%);
+  -webkit-font-smoothing: antialiased;
 }
 
-.hero-card h1,
-.insight-card h2,
-.detail-card h2,
-.chart-card h3 {
-  margin: 6px 0 0;
-}
-
-.hero-card__desc,
-.insight-card__copy {
-  margin: 10px 0 0;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.score-card {
-  min-width: 120px;
-  padding: 16px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #2f7cf6 0%, #6ba7ff 100%);
-  color: #fff;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-}
-
-.score-card strong {
-  font-size: 40px;
-  line-height: 1;
-  margin: 8px 0 4px;
-}
-
-.score-card em {
-  font-style: normal;
-  opacity: 0.9;
-}
-
-/* 配对区域网格布局 */
-.paired-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-/* 每个配对卡片容器 */
-.metric-pair {
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 26px;
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-  overflow: hidden;
+.medication-nav {
   display: flex;
-  flex-direction: column;
-}
-
-/* 配对卡片内的数字卡片部分：移除自身的背景和阴影，并调整边距 */
-.pair-summary {
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: 0;
-  padding: 20px 20px 12px 20px;
-  margin: 0;
-}
-
-/* 配对卡片内的图表卡片部分：移除自身的背景和阴影，并调整边距 */
-.pair-chart {
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: 0;
-  padding: 0 20px 20px 20px;
-  margin: 0;
-}
-
-/* 保留原始卡片样式供独立指标使用 */
-.summary-card {
-  padding: 18px 16px;
-  display: grid;
-  gap: 6px;
-}
-
-.summary-card span,
-.summary-card small,
-.summary-card p,
-.chart-card strong,
-.detail-card__date,
-.day-item__meta {
-  color: var(--muted);
-}
-
-.summary-card strong {
-  font-size: 28px;
-  line-height: 1;
-}
-
-.summary-card p {
-  margin: 4px 0 0;
-  font-size: 13px;
-}
-
-.summary-card--good {
-  background: linear-gradient(180deg, rgba(240, 250, 246, 1) 0%, rgba(255, 255, 255, 0.96) 100%);
-}
-
-.summary-card--warn {
-  background: linear-gradient(180deg, rgba(255, 247, 242, 1) 0%, rgba(255, 255, 255, 0.96) 100%);
-}
-
-/* 独立指标（无趋势图）网格布局 */
-.standalone-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.insight-card {
-  display: grid;
-  gap: 14px;
-}
-
-.insight-card__header,
-.detail-card__header,
-.chart-card__header,
-.day-item__top,
-.day-item__meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
   align-items: center;
+  height: 74px;
+  padding: 0 29px;
 }
 
-.insight-list {
+.back-btn {
   display: grid;
-  gap: 10px;
+  place-items: center;
+  width: 30px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
-.insight-item {
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: linear-gradient(90deg, rgba(47, 124, 246, 0.08), rgba(51, 177, 138, 0.08));
-  color: #2b4469;
+.back-arrow {
+  width: 14px;
+  height: 14px;
+  border-bottom: 4px solid #333333;
+  border-left: 4px solid #333333;
+  transform: rotate(45deg);
 }
 
-.chart-card {
-  padding: 18px;
+.medication-nav h1 {
+  margin: 0 0 0 9px;
+  color: #30343f;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
 }
 
-.trend-chart {
-  width: 100%;
-  height: 90px;
-  margin-top: 14px;
-  display: block;
+.medication-scroll {
+  height: calc(100% - 74px);
+  padding: 24px 31px 44px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.chart-card__labels {
+.medication-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.overview-card {
+  position: relative;
+  min-height: 350px;
+  padding: 20px 18px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 255, 0.92) 48%, rgba(226, 252, 244, 0.88) 100%);
+  box-shadow: 0 18px 42px rgba(72, 104, 148, 0.1);
+}
+
+.overview-card::after {
+  position: absolute;
+  right: -22px;
+  bottom: -25px;
+  width: 106px;
+  height: 106px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(102, 112, 240, 0.08);
+}
+
+.overview-device {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 20px;
+}
+
+.overview-profile {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 12px;
+}
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), transparent 30%),
+    radial-gradient(circle at 70% 74%, rgba(255, 214, 224, 0.85), transparent 24%),
+    linear-gradient(135deg, #ffd6de 0%, #ffc7a8 100%);
+  box-shadow: 0 10px 18px rgba(54, 67, 92, 0.12);
+}
+
+.profile-avatar::before,
+.profile-avatar::after {
+  position: absolute;
+  top: 8px;
+  width: 18px;
+  height: 14px;
+  content: "";
+  border-radius: 14px 14px 4px 4px;
+  background: linear-gradient(180deg, #8b6b79 0%, #6f5561 100%);
+}
+
+.profile-avatar::before {
+  left: 10px;
+  transform: rotate(-18deg);
+}
+
+.profile-avatar::after {
+  right: 10px;
+  transform: rotate(18deg);
+}
+
+.profile-avatar__eye {
+  position: absolute;
+  top: 28px;
+  width: 7px;
+  height: 9px;
+  border-radius: 50%;
+  background: #4b4652;
+}
+
+.profile-avatar__eye--left {
+  left: 22px;
+}
+
+.profile-avatar__eye--right {
+  right: 22px;
+}
+
+.profile-avatar__blush {
+  position: absolute;
+  top: 37px;
+  width: 12px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 142, 163, 0.42);
+  filter: blur(0.5px);
+}
+
+.profile-avatar__blush--left {
+  left: 12px;
+}
+
+.profile-avatar__blush--right {
+  right: 12px;
+}
+
+.profile-avatar__smile {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  width: 18px;
+  height: 10px;
+  border-bottom: 3px solid #4b4652;
+  border-radius: 0 0 18px 18px;
+  transform: translateX(-50%);
+}
+
+.profile-copy h2 {
+  margin: 0;
+  color: #30343f;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.profile-alerts {
+  grid-column: 1 / -1;
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
-.detail-card {
-  display: grid;
-  gap: 16px;
+.profile-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #9da1ab;
+  font-size: 14px;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
 }
 
-.day-list {
+.profile-alert-chip--normal {
+  color: #7f8998;
+}
+
+.device-panel {
+  padding: 22px 18px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(251, 251, 255, 0.96) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.device-stats {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-.day-item {
-  padding: 14px;
-  border-radius: 20px;
-  background: #f8fbff;
+.device-stat {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 10px 6px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
 }
 
-.day-item__top span {
-  color: #35527d;
+.device-stat span {
+  color: #c3c5cd;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.device-stat strong {
+  color: #30343f;
+  font-size: 26px;
   font-weight: 700;
+  line-height: 1;
 }
 
-.day-item__bar {
-  height: 10px;
-  margin: 12px 0 10px;
+.device-stat strong small {
+  margin-left: 3px;
+  color: #b7b7bb;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.device-panel__meta {
+  margin: 20px 0 0;
+  color: #8e8f94;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.device-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.device-tile {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(233, 236, 241, 0.9);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
+  box-shadow: 0 8px 16px rgba(74, 90, 120, 0.06);
+}
+
+.device-watch {
+  position: relative;
+  width: 30px;
+  height: 40px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #171a21 0%, #353844 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+
+.device-watch::before,
+.device-watch::after {
+  position: absolute;
+  left: 50%;
+  width: 16px;
+  height: 8px;
+  content: "";
   border-radius: 999px;
-  background: rgba(47, 124, 246, 0.08);
-  overflow: hidden;
+  background: linear-gradient(180deg, #1d2028 0%, #3a3d47 100%);
+  transform: translateX(-50%);
 }
 
-.day-item__fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #2f7cf6 0%, #77b1ff 100%);
+.device-watch::before {
+  top: -7px;
 }
 
-.day-item__meta {
-  font-size: 13px;
+.device-watch::after {
+  bottom: -7px;
 }
 
-@media (max-width: 720px) {
-  .paired-metrics-grid,
-  .standalone-metrics-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-card,
-  .insight-card__header,
-  .detail-card__header {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-card,
-  .insight-card__header,
-  .detail-card__header,
-  .chart-card__header,
-  .day-item__top,
-  .day-item__meta {
-    display: grid;
-    justify-content: stretch;
-  }
-
-  .score-card {
-    min-width: 0;
-  }
-
+.device-watch__screen {
+  position: absolute;
+  inset: 5px;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 186, 96, 0.92), transparent 32%),
+    radial-gradient(circle at 70% 68%, rgba(255, 119, 89, 0.9), transparent 34%),
+    linear-gradient(135deg, #151820 0%, #2d3140 100%);
 }
 
-.clickable-metric {
+.device-tile--add {
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.clickable-metric:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 24px 48px rgba(34, 67, 118, 0.15);
+
+.device-tile--add:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(74, 90, 120, 0.1);
+}
+
+.device-plus {
+  position: relative;
+  width: 26px;
+  height: 26px;
+}
+
+.device-plus::before,
+.device-plus::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  content: "";
+  background: #c6c8ce;
+  transform: translate(-50%, -50%);
+}
+
+.device-plus::before {
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.device-plus::after {
+  width: 3px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.overview-copy,
+.overview-metrics {
+  display: none;
+}
+
+.metric-card-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.metric-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 15px 34px rgba(72, 104, 148, 0.075);
+}
+
+.metric-card-button {
+  display: grid;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  width: 100%;
+  border: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 255, 0.9) 100%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.metric-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.metric-card-label {
+  display: block;
+}
+
+.metric-card-title {
+  color: #30343f;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.metric-card-subtitle {
+  margin-top: 4px;
+  color: #8e8f94;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.metric-card-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.metric-card-value strong {
+  color: #30343f;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metric-card-value small {
+  color: #8e8f94;
+  font-size: 16px;
+}
+
+.metric-card-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #8e8f94;
+  font-size: 13px;
+  align-items: center;
+}
+
+.metric-card-change {
+  font-weight: 600;
+}
+
+.metric-card-change.good {
+  color: #31c79b;
+}
+
+.metric-card-change.warn {
+  color: #f06969;
+}
+
+.metric-card-status {
+  justify-self: end;
+  min-width: 64px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 28px;
+  text-align: center;
+}
+
+.metric-card-status--good {
+  background: #d7f5eb;
+  color: #31c79b;
+}
+
+.metric-card-status--warn {
+  background: #fff0f0;
+  color: #f06969;
+}
+
+.metric-card-chart {
+  width: 100%;
+  height: 58px;
+  padding: 0;
+}
+
+.metric-card-chart svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.metric-card-grid line {
+  stroke: rgba(95, 109, 148, 0.12);
+  stroke-width: 1;
+}
+
+.metric-card-chart polygon {
+  filter: drop-shadow(0 10px 20px rgba(102, 112, 240, 0.08));
+}
+
+.metric-card-chart circle {
+  transition: transform 0.2s ease;
+}
+
+.metric-card-chart circle:hover {
+  transform: scale(1.2);
+}
+
+.metric-card-detail {
+  color: #6c7488;
+}
+
+.no-more {
+  margin: 28px 0 0;
+  color: #c9c9c9;
+  font-size: 17px;
+  font-weight: 500;
+  text-align: center;
+}
+
+@media (min-width: 561px) {
+  .health-data-page {
+    height: 844px;
+    min-height: 844px;
+  }
+}
+
+@media (max-width: 389px) {
+  .medication-scroll {
+    padding-right: 26px;
+    padding-left: 26px;
+  }
+
+  .overview-card {
+    min-height: 332px;
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .profile-copy h2 {
+    font-size: 24px;
+  }
+
+  .profile-alert-chip {
+    min-height: 36px;
+    padding-right: 12px;
+    padding-left: 12px;
+    font-size: 13px;
+  }
+
+  .device-panel {
+    padding-top: 18px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .device-stat span {
+    font-size: 13px;
+  }
+
+  .device-stat strong {
+    font-size: 22px;
+  }
+
+  .device-stat strong small {
+    font-size: 14px;
+  }
+
+  .device-panel__meta {
+    font-size: 15px;
+  }
+
+  .device-list {
+    gap: 8px;
+  }
+
+  .metric-card-button {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .metric-card-header {
+    gap: 10px;
+  }
+
+  .metric-card-title {
+    font-size: 18px;
+  }
+
+  .metric-card-value strong {
+    font-size: 26px;
+  }
 }
 </style>

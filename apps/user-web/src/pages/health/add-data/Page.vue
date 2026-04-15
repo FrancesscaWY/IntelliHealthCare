@@ -1,302 +1,338 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 
 const props = defineProps<PageComponentProps>();
 
-// 获取指标类型（优先从 sessionStorage，其次 URL query）
-const getMetric = () => {
-  const stored = sessionStorage.getItem('addMetric');
-  if (stored) {
-    sessionStorage.removeItem('addMetric');
-    return stored;
-  }
-  const params = new URLSearchParams(window.location.search);
-  return params.get('metric');
+type MetricConfig = {
+  label: string;
+  unit: string;
+  placeholder: string;
+  isBloodPressure?: boolean;
+  isSleep?: boolean;
 };
 
-const metric = ref<string>(getMetric() || 'steps');
+function readMetric() {
+  const stored = sessionStorage.getItem("addMetric");
+  if (stored) return stored;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("metric") || "steps";
+}
+
+function readReturnPath() {
+  const stored = sessionStorage.getItem("addReturnPath");
+  if (stored) return stored;
+  return "health/health-data";
+}
+
+const metric = ref<string>(readMetric());
+const returnPath = ref<string>(readReturnPath());
 const selectedDate = ref<string>(new Date().toISOString().slice(0, 10));
 const value = ref<number | null>(null);
-// 血压特殊字段
 const systolic = ref<number | null>(null);
 const diastolic = ref<number | null>(null);
+const sleepHours = ref<number | null>(null);
+const sleepMinutes = ref<number | null>(null);
 
-// 获取指标类型
-const initMetric = () => {
-  // 优先从 sessionStorage 获取
-  const stored = sessionStorage.getItem('addMetric');
-  if (stored) {
-    sessionStorage.removeItem('addMetric');
-    metric.value = stored;
-    return;
-  }
-  // 其次从 URL query 获取
-  const params = new URLSearchParams(window.location.search);
-  const urlMetric = params.get('metric');
-  if (urlMetric) {
-    metric.value = urlMetric;
-  }
-};
+const metricConfig = computed<Record<string, MetricConfig>>(() => ({
+  steps: { label: "步数", unit: "步", placeholder: "请填写" },
+  heartRate: { label: "心率", unit: "bpm", placeholder: "请填写" },
+  sleep: { label: "睡眠时长", unit: "小时", placeholder: "", isSleep: true },
+  weight: { label: "体重", unit: "kg", placeholder: "请填写" },
+  bloodSugar: { label: "血糖", unit: "mmol/L", placeholder: "请填写" },
+  bloodPressure: { label: "血压", unit: "mmHg", placeholder: "", isBloodPressure: true },
+  oxygen: { label: "血氧", unit: "%", placeholder: "请填写" },
+  stress: { label: "压力", unit: "", placeholder: "请填写" },
+}));
 
-onMounted(() => {
-  initMetric();
-});
+const currentConfig = computed(() => metricConfig.value[metric.value] ?? metricConfig.value.steps);
+const pageTitle = computed(() => `添加${currentConfig.value.label}`);
 
-
-// 根据指标类型显示不同的标签和单位
-const metricConfig = computed(() => {
-  const configs: Record<string, { label: string; unit: string; placeholder: string; isBloodPressure?: boolean }> = {
-    steps: { label: '步数', unit: '步', placeholder: '请输入步数' },
-    heartRate: { label: '心率', unit: 'bpm', placeholder: '请输入心率' },
-    sleep: { label: '睡眠时长', unit: '小时', placeholder: '请输入睡眠时长' },
-    weight: { label: '体重', unit: 'kg', placeholder: '请输入体重' },
-    bloodSugar: { label: '血糖', unit: 'mmol/L', placeholder: '请输入血糖值' },
-    bloodPressure: { label: '血压', unit: 'mmHg', placeholder: '收缩压/舒张压', isBloodPressure: true },
-    oxygen: { label: '血氧', unit: '%', placeholder: '请输入血氧饱和度' },
-    stress: { label: '压力', unit: '', placeholder: '请输入压力值 (0-100)' },
-  };
-  return configs[metric.value] || configs.steps;
-});
-
-const pageTitle = computed(() => `添加${metricConfig.value.label}`);
-
-// 表单验证
 const isFormValid = computed(() => {
   if (!selectedDate.value) return false;
-  if (metricConfig.value.isBloodPressure) {
-    return systolic.value !== null && diastolic.value !== null && systolic.value > 0 && diastolic.value > 0;
+
+  if (currentConfig.value.isBloodPressure) {
+    return (
+      systolic.value !== null &&
+      diastolic.value !== null &&
+      systolic.value > 0 &&
+      diastolic.value > 0
+    );
   }
+
+  if (currentConfig.value.isSleep) {
+    return (
+      sleepHours.value !== null &&
+      sleepMinutes.value !== null &&
+      sleepHours.value >= 0 &&
+      sleepMinutes.value >= 0 &&
+      sleepMinutes.value <= 59
+    );
+  }
+
   return value.value !== null && value.value > 0;
 });
 
-// 提交处理
-const onSubmit = async () => {
+onMounted(() => {
+  const storedMetric = sessionStorage.getItem("addMetric");
+  if (storedMetric) {
+    metric.value = storedMetric;
+  }
+});
+
+function clearSessionState() {
+  sessionStorage.removeItem("addMetric");
+  sessionStorage.removeItem("addReturnPath");
+}
+
+function navigateBackToSource() {
+  const targetPath = returnPath.value || "health/health-data";
+  clearSessionState();
+  if (props.navigation?.navigateTo) {
+    props.navigation.navigateTo(targetPath);
+  } else {
+    window.location.href = targetPath;
+  }
+}
+
+function goBack() {
+  navigateBackToSource();
+}
+
+async function onSubmit() {
   if (!isFormValid.value) return;
 
-  let record: any = {
+  const record: Record<string, string | number> = {
     date: selectedDate.value,
   };
 
-  if (metricConfig.value.isBloodPressure) {
+  if (currentConfig.value.isBloodPressure) {
     record.bloodPressure = `${systolic.value}/${diastolic.value}`;
+  } else if (currentConfig.value.isSleep) {
+    const totalHours = (sleepHours.value || 0) + (sleepMinutes.value || 0) / 60;
+    record.sleep = Number(totalHours.toFixed(1));
   } else {
-    record[metric.value] = value.value;
+    record[metric.value] = Number(value.value);
   }
 
-  console.log('提交数据:', record);
-  // TODO: 调用真实 API
-
-  // 提交成功后返回健康数据主页
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo('health/health-data');
-  } else {
-    window.history.back();
-  }
-};
-
-// 返回上一页
-function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo('health/health-data');
-  } else {
-    window.history.back();
-  }
+  console.log("提交数据:", record);
+  navigateBackToSource();
 }
 </script>
 
 <template>
-  <section class="add-data-page">
-    <div class="hero-card">
-      <div>
-        <p class="page-eyebrow">添加数据</p>
-        <h1>{{ pageTitle }}</h1>
-        <p class="hero-card__desc">请填写以下信息，保存后数据将同步到健康记录。</p>
-      </div>
-      <button class="back-button" @click="goBack">← 返回</button>
-    </div>
+  <section class="health-add-page">
+    <header class="add-nav">
+      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
+        <span class="back-arrow" aria-hidden="true"></span>
+      </button>
+      <h1>{{ pageTitle }}</h1>
+    </header>
 
-    <div class="form-card">
-      <form @submit.prevent="onSubmit">
-        <!-- 日期选择 -->
-        <div class="form-field">
-          <label>日期</label>
-          <input type="date" v-model="selectedDate" required />
-        </div>
+    <main class="add-form">
+      <label class="form-row" for="dateInput">
+        <span>日期</span>
+        <input id="dateInput" v-model="selectedDate" type="date" />
+      </label>
 
-        <!-- 动态指标输入 -->
-        <div class="form-field" v-if="!metricConfig.isBloodPressure">
-          <label>{{ metricConfig.label }}</label>
-          <div class="input-wrapper">
-            <input
-              type="number"
-              step="any"
-              v-model="value"
-              :placeholder="metricConfig.placeholder"
-              required
-            />
-            <span class="unit">{{ metricConfig.unit }}</span>
-          </div>
-        </div>
+      <template v-if="currentConfig.isBloodPressure">
+        <label class="form-row" for="systolicInput">
+          <span>收缩压</span>
+          <input id="systolicInput" v-model="systolic" type="number" placeholder="请填写" />
+          <em>mmHg</em>
+        </label>
 
-        <!-- 血压特殊：收缩压/舒张压 -->
-        <div v-if="metricConfig.isBloodPressure" class="bp-fields">
-          <div class="form-field">
-            <label>收缩压 (SYS)</label>
-            <div class="input-wrapper">
-              <input type="number" v-model="systolic" placeholder="收缩压" required />
-              <span class="unit">mmHg</span>
-            </div>
-          </div>
-          <div class="form-field">
-            <label>舒张压 (DIA)</label>
-            <div class="input-wrapper">
-              <input type="number" v-model="diastolic" placeholder="舒张压" required />
-              <span class="unit">mmHg</span>
-            </div>
-          </div>
-        </div>
+        <label class="form-row" for="diastolicInput">
+          <span>舒张压</span>
+          <input id="diastolicInput" v-model="diastolic" type="number" placeholder="请填写" />
+          <em>mmHg</em>
+        </label>
+      </template>
 
-        <div class="form-actions">
-          <button type="button" class="cancel-btn" @click="goBack">取消</button>
-          <button type="submit" class="submit-btn" :disabled="!isFormValid">保存</button>
-        </div>
-      </form>
-    </div>
+      <template v-else-if="currentConfig.isSleep">
+        <label class="form-row" for="sleepHoursInput">
+          <span>小时</span>
+          <input id="sleepHoursInput" v-model="sleepHours" type="number" min="0" max="23" placeholder="请填写" />
+          <em>小时</em>
+        </label>
+
+        <label class="form-row" for="sleepMinutesInput">
+          <span>分钟</span>
+          <input id="sleepMinutesInput" v-model="sleepMinutes" type="number" min="0" max="59" placeholder="请填写" />
+          <em>分钟</em>
+        </label>
+      </template>
+
+      <template v-else>
+        <label class="form-row" for="valueInput">
+          <span>{{ currentConfig.label }}</span>
+          <input id="valueInput" v-model="value" type="number" step="any" :placeholder="currentConfig.placeholder" />
+          <em>{{ currentConfig.unit || "请填写" }}</em>
+        </label>
+      </template>
+    </main>
+
+    <footer class="save-area">
+      <button class="save-btn" type="button" :disabled="!isFormValid" @click="onSubmit">保存</button>
+    </footer>
   </section>
 </template>
 
 <style scoped>
-.add-data-page {
-  display: grid;
-  gap: 18px;
-  min-height: 100vh;
-  overflow-y: auto;
+.health-add-page {
+  position: relative;
+  left: 50%;
+  width: min(390px, 100vw);
+  height: min(844px, calc(100vh - 36px));
+  min-height: min(844px, calc(100vh - 36px));
+  max-height: 844px;
+  margin: -18px 0;
+  overflow: hidden;
+  background: #ffffff;
+  color: #333333;
+  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  transform: translateX(-50%);
+  -webkit-font-smoothing: antialiased;
 }
 
-.hero-card,
-.form-card {
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 26px;
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-}
-
-.hero-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  background: radial-gradient(circle at top right, rgba(43, 136, 255, 0.18), transparent 28%),
-              linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 246, 255, 0.98));
-}
-.hero-card h1 {
-  margin: 6px 0 0;
-  font-size: 28px;
-}
-.hero-card__desc {
-  margin: 10px 0 0;
-  color: var(--muted, #6c7a8e);
-  line-height: 1.7;
-}
-.back-button {
-  background: none;
-  border: none;
-  font-size: 16px;
-  color: #2f7cf6;
-  cursor: pointer;
-  padding: 8px 16px;
-  border-radius: 40px;
-  transition: background 0.2s;
-}
-.back-button:hover {
-  background: rgba(47, 124, 246, 0.1);
-}
-
-.form-card {
-  padding: 24px;
-}
-.form-field {
-  margin-bottom: 20px;
-}
-.form-field label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: #2b4469;
-}
-.form-field input {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  font-size: 16px;
-  transition: border 0.2s;
-}
-.form-field input:focus {
-  outline: none;
-  border-color: #2f7cf6;
-  box-shadow: 0 0 0 3px rgba(47, 124, 246, 0.1);
-}
-.input-wrapper {
+.add-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  height: 72px;
+  padding: 0 31px;
 }
-.input-wrapper input {
-  flex: 1;
-}
-.unit {
-  color: var(--muted, #6c7a8e);
-  font-size: 14px;
-}
-.bp-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-}
-.cancel-btn,
-.submit-btn {
-  padding: 10px 20px;
-  border-radius: 40px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.cancel-btn {
+
+.back-btn,
+.save-btn {
+  border: 0;
   background: transparent;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-}
-.cancel-btn:hover {
-  background: #f1f5f9;
-}
-.submit-btn {
-  background: #2f7cf6;
-  border: none;
-  color: white;
-}
-.submit-btn:hover:not(:disabled) {
-  background: #1a66d9;
-}
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  color: inherit;
 }
 
-@media (max-width: 720px) {
-  .hero-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 44px;
+  padding: 0;
+}
+
+.back-arrow {
+  width: 14px;
+  height: 14px;
+  border-bottom: 4px solid #333333;
+  border-left: 4px solid #333333;
+  transform: rotate(45deg);
+}
+
+.add-nav h1 {
+  margin: 0 0 0 8px;
+  color: #30343f;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.add-form {
+  margin-top: 9px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  height: 66px;
+  padding: 0 31px 0 37px;
+  border-top: 1px solid #eeeeee;
+  color: #9ea2a8;
+  text-align: left;
+}
+
+.form-row:last-child {
+  border-bottom: 1px solid #eeeeee;
+}
+
+.form-row span {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.form-row input,
+.form-row em {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #b5b7bc;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.form-row input {
+  width: 100%;
+  padding: 0;
+}
+
+.form-row input::placeholder {
+  color: #b5b7bc;
+  opacity: 1;
+}
+
+.form-row input[type="date"] {
+  color: #b5b7bc;
+}
+
+.form-row em {
+  justify-self: end;
+  margin-left: 12px;
+  font-size: 16px;
+  color: #c7c7c7;
+}
+
+.save-area {
+  position: absolute;
+  right: 32px;
+  bottom: 24px;
+  left: 32px;
+}
+
+.save-btn {
+  width: 100%;
+  height: 66px;
+  border-radius: 13px;
+  background: #6670f0;
+  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  color: #ffffff;
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.save-btn:disabled {
+  opacity: 0.45;
+}
+
+@media (min-width: 561px) {
+  .health-add-page {
+    height: 844px;
+    min-height: 844px;
   }
-  .bp-fields {
-    grid-template-columns: 1fr;
+}
+
+@media (max-width: 389px) {
+  .form-row {
+    grid-template-columns: 118px minmax(0, 1fr) auto;
+    padding-right: 28px;
+    padding-left: 32px;
+  }
+
+  .form-row span,
+  .form-row input {
+    font-size: 18px;
   }
 }
 </style>

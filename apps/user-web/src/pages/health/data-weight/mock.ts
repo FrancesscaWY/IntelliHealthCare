@@ -1,45 +1,18 @@
 export default {
-  title: "体重",
-  summary: "查看每日体重变化趋势与明细",
+  title: "体重详情",
+  summary: "查看最近 7 天的体重与 BMI 变化趋势。",
   sections: [],
-  nextSteps: [
-    "接入真实体重监测 API",
-    "添加体重增长分析",
-    "支持体重目标设定与追踪"
-  ],
+  nextSteps: ["接入真实体重秤数据", "支持目标体重管理", "补充体脂率和围度分析"],
+  profile: {
+    heightCm: 165,
+  },
   list: [
-    {
-      date: '2026-04-01',
-      steps: 8000,
-      sleep: 7,
-      weight: 65,
-      heartRate: 75,
-      bloodSugar: 5.6,
-      bloodPressure: '120/80',
-      oxygen: 98,
-      stress: 40
-    },
-    {
-      date: '2026-04-02',
-      steps: 9200,
-      sleep: 6,
-      weight: 65.2,
-      heartRate: 72,
-      bloodSugar: 5.8,
-      bloodPressure: '125/82',
-      oxygen: 97,
-      stress: 50
-    },
-    {
-      date: '2026-04-03',
-      steps: 7000,
-      sleep: 8,
-      weight: 64.8,
-      heartRate: 80,
-      bloodSugar: 6.1,
-      bloodPressure: '130/85',
-      oxygen: 96,
-      stress: 60
-    }
-  ]
+    { date: "2026-04-01", weight: 52.4, bmi: 19.3 },
+    { date: "2026-04-02", weight: 57.6, bmi: 21.2 },
+    { date: "2026-04-03", weight: 54.3, bmi: 19.9 },
+    { date: "2026-04-04", weight: 54.1, bmi: 19.9 },
+    { date: "2026-04-05", weight: 52.5, bmi: 19.3 },
+    { date: "2026-04-06", weight: 57.4, bmi: 21.1 },
+    { date: "2026-04-07", weight: 55.5, bmi: 20.4 },
+  ],
 };
