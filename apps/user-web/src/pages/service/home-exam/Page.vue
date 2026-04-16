@@ -15,8 +15,8 @@ const goBack = () => {
   }
 }
 
-const openPackage = (title: string) => {
-  props.showToast(`${title}详情待接入`)
+const openPackage = () => {
+  props.navigation.navigateTo('service/home-exam-detail')
 }
 </script>
 
@@ -56,7 +56,7 @@ const openPackage = (title: string) => {
       </aside>
 
       <section class="package-list" aria-label="体检套餐">
-        <article v-for="item in packageList" :key="item.id" class="package-card" @click="openPackage(item.title)">
+        <article v-for="item in packageList" :key="item.id" class="package-card" @click="openPackage">
           <img class="package-image" :src="item.image" :alt="item.title" />
           <div class="package-content">
             <h2>{{ item.title }}</h2>
