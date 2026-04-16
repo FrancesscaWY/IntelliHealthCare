@@ -1,39 +1,37 @@
+import avatarImage from "@/assets/mine/avatar.jpg";
+
 const mock = {
   profile: {
+    avatar: avatarImage,
     name: "笑看人生",
-    region: "IP归属地：上海",
-    motto: "我是笑看人生，一个热爱下棋与阅读的探索者。生活因棋与书而精彩，我因热爱而前行。",
-    gender: "male",
+    level: "Lv3",
+    homepagePageId: "home/profile",
     stats: [
-      { label: "关注", value: "24" },
-      { label: "粉丝", value: "333" },
-      { label: "获赞", value: "6006" },
+      { value: "154", label: "关注" },
+      { value: "24", label: "收藏" },
+      { value: "384", label: "点赞" },
+      { value: "1254", label: "足迹" },
     ],
   },
-  feedCount: 200,
-  posts: [
-    {
-      id: "bookstore",
-      author: "笑看人生",
-      date: "1月4日",
-      content:
-        "一路进书店，仿佛走进了另一个世界。书架上琳琅满目的书籍，让我眼花缭乱，不知道该从哪一本开始看起。感谢书店提供这样一个宁静的阅读空间，让我有机会与书为伴，感受知识的力量。我相信，无论年岁多大，阅读都是一种最好的自我提升和享受生活的方式。",
-      likes: 1001,
-      favorites: 210,
-      comments: 6,
-      gallery: ["shelf", "book", "hall"],
-    },
-    {
-      id: "chess",
-      author: "笑看人生",
-      date: "1月2日",
-      content:
-        "今天在社区活动室下了两盘象棋，节奏慢下来以后，心也跟着稳了。和老朋友边下边聊，比赢棋更让人开心。",
-      likes: 286,
-      favorites: 64,
-      comments: 12,
-      gallery: [],
-    },
+  orders: [
+    { key: "home-care", label: "家政护理", icon: "home" },
+    { key: "therapy", label: "康复理疗", icon: "medical" },
+    { key: "exam", label: "上门体检", icon: "hospital" },
+  ],
+  menus: [
+    { key: "coupon", label: "优惠券", icon: "coupon" },
+    { key: "points", label: "积分", icon: "points" },
+    { key: "activity", label: "我参加的活动", icon: "star" },
+    { key: "review", label: "我的评价", icon: "comment" },
+    { key: "support", label: "帮助与支持", icon: "help" },
+    { key: "settings", label: "设置", icon: "setting" },
+  ],
+  tabs: [
+    { key: "home", label: "首页", pageId: "home/dashboard" },
+    { key: "circle", label: "生活圈", pageId: "community/circle" },
+    { key: "publish", label: "", pageId: "community/publish" },
+    { key: "message", label: "消息", pageId: "" },
+    { key: "mine", label: "我的", pageId: "home/mine" },
   ],
 };
 
