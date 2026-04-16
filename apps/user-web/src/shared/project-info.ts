@@ -37,6 +37,10 @@ export const groupMeta = {
     title: "档案中心",
     description: "健康档案、长期记录和相关资料。",
   },
+  healthdocs: {
+    title: "健康档案",
+    description: "健康档案主页、基础信息、既往病史与体检报告。",
+  },
   orders: {
     title: "订单中心",
     description: "下单、跟踪、履约和售后管理。",

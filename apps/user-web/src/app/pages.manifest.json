@@ -363,6 +363,58 @@
     "legacySources": []
   },
   {
+    "id": "healthdocs/basic-info",
+    "title": "基础信息",
+    "group": "healthdocs",
+    "route": "/healthdocs/basic-info",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "展示健康档案中的基本资料、联系人与过敏信息。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/basic-info",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/basic-info/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/basic-info/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "healthdocs/checkup-reports",
+    "title": "体检报告",
+    "group": "healthdocs",
+    "route": "/healthdocs/checkup-reports",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "展示最近体检报告、关键指标和医生建议。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/checkup-reports",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/checkup-reports/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/checkup-reports/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "healthdocs/health-records",
+    "title": "健康档案",
+    "group": "healthdocs",
+    "route": "/healthdocs/health-records",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "健康档案总览页，聚合基础信息、病史与报告入口。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/health-records",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/health-records/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/health-records/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "healthdocs/medical-history",
+    "title": "既往病史",
+    "group": "healthdocs",
+    "route": "/healthdocs/medical-history",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "展示慢病、手术史、长期用药与风险提示。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/medical-history",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/medical-history/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/medical-history/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/dashboard",
     "title": "首页",
     "group": "home",
