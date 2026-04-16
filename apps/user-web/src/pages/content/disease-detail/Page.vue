@@ -88,7 +88,7 @@ function showPending(label: string) {
     radial-gradient(circle at 78% 11%, rgba(107, 224, 190, 0.2) 0, rgba(107, 224, 190, 0) 30%),
     linear-gradient(180deg, #eef8ff 0%, #f7fbfd 38%, #f5f7fa 100%);
   color: #333333;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }

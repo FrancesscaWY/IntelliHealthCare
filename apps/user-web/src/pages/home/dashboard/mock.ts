@@ -24,7 +24,7 @@ const mock = {
     { title: "老年活动", icon: "activity", pageId: "community/senior-activities" },
     { title: "健康资讯", icon: "news", pageId: "content/health-news" },
     { title: "养老机构", icon: "building", pageId: "" },
-    { title: "健康讲堂", icon: "video", pageId: "" },
+    { title: "健康讲堂", icon: "video", pageId: "content/health-lecture" },
     { title: "饮食记录", icon: "bowl", pageId: "" },
     { title: "健康自测", icon: "test", pageId: "" },
   ],
@@ -62,7 +62,7 @@ const mock = {
     { key: "circle", label: "生活圈", pageId: "community/circle", icon: circleIcon },
     { key: "publish", label: "", pageId: "community/publish" },
     { key: "message", label: "消息", pageId: "", icon: newsIcon },
-    { key: "mine", label: "我的", pageId: "", icon: meIcon },
+    { key: "mine", label: "我的", pageId: "home/mine", icon: meIcon },
   ],
 };
 

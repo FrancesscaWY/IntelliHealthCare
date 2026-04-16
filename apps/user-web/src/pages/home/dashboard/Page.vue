@@ -385,10 +385,10 @@ function showAction(label: string) {
 .home-page {
   position: relative;
   left: 50%;
-  width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  width: min(402px, 100vw);
+  height: min(874px, calc(100vh - 36px));
+  min-height: min(874px, calc(100vh - 36px));
+  max-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
@@ -396,7 +396,7 @@ function showAction(label: string) {
     linear-gradient(180deg, rgba(255, 242, 246, 0) 0%, rgba(255, 235, 241, 0.2) 7%, rgba(255, 217, 229, 0.26) 18%, rgba(255, 238, 243, 0.18) 31%, rgba(255, 246, 249, 0) 44%),
     linear-gradient(180deg, #cce6ff 0%, #edf4ff 32%, #f0f8fb 100%);
   color: #252939;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
@@ -1018,8 +1018,8 @@ function showAction(label: string) {
 
 @media (min-width: 561px) {
   .home-page {
-    height: 844px;
-    min-height: 844px;
+    height: 874px;
+    min-height: 874px;
   }
 }
 

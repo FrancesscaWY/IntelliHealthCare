@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const activeIndex = ref(0);
 const trackRef = ref<HTMLElement | null>(null);
+let autoplayTimer: number | undefined;
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -26,18 +27,49 @@ function updateActiveSlide(event: Event) {
   activeIndex.value = Math.round(track.scrollLeft / track.clientWidth);
 }
 
-function goToSlide(index: number) {
+function stopAutoplay() {
+  if (autoplayTimer === undefined) {
+    return;
+  }
+
+  window.clearInterval(autoplayTimer);
+  autoplayTimer = undefined;
+}
+
+function goToSlide(index: number, behavior: ScrollBehavior = "smooth") {
   const track = trackRef.value;
   if (!track) {
     return;
   }
 
-  activeIndex.value = index;
+  const slideCount = mock.slides.length;
+  const normalizedIndex = ((index % slideCount) + slideCount) % slideCount;
+  activeIndex.value = normalizedIndex;
   track.scrollTo({
-    left: track.clientWidth * index,
-    behavior: "smooth",
+    left: track.clientWidth * normalizedIndex,
+    behavior,
   });
 }
+
+function startAutoplay() {
+  stopAutoplay();
+  autoplayTimer = window.setInterval(() => {
+    goToSlide(activeIndex.value + 1);
+  }, 3000);
+}
+
+function handleDotClick(index: number) {
+  goToSlide(index);
+  startAutoplay();
+}
+
+onMounted(() => {
+  startAutoplay();
+});
+
+onBeforeUnmount(() => {
+  stopAutoplay();
+});
 </script>
 
 <template>
@@ -75,7 +107,7 @@ function goToSlide(index: number) {
           type="button"
           :aria-label="`切换到${item.title}`"
           :aria-current="activeIndex === index ? 'step' : undefined"
-          @click="goToSlide(index)"
+          @click="handleDotClick(index)"
         ></button>
       </div>
     </footer>
@@ -99,6 +131,7 @@ function goToSlide(index: number) {
   background:
     linear-gradient(180deg, rgba(203, 229, 252, 0.96) 0%, rgba(232, 240, 248, 0.96) 40%, #f7f8fa 100%),
     #eef4f8;
+  font-family: var(--ihc-font-family);
 }
 
 .intro-topbar {
@@ -212,8 +245,8 @@ function goToSlide(index: number) {
 .intro-copy h1 {
   margin: 0;
   color: var(--intro-blue);
-  font-size: 31px;
-  font-weight: 400;
+  font-size: 29px;
+  font-weight: 300;
   line-height: 1.2;
   letter-spacing: 0.05em;
 }
@@ -223,7 +256,7 @@ function goToSlide(index: number) {
   gap: 11px;
   margin: 20px 0 0;
   color: var(--intro-muted);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 300;
   line-height: 1.5;
   letter-spacing: 0.09em;
@@ -255,8 +288,8 @@ function goToSlide(index: number) {
   background: var(--intro-blue);
   box-shadow: 0 16px 24px rgba(93, 104, 220, 0.16);
   color: #ffffff;
-  font-size: 24px;
-  font-weight: 400;
+  font-size: 22px;
+  font-weight: 300;
   letter-spacing: 0.06em;
 }
 
@@ -296,16 +329,16 @@ function goToSlide(index: number) {
   }
 
   .intro-copy h1 {
-    font-size: 29px;
+    font-size: 27px;
   }
 
   .intro-copy p {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .intro-primary {
     height: 60px;
-    font-size: 22px;
+    font-size: 20px;
   }
 }
 </style>

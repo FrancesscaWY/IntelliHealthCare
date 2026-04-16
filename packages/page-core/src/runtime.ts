@@ -20,7 +20,7 @@ export const bottomTabItems: BottomTabItem[] = [
   { key: "circle", label: "生活圈", icon: "圈", pageId: "community/circle" },
   { key: "publish", label: "发布", icon: "+", pageId: "community/publish" },
   { key: "message", label: "消息", icon: "信", pageId: "" },
-  { key: "mine", label: "我的", icon: "我", pageId: "" },
+  { key: "mine", label: "我的", icon: "我", pageId: "home/mine" },
 ];
 
 export function normalizePageId(rawPageId = "") {
