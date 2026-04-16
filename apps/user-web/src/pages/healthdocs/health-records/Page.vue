@@ -36,32 +36,6 @@ const sectionIconMarkup: Record<string, string> = {
   `,
 };
 
-const metricIconMarkup: Record<string, string> = {
-  age: `
-    <path d="M6.5 9.5h8.8l3.7 3.7v9.3H6.5z" />
-    <path d="M15.3 9.5v3.7H19" />
-    <path d="M9.5 14.2h6.6" />
-    <path d="M9.5 17.5h4.6" />
-  `,
-  height: `
-    <path d="M16 6v20" />
-    <path d="M12.7 9.3 16 6l3.3 3.3" />
-    <path d="M12.7 22.7 16 26l3.3-3.3" />
-    <path d="M10.5 11h3" />
-    <path d="M10.5 16h3" />
-    <path d="M10.5 21h3" />
-  `,
-  weight: `
-    <path d="M8.2 12.5c0-4.3 3.5-7.8 7.8-7.8s7.8 3.5 7.8 7.8v6.2a3 3 0 0 1-3 3H11.2a3 3 0 0 1-3-3z" />
-    <path d="M12.4 12.6a3.6 3.6 0 0 1 7.2 0" />
-    <path d="m16 12.6 2 2" />
-  `,
-};
-
-function getMetricIconMarkup(key: string) {
-  return metricIconMarkup[key] || metricIconMarkup.age;
-}
-
 function goBack() {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("home/dashboard");
@@ -108,22 +82,18 @@ function getSectionIconMarkup(key: string) {
           </div>
 
           <div class="hero-copy">
-            <h1>{{ mock.profile.name }}</h1>
-            <span class="hero-pill">最近更新 {{ mock.profile.updatedAt }}</span>
-            <p>{{ mock.profile.subtitle }}</p>
-          </div>
-        </div>
+            <div class="hero-copy__top">
+              <h1>{{ mock.profile.name }}</h1>
+            </div>
+            <p class="hero-caption">{{ mock.profile.subtitle }}</p>
 
-        <div class="stats-card">
-          <article v-for="item in mock.profile.metrics" :key="item.key" class="stat-item">
-            <span class="stat-item__icon" :class="`stat-item__icon--${item.key}`" aria-hidden="true">
-              <svg viewBox="0 0 32 32" focusable="false">
-                <g v-html="getMetricIconMarkup(item.key)"></g>
-              </svg>
-            </span>
-            <span class="stat-item__label">{{ item.label }}</span>
-            <strong class="stat-item__value">{{ item.value }}</strong>
-          </article>
+            <div class="stats-card" aria-label="基础指标">
+              <article v-for="item in mock.profile.metrics" :key="item.key" class="stat-item">
+                <span class="stat-item__label">{{ item.label }}</span>
+                <strong class="stat-item__value">{{ item.value }}</strong>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -170,7 +140,14 @@ function getSectionIconMarkup(key: string) {
     radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
   color: #30343f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "HarmonyOS Sans SC",
+    "MiSans",
+    "Source Han Sans SC",
+    "Noto Sans SC",
+    "PingFang SC",
+    "Microsoft YaHei UI",
+    sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -179,7 +156,7 @@ function getSectionIconMarkup(key: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 66px;
+  height: 62px;
   padding: 0 29px;
 }
 
@@ -196,7 +173,7 @@ function getSectionIconMarkup(key: string) {
   display: grid;
   place-items: center;
   width: 36px;
-  height: 44px;
+  height: 40px;
   padding: 0;
 }
 
@@ -209,16 +186,16 @@ function getSectionIconMarkup(key: string) {
 }
 
 .support-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.08);
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 18px rgba(72, 104, 148, 0.06);
 }
 
 .support-btn svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   fill: none;
   stroke: #3e4350;
   stroke-width: 2.2;
@@ -228,9 +205,9 @@ function getSectionIconMarkup(key: string) {
 
 .page-scroll {
   display: grid;
-  gap: 16px;
-  height: calc(100% - 66px);
-  padding: 12px 31px 34px;
+  gap: 10px;
+  height: calc(100% - 62px);
+  padding: 6px 31px 24px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -244,41 +221,43 @@ function getSectionIconMarkup(key: string) {
   border: 1px solid rgba(255, 255, 255, 0.74);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 15px 34px rgba(72, 104, 148, 0.075);
+  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.055);
 }
 
 .hero-card {
-  display: grid;
-  gap: 18px;
-  padding: 20px 18px 18px;
+  align-self: start;
+  height: auto;
+  min-height: 0;
+  padding: 14px 16px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(241, 247, 255, 0.93) 50%, rgba(236, 249, 245, 0.9) 100%);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(244, 248, 255, 0.94) 56%, rgba(240, 250, 246, 0.88) 100%);
 }
 
 .hero-main {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
 .profile-avatar {
   position: relative;
-  width: 76px;
-  height: 76px;
+  flex: 0 0 82px;
+  width: 82px;
+  height: 82px;
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.92);
-  border-radius: 50%;
-  background: linear-gradient(135deg, #d6d8de 0%, #7f848f 100%);
-  box-shadow: 0 10px 18px rgba(54, 67, 92, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  border-radius: 25px;
+  background: linear-gradient(145deg, #d8dde6 0%, #8a909c 100%);
+  box-shadow: 0 10px 20px rgba(54, 67, 92, 0.1);
 }
 
 .profile-avatar__glow {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 26% 24%, rgba(255, 255, 255, 0.78), transparent 28%),
-    radial-gradient(circle at 72% 78%, rgba(0, 0, 0, 0.18), transparent 34%);
+    radial-gradient(circle at 24% 20%, rgba(255, 255, 255, 0.78), transparent 28%),
+    radial-gradient(circle at 76% 78%, rgba(0, 0, 0, 0.18), transparent 40%);
 }
 
 .profile-avatar__head,
@@ -289,203 +268,135 @@ function getSectionIconMarkup(key: string) {
 }
 
 .profile-avatar__head {
-  top: 16px;
-  left: 23px;
+  top: 17px;
+  left: 26px;
   width: 21px;
   height: 21px;
   border-radius: 50%;
 }
 
 .profile-avatar__body {
-  bottom: 14px;
-  left: 15px;
-  width: 46px;
-  height: 34px;
-  border-radius: 22px 22px 16px 16px;
+  bottom: 13px;
+  left: 16px;
+  width: 49px;
+  height: 33px;
+  border-radius: 24px 24px 16px 16px;
   transform: rotate(-14deg);
 }
 
 .hero-copy {
   display: grid;
+  align-content: center;
   gap: 8px;
   flex: 1;
   min-width: 0;
 }
 
-.hero-pill {
-  display: inline-flex;
+.hero-copy__top {
+  display: flex;
   align-items: center;
-  justify-self: start;
-  height: 24px;
-  padding: 0 11px;
-  border-radius: 999px;
-  background: rgba(102, 112, 240, 0.1);
-  color: #6670f0;
-  font-size: 12px;
-  font-weight: 500;
+  min-height: auto;
 }
 
 .hero-copy h1 {
   margin: 0;
-  color: #293445;
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.2;
+  color: #253247;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.005em;
 }
 
-.hero-copy p {
+.hero-caption {
   margin: 0;
-  color: #7f8998;
-  font-size: 14px;
+  color: #9aa4b3;
+  font-size: 10px;
   font-weight: 400;
+  line-height: 1.35;
 }
 
 .stats-card {
-  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0;
-  padding: 10px 6px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(246, 249, 255, 0.78) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    0 8px 20px rgba(112, 130, 170, 0.05);
-  backdrop-filter: blur(8px);
-}
-
-.stats-card::before {
-  position: absolute;
-  top: 0;
-  right: 10px;
-  left: 10px;
-  height: 1px;
-  content: "";
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.95) 18%, rgba(255, 255, 255, 0.95) 82%, rgba(255, 255, 255, 0) 100%);
-}
-
-.stats-card::after {
-  position: absolute;
-  top: -24px;
-  right: -18px;
-  width: 112px;
-  height: 60px;
-  content: "";
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(126, 196, 255, 0.1) 0%, rgba(126, 196, 255, 0) 72%);
-  pointer-events: none;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 198px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 15px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(243, 247, 254, 0.66) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .stat-item {
   position: relative;
   display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 4px;
-  min-height: 72px;
-  padding: 4px 8px;
-  text-align: center;
+  gap: 5px;
+  min-width: 0;
+  padding-right: 9px;
+  text-align: left;
+}
+
+.stat-item:not(:last-child) {
+  margin-right: 9px;
 }
 
 .stat-item:not(:last-child)::after {
   position: absolute;
-  top: 50%;
+  top: 6px;
   right: 0;
   width: 1px;
-  height: 34px;
+  height: 30px;
   content: "";
-  transform: translateY(-50%);
-  background: linear-gradient(180deg, rgba(161, 170, 193, 0) 0%, rgba(161, 170, 193, 0.3) 22%, rgba(161, 170, 193, 0.3) 78%, rgba(161, 170, 193, 0) 100%);
-}
-
-.stat-item__icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74) 0%, rgba(241, 245, 255, 0.92) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    0 4px 10px rgba(112, 130, 170, 0.06);
-}
-
-.stat-item__icon svg {
-  width: 15px;
-  height: 15px;
-}
-
-.stat-item__icon g {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.stat-item__icon--age {
-  color: #6b74f2;
-}
-
-.stat-item__icon--height {
-  color: #35bfa0;
-}
-
-.stat-item__icon--weight {
-  color: #f0b84f;
+  background: linear-gradient(180deg, rgba(193, 200, 214, 0) 0%, rgba(193, 200, 214, 0.34) 20%, rgba(193, 200, 214, 0.34) 80%, rgba(193, 200, 214, 0) 100%);
 }
 
 .stat-item__label {
   display: block;
-  text-align: center;
-  color: #98a1b2;
-  font-size: 11px;
+  color: #a3acba;
+  font-size: 10px;
   font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: 0.04em;
+  line-height: 1;
+  letter-spacing: 0.02em;
 }
 
 .stat-item__value {
   display: block;
-  text-align: center;
-  color: #2f3746;
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  color: #334055;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .menu-list {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .menu-item {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 10px;
-  gap: 14px;
+  grid-template-columns: 42px minmax(0, 1fr) 10px;
+  gap: 12px;
   align-items: center;
   width: 100%;
-  min-height: 92px;
-  padding: 0 18px;
+  min-height: 78px;
+  padding: 0 16px;
   text-align: left;
 }
 
 .menu-item__icon {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
 }
 
 .menu-item__icon svg {
-  width: 27px;
-  height: 27px;
+  width: 24px;
+  height: 24px;
 }
 
 .menu-item__icon g {
@@ -523,7 +434,7 @@ function getSectionIconMarkup(key: string) {
 
 .menu-item__copy {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -536,7 +447,7 @@ function getSectionIconMarkup(key: string) {
 
 .menu-item__top strong {
   color: #3a3f4b;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -544,19 +455,19 @@ function getSectionIconMarkup(key: string) {
 .menu-item__top em {
   font-style: normal;
   color: #9aa2b1;
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
 .menu-item__desc {
   color: #7f8998;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .menu-arrow {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-top: 2px solid #c4c9d3;
   border-right: 2px solid #c4c9d3;
   transform: rotate(45deg);
@@ -576,29 +487,67 @@ function getSectionIconMarkup(key: string) {
   }
 
   .hero-main {
-    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .profile-avatar {
+    flex-basis: 76px;
+    width: 76px;
+    height: 76px;
+    border-radius: 22px;
+  }
+
+  .profile-avatar__head {
+    top: 16px;
+    left: 24px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .profile-avatar__body {
+    bottom: 12px;
+    left: 15px;
+    width: 44px;
+    height: 30px;
+  }
+
+  .hero-copy {
+    gap: 7px;
+  }
+
+  .hero-copy h1 {
+    font-size: 20px;
+  }
+
+  .hero-caption {
+    font-size: 9px;
   }
 
   .stats-card {
-    grid-template-columns: 1fr;
-    gap: 0;
-    padding-top: 10px;
+    max-width: 176px;
+    padding: 6px 7px;
   }
 
   .stat-item {
-    min-height: 68px;
-    padding: 8px 8px 10px;
+    gap: 5px;
+    min-width: 0;
+    padding-right: 7px;
+  }
+
+  .stat-item:not(:last-child) {
+    margin-right: 7px;
   }
 
   .stat-item:not(:last-child)::after {
-    top: auto;
-    right: auto;
-    bottom: 0;
-    left: 50%;
-    width: 72%;
-    height: 1px;
-    transform: translateX(-50%);
-    background: linear-gradient(90deg, rgba(161, 170, 193, 0) 0%, rgba(161, 170, 193, 0.45) 22%, rgba(161, 170, 193, 0.45) 78%, rgba(161, 170, 193, 0) 100%);
+    height: 26px;
+  }
+
+  .stat-item__label {
+    font-size: 9px;
+  }
+
+  .stat-item__value {
+    font-size: 14px;
   }
 
   .menu-item__top {
@@ -608,7 +557,7 @@ function getSectionIconMarkup(key: string) {
   }
 
   .menu-item__top strong {
-    font-size: 18px;
+    font-size: 16px;
   }
 }
 </style>

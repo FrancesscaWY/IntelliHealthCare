@@ -159,9 +159,11 @@ function pickFromAlbum() {
   max-height: 844px;
   margin: -18px 0;
   overflow: hidden;
-  background: #ffffff;
-  color: #333333;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  background:
+    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
+  color: #30343f;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -169,8 +171,8 @@ function pickFromAlbum() {
 .page-nav {
   display: flex;
   align-items: center;
-  height: 72px;
-  padding: 0 31px;
+  height: 74px;
+  padding: 0 29px;
 }
 
 .back-btn,
@@ -198,7 +200,7 @@ function pickFromAlbum() {
 }
 
 .page-nav h1 {
-  margin: 0 0 0 8px;
+  margin: 0 0 0 9px;
   color: #30343f;
   font-size: 24px;
   font-weight: 500;
@@ -206,8 +208,8 @@ function pickFromAlbum() {
 }
 
 .page-scroll {
-  height: calc(100% - 72px);
-  padding: 9px 0 106px;
+  height: calc(100% - 74px);
+  padding: 20px 31px 104px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -217,11 +219,13 @@ function pickFromAlbum() {
 }
 
 .form-group {
-  margin-top: 12px;
+  margin-top: 10px;
   overflow: hidden;
-  border-top: 1px solid #eeeeee;
-  border-bottom: 1px solid #eeeeee;
-  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(247, 249, 255, 0.92) 0%, rgba(255, 255, 255, 0.96) 54px, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.06);
 }
 
 .form-group:first-child {
@@ -231,9 +235,9 @@ function pickFromAlbum() {
 .form-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 66px;
-  padding: 0 31px 0 37px;
+  gap: 8px;
+  min-height: 60px;
+  padding: 0 20px;
   border-top: 1px solid #eeeeee;
 }
 
@@ -242,7 +246,7 @@ function pickFromAlbum() {
 }
 
 .form-row--avatar {
-  min-height: 66px;
+  min-height: 60px;
 }
 
 .form-row--textarea {
@@ -253,22 +257,22 @@ function pickFromAlbum() {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 0 0 126px;
-  min-width: 126px;
+  flex: 0 0 108px;
+  min-width: 108px;
 }
 
 .form-label__text {
-  color: #9ea2a8;
-  font-size: 20px;
+  color: #8f96a0;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0.03em;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
 .form-label em {
   color: #ff6f6f;
-  font-size: 18px;
+  font-size: 16px;
   font-style: normal;
 }
 
@@ -283,10 +287,11 @@ function pickFromAlbum() {
 
 .avatar-trigger {
   justify-content: space-between;
-  min-height: 66px;
+  min-height: 60px;
   padding: 0;
-  color: #c0c4cc;
-  font-size: 20px;
+  color: #b5b7bc;
+  font-size: 15px;
+  font-weight: 500;
   text-align: left;
 }
 
@@ -298,7 +303,7 @@ function pickFromAlbum() {
 
 .field-wrap {
   position: relative;
-  min-height: 66px;
+  min-height: 60px;
   padding: 0;
 }
 
@@ -309,20 +314,21 @@ function pickFromAlbum() {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #b5b7bc;
-  font-size: 20px;
+  color: #30343f;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.5;
 }
 
 .field-control::placeholder {
-  color: #c0c4cc;
-  font-weight: 400;
+  color: #b7b7bb;
+  font-weight: 500;
+  opacity: 1;
 }
 
 .field-control--empty {
-  color: #c0c4cc;
-  font-weight: 400;
+  color: #b7b7bb;
+  font-weight: 500;
 }
 
 .field-control--select {
@@ -341,28 +347,31 @@ function pickFromAlbum() {
 .field-suffix {
   flex: 0 0 auto;
   color: #b4bac5;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .field-wrap--date {
   justify-content: space-between;
-  padding-right: 14px;
+  gap: 8px;
+  padding-right: 8px;
 }
 
 .field-date-text {
   min-width: 0;
   flex: 1;
-  color: #3c4250;
-  font-size: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 6px;
+  color: #30343f;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
 }
 
 .field-date-text--empty {
-  color: #c0c4cc;
-  font-weight: 400;
+  color: #b7b7bb;
 }
 
 .field-native-date {
@@ -387,21 +396,21 @@ function pickFromAlbum() {
 }
 
 .field-icon--arrow {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   margin-right: 2px;
-  border-top: 3px solid #c7c7c7;
-  border-right: 3px solid #c7c7c7;
+  border-top: 2px solid #c7c7c7;
+  border-right: 2px solid #c7c7c7;
   transform: rotate(45deg);
 }
 
 .field-icon--calendar {
   position: relative;
   margin-left: auto;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border: 2px solid #c7c7c7;
-  border-radius: 6px;
+  border-radius: 5px;
   pointer-events: none;
 }
 
@@ -417,37 +426,37 @@ function pickFromAlbum() {
 }
 
 .field-icon--calendar::before {
-  left: 5px;
+  left: 4px;
 }
 
 .field-icon--calendar::after {
-  right: 5px;
+  right: 4px;
 }
 
 .field-icon--calendar {
   background:
-    linear-gradient(180deg, transparent 0 7px, #c7c7c7 7px 8px, transparent 8px),
-    radial-gradient(circle at 7px 14px, #c7c7c7 0 1.2px, transparent 1.3px),
-    radial-gradient(circle at 13px 14px, #c7c7c7 0 1.2px, transparent 1.3px);
+    linear-gradient(180deg, transparent 0 5px, #c7c7c7 5px 6px, transparent 6px),
+    radial-gradient(circle at 5px 11px, #c7c7c7 0 1px, transparent 1.1px),
+    radial-gradient(circle at 11px 11px, #c7c7c7 0 1px, transparent 1.1px);
 }
 
 .save-area {
   position: absolute;
-  right: 32px;
-  bottom: 24px;
-  left: 32px;
+  right: 54px;
+  bottom: 28px;
+  left: 54px;
 }
 
 .save-btn {
   width: 100%;
-  height: 66px;
-  border-radius: 13px;
+  height: 54px;
+  border-radius: 11px;
   background: #6670f0;
   box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
   color: #ffffff;
-  font-size: 23px;
+  font-size: 19px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
 .sheet-mask {
@@ -469,13 +478,13 @@ function pickFromAlbum() {
 
 .avatar-sheet__action {
   width: 100%;
-  height: 54px;
+  height: 52px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #6670f0;
   box-shadow: 0 12px 24px rgba(102, 112, 240, 0.18);
   color: #ffffff;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 500;
 }
 
@@ -499,16 +508,14 @@ function pickFromAlbum() {
 }
 
 @media (max-width: 389px) {
-  .page-nav,
-  .form-row,
-  .save-area {
-    padding-right: 28px;
-    padding-left: 32px;
+  .page-scroll {
+    padding-right: 26px;
+    padding-left: 26px;
   }
 
   .form-label {
-    flex-basis: 118px;
-    min-width: 118px;
+    flex-basis: 104px;
+    min-width: 104px;
   }
 
   .form-label__text,
@@ -516,7 +523,7 @@ function pickFromAlbum() {
   .avatar-trigger,
   .field-date-text,
   .field-suffix {
-    font-size: 18px;
+    font-size: 14px;
   }
 }
 </style>

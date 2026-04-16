@@ -78,8 +78,8 @@ const mock = {
         ],
       },
       { key: "occupation", label: "职业", type: "text", placeholder: "请输入您的职业" },
-      { key: "emergencyName", label: "紧急联系人姓名", type: "text", placeholder: "请输入紧急联系人姓名" },
-      { key: "emergencyPhone", label: "紧急联系人电话", type: "tel", placeholder: "请输入紧急联系人电话" },
+      { key: "emergencyName", label: "紧急联系人姓名", type: "text", placeholder: "输入姓名" },
+      { key: "emergencyPhone", label: "紧急联系人电话", type: "tel", placeholder: "输入电话" },
     ],
   ] as BasicInfoField[][],
 };

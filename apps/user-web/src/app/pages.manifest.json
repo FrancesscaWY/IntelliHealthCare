@@ -481,6 +481,45 @@
     "legacySources": []
   },
   {
+    "id": "healthdocs/report-upload",
+    "title": "上传报告",
+    "group": "healthdocs",
+    "route": "/healthdocs/report-upload",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "填写报告名称、报告日期并上传体检附件。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/report-upload",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/report-upload/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/report-upload/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "healthdocs/report-detail",
+    "title": "报告详情",
+    "group": "healthdocs",
+    "route": "/healthdocs/report-detail",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "展示电子体检报告详情、指标结果与报告解读入口。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/report-detail",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/report-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/report-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "healthdocs/report-interpretation",
+    "title": "报告解读",
+    "group": "healthdocs",
+    "route": "/healthdocs/report-interpretation",
+    "owner": "joy",
+    "status": "implemented",
+    "summary": "展示体检指标说明、报告医生信息和健康建议。",
+    "folderPath": "/apps/user-web/src/pages/healthdocs/report-interpretation",
+    "modulePath": "/apps/user-web/src/pages/healthdocs/report-interpretation/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/healthdocs/report-interpretation/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "healthdocs/health-records",
     "title": "健康档案",
     "group": "healthdocs",

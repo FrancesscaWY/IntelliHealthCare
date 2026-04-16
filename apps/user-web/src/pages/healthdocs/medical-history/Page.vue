@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
+import type { HealthInfoField, HealthInfoOption } from "./mock";
 
 const props = defineProps<PageComponentProps>();
 
@@ -22,6 +23,12 @@ const recordState = reactive<Record<string, string[]>>(
   ),
 );
 
+const activeSelect = ref<{
+  key: string;
+  placeholder?: string;
+  options: HealthInfoOption[];
+} | null>(null);
+
 function goBack() {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("healthdocs/health-records");
@@ -34,6 +41,42 @@ function addRecord(key: string) {
 
 function removeRecord(key: string, index: number) {
   recordState[key].splice(index, 1);
+}
+
+function openSelect(field: HealthInfoField) {
+  if (field.type !== "select" || !field.options?.length) {
+    return;
+  }
+
+  activeSelect.value = {
+    key: field.key,
+    placeholder: field.placeholder,
+    options: field.options,
+  };
+}
+
+function closeSelect() {
+  activeSelect.value = null;
+}
+
+function chooseOption(value: string) {
+  if (!activeSelect.value) {
+    return;
+  }
+
+  formState[activeSelect.value.key] = value;
+  closeSelect();
+}
+
+function getSelectedLabel(field: HealthInfoField) {
+  if (field.type !== "select") {
+    return "";
+  }
+
+  const currentValue = formState[field.key];
+  const currentOption = field.options?.find((option) => option.value === currentValue);
+
+  return currentOption?.label || field.placeholder || "请选择";
 }
 
 function saveProfile() {
@@ -71,22 +114,21 @@ function saveProfile() {
             <div
               class="field-wrap"
               :class="{
-                'field-wrap--select': item.type === 'select',
                 'field-wrap--record': item.type === 'record',
-                'field-wrap--empty': !formState[item.key],
+                'field-wrap--empty': item.type !== 'record' && !formState[item.key],
               }"
             >
-              <select
+              <button
                 v-if="item.type === 'select'"
-                v-model="formState[item.key]"
-                class="field-control field-control--select"
-                :class="{ 'field-control--empty': !formState[item.key] }"
+                class="select-trigger"
+                type="button"
+                @click="openSelect(item)"
               >
-                <option value="" disabled>{{ item.placeholder }}</option>
-                <option v-for="option in item.options" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
+                <span class="field-value" :class="{ 'field-value--empty': !formState[item.key] }">
+                  {{ getSelectedLabel(item) }}
+                </span>
+                <span class="field-icon field-icon--arrow" aria-hidden="true"></span>
+              </button>
 
               <div v-else-if="item.type === 'record'" class="record-panel">
                 <button class="record-add" type="button" @click="addRecord(item.key)">
@@ -121,7 +163,7 @@ function saveProfile() {
               </div>
 
               <input
-              v-else
+                v-else
                 v-model="formState[item.key]"
                 class="field-control"
                 :class="{
@@ -133,11 +175,6 @@ function saveProfile() {
               />
 
               <small v-if="item.suffix" class="field-suffix">{{ item.suffix }}</small>
-              <span
-                v-if="item.type === 'select'"
-                class="field-icon field-icon--arrow"
-                aria-hidden="true"
-              ></span>
             </div>
           </article>
         </section>
@@ -147,6 +184,21 @@ function saveProfile() {
     <footer class="save-area">
       <button class="save-btn" type="button" @click="saveProfile">保存</button>
     </footer>
+
+    <div v-if="activeSelect" class="sheet-mask" @click.self="closeSelect">
+      <section class="choice-sheet">
+        <header class="choice-sheet__header">{{ activeSelect.placeholder || "请选择" }}</header>
+        <button
+          v-for="option in activeSelect.options"
+          :key="option.value"
+          class="choice-sheet__option"
+          type="button"
+          @click="chooseOption(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -160,9 +212,11 @@ function saveProfile() {
   max-height: 844px;
   margin: -18px 0;
   overflow: hidden;
-  background: #ffffff;
-  color: #333333;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  background:
+    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
+  color: #30343f;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -170,12 +224,16 @@ function saveProfile() {
 .page-nav {
   display: flex;
   align-items: center;
-  height: 72px;
-  padding: 0 31px;
+  height: 74px;
+  padding: 0 29px;
 }
 
 .back-btn,
-.save-btn {
+.save-btn,
+.select-trigger,
+.record-add,
+.record-card__remove,
+.choice-sheet__option {
   border: 0;
   background: transparent;
   color: inherit;
@@ -198,7 +256,7 @@ function saveProfile() {
 }
 
 .page-nav h1 {
-  margin: 0 0 0 8px;
+  margin: 0 0 0 9px;
   color: #30343f;
   font-size: 24px;
   font-weight: 500;
@@ -206,8 +264,8 @@ function saveProfile() {
 }
 
 .page-scroll {
-  height: calc(100% - 72px);
-  padding: 10px 0 112px;
+  height: calc(100% - 74px);
+  padding: 20px 31px 104px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -217,42 +275,55 @@ function saveProfile() {
 }
 
 .form-section + .form-section {
-  margin-top: 22px;
+  margin-top: 10px;
 }
 
 .section-heading {
-  padding: 0 31px 14px 37px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 47px;
+  padding: 0 20px;
+  background: linear-gradient(90deg, rgba(247, 249, 255, 0.9) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
 .section-heading h2 {
   margin: 0;
-  color: #3f4654;
-  font-size: 20px;
+  color: #30343f;
+  font-size: 17px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .section-heading p {
-  margin: 6px 0 0;
-  color: #a0a8b5;
-  font-size: 13px;
+  min-width: 0;
+  margin: 0;
+  color: #b7b7bb;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.form-group {
+.form-section {
   overflow: hidden;
-  border-top: 1px solid #eeeeee;
-  border-bottom: 1px solid #eeeeee;
-  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.06);
 }
 
 .form-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 66px;
-  padding: 0 31px 0 37px;
+  gap: 8px;
+  min-height: 60px;
+  padding: 0 20px;
   border-top: 1px solid #eeeeee;
 }
 
@@ -263,30 +334,30 @@ function saveProfile() {
 .form-row--record {
   display: block;
   min-height: 0;
-  padding-top: 18px;
-  padding-bottom: 18px;
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 
 .form-label {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 0 0 126px;
-  min-width: 126px;
+  flex: 0 0 108px;
+  min-width: 108px;
 }
 
 .form-label--record {
   flex: none;
   min-width: 0;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .form-label__text {
-  color: #9ea2a8;
-  font-size: 20px;
+  color: #8f96a0;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0.03em;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
@@ -296,41 +367,37 @@ function saveProfile() {
   gap: 8px;
   flex: 1;
   min-width: 0;
-  min-height: 66px;
+  min-height: 60px;
 }
 
 .field-wrap--record {
   min-height: 0;
 }
 
-.field-control {
+.field-control,
+.field-value {
   width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
   outline: 0;
   background: transparent;
-  color: #3c4250;
-  font-size: 20px;
+  color: #30343f;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.5;
 }
 
 .field-control::placeholder {
-  color: #c0c4cc;
-  font-weight: 400;
+  color: #b7b7bb;
+  font-weight: 500;
+  opacity: 1;
 }
 
-.field-control--empty {
-  color: #c0c4cc;
-  font-weight: 400;
-}
-
-.field-control--select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 18px;
-  background: transparent;
+.field-control--empty,
+.field-value--empty {
+  color: #b7b7bb;
+  font-weight: 500;
 }
 
 .field-control--number::-webkit-outer-spin-button,
@@ -342,8 +409,17 @@ function saveProfile() {
 .field-suffix {
   flex: 0 0 auto;
   color: #b4bac5;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 500;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  text-align: left;
 }
 
 .field-icon {
@@ -351,11 +427,11 @@ function saveProfile() {
 }
 
 .field-icon--arrow {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   margin-right: 2px;
-  border-top: 3px solid #c7c7c7;
-  border-right: 3px solid #c7c7c7;
+  border-top: 2px solid #c7c7c7;
+  border-right: 2px solid #c7c7c7;
   transform: rotate(45deg);
 }
 
@@ -363,41 +439,35 @@ function saveProfile() {
   width: 100%;
 }
 
-.record-add,
-.record-card__remove {
-  border: 0;
-  background: transparent;
-}
-
 .record-add {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 52px;
+  min-height: 48px;
   padding: 0 14px;
-  border-radius: 16px;
-  background: #f6f8fc;
-  box-shadow: inset 0 0 0 1px rgba(222, 227, 236, 0.9);
-  color: #8390a3;
+  border-radius: 11px;
+  background: #f7f7f9;
+  box-shadow: inset 0 0 0 1px #e3e5ea;
+  color: #9ea2a8;
   text-align: left;
 }
 
 .record-add__icon {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: rgba(102, 112, 240, 0.12);
-  color: #6670f0;
-  font-size: 18px;
+  border: 2px solid #c7c7c7;
+  color: #c7c7c7;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1;
 }
 
 .record-add__text {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -408,10 +478,10 @@ function saveProfile() {
 }
 
 .record-card {
-  padding: 14px;
-  border-radius: 18px;
-  background: #f8faff;
-  box-shadow: inset 0 0 0 1px rgba(222, 227, 236, 0.92);
+  padding: 12px;
+  border-radius: 11px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #eeeeee;
 }
 
 .record-card__top {
@@ -419,46 +489,87 @@ function saveProfile() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .record-card__index {
-  color: #7c8698;
-  font-size: 14px;
+  color: #9ea2a8;
+  font-size: 12px;
   font-weight: 500;
 }
 
 .record-card__remove {
   padding: 0;
   color: #a0a8b5;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
 }
 
 .field-control--record {
-  min-height: 78px;
-  padding: 0;
+  min-height: 64px;
   resize: none;
   line-height: 1.6;
 }
 
 .save-area {
   position: absolute;
-  right: 32px;
-  bottom: 24px;
-  left: 32px;
+  right: 54px;
+  bottom: 28px;
+  left: 54px;
 }
 
 .save-btn {
   width: 100%;
-  height: 66px;
-  border-radius: 13px;
+  height: 54px;
+  border-radius: 11px;
   background: #6670f0;
   box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
   color: #ffffff;
-  font-size: 23px;
+  font-size: 19px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
+}
+
+.sheet-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(31, 40, 58, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.choice-sheet {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 24px 24px 0 0;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -10px 30px rgba(63, 83, 117, 0.12);
+}
+
+.choice-sheet__header {
+  height: 64px;
+  border-bottom: 1px solid #eeeeee;
+  color: #c2a281;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 64px;
+  text-align: center;
+}
+
+.choice-sheet__option {
+  display: block;
+  width: 100%;
+  min-height: 84px;
+  border-top: 1px solid #eeeeee;
+  color: #30343f;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.choice-sheet__option:first-of-type {
+  border-top: 0;
 }
 
 @media (min-width: 561px) {
@@ -469,27 +580,30 @@ function saveProfile() {
 }
 
 @media (max-width: 389px) {
-  .page-nav,
-  .section-heading,
-  .form-row,
-  .save-area {
-    padding-right: 28px;
-    padding-left: 32px;
+  .page-scroll {
+    padding-right: 26px;
+    padding-left: 26px;
   }
 
   .form-label {
-    flex-basis: 118px;
-    min-width: 118px;
+    flex-basis: 104px;
+    min-width: 104px;
   }
 
   .form-label__text,
   .field-control,
+  .field-value,
   .field-suffix {
-    font-size: 18px;
+    font-size: 14px;
   }
 
   .record-add__text {
-    font-size: 16px;
+    font-size: 13px;
+  }
+
+  .choice-sheet__option {
+    min-height: 76px;
+    font-size: 20px;
   }
 }
 </style>
