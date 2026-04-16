@@ -1,0 +1,981 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import mock from "./mock";
+
+const props = defineProps<PageComponentProps>();
+
+const metricColorMap: Record<string, string> = {
+  steps: "#ff7b64",
+  heartRate: "#ff9a6c",
+  sleep: "#33b18a",
+  weight: "#6670f0",
+  bloodSugar: "#f3c44c",
+  bloodPressure: "#5c6cfa",
+  oxygen: "#16a085",
+  stress: "#f0b90b",
+};
+
+type HealthDataItem = (typeof mock.list)[number];
+
+const dataList = computed<HealthDataItem[]>(() => mock.list);
+const latest = computed(() => dataList.value[dataList.value.length - 1]);
+const previous = computed(() => dataList.value[dataList.value.length - 2] ?? latest.value);
+
+const weightTrend = computed(() => {
+  const weights = dataList.value.map((item) => item.weight);
+  const current = latest.value.weight;
+  const prev = previous.value.weight;
+
+  if (weights.length < 2) {
+    return {
+      change: current - prev,
+      isStable: true,
+    };
+  }
+
+  const weightRange = Math.max(...weights) - Math.min(...weights);
+  const dailyJump = Math.abs(current - prev);
+
+  return {
+    change: current - prev,
+    isStable: weightRange <= 1.2 && dailyJump <= 0.8,
+  };
+});
+
+const summaryCards = computed(() => {
+  const current = latest.value;
+  const prev = previous.value;
+
+  return [
+    {
+      key: "steps",
+      label: "步数",
+      value: current.steps.toLocaleString(),
+      unit: "步",
+      change: current.steps - prev.steps,
+      tone: current.steps >= 8000 ? "good" : "warn",
+    },
+    {
+      key: "heartRate",
+      label: "心率",
+      value: `${current.heartRate}`,
+      unit: "bpm",
+      change: current.heartRate - prev.heartRate,
+      tone: current.heartRate <= 80 ? "good" : "warn",
+    },
+    {
+      key: "sleep",
+      label: "睡眠",
+      value: `${current.sleep}`,
+      unit: "小时",
+      change: current.sleep - prev.sleep,
+      tone: current.sleep >= 7 ? "good" : "warn",
+    },
+    {
+      key: "weight",
+      label: "体重",
+      value: `${current.weight}`,
+      unit: "kg",
+      change: weightTrend.value.change,
+      tone: weightTrend.value.isStable ? "good" : "warn",
+    },
+    {
+      key: "bloodSugar",
+      label: "血糖",
+      value: `${current.bloodSugar}`,
+      unit: "mmol/L",
+      change: current.bloodSugar - prev.bloodSugar,
+      tone: current.bloodSugar <= 6 ? "good" : "warn",
+    },
+    {
+      key: "bloodPressure",
+      label: "血压",
+      value: current.bloodPressure,
+      unit: "mmHg",
+      change: parseInt((current.bloodPressure as string).split('/')[0]) - parseInt((prev.bloodPressure as string).split('/')[0]),
+      tone: parseInt((current.bloodPressure as string).split('/')[0]) <= 140 && parseInt((current.bloodPressure as string).split('/')[1]) <= 90 ? "good" : "warn",
+    },
+    {
+      key: "oxygen",
+      label: "血氧",
+      value: `${current.oxygen}`,
+      unit: "%",
+      change: current.oxygen - prev.oxygen,
+      tone: current.oxygen >= 95 ? "good" : "warn",
+    },
+    {
+      key: "stress",
+      label: "压力",
+      value: `${current.stress}`,
+      unit: "",
+      change: current.stress - prev.stress,
+      tone: current.stress <= 50 ? "good" : "warn",
+    },
+  ];
+});
+
+const healthScore = computed(() => {
+  const current = latest.value;
+  const stepScore = Math.min(100, Math.round((current.steps / 10000) * 100));
+  const sleepScore = Math.min(100, Math.round((current.sleep / 8) * 100));
+  const heartRateScore = Math.max(0, 100 - Math.max(0, current.heartRate - 70) * 4);
+
+  return Math.round(stepScore * 0.45 + sleepScore * 0.3 + heartRateScore * 0.25);
+});
+
+const scoreLabel = computed(() => {
+  if (healthScore.value >= 90) return "状态很稳";
+  if (healthScore.value >= 75) return "状态良好";
+  return "建议关注";
+});
+
+const addDevicePageId = "health/add-device-placeholder";
+
+const profileSummary = computed(() => ({
+  name: "JOY",
+  age: 65,
+  height: 172,
+  weight: latest.value.weight.toFixed(1),
+  deviceCount: 3,
+}));
+
+const healthAlerts = computed(() =>
+  summaryCards.value
+    .filter((item) => item.key !== "bloodPressure")
+    .filter((item) => item.tone === "warn")
+    .slice(0, 2)
+    .map((item) => `${item.label}偏高`)
+);
+
+const linkedDevices = [
+  { id: "watch-alpha", name: "智能手表 A" },
+  { id: "watch-beta", name: "智能手表 B" },
+  { id: "watch-gamma", name: "智能手表 C" },
+];
+
+// sparkline
+function createMiniSparkline(values: number[], stroke: string, width = 180, height = 82) {
+  const padding = 6;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+  const barWidth = Math.min(14, Math.max(8, innerWidth / Math.max(1, values.length * 1.6)));
+
+  const pointList = values.map((v, i) => {
+    const x = padding + (i * innerWidth) / Math.max(1, values.length - 1);
+    const y = height - padding - ((v - min) / range) * innerHeight;
+    return { x, y };
+  });
+
+  const points = pointList.map(p => `${p.x},${p.y}`).join(" ");
+  const areaPoints = `${points} ${width - padding},${height - padding} ${padding},${height - padding}`;
+  const barRects = pointList.map(point => ({
+    x: point.x - barWidth / 2,
+    y: point.y,
+    width: barWidth,
+    height: height - padding - point.y,
+  }));
+
+  return { points, areaPoints, pointList, barRects, width, height, stroke, padding };
+};
+
+const trendDataMap = computed(() => {
+  const d = dataList.value;
+
+  return {
+    steps: { values: d.map(i => i.steps), stroke: "#6670f0" },
+    heartRate: { values: d.map(i => i.heartRate), stroke: "#ff7b64" },
+    sleep: { values: d.map(i => i.sleep), stroke: "#33b18a" },
+    weight: { values: d.map(i => i.weight), stroke: "#8e44ad" },
+    bloodSugar: { values: d.map(i => i.bloodSugar), stroke: "#e67e22" },
+    oxygen: { values: d.map(i => i.oxygen), stroke: "#16a085" },
+    bloodPressure: { values: d.map(i => parseInt((i.bloodPressure as string).split('/')[0])), stroke: "#5c6cfa" },
+    stress: { values: d.map(i => i.stress), stroke: "#f0b90b" },
+  };
+});
+
+const compactMetricsList = computed(() => {
+  const chartKeys = ["steps", "heartRate", "sleep", "weight", "bloodSugar", "oxygen", "bloodPressure", "stress"];
+
+  return summaryCards.value.map(card => {
+    let chartData = null;
+
+    if (chartKeys.includes(card.key)) {
+      const trend = trendDataMap.value[card.key as keyof typeof trendDataMap.value];
+      chartData = createMiniSparkline(trend.values, trend.stroke);
+    }
+
+    return {
+      ...card,
+      chartData,
+      color: metricColorMap[card.key] || "#c8d1df",
+    };
+  });
+});
+
+function getNavigateKey(key: string) {
+  const map: Record<string, string> = {
+    steps: "health/data-steps",
+    heartRate: "health/data-heartrate",
+    sleep: "health/data-sleep",
+    weight: "health/data-weight",
+    bloodSugar: "health/data-bloodglucose",
+    oxygen: "health/data-spo2",
+    bloodPressure: "health/data-bloodpressure",
+    stress: "health/data-pressure",
+  };
+  return map[key];
+}
+
+function goToHome() {
+  if (props.navigation?.navigateTo) {
+    props.navigation.navigateTo("home/dashboard");
+  } else {
+    window.location.href = "/";
+  }
+}
+
+function goToAddDevice() {
+  if (props.navigation?.navigateTo) {
+    props.navigation.navigateTo(addDevicePageId);
+  }
+}
+</script>
+
+<template>
+  <section class="health-data-page">
+    <header class="medication-nav">
+      <button class="back-btn" type="button" aria-label="返回" @click="goToHome">
+        <span class="back-arrow" aria-hidden="true"></span>
+      </button>
+      <h1>健康数据</h1>
+    </header>
+
+    <main class="medication-scroll">
+      <section class="overview-card">
+        <div class="overview-device">
+          <div class="overview-profile">
+            <div class="profile-avatar" aria-hidden="true">
+              <span class="profile-avatar__eye profile-avatar__eye--left"></span>
+              <span class="profile-avatar__eye profile-avatar__eye--right"></span>
+              <span class="profile-avatar__blush profile-avatar__blush--left"></span>
+              <span class="profile-avatar__blush profile-avatar__blush--right"></span>
+              <span class="profile-avatar__smile"></span>
+            </div>
+            <div class="profile-copy">
+              <h2>{{ profileSummary.name }}</h2>
+            </div>
+            <div class="profile-alerts">
+              <span v-for="alert in healthAlerts" :key="alert" class="profile-alert-chip">{{ alert }}</span>
+            </div>
+          </div>
+
+          <div class="device-panel">
+            <div class="device-stats">
+              <div class="device-stat">
+                <span>年龄</span>
+                <strong>{{ profileSummary.age }}</strong>
+              </div>
+              <div class="device-stat">
+                <span>身高</span>
+                <strong>{{ profileSummary.height }}<small>cm</small></strong>
+              </div>
+              <div class="device-stat">
+                <span>体重</span>
+                <strong>{{ profileSummary.weight }}<small>kg</small></strong>
+              </div>
+            </div>
+
+            <p class="device-panel__meta">已绑定{{ profileSummary.deviceCount }}个设备</p>
+
+            <div class="device-list">
+              <div v-for="device in linkedDevices" :key="device.id" class="device-tile" :title="device.name">
+                <div class="device-watch">
+                  <span class="device-watch__screen"></span>
+                </div>
+              </div>
+
+              <button class="device-tile device-tile--add" type="button" aria-label="添加设备" @click="goToAddDevice">
+                <span class="device-plus" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overview-copy">
+          <span>最近 {{ dataList.length }} 天健康数据分析</span>
+          <h2>健康评分</h2>
+          <p>{{ scoreLabel }}</p>
+        </div>
+        <div class="overview-metrics">
+          <strong>{{ healthScore }}</strong>
+          <small>健康评分</small>
+          <em>{{ scoreLabel }}</em>
+        </div>
+      </section>
+
+      <section class="metric-card-list">
+        <article
+          v-for="item in compactMetricsList"
+          :key="item.key"
+          class="metric-card"
+        >
+          <button class="metric-card-button" type="button" @click="props.navigation?.navigateTo(getNavigateKey(item.key))">
+            <div class="metric-card-header">
+              <div class="metric-card-label">
+                <div>
+                  <div class="metric-card-title">{{ item.label }}</div>
+                  <div class="metric-card-subtitle">近7天趋势</div>
+                </div>
+              </div>
+              <div class="metric-card-value">
+                <strong>{{ item.value }}</strong>
+                <small>{{ item.unit }}</small>
+              </div>
+            </div>
+
+            <div class="metric-card-detail">
+              <span class="metric-card-change" :class="item.tone">{{ item.change >= 0 ? `+${item.change}` : item.change }}</span>
+              <span class="metric-card-status" :class="`metric-card-status--${item.tone}`">{{ item.tone === 'good' ? '状态正常' : '需要关注' }}</span>
+            </div>
+
+            <div class="metric-card-chart" v-if="item.chartData">
+              <svg :viewBox="`0 0 ${item.chartData.width} ${item.chartData.height}`">
+                <defs>
+                  <linearGradient :id="`sparkline-${item.key}`" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" :stop-color="item.chartData.stroke" stop-opacity="0.24" />
+                    <stop offset="100%" :stop-color="item.chartData.stroke" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+
+                <g class="metric-card-grid">
+                  <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.25" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.25" />
+                  <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.5" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.5" />
+                  <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.75" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.75" />
+                </g>
+
+                <polygon
+                  :points="item.chartData.areaPoints"
+                  :fill="`url(#sparkline-${item.key})`"
+                  opacity="0.95"
+                />
+
+                <polyline
+                  :points="item.chartData.points"
+                  fill="none"
+                  :stroke="item.chartData.stroke"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+
+                <g v-for="(point, index) in item.chartData.pointList" :key="`${item.key}-dot-${index}`">
+                  <circle :cx="point.x" :cy="point.y" :r="index === item.chartData.pointList.length - 1 ? 4.5 : 3.5" fill="#ffffff" :stroke="item.chartData.stroke" stroke-width="2" />
+                </g>
+              </svg>
+            </div>
+          </button>
+        </article>
+      </section>
+
+      <p class="no-more">没有更多了</p>
+    </main>
+  </section>
+</template>
+
+<style scoped>
+.health-data-page {
+  position: relative;
+  left: 50%;
+  width: min(390px, 100vw);
+  height: min(844px, calc(100vh - 36px));
+  min-height: min(844px, calc(100vh - 36px));
+  max-height: 844px;
+  margin: -18px 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
+  color: #30343f;
+  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  transform: translateX(-50%);
+  -webkit-font-smoothing: antialiased;
+}
+
+.medication-nav {
+  display: flex;
+  align-items: center;
+  height: 74px;
+  padding: 0 29px;
+}
+
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.back-arrow {
+  width: 14px;
+  height: 14px;
+  border-bottom: 4px solid #333333;
+  border-left: 4px solid #333333;
+  transform: rotate(45deg);
+}
+
+.medication-nav h1 {
+  margin: 0 0 0 9px;
+  color: #30343f;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.medication-scroll {
+  height: calc(100% - 74px);
+  padding: 24px 31px 44px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.medication-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.overview-card {
+  position: relative;
+  min-height: 350px;
+  padding: 20px 18px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 255, 0.92) 48%, rgba(226, 252, 244, 0.88) 100%);
+  box-shadow: 0 18px 42px rgba(72, 104, 148, 0.1);
+}
+
+.overview-card::after {
+  position: absolute;
+  right: -22px;
+  bottom: -25px;
+  width: 106px;
+  height: 106px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(102, 112, 240, 0.08);
+}
+
+.overview-device {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 20px;
+}
+
+.overview-profile {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 12px;
+}
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), transparent 30%),
+    radial-gradient(circle at 70% 74%, rgba(255, 214, 224, 0.85), transparent 24%),
+    linear-gradient(135deg, #ffd6de 0%, #ffc7a8 100%);
+  box-shadow: 0 10px 18px rgba(54, 67, 92, 0.12);
+}
+
+.profile-avatar::before,
+.profile-avatar::after {
+  position: absolute;
+  top: 8px;
+  width: 18px;
+  height: 14px;
+  content: "";
+  border-radius: 14px 14px 4px 4px;
+  background: linear-gradient(180deg, #8b6b79 0%, #6f5561 100%);
+}
+
+.profile-avatar::before {
+  left: 10px;
+  transform: rotate(-18deg);
+}
+
+.profile-avatar::after {
+  right: 10px;
+  transform: rotate(18deg);
+}
+
+.profile-avatar__eye {
+  position: absolute;
+  top: 28px;
+  width: 7px;
+  height: 9px;
+  border-radius: 50%;
+  background: #4b4652;
+}
+
+.profile-avatar__eye--left {
+  left: 22px;
+}
+
+.profile-avatar__eye--right {
+  right: 22px;
+}
+
+.profile-avatar__blush {
+  position: absolute;
+  top: 37px;
+  width: 12px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 142, 163, 0.42);
+  filter: blur(0.5px);
+}
+
+.profile-avatar__blush--left {
+  left: 12px;
+}
+
+.profile-avatar__blush--right {
+  right: 12px;
+}
+
+.profile-avatar__smile {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  width: 18px;
+  height: 10px;
+  border-bottom: 3px solid #4b4652;
+  border-radius: 0 0 18px 18px;
+  transform: translateX(-50%);
+}
+
+.profile-copy h2 {
+  margin: 0;
+  color: #30343f;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.profile-alerts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #9da1ab;
+  font-size: 14px;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
+}
+
+.profile-alert-chip--normal {
+  color: #7f8998;
+}
+
+.device-panel {
+  padding: 22px 18px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(251, 251, 255, 0.96) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.device-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.device-stat {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 10px 6px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.device-stat span {
+  color: #c3c5cd;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.device-stat strong {
+  color: #30343f;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.device-stat strong small {
+  margin-left: 3px;
+  color: #b7b7bb;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.device-panel__meta {
+  margin: 20px 0 0;
+  color: #8e8f94;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.device-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.device-tile {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(233, 236, 241, 0.9);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
+  box-shadow: 0 8px 16px rgba(74, 90, 120, 0.06);
+}
+
+.device-watch {
+  position: relative;
+  width: 30px;
+  height: 40px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #171a21 0%, #353844 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+
+.device-watch::before,
+.device-watch::after {
+  position: absolute;
+  left: 50%;
+  width: 16px;
+  height: 8px;
+  content: "";
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1d2028 0%, #3a3d47 100%);
+  transform: translateX(-50%);
+}
+
+.device-watch::before {
+  top: -7px;
+}
+
+.device-watch::after {
+  bottom: -7px;
+}
+
+.device-watch__screen {
+  position: absolute;
+  inset: 5px;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 186, 96, 0.92), transparent 32%),
+    radial-gradient(circle at 70% 68%, rgba(255, 119, 89, 0.9), transparent 34%),
+    linear-gradient(135deg, #151820 0%, #2d3140 100%);
+}
+
+.device-tile--add {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.device-tile--add:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(74, 90, 120, 0.1);
+}
+
+.device-plus {
+  position: relative;
+  width: 26px;
+  height: 26px;
+}
+
+.device-plus::before,
+.device-plus::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  content: "";
+  background: #c6c8ce;
+  transform: translate(-50%, -50%);
+}
+
+.device-plus::before {
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.device-plus::after {
+  width: 3px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.overview-copy,
+.overview-metrics {
+  display: none;
+}
+
+.metric-card-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.metric-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 15px 34px rgba(72, 104, 148, 0.075);
+}
+
+.metric-card-button {
+  display: grid;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  width: 100%;
+  border: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 255, 0.9) 100%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.metric-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.metric-card-label {
+  display: block;
+}
+
+.metric-card-title {
+  color: #30343f;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.metric-card-subtitle {
+  margin-top: 4px;
+  color: #8e8f94;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.metric-card-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.metric-card-value strong {
+  color: #30343f;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metric-card-value small {
+  color: #8e8f94;
+  font-size: 16px;
+}
+
+.metric-card-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #8e8f94;
+  font-size: 13px;
+  align-items: center;
+}
+
+.metric-card-change {
+  font-weight: 600;
+}
+
+.metric-card-change.good {
+  color: #31c79b;
+}
+
+.metric-card-change.warn {
+  color: #f06969;
+}
+
+.metric-card-status {
+  justify-self: end;
+  min-width: 64px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 28px;
+  text-align: center;
+}
+
+.metric-card-status--good {
+  background: #d7f5eb;
+  color: #31c79b;
+}
+
+.metric-card-status--warn {
+  background: #fff0f0;
+  color: #f06969;
+}
+
+.metric-card-chart {
+  width: 100%;
+  height: 58px;
+  padding: 0;
+}
+
+.metric-card-chart svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.metric-card-grid line {
+  stroke: rgba(95, 109, 148, 0.12);
+  stroke-width: 1;
+}
+
+.metric-card-chart polygon {
+  filter: drop-shadow(0 10px 20px rgba(102, 112, 240, 0.08));
+}
+
+.metric-card-chart circle {
+  transition: transform 0.2s ease;
+}
+
+.metric-card-chart circle:hover {
+  transform: scale(1.2);
+}
+
+.metric-card-detail {
+  color: #6c7488;
+}
+
+.no-more {
+  margin: 28px 0 0;
+  color: #c9c9c9;
+  font-size: 17px;
+  font-weight: 500;
+  text-align: center;
+}
+
+@media (min-width: 561px) {
+  .health-data-page {
+    height: 844px;
+    min-height: 844px;
+  }
+}
+
+@media (max-width: 389px) {
+  .medication-scroll {
+    padding-right: 26px;
+    padding-left: 26px;
+  }
+
+  .overview-card {
+    min-height: 332px;
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .profile-copy h2 {
+    font-size: 24px;
+  }
+
+  .profile-alert-chip {
+    min-height: 36px;
+    padding-right: 12px;
+    padding-left: 12px;
+    font-size: 13px;
+  }
+
+  .device-panel {
+    padding-top: 18px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .device-stat span {
+    font-size: 13px;
+  }
+
+  .device-stat strong {
+    font-size: 22px;
+  }
+
+  .device-stat strong small {
+    font-size: 14px;
+  }
+
+  .device-panel__meta {
+    font-size: 15px;
+  }
+
+  .device-list {
+    gap: 8px;
+  }
+
+  .metric-card-button {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .metric-card-header {
+    gap: 10px;
+  }
+
+  .metric-card-title {
+    font-size: 18px;
+  }
+
+  .metric-card-value strong {
+    font-size: 26px;
+  }
+}
+</style>
