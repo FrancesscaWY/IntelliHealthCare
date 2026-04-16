@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import type { DietRecipe } from "../diet-recipes";
 import mock from "./mock";
+import { selectedDietRecipeId } from "./state";
 
 const props = defineProps<PageComponentProps>();
 const activeMeal = ref(mock.mealTabs[0]?.key || "breakfast");
@@ -59,8 +61,9 @@ function selectMeal(key: string) {
   activeMeal.value = key;
 }
 
-function openRecipe(title: string) {
-  props.showToast(`${title}详情待接入`);
+function openRecipe(recipe: DietRecipe) {
+  selectedDietRecipeId.value = recipe.id;
+  props.navigation.navigateTo("health/diet-recipe-detail");
 }
 
 function getMealIconMarkup(key: string) {
@@ -136,10 +139,8 @@ function getMealIconMarkup(key: string) {
         </header>
 
         <div class="recipe-grid">
-          <article v-for="item in mock.recipes" :key="item.title" class="recipe-card" @click="openRecipe(item.title)">
-            <div class="recipe-photo" :class="`recipe-photo--${item.color}`" aria-hidden="true">
-              <span></span>
-            </div>
+          <article v-for="item in mock.recipes" :key="item.id" class="recipe-card" @click="openRecipe(item)">
+            <img class="recipe-photo" :src="item.imageUrl" :alt="item.title" draggable="false" />
             <h3>{{ item.title }}</h3>
             <p>{{ item.energy }} · {{ item.time }}</p>
             <div class="recipe-tags">
@@ -166,7 +167,7 @@ function getMealIconMarkup(key: string) {
     linear-gradient(180deg, rgba(255, 242, 246, 0) 0%, rgba(255, 235, 241, 0.14) 7%, rgba(255, 217, 229, 0.18) 18%, rgba(255, 238, 243, 0.1) 31%, rgba(255, 246, 249, 0) 44%),
     linear-gradient(180deg, #cce6ff 0%, #edf4ff 32%, #f0f8fb 100%);
   color: #273242;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -174,8 +175,8 @@ function getMealIconMarkup(key: string) {
 .diet-nav {
   display: flex;
   align-items: center;
-  height: 72px;
-  padding: 0 29px;
+  height: 58px;
+  padding: 0 20px;
 }
 
 .back-btn,
@@ -188,30 +189,30 @@ function getMealIconMarkup(key: string) {
 .back-btn {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 44px;
+  width: 28px;
+  height: 38px;
   padding: 0;
 }
 
 .back-arrow {
-  width: 14px;
-  height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  width: 12px;
+  height: 12px;
+  border-bottom: 3px solid #333333;
+  border-left: 3px solid #333333;
   transform: rotate(45deg);
 }
 
 .diet-nav h1 {
-  margin: 0 0 0 9px;
+  margin: 0 0 0 8px;
   color: #273242;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .diet-scroll {
-  height: calc(100% - 72px);
-  padding: 12px 31px 42px;
+  height: calc(100% - 58px);
+  padding: 6px 20px 20px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -223,13 +224,13 @@ function getMealIconMarkup(key: string) {
 .diet-hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 116px;
-  gap: 14px;
-  min-height: 154px;
-  padding: 23px 18px 21px 22px;
+  grid-template-columns: minmax(0, 1fr) 106px;
+  gap: 10px;
+  min-height: 126px;
+  padding: 15px 14px 15px 16px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 24px;
+  border-radius: 20px;
   background:
     radial-gradient(circle at 88% 18%, rgba(102, 112, 240, 0.12) 0, rgba(102, 112, 240, 0) 34%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 255, 0.92) 48%, rgba(226, 252, 244, 0.86) 100%);
@@ -244,52 +245,52 @@ function getMealIconMarkup(key: string) {
 .hero-copy span {
   display: inline-flex;
   align-items: center;
-  height: 25px;
-  padding: 0 12px;
+  height: 22px;
+  padding: 0 10px;
   border-radius: 999px;
   background: rgba(76, 205, 155, 0.14);
   color: #22b987;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .hero-copy h2 {
-  margin: 15px 0 0;
+  margin: 8px 0 0;
   color: #172332;
-  font-size: 25px;
-  font-weight: 700;
-  line-height: 1.25;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
 .hero-copy p {
-  margin: 11px 0 0;
+  margin: 6px 0 0;
   color: #7a8593;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.48;
 }
 
 .hero-plate {
   position: relative;
   z-index: 1;
   align-self: center;
-  width: 124px;
-  height: 116px;
+  width: 110px;
+  height: 102px;
   filter: drop-shadow(0 19px 22px rgba(89, 132, 90, 0.18));
 }
 
 .hero-plate svg {
   display: block;
-  width: 124px;
-  height: 116px;
+  width: 110px;
+  height: 102px;
 }
 
 .nutrition-card {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  margin-top: 14px;
+  margin-top: 8px;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 16px;
   background: rgba(223, 229, 232, 0.72);
   box-shadow: 0 13px 30px rgba(68, 118, 90, 0.08);
 }
@@ -297,40 +298,40 @@ function getMealIconMarkup(key: string) {
 .nutrition-card div {
   display: grid;
   place-items: center;
-  min-height: 70px;
+  min-height: 56px;
   background: rgba(255, 255, 255, 0.9);
 }
 
 .nutrition-card strong {
   color: #273242;
-  font-size: 19px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .nutrition-card span {
-  margin-top: -4px;
+  margin-top: -3px;
   color: #8b95a1;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .diet-search {
   display: flex;
   align-items: center;
-  height: 52px;
-  margin-top: 16px;
-  padding: 0 19px;
+  height: 42px;
+  margin-top: 10px;
+  padding: 0 14px;
   border: 1px solid #edf0f2;
-  border-radius: 17px;
+  border-radius: 15px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 10px 26px rgba(68, 118, 90, 0.055);
 }
 
 .search-icon {
   position: relative;
-  width: 20px;
-  height: 20px;
-  margin-right: 12px;
-  border: 3px solid #c9c9c9;
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  border: 2.5px solid #c9c9c9;
   border-radius: 50%;
 }
 
@@ -338,8 +339,8 @@ function getMealIconMarkup(key: string) {
   position: absolute;
   right: -7px;
   bottom: -5px;
-  width: 10px;
-  height: 3px;
+  width: 9px;
+  height: 2.5px;
   content: "";
   border-radius: 999px;
   background: #c9c9c9;
@@ -353,7 +354,7 @@ function getMealIconMarkup(key: string) {
   outline: 0;
   background: transparent;
   color: #273242;
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .diet-search input::placeholder {
@@ -364,32 +365,32 @@ function getMealIconMarkup(key: string) {
 .meal-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
+  gap: 6px;
+  margin-top: 12px;
 }
 
 .meal-tabs button {
   display: grid;
   justify-items: center;
-  min-height: 92px;
-  padding: 13px 5px 10px;
+  min-height: 72px;
+  padding: 8px 4px 7px;
   border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 18px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow: 0 11px 26px rgba(68, 118, 90, 0.06);
 }
 
 .meal-tabs button strong {
-  margin-top: 9px;
+  margin-top: 6px;
   color: #273242;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .meal-tabs button small {
-  margin-top: 4px;
+  margin-top: 2px;
   color: #9aa4af;
-  font-size: 10px;
+  font-size: 9px;
   white-space: nowrap;
 }
 
@@ -401,16 +402,16 @@ function getMealIconMarkup(key: string) {
 .meal-tab-icon {
   display: grid;
   place-items: center;
-  width: 35px;
-  height: 35px;
-  border-radius: 13px;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.74);
 }
 
 .meal-tab-icon svg {
   display: block;
-  width: 27px;
-  height: 27px;
+  width: 24px;
+  height: 24px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2.1;
@@ -445,7 +446,7 @@ function getMealIconMarkup(key: string) {
 }
 
 .recommend-section {
-  margin-top: 27px;
+  margin-top: 16px;
 }
 
 .section-header {
@@ -457,140 +458,65 @@ function getMealIconMarkup(key: string) {
 .section-header h2 {
   margin: 0;
   color: #273242;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 500;
 }
 
 .section-header span {
   color: #9aa4af;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .recipe-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 15px 14px;
-  margin-top: 17px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .recipe-card {
   overflow: hidden;
-  padding: 0 0 13px;
-  border-radius: 18px;
+  padding: 0 0 9px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 13px 30px rgba(68, 118, 90, 0.07);
 }
 
 .recipe-photo {
-  position: relative;
-  height: 118px;
-  overflow: hidden;
+  display: block;
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
   background: #eaf6ee;
 }
 
-.recipe-photo::before,
-.recipe-photo::after,
-.recipe-photo span {
-  position: absolute;
-  content: "";
-  border-radius: 50%;
-}
-
-.recipe-photo::before {
-  inset: 17px 24px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.34);
-}
-
-.recipe-photo::after {
-  top: 36px;
-  left: 43px;
-  width: 40px;
-  height: 40px;
-}
-
-.recipe-photo span {
-  right: 36px;
-  bottom: 28px;
-  width: 28px;
-  height: 28px;
-}
-
-.recipe-photo--green {
-  background: linear-gradient(135deg, #e4f8ec 0%, #c5efd9 100%);
-}
-
-.recipe-photo--green::after {
-  background: #65d5a6;
-}
-
-.recipe-photo--green span {
-  background: #f1c862;
-}
-
-.recipe-photo--orange {
-  background: linear-gradient(135deg, #fff4df 0%, #ffe0ad 100%);
-}
-
-.recipe-photo--orange::after {
-  background: #f3a35c;
-}
-
-.recipe-photo--orange span {
-  background: #77d0a8;
-}
-
-.recipe-photo--mint {
-  background: linear-gradient(135deg, #e8fff8 0%, #bdeedc 100%);
-}
-
-.recipe-photo--mint::after {
-  background: #3fc995;
-}
-
-.recipe-photo--mint span {
-  background: #8ecbff;
-}
-
-.recipe-photo--rose {
-  background: linear-gradient(135deg, #fff0ef 0%, #ffd2c9 100%);
-}
-
-.recipe-photo--rose::after {
-  background: #ff8a7b;
-}
-
-.recipe-photo--rose span {
-  background: #ffd166;
-}
-
 .recipe-card h3 {
-  margin: 13px 12px 0;
+  margin: 8px 9px 0;
   color: #273242;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .recipe-card p {
-  margin: 8px 12px 0;
+  margin: 5px 9px 0;
   color: #97a1ad;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .recipe-tags {
   display: flex;
-  gap: 7px;
-  margin: 12px 12px 0;
+  gap: 6px;
+  margin: 7px 9px 0;
 }
 
 .recipe-tags span {
-  height: 24px;
-  padding: 0 8px;
+  height: 22px;
+  padding: 0 7px;
   border-radius: 999px;
   background: #effaf5;
   color: #30bd8a;
-  font-size: 12px;
-  line-height: 24px;
+  font-size: 10px;
+  line-height: 22px;
   white-space: nowrap;
 }
 
@@ -603,16 +529,16 @@ function getMealIconMarkup(key: string) {
 
 @media (max-width: 389px) {
   .diet-scroll {
-    padding-right: 26px;
-    padding-left: 26px;
+    padding-right: 16px;
+    padding-left: 16px;
   }
 
   .meal-tabs {
-    gap: 8px;
+    gap: 6px;
   }
 
   .recipe-grid {
-    gap: 13px 12px;
+    gap: 10px;
   }
 }
 </style>

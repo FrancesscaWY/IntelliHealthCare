@@ -8,7 +8,21 @@
   --surface-strong: rgba(255, 255, 255, 0.98);
   --line: rgba(35, 82, 173, 0.12);
   --shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ihc-font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Noto Sans SC",
+    "Source Han Sans SC",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "Segoe UI",
+    sans-serif;
+  font-family: var(--ihc-font-family);
 }
 
 * {
@@ -31,6 +45,8 @@ button,
 input,
 textarea {
   font: inherit;
+  font-weight: 400;
+  font-synthesis-weight: none;
 }
 
 button {
@@ -61,7 +77,7 @@ a {
 
 .mobile-page-root {
   min-height: 844px;
-  padding: 18px;
+  padding: 16px;
 }
 
 .page-eyebrow {
@@ -107,8 +123,8 @@ a {
 }
 
 .page-loader {
-  padding: 28px 20px;
-  border-radius: 24px;
+  padding: 24px 18px;
+  border-radius: 20px;
   background: var(--surface);
   box-shadow: var(--shadow);
   color: var(--muted);

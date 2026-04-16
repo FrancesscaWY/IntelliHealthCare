@@ -155,6 +155,45 @@
     "legacySources": []
   },
   {
+    "id": "content/health-lecture",
+    "title": "健康讲堂",
+    "group": "content",
+    "route": "/content/health-lecture",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "健康讲堂视频列表、最热和最新切换以及互动统计页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-lecture",
+    "modulePath": "/apps/user-web/src/pages/content/health-lecture/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-lecture/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "content/health-lecture-detail",
+    "title": "健康讲堂详情",
+    "group": "content",
+    "route": "/content/health-lecture-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "健康讲堂视频详情、推荐视频和底部评论交互页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-lecture-detail",
+    "modulePath": "/apps/user-web/src/pages/content/health-lecture-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-lecture-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "content/health-news-detail",
+    "title": "健康资讯详情",
+    "group": "content",
+    "route": "/content/health-news-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "健康资讯图文详情、评论列表和底部评论输入交互页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-news-detail",
+    "modulePath": "/apps/user-web/src/pages/content/health-news-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-news-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/device-center",
     "title": "设备中心",
     "group": "health",
@@ -168,6 +207,19 @@
     "legacySources": []
   },
   {
+    "id": "health/device-detail",
+    "title": "????",
+    "group": "health",
+    "route": "/health/device-detail",
+    "owner": "TBD",
+    "status": "implemented",
+    "summary": "???????????????????",
+    "folderPath": "/apps/user-web/src/pages/health/device-detail",
+    "modulePath": "/apps/user-web/src/pages/health/device-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/device-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/diet-plan",
     "title": "健康膳食",
     "group": "health",
@@ -178,6 +230,19 @@
     "folderPath": "/apps/user-web/src/pages/health/diet-plan",
     "modulePath": "/apps/user-web/src/pages/health/diet-plan/Page.vue",
     "mockPath": "/apps/user-web/src/pages/health/diet-plan/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "health/diet-recipe-detail",
+    "title": "Recipe Detail",
+    "group": "health",
+    "route": "/health/diet-recipe-detail",
+    "owner": "TBD",
+    "status": "implemented",
+    "summary": "Recipe detail page for diet plan.",
+    "folderPath": "/apps/user-web/src/pages/health/diet-recipe-detail",
+    "modulePath": "/apps/user-web/src/pages/health/diet-recipe-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/diet-recipe-detail/mock.ts",
     "legacySources": []
   },
   {

@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
   background:
     linear-gradient(180deg, rgba(203, 229, 252, 0.96) 0%, rgba(232, 240, 248, 0.96) 40%, #f7f8fa 100%),
     #eef4f8;
-  font-family: "MiSans", "HarmonyOS Sans SC", "PingFang SC", "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
 }
 
 .intro-topbar {

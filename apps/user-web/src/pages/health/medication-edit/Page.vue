@@ -225,7 +225,7 @@ function saveMedication() {
   overflow: hidden;
   background: #ffffff;
   color: #333333;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }

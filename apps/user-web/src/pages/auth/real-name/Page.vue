@@ -200,7 +200,7 @@ function saveProfile() {
   background:
     linear-gradient(180deg, #4f6ff5 0, #6287ff 118px, #83b8ff 248px, #f6f7fb 328px, #f6f7fb 100%);
   color: #333333;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
 }
 
 .real-name-nav {
@@ -473,7 +473,7 @@ function saveProfile() {
 }
 
 .gender-picker {
-  padding: 8px 0 22px;
+  padding: 8px 0 22px;  
 }
 
 .gender-picker button {
