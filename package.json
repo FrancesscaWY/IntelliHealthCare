@@ -15,7 +15,5 @@
     "create:page": "node ./scripts/create-page.mjs",
     "prompt:page": "node ./scripts/codex-prompt.mjs"
   },
-  "dependencies": {
-    "@icon-park/vue-next": "^1.4.2"
-  }
+  "dependencies": {}
 }

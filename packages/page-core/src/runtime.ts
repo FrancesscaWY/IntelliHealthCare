@@ -19,7 +19,7 @@ export const bottomTabItems: BottomTabItem[] = [
   { key: "home", label: "首页", icon: "首", pageId: "home/dashboard" },
   { key: "circle", label: "生活圈", icon: "圈", pageId: "community/circle" },
   { key: "publish", label: "发布", icon: "+", pageId: "community/publish" },
-  { key: "message", label: "消息", icon: "信", pageId: "" },
+  { key: "message", label: "消息", icon: "信", pageId: "home/message" },
   { key: "mine", label: "我的", icon: "我", pageId: "home/mine" },
 ];
 
