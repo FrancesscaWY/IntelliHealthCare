@@ -1,0 +1,544 @@
+<script setup lang="ts">
+import { ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import type { DietRecipe } from "../diet-recipes";
+import mock from "./mock";
+import { selectedDietRecipeId } from "./state";
+
+const props = defineProps<PageComponentProps>();
+const activeMeal = ref(mock.mealTabs[0]?.key || "breakfast");
+const searchValue = ref("");
+
+const mealIconMarkup: Record<string, string> = {
+  breakfast: `
+    <path d="M7 8h11v5.5a5.5 5.5 0 0 1-5.5 5.5A5.5 5.5 0 0 1 7 13.5V8Z" />
+    <path d="M18 10h2.5a2.5 2.5 0 0 1 0 5H18" />
+    <path d="M5 21h16" />
+  `,
+  lunch: `
+    <path d="M5 11h18v1.5A8.5 8.5 0 0 1 14.5 21h-1A8.5 8.5 0 0 1 5 12.5V11Z" />
+    <path d="M7 23h14" />
+    <path d="M8 5v3" />
+    <path d="M14 4v4" />
+    <path d="M20 5v3" />
+  `,
+  dinner: `
+    <path d="M8 4v18" />
+    <path d="M4 4v6a4 4 0 0 0 8 0V4" />
+    <path d="M18 4v18" />
+    <path d="M18 4c4 2.4 4 7.6 0 10" />
+  `,
+  snack: `
+    <path d="M7 10h14l-1.4 11H8.4L7 10Z" />
+    <path d="M9 10c0-2.4 2-4 4-2.5C14.2 4.7 18 5.6 18 9.5" />
+    <path d="M10 14h.01" />
+    <path d="M14 16h.01" />
+    <path d="M18 14h.01" />
+  `,
+};
+
+const heroFoodMarkup = `
+  <ellipse cx="62" cy="99" rx="41" ry="8" fill="#dfeee5" opacity=".7" />
+  <path d="M25 55h74c-2.4 26.6-17.1 43-37 43S27.4 81.6 25 55Z" fill="#62cfa1" />
+  <path d="M31 61h62c-4.7 18.5-15.6 28.1-31 28.1S35.7 79.5 31 61Z" fill="#ffffff" opacity=".84" />
+  <path d="M23 54c3.4 8.6 19.2 14.7 39 14.7s35.6-6.1 39-14.7c-3.4-8.6-19.2-14.7-39-14.7S26.4 45.4 23 54Z" fill="#f7fbf8" />
+  <path d="M32 48c10-16 25.5-18.8 36-7-13.6 1.2-24.7 7-33.2 17.2A20.4 20.4 0 0 1 32 48Z" fill="#4fcf97" />
+  <path d="M53 37c7.7-14.5 22-18.6 35-9-11.7 5.4-19.2 14.7-22.4 27.8A24.8 24.8 0 0 1 53 37Z" fill="#7bddaf" />
+  <path d="M74 43c10.2-12.1 23.4-12.1 34 0-11.2 2.3-19.5 8-25 17.1A23.5 23.5 0 0 1 74 43Z" fill="#42bd83" />
+  <circle cx="43" cy="58" r="7" fill="#ff836f" />
+  <circle cx="77" cy="55" r="7" fill="#ff836f" />
+  <circle cx="60" cy="61" r="6" fill="#f7cf5f" />
+  <path d="M35 69c15.8 10.4 39.8 10.4 55.6 0" fill="none" stroke="#36aa78" stroke-width="3.2" stroke-linecap="round" />
+`;
+
+function goBack() {
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch("home/dashboard");
+  }
+}
+
+function selectMeal(key: string) {
+  activeMeal.value = key;
+}
+
+function openRecipe(recipe: DietRecipe) {
+  selectedDietRecipeId.value = recipe.id;
+  props.navigation.navigateTo("health/diet-recipe-detail");
+}
+
+function getMealIconMarkup(key: string) {
+  return mealIconMarkup[key] || mealIconMarkup.breakfast;
+}
+</script>
+
+<template>
+  <section class="diet-page">
+    <header class="diet-nav">
+      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
+        <span class="back-arrow" aria-hidden="true"></span>
+      </button>
+      <h1>{{ mock.title }}</h1>
+    </header>
+
+    <main class="diet-scroll">
+      <section class="diet-hero">
+        <div class="hero-copy">
+          <span>营养计划</span>
+          <h2>{{ mock.overview.title }}</h2>
+          <p>{{ mock.overview.subtitle }}</p>
+        </div>
+        <div class="hero-plate" aria-hidden="true">
+          <svg viewBox="0 0 124 116" focusable="false">
+            <g v-html="heroFoodMarkup"></g>
+          </svg>
+        </div>
+      </section>
+
+      <section class="nutrition-card" aria-label="今日营养概览">
+        <div>
+          <strong>{{ mock.overview.calories }}</strong>
+          <span>热量 kcal</span>
+        </div>
+        <div>
+          <strong>{{ mock.overview.protein }}</strong>
+          <span>蛋白质</span>
+        </div>
+        <div>
+          <strong>{{ mock.overview.fiber }}</strong>
+          <span>膳食纤维</span>
+        </div>
+      </section>
+
+      <label class="diet-search">
+        <span class="search-icon" aria-hidden="true"></span>
+        <input v-model="searchValue" type="search" :placeholder="mock.searchPlaceholder" />
+      </label>
+
+      <section class="meal-tabs" aria-label="餐次分类">
+        <button
+          v-for="item in mock.mealTabs"
+          :key="item.key"
+          type="button"
+          :class="{ 'meal-tab--active': activeMeal === item.key }"
+          @click="selectMeal(item.key)"
+        >
+          <span class="meal-tab-icon" :class="`meal-tab-icon--${item.key}`" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <g v-html="getMealIconMarkup(item.key)"></g>
+            </svg>
+          </span>
+          <strong>{{ item.label }}</strong>
+          <small>{{ item.desc }}</small>
+        </button>
+      </section>
+
+      <section class="recommend-section">
+        <header class="section-header">
+          <h2>为您推荐</h2>
+          <span>适合长者的低盐轻食</span>
+        </header>
+
+        <div class="recipe-grid">
+          <article v-for="item in mock.recipes" :key="item.id" class="recipe-card" @click="openRecipe(item)">
+            <img class="recipe-photo" :src="item.imageUrl" :alt="item.title" draggable="false" />
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.energy }} · {{ item.time }}</p>
+            <div class="recipe-tags">
+              <span v-for="tag in item.tags" :key="tag">{{ tag }}</span>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </section>
+</template>
+
+<style scoped>
+.diet-page {
+  position: relative;
+  left: 50%;
+  width: min(390px, 100vw);
+  height: min(844px, calc(100vh - 36px));
+  min-height: min(844px, calc(100vh - 36px));
+  max-height: 844px;
+  margin: -18px 0;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 246, 0) 0%, rgba(255, 235, 241, 0.14) 7%, rgba(255, 217, 229, 0.18) 18%, rgba(255, 238, 243, 0.1) 31%, rgba(255, 246, 249, 0) 44%),
+    linear-gradient(180deg, #cce6ff 0%, #edf4ff 32%, #f0f8fb 100%);
+  color: #273242;
+  font-family: var(--ihc-font-family);
+  transform: translateX(-50%);
+  -webkit-font-smoothing: antialiased;
+}
+
+.diet-nav {
+  display: flex;
+  align-items: center;
+  height: 58px;
+  padding: 0 20px;
+}
+
+.back-btn,
+.meal-tabs button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 38px;
+  padding: 0;
+}
+
+.back-arrow {
+  width: 12px;
+  height: 12px;
+  border-bottom: 3px solid #333333;
+  border-left: 3px solid #333333;
+  transform: rotate(45deg);
+}
+
+.diet-nav h1 {
+  margin: 0 0 0 8px;
+  color: #273242;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.diet-scroll {
+  height: calc(100% - 58px);
+  padding: 6px 20px 20px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.diet-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.diet-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 106px;
+  gap: 10px;
+  min-height: 126px;
+  padding: 15px 14px 15px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(102, 112, 240, 0.12) 0, rgba(102, 112, 240, 0) 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 255, 0.92) 48%, rgba(226, 252, 244, 0.86) 100%);
+  box-shadow: 0 18px 42px rgba(72, 104, 148, 0.1);
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-copy span {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(76, 205, 155, 0.14);
+  color: #22b987;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.hero-copy h2 {
+  margin: 8px 0 0;
+  color: #172332;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.hero-copy p {
+  margin: 6px 0 0;
+  color: #7a8593;
+  font-size: 12px;
+  line-height: 1.48;
+}
+
+.hero-plate {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  width: 110px;
+  height: 102px;
+  filter: drop-shadow(0 19px 22px rgba(89, 132, 90, 0.18));
+}
+
+.hero-plate svg {
+  display: block;
+  width: 110px;
+  height: 102px;
+}
+
+.nutrition-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(223, 229, 232, 0.72);
+  box-shadow: 0 13px 30px rgba(68, 118, 90, 0.08);
+}
+
+.nutrition-card div {
+  display: grid;
+  place-items: center;
+  min-height: 56px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.nutrition-card strong {
+  color: #273242;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.nutrition-card span {
+  margin-top: -3px;
+  color: #8b95a1;
+  font-size: 10px;
+}
+
+.diet-search {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  margin-top: 10px;
+  padding: 0 14px;
+  border: 1px solid #edf0f2;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 26px rgba(68, 118, 90, 0.055);
+}
+
+.search-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  border: 2.5px solid #c9c9c9;
+  border-radius: 50%;
+}
+
+.search-icon::after {
+  position: absolute;
+  right: -7px;
+  bottom: -5px;
+  width: 9px;
+  height: 2.5px;
+  content: "";
+  border-radius: 999px;
+  background: #c9c9c9;
+  transform: rotate(45deg);
+}
+
+.diet-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #273242;
+  font-size: 13px;
+}
+
+.diet-search input::placeholder {
+  color: #b7bcc4;
+  opacity: 1;
+}
+
+.meal-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.meal-tabs button {
+  display: grid;
+  justify-items: center;
+  min-height: 72px;
+  padding: 8px 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 11px 26px rgba(68, 118, 90, 0.06);
+}
+
+.meal-tabs button strong {
+  margin-top: 6px;
+  color: #273242;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.meal-tabs button small {
+  margin-top: 2px;
+  color: #9aa4af;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.meal-tab--active {
+  background: #eafaf4 !important;
+  border-color: rgba(76, 205, 155, 0.28) !important;
+}
+
+.meal-tab-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.meal-tab-icon svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.meal-tab-icon--breakfast {
+  color: #42cfa0;
+  background: rgba(66, 207, 160, 0.11);
+}
+
+.meal-tab-icon--lunch {
+  color: #ff846f;
+  background: rgba(255, 132, 111, 0.12);
+}
+
+.meal-tab-icon--dinner {
+  color: #f0c45c;
+  background: rgba(240, 196, 92, 0.15);
+}
+
+.meal-tab-icon--snack {
+  color: #6872f0;
+  background: rgba(104, 114, 240, 0.11);
+}
+
+.meal-tab-icon--breakfast svg,
+.meal-tab-icon--lunch svg,
+.meal-tab-icon--snack svg {
+  transform: translateX(-2px);
+}
+
+.recommend-section {
+  margin-top: 16px;
+}
+
+.section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #273242;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.section-header span {
+  color: #9aa4af;
+  font-size: 10px;
+}
+
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.recipe-card {
+  overflow: hidden;
+  padding: 0 0 9px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 13px 30px rgba(68, 118, 90, 0.07);
+}
+
+.recipe-photo {
+  display: block;
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  background: #eaf6ee;
+}
+
+.recipe-card h3 {
+  margin: 8px 9px 0;
+  color: #273242;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.recipe-card p {
+  margin: 5px 9px 0;
+  color: #97a1ad;
+  font-size: 10px;
+}
+
+.recipe-tags {
+  display: flex;
+  gap: 6px;
+  margin: 7px 9px 0;
+}
+
+.recipe-tags span {
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #effaf5;
+  color: #30bd8a;
+  font-size: 10px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+@media (min-width: 561px) {
+  .diet-page {
+    height: 844px;
+    min-height: 844px;
+  }
+}
+
+@media (max-width: 389px) {
+  .diet-scroll {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .meal-tabs {
+    gap: 6px;
+  }
+
+  .recipe-grid {
+    gap: 10px;
+  }
+}
+</style>

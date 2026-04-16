@@ -24,11 +24,13 @@ function selectHistory(value: string) {
 <template>
   <section class="search-page">
     <header class="search-nav">
+      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
+        <span class="back-arrow" aria-hidden="true"></span>
+      </button>
       <label class="search-input-wrap">
         <span class="search-icon" aria-hidden="true"></span>
         <input v-model="keyword" type="search" :placeholder="mock.placeholder" autofocus />
       </label>
-      <button class="cancel-btn" type="button" @click="goBack">取消</button>
     </header>
 
     <main class="search-content">
@@ -68,47 +70,66 @@ function selectHistory(value: string) {
   overflow: hidden;
   background: #ffffff;
   color: #30343f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
 
 .search-nav {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px;
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
-  height: 95px;
-  padding: 17px 31px 0;
+  gap: 8px;
+  height: 78px;
+  padding: 14px 22px 0;
+}
+
+.back-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.back-arrow {
+  width: 13px;
+  height: 13px;
+  border-bottom: 3px solid #333333;
+  border-left: 3px solid #333333;
+  transform: rotate(45deg);
 }
 
 .search-input-wrap {
   display: flex;
   align-items: center;
-  height: 59px;
-  padding: 0 21px;
+  height: 44px;
+  padding: 0 16px;
   border: 1px solid #eeeeee;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(54, 67, 92, 0.03);
 }
 
 .search-icon {
   position: relative;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  margin-right: 15px;
-  border: 3px solid #c8c8c8;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+  border: 2px solid #c8c8c8;
   border-radius: 50%;
 }
 
 .search-icon::after {
   position: absolute;
-  right: -8px;
-  bottom: -5px;
-  width: 11px;
-  height: 3px;
+  right: -7px;
+  bottom: -4px;
+  width: 10px;
+  height: 2px;
   content: "";
   border-radius: 999px;
   background: #c8c8c8;
@@ -122,7 +143,7 @@ function selectHistory(value: string) {
   outline: 0;
   background: transparent;
   color: #30343f;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 400;
 }
 
@@ -131,7 +152,6 @@ function selectHistory(value: string) {
   opacity: 1;
 }
 
-.cancel-btn,
 .history-header button,
 .history-tags button {
   border: 0;
@@ -139,16 +159,8 @@ function selectHistory(value: string) {
   color: inherit;
 }
 
-.cancel-btn {
-  padding: 0;
-  color: #6d7078;
-  font-size: 18px;
-  font-weight: 400;
-  text-align: right;
-}
-
 .search-content {
-  padding: 49px 34px 0;
+  padding: 42px 34px 0;
 }
 
 .history-header {
@@ -187,24 +199,24 @@ function selectHistory(value: string) {
 .history-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 19px 15px;
-  margin-top: 25px;
+  gap: 10px 9px;
+  margin-top: 20px;
 }
 
 .history-tags button {
   width: auto;
-  min-width: 82px;
-  height: 52px;
-  padding: 0 18px;
-  border: 1px solid #eeeeee;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #666a73;
-  font-size: 19px;
+  min-width: 56px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #e6e8f6;
+  border-radius: 8px;
+  background: #f6f7ff;
+  color: #7f8498;
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   white-space: nowrap;
-  box-shadow: 0 8px 18px rgba(54, 67, 92, 0.025);
+  box-shadow: 0 6px 14px rgba(107, 126, 160, 0.055);
 }
 
 @media (min-width: 561px) {
@@ -226,9 +238,9 @@ function selectHistory(value: string) {
   }
 
   .history-tags button {
-    min-width: 76px;
-    padding-right: 14px;
-    padding-left: 14px;
+    min-width: 52px;
+    padding-right: 10px;
+    padding-left: 10px;
   }
 }
 </style>

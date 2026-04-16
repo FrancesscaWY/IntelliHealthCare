@@ -72,7 +72,7 @@ function openDisease(name: string) {
   overflow: hidden;
   background: #f5f6f7;
   color: #333844;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
