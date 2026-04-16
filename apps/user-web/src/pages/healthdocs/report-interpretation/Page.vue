@@ -29,8 +29,8 @@ function goBack() {
         </header>
 
         <section class="meta-block">
-          <p><span>报告医生：</span>{{ currentReport.interpretationDoctor }}</p>
-          <p><span>报告时间：</span>{{ currentReport.interpretationTime }}</p>
+          <p><span>报告医生： </span>{{ currentReport.interpretationDoctor }}</p>
+          <p><span>报告时间： </span>{{ currentReport.interpretationTime }}</p>
         </section>
 
         <section class="section-block">
