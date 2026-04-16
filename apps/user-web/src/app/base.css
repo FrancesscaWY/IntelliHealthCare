@@ -68,16 +68,16 @@ a {
 }
 
 .app-canvas {
-  width: min(100%, 390px);
-  min-height: 844px;
+  width: min(100%, 402px);
+  min-height: 874px;
   overflow-x: hidden;
   overflow-y: auto;
   background: linear-gradient(180deg, #e8f0ff 0%, #f8fbff 48%, #f0f5fb 100%);
 }
 
 .mobile-page-root {
-  min-height: 844px;
-  padding: 16px;
+  min-height: 874px;
+  padding: 18px;
 }
 
 .page-eyebrow {

@@ -62,7 +62,7 @@ const mock = {
     { key: "circle", label: "生活圈", pageId: "community/circle", icon: circleIcon },
     { key: "publish", label: "", pageId: "community/publish" },
     { key: "message", label: "消息", pageId: "", icon: newsIcon },
-    { key: "mine", label: "我的", pageId: "", icon: meIcon },
+    { key: "mine", label: "我的", pageId: "home/mine", icon: meIcon },
   ],
 };
 

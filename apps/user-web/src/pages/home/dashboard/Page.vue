@@ -385,10 +385,10 @@ function showAction(label: string) {
 .home-page {
   position: relative;
   left: 50%;
-  width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  width: min(402px, 100vw);
+  height: min(874px, calc(100vh - 36px));
+  min-height: min(874px, calc(100vh - 36px));
+  max-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
@@ -1018,8 +1018,8 @@ function showAction(label: string) {
 
 @media (min-width: 561px) {
   .home-page {
-    height: 844px;
-    min-height: 844px;
+    height: 874px;
+    min-height: 874px;
   }
 }
 
