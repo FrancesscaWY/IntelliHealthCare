@@ -143,7 +143,7 @@ nextTick(syncActiveLetter);
   overflow: hidden;
   background: #ffffff;
   color: #30343f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: var(--ihc-font-family);
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
