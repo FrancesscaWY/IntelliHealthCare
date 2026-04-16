@@ -74,6 +74,24 @@ function toggleSetting(key: string) {
   toggleValues[key] = !toggleValues[key];
 }
 
+function openQuickLink(item: { key: string; label: string }) {
+  if (item.key === "heart-rate") {
+    props.navigation.navigateTo("health/heart-rate-settings");
+    return;
+  }
+
+  openAction(item.label);
+}
+
+function openDeviceAction(item: { key: string; label: string }) {
+  if (item.key === "password") {
+    props.navigation.navigateTo("health/device-password");
+    return;
+  }
+
+  openAction(item.label);
+}
+
 function openAction(label: string) {
   props.showToast(`${label}功能待接入`);
 }
@@ -145,7 +163,7 @@ function unbindDevice() {
           :key="item.key"
           class="settings-row settings-row--link"
           type="button"
-          @click="openAction(item.label)"
+          @click="openQuickLink(item)"
         >
           <span>{{ item.label }}</span>
           <span class="row-arrow" aria-hidden="true"></span>
@@ -171,7 +189,7 @@ function unbindDevice() {
           :key="item.key"
           class="settings-row settings-row--link"
           type="button"
-          @click="openAction(item.label)"
+          @click="openDeviceAction(item)"
         >
           <span>{{ item.label }}</span>
           <span class="row-arrow" aria-hidden="true"></span>

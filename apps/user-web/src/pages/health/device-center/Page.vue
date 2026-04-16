@@ -43,7 +43,7 @@ function goBack() {
 }
 
 function addDevice() {
-  props.showToast("添加设备功能待接入");
+  props.navigation.navigateTo("health/device-add");
 }
 
 function openDevice(id: string) {
