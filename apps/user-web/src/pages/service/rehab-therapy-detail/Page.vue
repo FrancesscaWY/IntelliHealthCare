@@ -1,0 +1,674 @@
+<script setup lang="ts">
+import type { Component } from 'vue'
+import type { PageComponentProps } from '@ihc/page-core/types'
+import { Headset, Help, Local, MedicalFiles, Plan, Share, Star } from '@icon-park/vue-next'
+import mock from './mock'
+
+const props = defineProps<PageComponentProps>()
+
+const flowIconMap: Record<string, Component> = {
+  medical: MedicalFiles,
+  evaluate: Help,
+  plan: Plan,
+  location: Local,
+}
+
+const goBack = () => {
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch('service/rehab-therapy')
+  }
+}
+
+const buyNow = () => {
+  props.navigation.navigateTo('service/booking')
+}
+</script>
+
+<template>
+  <div class="rehab-detail-page">
+    <section class="hero">
+      <img class="hero-image" :src="mock.image" :alt="mock.title" />
+      <div class="hero-mask"></div>
+
+      <div class="status-bar">
+        <span class="time">8:30</span>
+        <div class="status-icons">
+          <span class="signal">
+            <i></i>
+            <i></i>
+            <i></i>
+            <i></i>
+          </span>
+          <span class="wifi"></span>
+          <span class="battery"></span>
+        </div>
+      </div>
+
+      <div class="hero-actions">
+        <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
+        <div class="action-icons">
+          <button class="icon-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
+            <Headset theme="outline" size="22" fill="#fff" />
+          </button>
+          <button class="icon-button" type="button" aria-label="收藏" @click="props.showToast('已收藏')">
+            <Star theme="outline" size="22" fill="#fff" />
+          </button>
+          <button class="icon-button" type="button" aria-label="转发" @click="props.showToast('转发功能待接入')">
+            <Share theme="outline" size="22" fill="#fff" />
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <main class="detail-panel">
+      <section class="summary-section">
+        <h1>{{ mock.title }}</h1>
+        <div class="price-line">
+          <span class="price">¥ {{ mock.price }}</span>
+          <span class="discount">{{ mock.discount }}</span>
+        </div>
+        <div class="rating-line">
+          <span class="stars">★★★★★</span>
+          <strong>{{ mock.rating }}</strong>
+          <span>({{ mock.ratingCount }}人评论)</span>
+        </div>
+      </section>
+
+      <section class="content-section flow-section">
+        <h2>服务流程</h2>
+        <div class="flow-row">
+          <template v-for="(item, index) in mock.flow" :key="item.id">
+            <div class="flow-item">
+              <span class="flow-icon">
+                <component :is="flowIconMap[item.icon]" theme="filled" size="20" fill="#34383f" />
+              </span>
+              <strong>{{ item.label }}</strong>
+            </div>
+            <span v-if="index < mock.flow.length - 1" class="flow-arrow">→</span>
+          </template>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>服务内容</h2>
+        <dl class="info-list">
+          <div v-for="row in mock.serviceContent" :key="row.label" class="info-row">
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.value }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="content-section">
+        <h2>服务人员</h2>
+        <div class="staff-list">
+          <article v-for="person in mock.staff" :key="person.id" class="staff-card">
+            <img class="staff-photo" :src="person.image" :alt="person.name" />
+            <div class="staff-badge">{{ person.badge }}</div>
+            <strong>{{ person.name }}</strong>
+            <p>{{ person.description }}</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <h2>服务详情</h2>
+        <p class="detail-text">{{ mock.detail }}</p>
+      </section>
+
+      <section class="content-section">
+        <h2>购买须知</h2>
+        <dl class="info-list">
+          <div v-for="row in mock.notice" :key="row.label" class="info-row">
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.value }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="review-section">
+        <div class="review-heading">
+          <h2>用户评价（{{ mock.ratingCount }}）</h2>
+          <span>4.9</span>
+        </div>
+
+        <article v-for="review in mock.reviews" :key="review.id" class="review-card">
+          <div class="review-top">
+            <div class="review-avatar">{{ review.name.slice(0, 1) }}</div>
+            <div class="review-user">
+              <strong>{{ review.name }}</strong>
+              <span>{{ review.meta }}</span>
+            </div>
+            <div class="review-score">
+              <strong>{{ review.score }}</strong>
+              <span>★★★★★</span>
+            </div>
+          </div>
+          <p>{{ review.content }}</p>
+        </article>
+      </section>
+    </main>
+
+    <div class="buy-bar">
+      <button class="buy-button" type="button" @click="buyNow">立即购买</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.rehab-detail-page {
+  position: relative;
+  left: 50%;
+  width: min(402px, 100vw);
+  min-height: 874px;
+  margin: -18px 0;
+  padding-bottom: 82px;
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  background: #f3f4f6;
+  color: #34383f;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.hero {
+  position: relative;
+  height: 250px;
+  overflow: hidden;
+  background: #d8d8d8;
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.hero-mask {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0%, rgba(0, 0, 0, 0.03) 56%, rgba(0, 0, 0, 0) 100%);
+}
+
+.status-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 28px 0;
+  box-sizing: border-box;
+  color: #fff;
+}
+
+.time {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.status-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.signal {
+  width: 18px;
+  height: 13px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.signal i {
+  width: 3px;
+  border-radius: 1px;
+  background: #fff;
+}
+
+.signal i:nth-child(1) {
+  height: 4px;
+}
+
+.signal i:nth-child(2) {
+  height: 7px;
+}
+
+.signal i:nth-child(3) {
+  height: 10px;
+}
+
+.signal i:nth-child(4) {
+  height: 13px;
+}
+
+.wifi {
+  position: relative;
+  width: 18px;
+  height: 13px;
+  overflow: hidden;
+}
+
+.wifi::before,
+.wifi::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  border: 3px solid #fff;
+  border-color: #fff transparent transparent;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.wifi::before {
+  top: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.wifi::after {
+  top: 7px;
+  width: 10px;
+  height: 10px;
+}
+
+.battery {
+  position: relative;
+  width: 24px;
+  height: 13px;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.battery::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: -5px;
+  width: 3px;
+  height: 5px;
+  border-radius: 0 2px 2px 0;
+  background: #fff;
+}
+
+.hero-actions {
+  position: absolute;
+  top: 52px;
+  left: 18px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.back-button,
+.icon-button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.back-button {
+  width: 28px;
+  height: 34px;
+  color: #fff;
+  font-size: 38px;
+  line-height: 30px;
+}
+
+.action-icons {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.detail-panel {
+  position: relative;
+  margin-top: -26px;
+  padding: 0 21px 12px;
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+.summary-section,
+.content-section,
+.review-section {
+  border-bottom: 1px solid #eeeeef;
+}
+
+.summary-section {
+  padding: 28px 0 22px;
+}
+
+.summary-section h1 {
+  margin: 0 0 18px;
+  color: #34383f;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.price-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.price {
+  color: #f2736d;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.discount {
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid #f2736d;
+  border-radius: 5px;
+  color: #f2736d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rating-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9b9ea3;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.stars {
+  color: #f7bf24;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.rating-line strong {
+  color: #34383f;
+  font-size: 16px;
+}
+
+.content-section {
+  padding: 24px 0 26px;
+}
+
+.content-section h2,
+.review-heading h2 {
+  margin: 0 0 20px;
+  color: #34383f;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.flow-section {
+  padding-bottom: 24px;
+}
+
+.flow-row {
+  display: grid;
+  grid-template-columns: 1fr 20px 1fr 20px 1fr 20px 1fr;
+  align-items: start;
+  gap: 4px;
+}
+
+.flow-item {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.flow-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #eeeeef;
+  border-radius: 50%;
+  background: #fbfbfc;
+  box-shadow: 0 2px 8px rgba(35, 39, 50, 0.04);
+}
+
+.flow-item strong {
+  color: #34383f;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.flow-arrow {
+  padding-top: 11px;
+  color: #111;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.info-list {
+  margin: 0;
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  column-gap: 8px;
+  margin-bottom: 12px;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-row dt {
+  color: #9da0a6;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.info-row dd {
+  min-width: 0;
+  margin: 0;
+  color: #34383f;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.staff-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.staff-list::-webkit-scrollbar {
+  display: none;
+}
+
+.staff-card {
+  width: 112px;
+  flex: 0 0 112px;
+  min-height: 158px;
+  position: relative;
+  padding: 12px 10px 10px;
+  box-sizing: border-box;
+  border: 1px solid #eeeeef;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+}
+
+.staff-photo {
+  width: 62px;
+  height: 62px;
+  display: block;
+  margin: 0 auto 4px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.staff-badge {
+  width: 72px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -9px auto 8px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f67874 0%, #f3c866 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.staff-card strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #34383f;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.staff-card p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: #8e9299;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.detail-text {
+  margin: 0;
+  color: #34383f;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.review-section {
+  padding: 24px 0 26px;
+  border-bottom: 0;
+}
+
+.review-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.review-heading span {
+  color: #f4bf25;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.review-card {
+  padding: 16px 0;
+  border-bottom: 1px solid #eeeeef;
+}
+
+.review-top {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.review-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8edf7;
+  color: #59616f;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.review-user strong,
+.review-score strong {
+  display: block;
+  color: #34383f;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.review-user span {
+  color: #b2b5bb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.review-score {
+  text-align: right;
+}
+
+.review-score span {
+  color: #f4bf25;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.review-card p {
+  margin: 0;
+  color: #34383f;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.buy-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  width: min(402px, 100vw);
+  transform: translateX(-50%);
+  padding: 14px 0 20px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 -8px 20px rgba(37, 41, 57, 0.04);
+}
+
+.buy-button {
+  width: 350px;
+  height: 48px;
+  display: block;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: #6a72f4;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+</style>
