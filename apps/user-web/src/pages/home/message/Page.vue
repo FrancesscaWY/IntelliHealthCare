@@ -29,6 +29,7 @@ const navIconMarkup: Record<string, string> = {
 const iconMap: Record<string, Component> = {
   system: Remind,
   health: MedicalFiles,
+  doctor: MedicalFiles,
   comment: Comment,
   user: User,
   like: Like,
@@ -61,7 +62,12 @@ function markAllRead() {
   props.showToast('已全部标记为已读')
 }
 
-function openMessage(item: { icon: string; title: string }) {
+function openMessage(item: { icon: string; title: string; pageId?: string }) {
+  if (item.pageId) {
+    props.navigation.navigateTo(item.pageId)
+    return
+  }
+
   if (item.icon === 'comment') {
     props.navigation.navigateTo('home/message-comment-detail')
     return

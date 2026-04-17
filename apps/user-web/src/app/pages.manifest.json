@@ -458,6 +458,19 @@
     "legacySources": []
   },
   {
+    "id": "home/doctor-chat",
+    "title": "医生咨询",
+    "group": "home",
+    "route": "/home/doctor-chat",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "消息聊天中的医生咨询会话，支持文字、图片、表情和语音交互入口。",
+    "folderPath": "/apps/user-web/src/pages/home/doctor-chat",
+    "modulePath": "/apps/user-web/src/pages/home/doctor-chat/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/doctor-chat/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/message-comment-detail",
     "title": "评论回复",
     "group": "home",
