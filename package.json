@@ -15,5 +15,7 @@
     "create:page": "node ./scripts/create-page.mjs",
     "prompt:page": "node ./scripts/codex-prompt.mjs"
   },
-  "dependencies": {}
+  "devDependencies": {
+    "localtunnel": "^2.0.2"
+  }
 }
