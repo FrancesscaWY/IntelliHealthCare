@@ -8,12 +8,20 @@
     "legacy/*"
   ],
   "scripts": {
-    "dev:user": "node ./scripts/dev-user.mjs",
-    "dev:page": "node ./scripts/dev-page.mjs",
-    "build": "node ./scripts/build-user-web.mjs",
-    "check": "node ./scripts/validate-workspace.mjs && npm run typecheck --workspace @ihc/user-web",
-    "create:page": "node ./scripts/create-page.mjs",
-    "prompt:page": "node ./scripts/codex-prompt.mjs"
+    "dev:user": "node ./scripts/dev-user.mjs --app user",
+    "dev:page": "node ./scripts/dev-page.mjs --app user",
+    "dev:admin": "node ./scripts/dev-user.mjs --app admin",
+    "dev:admin:page": "node ./scripts/dev-page.mjs --app admin",
+    "build:user": "node ./scripts/build-user-web.mjs --app user",
+    "build:admin": "node ./scripts/build-user-web.mjs --app admin",
+    "build": "npm run build:user && npm run build:admin",
+    "check:user": "node ./scripts/validate-workspace.mjs --app user && npm run typecheck --workspace @ihc/user-web",
+    "check:admin": "node ./scripts/validate-workspace.mjs --app admin && npm run typecheck --workspace @ihc/admin-web",
+    "check": "npm run check:user && npm run check:admin",
+    "create:page": "node ./scripts/create-page.mjs --app user",
+    "create:admin-page": "node ./scripts/create-page.mjs --app admin",
+    "prompt:page": "node ./scripts/codex-prompt.mjs --app user",
+    "prompt:admin-page": "node ./scripts/codex-prompt.mjs --app admin"
   },
   "devDependencies": {
     "localtunnel": "^2.0.2"

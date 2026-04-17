@@ -1,0 +1,61 @@
+:root {
+  color-scheme: light;
+  --admin-bg: #f2f6f2;
+  --admin-surface: rgba(255, 255, 255, 0.88);
+  --admin-surface-strong: rgba(255, 255, 255, 0.96);
+  --admin-surface-dark: #16352d;
+  --admin-text: #18332d;
+  --admin-muted: #647872;
+  --admin-border: rgba(22, 53, 45, 0.1);
+  --admin-brand: #1f7a5a;
+  --admin-brand-soft: rgba(31, 122, 90, 0.1);
+  --admin-accent: #e08a3a;
+  --admin-danger: #d8574f;
+  --admin-shadow: 0 20px 48px rgba(18, 48, 40, 0.08);
+  --admin-radius-xl: 28px;
+  --admin-radius-lg: 22px;
+  --admin-radius-md: 16px;
+  --admin-font-family:
+    "Source Han Sans SC",
+    "PingFang SC",
+    "Microsoft YaHei UI",
+    "Segoe UI",
+    sans-serif;
+  font-family: var(--admin-font-family);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(31, 122, 90, 0.14), transparent 24%),
+    radial-gradient(circle at right 18%, rgba(224, 138, 58, 0.14), transparent 20%),
+    linear-gradient(180deg, #edf4ef 0%, #f8fbf8 48%, #eef5f0 100%);
+  color: var(--admin-text);
+}
+
+body,
+button,
+input,
+textarea {
+  font: inherit;
+  font-weight: 400;
+  font-synthesis-weight: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+#app {
+  min-height: 100vh;
+}
