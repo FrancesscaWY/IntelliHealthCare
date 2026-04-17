@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
+import type { Component } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
 import {
   Comment,
   Coupon,
@@ -11,10 +11,10 @@ import {
   MedicalFiles,
   Setting,
   Star,
-} from '@icon-park/vue-next'
-import mock from './mock'
+} from "@icon-park/vue-next";
+import mock from "./mock";
 
-const props = defineProps<PageComponentProps>()
+const props = defineProps<PageComponentProps>();
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -32,13 +32,13 @@ const navIconMarkup: Record<string, string> = {
     <circle cx="24" cy="16.7" r="7.3" />
     <path d="M10.2 39.2c1.45-7.3 6.05-11.2 13.8-11.2s12.35 3.9 13.8 11.2" />
   `,
-}
+};
 
 const orderIconMap: Record<string, Component> = {
   home: Home,
   medical: MedicalFiles,
   hospital: Hospital,
-}
+};
 
 const menuIconMap: Record<string, Component> = {
   coupon: Coupon,
@@ -47,23 +47,32 @@ const menuIconMap: Record<string, Component> = {
   comment: Comment,
   help: Help,
   setting: Setting,
-}
+};
 
 function getNavIconMarkup(key: string) {
-  return navIconMarkup[key] || navIconMarkup.home
+  return navIconMarkup[key] || navIconMarkup.home;
 }
 
 function getNavGradientId(key: string) {
-  return `mine-tab-gradient-${key}`
+  return `mine-tab-gradient-${key}`;
 }
 
 function openPage(pageId: string, label: string) {
   if (!pageId) {
-    props.showToast(`${label}功能待接入`)
-    return
+    props.showToast(`${label}功能待接入`);
+    return;
   }
 
-  props.navigation.reLaunch(pageId)
+  props.navigation.reLaunch(pageId);
+}
+
+function openSubPage(pageId: string, label: string) {
+  if (!pageId) {
+    props.showToast(`${label}功能待接入`);
+    return;
+  }
+
+  props.navigation.navigateTo(pageId);
 }
 </script>
 
@@ -97,7 +106,9 @@ function openPage(pageId: string, label: string) {
         </button>
         <div class="profile-main">
           <img class="avatar" :src="mock.profile.avatar" :alt="mock.profile.name" />
-          <button class="homepage-link" type="button">个人主页 ›</button>
+          <button class="homepage-link" type="button" @click="openSubPage(mock.profile.homepagePageId, '个人主页')">
+            个人主页 >
+          </button>
           <div class="profile-text">
             <div class="name-row">
               <h1>{{ mock.profile.name }}</h1>
@@ -117,7 +128,13 @@ function openPage(pageId: string, label: string) {
       <section class="order-card">
         <h2>我的订单</h2>
         <div class="order-grid">
-          <button v-for="item in mock.orders" :key="item.key" class="order-item" type="button">
+          <button
+            v-for="item in mock.orders"
+            :key="item.key"
+            class="order-item"
+            type="button"
+            @click="openSubPage(item.pageId, item.label)"
+          >
             <span class="order-icon" :class="`order-icon--${item.key}`">
               <component :is="orderIconMap[item.icon]" theme="outline" size="20" fill="currentColor" />
             </span>
@@ -132,7 +149,7 @@ function openPage(pageId: string, label: string) {
             <component :is="menuIconMap[item.icon]" theme="outline" size="18" fill="currentColor" />
           </span>
           <span>{{ item.label }}</span>
-          <span class="chevron">›</span>
+          <span class="chevron">></span>
         </button>
       </section>
     </main>
@@ -276,7 +293,7 @@ function openPage(pageId: string, label: string) {
 
 .wifi::before,
 .wifi::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 50%;
   border: 3px solid #111;
@@ -307,7 +324,7 @@ function openPage(pageId: string, label: string) {
 }
 
 .battery::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 3px;
   right: -5px;
@@ -372,12 +389,6 @@ function openPage(pageId: string, label: string) {
   font-size: 21px;
   font-weight: 800;
   letter-spacing: 0;
-}
-
-.edit-mark {
-  color: #34383f;
-  font-size: 18px;
-  transform: rotate(18deg);
 }
 
 .level-badge {
@@ -526,7 +537,7 @@ function openPage(pageId: string, label: string) {
 
 .chevron {
   color: #c7cbd1;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
 }
 
@@ -551,7 +562,7 @@ function openPage(pageId: string, label: string) {
   z-index: 0;
   width: 58px;
   height: 58px;
-  content: '';
+  content: "";
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 -10px 24px rgba(102, 112, 240, 0.08);
@@ -618,7 +629,7 @@ function openPage(pageId: string, label: string) {
   left: 50%;
   width: 20px;
   height: 2px;
-  content: '';
+  content: "";
   border-radius: 999px;
   background: #ffffff;
   transform: translate(-50%, -50%);

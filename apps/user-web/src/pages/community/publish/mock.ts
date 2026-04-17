@@ -1,7 +1,19 @@
 const mock = {
-  tips: [
-    "支持图文动态，建议一句话说明主题和参与感受。",
-    "后续可扩展草稿、定位、活动关联和话题标签。",
+  placeholders: {
+    title: "输入标题",
+    content: "输入内容",
+  },
+  visibilityOptions: [
+    {
+      key: "public",
+      label: "公开",
+      description: "所有人可见",
+    },
+    {
+      key: "private",
+      label: "私密",
+      description: "仅自己可见",
+    },
   ],
 };
 

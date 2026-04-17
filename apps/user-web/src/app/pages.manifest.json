@@ -651,6 +651,7 @@
     "folderPath": "/apps/user-web/src/pages/home/message-like-detail",
     "modulePath": "/apps/user-web/src/pages/home/message-like-detail/Page.vue",
     "mockPath": "/apps/user-web/src/pages/home/message-like-detail/mock.ts",
+
     "legacySources": []
   },
   {
@@ -720,6 +721,19 @@
     "folderPath": "/apps/user-web/src/pages/service/home-care-detail",
     "modulePath": "/apps/user-web/src/pages/service/home-care-detail/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/home-care-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/home-care-orders",
+    "title": "家政护理订单",
+    "group": "service",
+    "route": "/service/home-care-orders",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "家政护理订单列表、状态筛选、取消订单、修改预约、支付和服务券码。",
+    "folderPath": "/apps/user-web/src/pages/service/home-care-orders",
+    "modulePath": "/apps/user-web/src/pages/service/home-care-orders/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-care-orders/mock.ts",
     "legacySources": []
   },
   {
