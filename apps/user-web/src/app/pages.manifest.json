@@ -589,6 +589,19 @@
     "legacySources": []
   },
   {
+    "id": "home/MyJ/myfoot",
+    "title": "我的足迹",
+    "group": "home",
+    "route": "/home/MyJ/myfoot",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我的足迹列表页，展示服务与活动浏览记录并支持清除全部。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/myfoot",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/myfoot/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/myfoot/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/mine",
     "title": "我的",
     "group": "home",
