@@ -925,12 +925,13 @@ function showAction(label: string) {
   right: 0;
   bottom: 0;
   left: 0;
+  z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
   height: 74px;
   padding: 9px 12px 10px;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
 }
 
@@ -943,7 +944,7 @@ function showAction(label: string) {
   height: 58px;
   content: "";
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   box-shadow: 0 -10px 24px rgba(102, 112, 240, 0.08);
   transform: translateX(-50%);
 }

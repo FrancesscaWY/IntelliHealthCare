@@ -20,20 +20,6 @@ const confirmPay = () => {
 
 <template>
   <div class="payment-page">
-    <div class="status-bar">
-      <span class="time">8:30</span>
-      <div class="status-icons">
-        <span class="signal">
-          <i></i>
-          <i></i>
-          <i></i>
-          <i></i>
-        </span>
-        <span class="wifi"></span>
-        <span class="battery"></span>
-      </div>
-    </div>
-
     <header class="page-header">
       <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
       <h1>支付订单</h1>
@@ -88,113 +74,11 @@ const confirmPay = () => {
   min-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
-  padding: 0 14px 96px;
+  padding: 16px 14px 96px;
   box-sizing: border-box;
   background: #f5f6f7;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-}
-
-.status-bar {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px 0;
-  box-sizing: border-box;
-}
-
-.time {
-  font-size: 18px;
-  font-weight: 500;
-  color: #2e3033;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: #111;
-}
-
-.signal {
-  width: 22px;
-  height: 16px;
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.signal i {
-  width: 4px;
-  border-radius: 1px;
-  background: #111;
-}
-
-.signal i:nth-child(1) {
-  height: 5px;
-}
-
-.signal i:nth-child(2) {
-  height: 8px;
-}
-
-.signal i:nth-child(3) {
-  height: 12px;
-}
-
-.signal i:nth-child(4) {
-  height: 16px;
-}
-
-.wifi {
-  position: relative;
-  width: 19px;
-  height: 14px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  border: 3px solid #111;
-  border-color: #111 transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 22px;
-  height: 22px;
-}
-
-.wifi::after {
-  top: 7px;
-  width: 10px;
-  height: 10px;
-}
-
-.battery {
-  position: relative;
-  width: 22px;
-  height: 12px;
-  border: 2px solid #111;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  right: -5px;
-  width: 3px;
-  height: 6px;
-  border-radius: 0 2px 2px 0;
-  background: #111;
 }
 
 .page-header {

@@ -20,23 +20,7 @@ const buyNow = () => {
   <div class="service-detail-page">
     <section class="hero">
       <img class="hero-image" :src="mock.image" :alt="mock.title" />
-      <div class="hero-mask"></div>
-
-      <div class="status-bar">
-        <span class="time">8:30</span>
-        <div class="status-icons">
-          <span class="signal">
-            <i></i>
-            <i></i>
-            <i></i>
-            <i></i>
-          </span>
-          <span class="wifi"></span>
-          <span class="battery"></span>
-        </div>
-      </div>
-
-      <div class="hero-actions">
+      <div class="hero-mask"></div><div class="hero-actions">
         <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
         <div class="action-icons">
           <button class="icon-button" type="button" aria-label="客服">
@@ -140,6 +124,7 @@ const buyNow = () => {
   min-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
+  padding-top: 16px;
   padding-bottom: 82px;
   box-sizing: border-box;
   background: #f3f4f6;
@@ -165,111 +150,6 @@ const buyNow = () => {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.04) 52%, rgba(0, 0, 0, 0) 100%);
-}
-
-.status-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 28px 0;
-  box-sizing: border-box;
-  color: #fff;
-}
-
-.time {
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.signal {
-  width: 18px;
-  height: 13px;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.signal i {
-  width: 3px;
-  border-radius: 1px;
-  background: #fff;
-}
-
-.signal i:nth-child(1) {
-  height: 4px;
-}
-
-.signal i:nth-child(2) {
-  height: 7px;
-}
-
-.signal i:nth-child(3) {
-  height: 10px;
-}
-
-.signal i:nth-child(4) {
-  height: 13px;
-}
-
-.wifi {
-  position: relative;
-  width: 18px;
-  height: 13px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  border: 3px solid #fff;
-  border-color: #fff transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 22px;
-  height: 22px;
-}
-
-.wifi::after {
-  top: 7px;
-  width: 10px;
-  height: 10px;
-}
-
-.battery {
-  position: relative;
-  width: 24px;
-  height: 13px;
-  border: 2px solid #fff;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  content: '';
-  position: absolute;
-  top: 3px;
-  right: -5px;
-  width: 3px;
-  height: 5px;
-  border-radius: 0 2px 2px 0;
-  background: #fff;
 }
 
 .hero-actions {

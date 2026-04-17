@@ -514,6 +514,19 @@
     "legacySources": []
   },
   {
+    "id": "orders/rehab-therapy",
+    "title": "我的订单",
+    "group": "orders",
+    "route": "/orders/rehab-therapy",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我的页面订单列表，支持家政护理、康复理疗、上门体检分类和状态筛选。",
+    "folderPath": "/apps/user-web/src/pages/orders/rehab-therapy",
+    "modulePath": "/apps/user-web/src/pages/orders/rehab-therapy/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/rehab-therapy/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "service/home-care",
     "title": "家政护理",
     "group": "service",

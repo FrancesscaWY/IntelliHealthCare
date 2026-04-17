@@ -1,4 +1,4 @@
-import avatarImage from '@/assets/mine/avatar.jpg'
+import avatarImage from '@/assets/community/activities/people.png'
 
 const mock = {
   profile: {
@@ -11,12 +11,13 @@ const mock = {
       { value: '384', label: '点赞' },
       { value: '1254', label: '足迹' },
     ],
+    healthCards: [
+      { key: 'heart', label: '心率', value: '97', unit: 'bpm', tone: 'green' },
+      { key: 'steps', label: '步数', value: '1578', unit: '步', tone: 'pink' },
+      { key: 'water', label: '饮水', value: '8', unit: '杯', tone: 'blue' },
+    ],
   },
-  orders: [
-    { key: 'home-care', label: '家政护理', icon: 'home' },
-    { key: 'therapy', label: '康复理疗', icon: 'medical' },
-    { key: 'exam', label: '上门体检', icon: 'hospital' },
-  ],
+  orderEntry: { label: '我的订单', desc: '家政护理、康复理疗、上门体检', pageId: 'orders/rehab-therapy' },
   menus: [
     { key: 'coupon', label: '优惠券', icon: 'coupon' },
     { key: 'points', label: '积分', icon: 'points' },

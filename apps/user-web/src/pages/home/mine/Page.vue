@@ -6,8 +6,6 @@ import {
   Coupon,
   Headset,
   Help,
-  Home,
-  Hospital,
   MedicalFiles,
   Setting,
   Star,
@@ -32,12 +30,6 @@ const navIconMarkup: Record<string, string> = {
     <circle cx="24" cy="16.7" r="7.3" />
     <path d="M10.2 39.2c1.45-7.3 6.05-11.2 13.8-11.2s12.35 3.9 13.8 11.2" />
   `,
-}
-
-const orderIconMap: Record<string, Component> = {
-  home: Home,
-  medical: MedicalFiles,
-  hospital: Hospital,
 }
 
 const menuIconMap: Record<string, Component> = {
@@ -69,28 +61,7 @@ function openPage(pageId: string, label: string) {
 
 <template>
   <section class="mine-page">
-    <svg class="profile-vector" viewBox="0 0 396 348" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <path
-        fill-rule="evenodd"
-        clip-rule="evenodd"
-        d="M0 0H142.5L231.4 86.4C288.1 78.5 342.2 61.7 396 38.2V139.6L280.5 172C285.2 191 287.5 211.4 286.2 233C282.1 299 230.5 339 151.6 347.1C67 355.8 1.2 307.4 0 224C-0.8 166.7 42.7 123 123.1 107.5L0 28.2V0ZM94.3 225.3C99.5 251.5 141.1 260.9 174.8 246.4C193.5 238.4 197.6 221.8 187.4 189.4C129.6 195.4 90 204.8 94.3 225.3Z"
-      />
-    </svg>
     <main class="mine-scroll">
-      <div class="status-bar">
-        <span class="time">8:30</span>
-        <div class="status-icons">
-          <span class="signal">
-            <i></i>
-            <i></i>
-            <i></i>
-            <i></i>
-          </span>
-          <span class="wifi"></span>
-          <span class="battery"></span>
-        </div>
-      </div>
-
       <header class="profile-header">
         <button class="support-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
           <Headset theme="outline" size="22" fill="#34383f" />
@@ -114,17 +85,35 @@ function openPage(pageId: string, label: string) {
         </div>
       </header>
 
-      <section class="order-card">
-        <h2>我的订单</h2>
-        <div class="order-grid">
-          <button v-for="item in mock.orders" :key="item.key" class="order-item" type="button">
-            <span class="order-icon" :class="`order-icon--${item.key}`">
-              <component :is="orderIconMap[item.icon]" theme="outline" size="20" fill="currentColor" />
-            </span>
-            <span>{{ item.label }}</span>
-          </button>
+      <section class="health-section" aria-label="健康数据">
+        <div class="section-heading">
+          <h2>健康数据</h2>
+          <span>•••</span>
+        </div>
+        <div class="health-card-list">
+          <article v-for="item in mock.profile.healthCards" :key="item.key" class="health-card" :class="`health-card--${item.tone}`">
+            <div class="health-card-top">
+              <span>{{ item.label }}</span>
+              <i aria-hidden="true"></i>
+            </div>
+            <strong>{{ item.value }} <em>{{ item.unit }}</em></strong>
+            <div class="health-visual" :class="`health-visual--${item.key}`" aria-hidden="true">
+              <span v-for="bar in 7" :key="bar"></span>
+            </div>
+          </article>
         </div>
       </section>
+
+      <button class="order-entry-card" type="button" @click="openPage(mock.orderEntry.pageId, mock.orderEntry.label)">
+        <span class="order-entry-icon">
+          <MedicalFiles theme="outline" size="21" fill="currentColor" />
+        </span>
+        <span class="order-entry-copy">
+          <strong>{{ mock.orderEntry.label }}</strong>
+          <small>{{ mock.orderEntry.desc }}</small>
+        </span>
+        <span class="chevron">›</span>
+      </button>
 
       <section class="menu-card">
         <button v-for="item in mock.menus" :key="item.key" class="menu-row" type="button">
@@ -185,28 +174,18 @@ function openPage(pageId: string, label: string) {
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
-  background: linear-gradient(180deg, #ccdafd 0%, #f2f5fe 34%, #ffffff 58%, #ffffff 100%);
+  background: #f5f6f7;
   color: #252939;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
-}
-
-.profile-vector {
-  display: block;
-  width: 217.7px;
-  height: 156.55px;
-  margin: 0 0 -156.55px auto;
-  color: rgba(255, 255, 255, 0.2);
-  fill: currentColor;
-  pointer-events: none;
 }
 
 .mine-scroll {
   position: relative;
   z-index: 1;
   height: 100%;
-  padding: 0 22px 100px;
+  padding: 16px 22px 100px;
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: none;
@@ -216,111 +195,10 @@ function openPage(pageId: string, label: string) {
   display: none;
 }
 
-.status-bar {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px 0;
-  box-sizing: border-box;
-}
-
-.time {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2e3033;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.signal {
-  width: 18px;
-  height: 13px;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.signal i {
-  width: 3px;
-  border-radius: 1px;
-  background: #111;
-}
-
-.signal i:nth-child(1) {
-  height: 4px;
-}
-
-.signal i:nth-child(2) {
-  height: 7px;
-}
-
-.signal i:nth-child(3) {
-  height: 10px;
-}
-
-.signal i:nth-child(4) {
-  height: 13px;
-}
-
-.wifi {
-  position: relative;
-  width: 18px;
-  height: 13px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  border: 3px solid #111;
-  border-color: #111 transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 22px;
-  height: 22px;
-}
-
-.wifi::after {
-  top: 7px;
-  width: 10px;
-  height: 10px;
-}
-
-.battery {
-  position: relative;
-  width: 24px;
-  height: 13px;
-  border: 2px solid #111;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  content: '';
-  position: absolute;
-  top: 3px;
-  right: -5px;
-  width: 3px;
-  height: 5px;
-  border-radius: 0 2px 2px 0;
-  background: #111;
-}
-
 .profile-header {
   position: relative;
-  padding-top: 14px;
-  margin-bottom: 16px;
+  padding: 0 8px 4px;
+  margin-bottom: 18px;
 }
 
 .support-button {
@@ -341,18 +219,18 @@ function openPage(pageId: string, label: string) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 0;
   text-align: center;
 }
 
 .avatar {
   width: 92px;
   height: 92px;
-  border: 3px solid rgba(255, 255, 255, 0.86);
+  border: 4px solid #fff;
   border-radius: 50%;
   object-fit: cover;
   display: block;
-  box-shadow: 0 12px 28px rgba(38, 54, 77, 0.12);
+  box-shadow: 0 14px 28px rgba(106, 116, 241, 0.18);
 }
 
 .profile-text {
@@ -368,9 +246,9 @@ function openPage(pageId: string, label: string) {
 
 .name-row h1 {
   margin: 0;
-  color: #34383f;
-  font-size: 21px;
-  font-weight: 800;
+  color: #252939;
+  font-size: 24px;
+  font-weight: 900;
   letter-spacing: 0;
 }
 
@@ -388,10 +266,10 @@ function openPage(pageId: string, label: string) {
   justify-content: center;
   margin-top: 4px;
   border-radius: 10px;
-  background: #f6d36a;
+  background: #ffd15d;
   color: #fff;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .homepage-link {
@@ -404,10 +282,10 @@ function openPage(pageId: string, label: string) {
   padding: 0 11px;
   border: 0;
   border-radius: 13px;
-  background: rgba(112, 117, 126, 0.72);
+  background: rgba(37, 41, 57, 0.72);
   color: #fff;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   backdrop-filter: blur(8px);
 }
 
@@ -415,7 +293,7 @@ function openPage(pageId: string, label: string) {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  margin: 16px 0 0;
+  margin: 18px 0 0;
 }
 
 .stat-item {
@@ -425,72 +303,263 @@ function openPage(pageId: string, label: string) {
 }
 
 .stat-item strong {
-  color: #4a4f57;
-  font-size: 16px;
-  font-weight: 800;
+  color: #34383f;
+  font-size: 17px;
+  font-weight: 900;
 }
 
 .stat-item span {
-  color: #5c626c;
+  color: #70757d;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.order-card,
-.menu-card {
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 10px 26px rgba(35, 48, 70, 0.04);
+.menu-card,
+.order-entry-card {
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
 }
 
-.order-card {
-  padding: 18px 18px 20px;
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #34383f;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.section-heading span {
+  color: #b8babd;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.health-section {
   margin-bottom: 16px;
 }
 
-.order-card h2 {
-  margin: 0 0 18px;
-  color: #4a4f57;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.order-grid {
+.health-card-list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 170px;
   gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
-.order-item {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  padding: 0;
-  border: 0;
+.health-card-list::-webkit-scrollbar {
+  display: none;
+}
+
+.health-card {
+  height: 174px;
+  padding: 20px 18px 16px;
+  border-radius: 28px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.health-card--green {
+  background: #e4ffb6;
+}
+
+.health-card--pink {
+  background: #ffe0e7;
+}
+
+.health-card--blue {
+  background: #dff0ff;
+}
+
+.health-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.health-card-top span {
+  color: #252939;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.health-card-top i {
+  width: 22px;
+  height: 20px;
+  border-radius: 999px 999px 12px 12px;
+  background: #aee42c;
+  transform: rotate(45deg);
+}
+
+.health-card--pink .health-card-top i {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px 4px 12px 12px;
+  background: #ff5976;
+  transform: rotate(0deg);
+}
+
+.health-card--blue .health-card-top i {
+  background: #4aa4ff;
+}
+
+.health-card strong {
+  display: block;
+  color: #252939;
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.health-card em {
+  color: #65736e;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.health-visual {
+  position: relative;
+  height: 62px;
+  margin-top: 14px;
+}
+
+.health-visual span {
+  position: absolute;
+  bottom: 0;
+  width: 16px;
+  border-radius: 999px;
+  opacity: 0.82;
+}
+
+.health-visual--heart span {
+  height: 4px;
   background: transparent;
-  color: #5b6069;
-  font-size: 13px;
-  font-weight: 700;
 }
 
-.order-icon {
-  width: 30px;
-  height: 30px;
+.health-visual--heart::before,
+.health-visual--heart::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  left: 0;
+  height: 46px;
+  border-bottom: 7px solid #85d80d;
+  border-radius: 50%;
+  transform: rotate(-8deg);
+}
+
+.health-visual--heart::after {
+  left: 42px;
+  border-color: rgba(139, 216, 20, 0.55);
+  transform: rotate(16deg);
+}
+
+.health-visual--steps span,
+.health-visual--water span {
+  background: #ff4668;
+}
+
+.health-visual--steps span:nth-child(1),
+.health-visual--water span:nth-child(1) {
+  left: 0;
+  height: 34px;
+  opacity: 0.25;
+}
+
+.health-visual--steps span:nth-child(2),
+.health-visual--water span:nth-child(2) {
+  left: 24px;
+  height: 52px;
+  opacity: 0.3;
+}
+
+.health-visual--steps span:nth-child(3),
+.health-visual--water span:nth-child(3) {
+  left: 48px;
+  height: 74px;
+  opacity: 0.55;
+}
+
+.health-visual--steps span:nth-child(4),
+.health-visual--water span:nth-child(4) {
+  left: 72px;
+  height: 96px;
+}
+
+.health-visual--steps span:nth-child(5),
+.health-visual--water span:nth-child(5) {
+  left: 96px;
+  height: 62px;
+  opacity: 0.45;
+}
+
+.health-visual--steps span:nth-child(6),
+.health-visual--water span:nth-child(6) {
+  left: 120px;
+  height: 36px;
+  opacity: 0.28;
+}
+
+.health-visual--steps span:nth-child(7),
+.health-visual--water span:nth-child(7) {
+  left: 144px;
+  height: 20px;
+  opacity: 0.22;
+}
+
+.health-visual--water span {
+  background: #3f98ff;
+}
+
+.order-entry-card {
+  width: 100%;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 42px 1fr 20px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 0 18px;
+  border: 0;
+  color: #4a4f57;
+  text-align: left;
+}
+
+.order-entry-icon {
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: #eef5f3;
-  color: #4bc99e;
+  border-radius: 13px;
+  background: #eceaff;
+  color: #6872f0;
 }
 
-.order-icon--therapy {
-  background: #f0efff;
-  color: #7b82f2;
+.order-entry-copy {
+  display: grid;
+  gap: 5px;
 }
 
-.order-icon--exam {
-  background: #fff2f4;
-  color: #ee7f8f;
+.order-entry-copy strong {
+  color: #252939;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.order-entry-copy small {
+  color: #a2a7af;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .menu-card {
@@ -508,10 +577,10 @@ function openPage(pageId: string, label: string) {
   border: 0;
   border-bottom: 1px solid rgba(220, 225, 232, 0.7);
   background: transparent;
-  color: #4a4f57;
+  color: #34383f;
   text-align: left;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .menu-row:last-child {
@@ -519,7 +588,7 @@ function openPage(pageId: string, label: string) {
 }
 
 .menu-icon {
-  color: #5a626d;
+  color: #6872f0;
   display: grid;
   place-items: center;
 }
@@ -535,12 +604,13 @@ function openPage(pageId: string, label: string) {
   right: 0;
   bottom: 0;
   left: 0;
+  z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
   height: 74px;
   padding: 9px 12px 10px;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
 }
 
@@ -553,7 +623,7 @@ function openPage(pageId: string, label: string) {
   height: 58px;
   content: '';
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   box-shadow: 0 -10px 24px rgba(102, 112, 240, 0.08);
   transform: translateX(-50%);
 }
