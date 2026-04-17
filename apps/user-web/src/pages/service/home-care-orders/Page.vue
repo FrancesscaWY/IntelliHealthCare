@@ -101,20 +101,6 @@ function getAmountText(order: HomeCareOrder) {
 
 <template>
   <section class="home-care-orders-page">
-    <div class="status-bar">
-      <span class="time">8:30</span>
-      <div class="status-icons">
-        <span class="signal">
-          <i></i>
-          <i></i>
-          <i></i>
-          <i></i>
-        </span>
-        <span class="wifi"></span>
-        <span class="battery"></span>
-      </div>
-    </div>
-
     <header class="page-header">
       <button class="header-icon" type="button" aria-label="返回" @click="goBack">
         <Left theme="outline" size="18" fill="currentColor" />
@@ -256,113 +242,12 @@ function getAmountText(order: HomeCareOrder) {
   font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
 }
 
-.status-bar {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 6px 0;
-  box-sizing: border-box;
-}
-
-.time {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2e3135;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.signal {
-  width: 18px;
-  height: 12px;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.signal i {
-  width: 3px;
-  border-radius: 1px;
-  background: #1f2124;
-}
-
-.signal i:nth-child(1) {
-  height: 4px;
-}
-
-.signal i:nth-child(2) {
-  height: 6px;
-}
-
-.signal i:nth-child(3) {
-  height: 9px;
-}
-
-.signal i:nth-child(4) {
-  height: 12px;
-}
-
-.wifi {
-  position: relative;
-  width: 15px;
-  height: 11px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  position: absolute;
-  left: 50%;
-  content: "";
-  border: 2px solid #1f2124;
-  border-color: #1f2124 transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 17px;
-  height: 17px;
-}
-
-.wifi::after {
-  top: 5px;
-  width: 8px;
-  height: 8px;
-}
-
-.battery {
-  position: relative;
-  width: 20px;
-  height: 10px;
-  border: 1.6px solid #1f2124;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  position: absolute;
-  top: 2px;
-  right: -4px;
-  width: 2px;
-  height: 4px;
-  content: "";
-  border-radius: 0 2px 2px 0;
-  background: #1f2124;
-}
-
 .page-header {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 4px 0 10px;
+  padding: 16px 0 10px;
 }
 
 .page-title h1 {
