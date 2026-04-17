@@ -26,21 +26,7 @@ function finish() {
 </script>
 
 <template>
-  <section class="voucher-page">
-    <div class="status-bar">
-      <span class="time">8:30</span>
-      <div class="status-icons">
-        <span class="signal">
-          <i></i>
-          <i></i>
-          <i></i>
-          <i></i>
-        </span>
-        <span class="wifi"></span>
-        <span class="battery"></span>
-      </div>
-    </div>
-
+  <div class="payment-result-page">
     <header class="page-header">
       <button class="back-button" type="button" aria-label="返回" @click="goBack">
         <Left theme="outline" size="18" fill="currentColor" />
@@ -109,110 +95,11 @@ function finish() {
   min-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
-  padding: 0 14px 84px;
+  padding: 16px 14px 96px;
   box-sizing: border-box;
   background: var(--page-bg);
   color: #34383f;
   font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
-}
-
-.status-bar {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 6px 0;
-  box-sizing: border-box;
-}
-
-.time {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.signal {
-  width: 18px;
-  height: 12px;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.signal i {
-  width: 3px;
-  border-radius: 1px;
-  background: #111;
-}
-
-.signal i:nth-child(1) {
-  height: 4px;
-}
-
-.signal i:nth-child(2) {
-  height: 6px;
-}
-
-.signal i:nth-child(3) {
-  height: 9px;
-}
-
-.signal i:nth-child(4) {
-  height: 12px;
-}
-
-.wifi {
-  position: relative;
-  width: 15px;
-  height: 11px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  position: absolute;
-  left: 50%;
-  content: "";
-  border: 2px solid #111;
-  border-color: #111 transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 17px;
-  height: 17px;
-}
-
-.wifi::after {
-  top: 5px;
-  width: 8px;
-  height: 8px;
-}
-
-.battery {
-  position: relative;
-  width: 20px;
-  height: 10px;
-  border: 1.6px solid #111;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  position: absolute;
-  top: 2px;
-  right: -4px;
-  width: 2px;
-  height: 4px;
-  content: "";
-  background: #111;
 }
 
 .page-header {

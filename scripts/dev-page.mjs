@@ -4,6 +4,10 @@ import { parseArgs } from "./utils.mjs";
 const args = parseArgs(process.argv.slice(2));
 const extraArgs = [];
 
+if (args.app) {
+  extraArgs.push("--app", args.app);
+}
+
 if (args.page) {
   extraArgs.push("--page", args.page);
 }
