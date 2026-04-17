@@ -6,6 +6,7 @@ import mock from "./mock";
 const props = defineProps<PageComponentProps>();
 const activeIndex = ref(0);
 const trackRef = ref<HTMLElement | null>(null);
+const loginPageId = "auth/login";
 let autoplayTimer: number | undefined;
 
 function goBack() {
@@ -15,11 +16,11 @@ function goBack() {
 }
 
 function skipIntro() {
-  props.navigation.reLaunch("home/dashboard");
+  props.navigation.redirectTo(loginPageId);
 }
 
 function startExperience() {
-  props.navigation.navigateTo("auth/login");
+  props.navigation.redirectTo(loginPageId);
 }
 
 function updateActiveSlide(event: Event) {

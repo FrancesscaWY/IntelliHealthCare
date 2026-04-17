@@ -22,13 +22,23 @@ const { activePage, navigate, navigation } = usePageNavigation({
 const { items: toastItems, showToast } = useToastQueue();
 
 const activeComponent = shallowRef<Component | null>(null);
+const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
+
+const resolvedComponent = computed(() => {
+  if (!activePage.value || activeComponentPageId.value !== activePage.value.id) {
+    return null;
+  }
+
+  return activeComponent.value;
+});
 
 watch(
   activePage,
   async (pageEntry) => {
     const currentPageId = pageEntry?.id || "";
     activeComponent.value = null;
+    activeComponentPageId.value = "";
     loadError.value = "";
 
     if (!pageEntry) {
@@ -42,6 +52,7 @@ watch(
       }
 
       activeComponent.value = component;
+      activeComponentPageId.value = component ? currentPageId : "";
     } catch (error) {
       if (activePage.value?.id !== currentPageId) {
         return;
@@ -85,7 +96,7 @@ const pageProps = computed(() => {
   <main class="app-shell" :class="config.mode === 'page' ? 'app-shell--page' : 'app-shell--site'">
     <section class="app-canvas">
       <div class="mobile-page-root">
-        <component v-if="activeComponent && pageProps" :is="activeComponent" v-bind="pageProps" />
+        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" v-bind="pageProps" />
         <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
         <section v-else class="page-loader">
           当前没有可加载的页面，请检查 `pages.manifest.json` 配置。

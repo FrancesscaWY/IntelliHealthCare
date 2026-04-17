@@ -75,7 +75,7 @@
     "route": "/community/circle",
     "owner": "待分配",
     "status": "implemented",
-    "summary": "社区活动、热门动态、关注内容和互动入口。",
+    "summary": "生活圈话题、推荐动态、达人推荐和底部导航。",
     "folderPath": "/apps/user-web/src/pages/community/circle",
     "modulePath": "/apps/user-web/src/pages/community/circle/Page.vue",
     "mockPath": "/apps/user-web/src/pages/community/circle/mock.ts",
@@ -101,6 +101,19 @@
       "/legacy/miniprogram-user/src/pages/publish/publish.wxml",
       "/legacy/miniprogram-user/src/pages/publish/publish.wxss"
     ]
+  },
+  {
+    "id": "community/post-detail",
+    "title": "帖子详情",
+    "group": "community",
+    "route": "/community/post-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "生活圈帖子完整图文、互动按钮、评论区和评论输入入口。",
+    "folderPath": "/apps/user-web/src/pages/community/post-detail",
+    "modulePath": "/apps/user-web/src/pages/community/post-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/community/post-detail/mock.ts",
+    "legacySources": []
   },
   {
     "id": "community/senior-activities",
@@ -165,6 +178,32 @@
     "folderPath": "/apps/user-web/src/pages/content/health-news",
     "modulePath": "/apps/user-web/src/pages/content/health-news/Page.vue",
     "mockPath": "/apps/user-web/src/pages/content/health-news/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "content/health-lecture",
+    "title": "健康讲堂",
+    "group": "content",
+    "route": "/content/health-lecture",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "讲堂视频流、最热最新切换、视频封面与互动统计页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-lecture",
+    "modulePath": "/apps/user-web/src/pages/content/health-lecture/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-lecture/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "content/health-lecture-detail",
+    "title": "健康讲堂详情",
+    "group": "content",
+    "route": "/content/health-lecture-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "视频封面、标题标签、推荐视频与评论互动详情页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-lecture-detail",
+    "modulePath": "/apps/user-web/src/pages/content/health-lecture-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-lecture-detail/mock.ts",
     "legacySources": []
   },
   {
@@ -615,6 +654,46 @@
     "legacySources": []
   },
   {
+    "id": "home/message",
+    "title": "消息",
+    "group": "home",
+    "route": "/home/message",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "通知、聊天分类，圆角消息卡片和底部导航。",
+    "folderPath": "/apps/user-web/src/pages/home/message",
+    "modulePath": "/apps/user-web/src/pages/home/message/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/message/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/message-comment-detail",
+    "title": "评论回复",
+    "group": "home",
+    "route": "/home/message-comment-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "生活圈评论与回复消息详情。",
+    "folderPath": "/apps/user-web/src/pages/home/message-comment-detail",
+    "modulePath": "/apps/user-web/src/pages/home/message-comment-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/message-comment-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/message-like-detail",
+    "title": "赞和收藏",
+    "group": "home",
+    "route": "/home/message-like-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "生活圈点赞与收藏消息详情。",
+    "folderPath": "/apps/user-web/src/pages/home/message-like-detail",
+    "modulePath": "/apps/user-web/src/pages/home/message-like-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/message-like-detail/mock.ts",
+
+    "legacySources": []
+  },
+  {
     "id": "onboarding/intro",
     "title": "启动引导",
     "group": "onboarding",
@@ -681,6 +760,19 @@
     "folderPath": "/apps/user-web/src/pages/service/home-care-detail",
     "modulePath": "/apps/user-web/src/pages/service/home-care-detail/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/home-care-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/home-care-orders",
+    "title": "家政护理订单",
+    "group": "service",
+    "route": "/service/home-care-orders",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "家政护理订单列表、状态筛选、取消订单、修改预约、支付和服务券码。",
+    "folderPath": "/apps/user-web/src/pages/service/home-care-orders",
+    "modulePath": "/apps/user-web/src/pages/service/home-care-orders/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-care-orders/mock.ts",
     "legacySources": []
   },
   {
@@ -780,11 +872,37 @@
     "group": "service",
     "route": "/service/home-exam",
     "owner": "待分配",
-    "status": "planned",
-    "summary": "体检套餐、预约时间、医生团队和报告解读。",
+    "status": "implemented",
+    "summary": "体检分类筛选、上门体检套餐选择和套餐卡片列表。",
     "folderPath": "/apps/user-web/src/pages/service/home-exam",
     "modulePath": "/apps/user-web/src/pages/service/home-exam/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/home-exam/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/home-exam-detail",
+    "title": "上门体检项目详情",
+    "group": "service",
+    "route": "/service/home-exam-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "上门体检套餐详情、服务流程、服务内容、人员、须知、评价与购买入口。",
+    "folderPath": "/apps/user-web/src/pages/service/home-exam-detail",
+    "modulePath": "/apps/user-web/src/pages/service/home-exam-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-exam-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/rehab-therapy-detail",
+    "title": "康复理疗项目详情",
+    "group": "service",
+    "route": "/service/rehab-therapy-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "康复理疗项目介绍、服务流程、服务内容、人员、须知、评价与购买入口。",
+    "folderPath": "/apps/user-web/src/pages/service/rehab-therapy-detail",
+    "modulePath": "/apps/user-web/src/pages/service/rehab-therapy-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/rehab-therapy-detail/mock.ts",
     "legacySources": []
   },
   {
@@ -793,8 +911,8 @@
     "group": "service",
     "route": "/service/rehab-therapy",
     "owner": "待分配",
-    "status": "planned",
-    "summary": "康复项目、评估流程、疗程安排与服务建议。",
+    "status": "implemented",
+    "summary": "康复理疗项目选择、排序筛选和项目卡片列表。",
     "folderPath": "/apps/user-web/src/pages/service/rehab-therapy",
     "modulePath": "/apps/user-web/src/pages/service/rehab-therapy/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/rehab-therapy/mock.ts",
