@@ -16,6 +16,50 @@ const codeGroups = computed(() => {
   return activeOrder.serviceCode.split(" ");
 });
 
+const qrCodeUrl = computed(() => {
+  if (!activeOrder) {
+    return "";
+  }
+
+  const qrPayload = [
+    "IHC_SERVICE_VOUCHER",
+    `orderNo=${activeOrder.orderNo}`,
+    `serviceCode=${activeOrder.serviceCode.replace(/\s+/g, "")}`,
+    `bookingDate=${activeOrder.bookingDate}`,
+    `weekday=${activeOrder.bookingWeekday}`,
+    `timeSlot=${activeOrder.bookingTimeSlot}`,
+    `contactPhone=${activeOrder.contactPhone}`,
+  ].join(";");
+
+  const searchParams = new URLSearchParams({
+    data: qrPayload,
+    size: "156x156",
+    format: "png",
+    ecc: "M",
+    qzone: "2",
+    margin: "0",
+    "charset-source": "UTF-8",
+    "charset-target": "UTF-8",
+    color: "1d2024",
+    bgcolor: "ffffff",
+  });
+
+  return `https://api.qrserver.com/v1/create-qr-code/?${searchParams.toString()}`;
+});
+
+const barcodeUrl = computed(() => {
+  if (!activeOrder) {
+    return "";
+  }
+
+  const searchParams = new URLSearchParams({
+    includetext: "",
+    height: "46",
+  });
+
+  return `https://barcodeapi.org/api/128/${encodeURIComponent(activeOrder.orderNo)}?${searchParams.toString()}`;
+});
+
 function goBack() {
   props.navigation.reLaunch("service/home-care-orders");
 }
@@ -78,13 +122,26 @@ function finish() {
         </div>
 
         <div class="scan-card">
-          <div class="qr-code" aria-hidden="true">
-            <span v-for="index in 36" :key="index" :class="`cell cell--${index}`"></span>
+          <div class="qr-code">
+            <img
+              v-if="qrCodeUrl"
+              class="qr-code__image"
+              :src="qrCodeUrl"
+              :alt="`${activeOrder.title}服务券码二维码`"
+              loading="eager"
+              referrerpolicy="no-referrer"
+            />
           </div>
-          <div class="barcode" aria-hidden="true">
-            <span v-for="index in 42" :key="index" :class="{ wide: index % 5 === 0 || index % 7 === 0 }"></span>
+          <div class="barcode">
+            <img
+              v-if="barcodeUrl"
+              class="barcode__image"
+              :src="barcodeUrl"
+              :alt="`${activeOrder.orderNo}服务券码条形码`"
+              loading="eager"
+              referrerpolicy="no-referrer"
+            />
           </div>
-          <small>{{ activeOrder.orderNo }}</small>
         </div>
       </section>
     </main>
@@ -338,60 +395,36 @@ function finish() {
   width: 156px;
   height: 156px;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 3px;
+  place-items: center;
   margin: 0 auto;
   padding: 10px;
   border-radius: 14px;
   background: #f5f5f4;
+  box-sizing: border-box;
 }
 
-.cell {
-  border-radius: 2px;
-  background: #17191c;
-  opacity: 0.14;
-}
-
-.cell--1,
-.cell--2,
-.cell--3,
-.cell--7,
-.cell--9,
-.cell--13,
-.cell--15,
-.cell--16,
-.cell--18,
-.cell--19,
-.cell--21,
-.cell--24,
-.cell--25,
-.cell--27,
-.cell--28,
-.cell--30,
-.cell--31,
-.cell--33,
-.cell--34,
-.cell--35,
-.cell--36 {
-  opacity: 1;
+.qr-code__image {
+  display: block;
+  width: 136px;
+  height: 136px;
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 .barcode {
-  display: flex;
-  justify-content: center;
-  gap: 2px;
+  display: grid;
+  place-items: center;
   margin: 14px auto 0;
   padding: 0 8px;
 }
 
-.barcode span {
-  width: 2px;
+.barcode__image {
+  display: block;
+  width: 100%;
+  max-width: 270px;
   height: 46px;
-  background: #1d2024;
-}
-
-.barcode span.wide {
-  width: 3px;
+  object-fit: fill;
+  background: #ffffff;
 }
 
 .scan-card small {
