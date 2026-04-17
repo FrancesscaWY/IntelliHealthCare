@@ -3,6 +3,8 @@ import recipeFishTomato from "@/assets/recipes/recipe-fish-tomato.jpg";
 import recipePumpkinPorridge from "@/assets/recipes/recipe-pumpkin-porridge.jpg";
 import recipeShrimpEgg from "@/assets/recipes/recipe-shrimp-egg.jpg";
 
+export type DietMealKey = "breakfast" | "lunch" | "dinner" | "snack";
+
 export interface DietRecipeIngredient {
   name: string;
   amount: string;
@@ -13,6 +15,7 @@ export interface DietRecipe {
   title: string;
   subtitle: string;
   publishDate: string;
+  mealKeys: DietMealKey[];
   energy: string;
   time: string;
   tags: string[];
@@ -27,6 +30,7 @@ export const dietRecipes: DietRecipe[] = [
     title: "虾仁蒸蛋",
     subtitle: "鲜嫩清淡，适合长者日常补充优质蛋白。",
     publishDate: "发布时间：2024年1月13日",
+    mealKeys: ["breakfast", "lunch"],
     energy: "168 kcal",
     time: "15分钟",
     tags: ["低盐", "高蛋白"],
@@ -51,6 +55,7 @@ export const dietRecipes: DietRecipe[] = [
     title: "燕麦南瓜粥",
     subtitle: "绵软顺口，膳食纤维更足，早餐和加餐都合适。",
     publishDate: "发布时间：2024年1月16日",
+    mealKeys: ["breakfast", "snack"],
     energy: "226 kcal",
     time: "20分钟",
     tags: ["低糖", "高纤维"],
@@ -75,6 +80,7 @@ export const dietRecipes: DietRecipe[] = [
     title: "清炒西兰花",
     subtitle: "口感爽脆，油脂更低，适合晚餐搭配主食和瘦肉。",
     publishDate: "发布时间：2024年1月18日",
+    mealKeys: ["dinner"],
     energy: "132 kcal",
     time: "12分钟",
     tags: ["低脂", "护心"],
@@ -99,6 +105,7 @@ export const dietRecipes: DietRecipe[] = [
     title: "番茄龙利鱼",
     subtitle: "酸甜开胃，鱼肉细嫩，适合牙口一般的长者。",
     publishDate: "发布时间：2024年1月21日",
+    mealKeys: ["lunch", "dinner"],
     energy: "248 kcal",
     time: "18分钟",
     tags: ["优质蛋白", "易消化"],

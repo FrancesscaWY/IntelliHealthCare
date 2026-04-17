@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
+import { lastLoginPhone } from "../session";
 
 const props = defineProps<PageComponentProps>();
 const form = reactive({
@@ -13,6 +14,7 @@ const form = reactive({
 });
 const activePicker = ref<"gender" | "birthday" | null>(null);
 const birthdayDraft = ref(mock.birthdayDefault);
+const displayPhone = computed(() => lastLoginPhone.value || mock.phone);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -139,7 +141,7 @@ function saveProfile() {
 
       <div class="profile-row">
         <span class="profile-label">联系电话<em>*</em></span>
-        <span class="profile-value">{{ mock.phone }}</span>
+        <span class="profile-value">{{ displayPhone }}</span>
       </div>
 
       <label class="profile-row" for="address">

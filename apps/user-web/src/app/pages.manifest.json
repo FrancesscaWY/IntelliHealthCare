@@ -181,6 +181,32 @@
     "legacySources": []
   },
   {
+    "id": "content/health-lecture",
+    "title": "健康讲堂",
+    "group": "content",
+    "route": "/content/health-lecture",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "讲堂视频流、最热最新切换、视频封面与互动统计页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-lecture",
+    "modulePath": "/apps/user-web/src/pages/content/health-lecture/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-lecture/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "content/health-lecture-detail",
+    "title": "健康讲堂详情",
+    "group": "content",
+    "route": "/content/health-lecture-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "视频封面、标题标签、推荐视频与评论互动详情页面。",
+    "folderPath": "/apps/user-web/src/pages/content/health-lecture-detail",
+    "modulePath": "/apps/user-web/src/pages/content/health-lecture-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-lecture-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/add-data",
     "title": "添加数据",
     "group": "health",
