@@ -943,5 +943,31 @@
     "modulePath": "/apps/user-web/src/pages/service/rehab-therapy/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/rehab-therapy/mock.ts",
     "legacySources": []
+  },
+  {
+    "id": "service/elderly-care",
+    "title": "养老机构",
+    "group": "service",
+    "route": "/service/elderly-care",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "养老机构选择、排序筛选和机构卡片列表。",
+    "folderPath": "/apps/user-web/src/pages/service/elderly-care",
+    "modulePath": "/apps/user-web/src/pages/service/elderly-care/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/elderly-care/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/elderly-care-detail",
+    "title": "养老机构详情",
+    "group": "service",
+    "route": "/service/elderly-care-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "养老机构名称、星级评分、基础信息、服务内容、配置、入住须知和评价。",
+    "folderPath": "/apps/user-web/src/pages/service/elderly-care-detail",
+    "modulePath": "/apps/user-web/src/pages/service/elderly-care-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/elderly-care-detail/mock.ts",
+    "legacySources": []
   }
 ]

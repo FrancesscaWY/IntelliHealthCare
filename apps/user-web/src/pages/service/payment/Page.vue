@@ -1,129 +1,73 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
-import { Left } from "@icon-park/vue-next";
-import mock from "./mock";
-import {
-  getActiveHomeCareOrder,
-  payHomeCareOrder,
-} from "../home-care-orders/store";
+import { ref } from 'vue'
+import type { PageComponentProps } from '@ihc/page-core/types'
+import mock from './mock'
 
-const props = defineProps<PageComponentProps>();
+const props = defineProps<PageComponentProps>()
 
-const activeOrder = getActiveHomeCareOrder();
-const selectedPayment = ref("alipay");
+const selectedPayment = ref('alipay')
 
-const displayAmount = computed(() => {
-  if (!activeOrder) {
-    return "0.00";
-  }
-
-  return activeOrder.actualAmount.toFixed(2);
-});
-
-function goBack() {
+const goBack = () => {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch("service/home-care-orders");
+    props.navigation.reLaunch('service/order-confirm')
   }
 }
 
-function confirmPay() {
-  if (!activeOrder) {
-    props.showToast("未找到待支付订单");
-    props.navigation.reLaunch("service/home-care-orders");
-    return;
-  }
-
-  payHomeCareOrder(activeOrder.id);
-  props.showToast("支付成功");
-  props.navigation.navigateTo("service/payment-result");
+const confirmPay = () => {
+  props.navigation.navigateTo('service/payment-result')
 }
 </script>
 
 <template>
   <div class="payment-page">
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">
-        <Left theme="outline" size="18" fill="currentColor" />
-      </button>
-      <div>
-        <h1>支付订单</h1>
-        <p>请在保留时限内完成支付</p>
-      </div>
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
+      <h1>支付订单</h1>
     </header>
 
     <main class="payment-content">
       <section class="amount-card">
-        <div class="amount-row">
-          <span>需支付</span>
-          <strong>¥{{ displayAmount }}</strong>
+        <div class="amount-block">
+          <span>支付金额</span>
+          <strong><small>¥</small>{{ mock.amount }}</strong>
         </div>
-        <div v-if="activeOrder" class="amount-info">
-          <p>{{ activeOrder.title }}</p>
-          <div class="amount-meta">
-            <span>预约时间 {{ activeOrder.bookingDate }} {{ activeOrder.bookingTimeSlot }}</span>
-            <span>剩余 {{ activeOrder.paymentDeadline || "保留中" }}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="summary-card" v-if="activeOrder">
-        <div class="summary-row">
-          <span>联系人</span>
-          <p>{{ activeOrder.contactName }} {{ activeOrder.contactPhone }}</p>
-        </div>
-        <div class="summary-row">
-          <span>服务地址</span>
-          <p>{{ activeOrder.address }}</p>
-        </div>
-        <div class="summary-row">
-          <span>优惠抵扣</span>
-          <p>-¥{{ activeOrder.couponAmount.toFixed(2) }}</p>
+        <div class="countdown">
+          支付剩余时间：<span>{{ mock.remainingTime }}</span>
         </div>
       </section>
 
       <section class="method-section">
-        <div class="section-title">
-          <h2>支付方式</h2>
-          <span>请选择一种方式完成付款</span>
-        </div>
+        <h2>选择支付方式</h2>
         <div class="method-card">
           <button
-            v-for="method in mock.methods"
-            :key="method.id"
-            class="method-row"
-            type="button"
-            @click="selectedPayment = method.id"
+              v-for="method in mock.methods"
+              :key="method.id"
+              class="method-row"
+              type="button"
+              @click="selectedPayment = method.id"
           >
             <span class="method-icon" :class="`method-icon--${method.id}`">
               <img v-if="method.icon" :src="method.icon" :alt="method.name" />
-              <span v-else>卡</span>
+              <span v-else>银</span>
             </span>
             <span class="method-info">
               <strong>{{ method.name }}</strong>
-              <small>{{ method.cardNo || method.desc }}</small>
+              <small v-if="method.cardNo">{{ method.cardNo }}</small>
             </span>
-            <span class="radio" :class="{ 'radio--active': selectedPayment === method.id }"></span>
+            <span class="radio" :class="{ active: selectedPayment === method.id }"></span>
           </button>
         </div>
       </section>
     </main>
 
-    <footer class="pay-bar">
+    <div class="pay-bar">
       <button class="pay-button" type="button" @click="confirmPay">确认支付</button>
-    </footer>
-  </section>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .payment-page {
-  --page-bg: #edf4ff;
-  --card-bg: rgba(255, 255, 255, 0.9);
-  --card-border: #e3ebf7;
-  --primary: #6872f0;
-  --primary-soft: rgba(104, 114, 240, 0.1);
-  --primary-2: #ed6d88;
-  --text-3: #8ea0bc;
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
@@ -132,146 +76,123 @@ function confirmPay() {
   transform: translateX(-50%);
   padding: 16px 14px 96px;
   box-sizing: border-box;
-  background: var(--page-bg);
+  background: #f5f6f7;
   color: #34383f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .page-header {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 10px;
+  height: 58px;
+  display: flex;
   align-items: center;
-  padding: 6px 0 12px;
+  margin-bottom: 26px;
 }
 
 .back-button {
-  width: 32px;
+  width: 24px;
   height: 32px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px 0 -4px;
   padding: 0;
-  border: 1px solid #e3e4e7;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #50555d;
+  border: 0;
+  background: transparent;
+  color: #34383f;
+  font-size: 34px;
+  line-height: 26px;
+  font-weight: 300;
+  cursor: pointer;
 }
 
 .page-header h1 {
   margin: 0;
-  font-size: 16px;
+  color: #34383f;
+  font-size: 22px;
   font-weight: 600;
-}
-
-.page-header p {
-  margin: 3px 0 0;
-  font-size: 11px;
-  color: var(--text-3);
+  letter-spacing: 0;
 }
 
 .payment-content {
-  display: grid;
-  gap: 12px;
-}
-
-.amount-card,
-.summary-card,
-.method-card {
-  padding: 14px;
-  border: 1px solid var(--card-border);
-  border-radius: 18px;
-  background: var(--card-bg);
-}
-
-.amount-row {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  flex-direction: column;
 }
 
-.amount-row span {
-  font-size: 11px;
-  color: #9097a0;
+.amount-card {
+  min-height: 132px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 24px 22px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: #fff;
 }
 
-.amount-row strong {
-  font-size: 24px;
+.amount-block span,
+.countdown {
+  color: #34383f;
+  font-size: 17px;
   font-weight: 700;
-  color: var(--primary);
 }
 
-.amount-info p {
-  margin: 10px 0 0;
-  font-size: 12px;
+.amount-block strong {
+  display: block;
+  margin-top: 18px;
+  color: #f3706b;
+  font-size: 38px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.amount-block small {
+  margin-right: 6px;
+  font-size: 16px;
+}
+
+.countdown {
+  padding-top: 2px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.countdown span {
+  color: #6c73f0;
+}
+
+.method-section {
+  margin-top: 28px;
+}
+
+.method-section h2 {
+  margin: 0 0 20px;
+  color: #9a9da4;
+  font-size: 17px;
   font-weight: 600;
-}
-
-.amount-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-  font-size: 10px;
-  color: var(--text-3);
-}
-
-.summary-card {
-  display: grid;
-  gap: 9px;
-}
-
-.summary-row {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 10px;
-}
-
-.summary-row span {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.summary-row p {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.55;
-  color: #535a63;
-}
-
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-
-.section-title h2 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.section-title span {
-  font-size: 10px;
-  color: var(--text-3);
 }
 
 .method-card {
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding: 6px 22px;
+  border-radius: 16px;
+  background: #fff;
 }
 
 .method-row {
   width: 100%;
+  min-height: 76px;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 18px;
-  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr) 24px;
+  gap: 14px;
   align-items: center;
-  padding: 10px 0;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid #eff0f2;
+  border-bottom: 1px solid #ededee;
   background: transparent;
+  color: inherit;
   text-align: left;
+  cursor: pointer;
 }
 
 .method-row:last-child {
@@ -279,73 +200,86 @@ function confirmPay() {
 }
 
 .method-icon {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #f4f6f9;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   overflow: hidden;
-  font-size: 10px;
-  color: #66707a;
 }
 
 .method-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  display: block;
 }
 
-.method-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.method-icon--bank {
+  background: #d92234;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.method-info strong,
+.method-info small {
+  display: block;
 }
 
 .method-info strong {
-  font-size: 12px;
-  font-weight: 600;
-  color: #35393e;
+  color: #34383f;
+  font-size: 20px;
+  font-weight: 800;
 }
 
 .method-info small {
-  font-size: 10px;
-  color: #98a0a8;
+  margin-top: 6px;
+  color: #c4c6cc;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .radio {
-  width: 16px;
-  height: 16px;
-  border: 1.6px solid #cfd4dc;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #c4c6cc;
   border-radius: 50%;
+  box-sizing: border-box;
 }
 
-.radio--active {
-  border-color: var(--primary);
-  background: #ffffff;
-  box-shadow: inset 0 0 0 4px var(--primary);
+.radio.active {
+  border: 7px solid #6970f0;
 }
 
 .pay-bar {
   position: fixed;
   left: 50%;
   bottom: 0;
+  z-index: 20;
   width: 100%;
   max-width: 402px;
-  padding: 10px 16px 18px;
+  padding: 12px 26px 28px;
   box-sizing: border-box;
   transform: translateX(-50%);
-  background: rgba(240, 248, 251, 0.96);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -8px 20px rgba(20, 24, 36, 0.04);
 }
 
 .pay-button {
-  width: 100%;
-  height: 36px;
+  width: 350px;
+  max-width: 100%;
+  height: 48px;
+  display: block;
+  margin: 0 auto;
   border: 0;
-  border-radius: 999px;
-  background: var(--primary);
+  border-radius: 8px;
+  background: #6870f2;
   color: #fff;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  cursor: pointer;
 }
 </style>
