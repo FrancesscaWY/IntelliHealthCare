@@ -1,202 +1,806 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
-import BottomTabBar from "@/components/BottomTabBar.vue";
-import mock from "./mock";
+import { computed, ref } from 'vue'
+import type { PageComponentProps } from '@ihc/page-core/types'
+import { Like, Share, Star } from '@icon-park/vue-next'
+import mock from './mock'
 
-const props = defineProps<PageComponentProps>();
-const activeFeedTab = ref<"hot" | "follow">("hot");
-const currentPosts = computed(() => mock.posts[activeFeedTab.value]);
+const props = defineProps<PageComponentProps>()
+const likedPostIds = ref(new Set<number>())
+const starredPostIds = ref(new Set<number>())
 
-function showPendingMessage(label: string) {
-  props.showToast(`${label}功能待接入`);
+const navIconMarkup: Record<string, string> = {
+  home: `
+    <path d="M7.3 18.2 24 5.2l16.7 13v20a2.5 2.5 0 0 1-2.5 2.5h-8.9V29.2H18.7v11.5H9.8a2.5 2.5 0 0 1-2.5-2.5v-20Z" />
+  `,
+  circle: `
+    <circle cx="24" cy="24" r="14.2" />
+    <path d="m29.7 14.3-3.6 10.4-10.4 3.6 3.6-10.4 10.4-3.6Z" />
+    <circle cx="24" cy="24" r="2.2" />
+  `,
+  message: `
+    <path d="M38.3 22.2c0 7.1-6.15 12.75-14.3 12.75-1.8 0-3.55-.3-5.1-.85l-8.45 4.45 2.45-7.25c-2.05-2.3-3.2-5.4-3.2-9.1 0-7.1 6.15-12.75 14.3-12.75S38.3 15.1 38.3 22.2Z" />
+  `,
+  mine: `
+    <circle cx="24" cy="16.7" r="7.3" />
+    <path d="M10.2 39.2c1.45-7.3 6.05-11.2 13.8-11.2s12.35 3.9 13.8 11.2" />
+  `,
 }
 
-function openActivity(title: string) {
-  props.showToast(`${title} 详情待接入`);
+const activeTab = ref('推荐')
+
+const posts = computed(() => {
+  if (activeTab.value === '关注') {
+    return [mock.posts[1]]
+  }
+
+  if (activeTab.value === '最新') {
+    return [...mock.posts].reverse()
+  }
+
+  return mock.posts
+})
+
+function pending(label: string) {
+  props.showToast(`${label}功能待接入`)
+}
+
+function openPostDetail(postId: number) {
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem('circlePostId', String(postId))
+  }
+
+  props.navigation.navigateTo('community/post-detail')
+}
+
+function toggleLike(postId: number) {
+  const next = new Set(likedPostIds.value)
+
+  next.has(postId) ? next.delete(postId) : next.add(postId)
+  likedPostIds.value = next
+}
+
+function toggleStar(postId: number) {
+  const next = new Set(starredPostIds.value)
+
+  next.has(postId) ? next.delete(postId) : next.add(postId)
+  starredPostIds.value = next
+}
+
+function isLiked(postId: number) {
+  return likedPostIds.value.has(postId)
+}
+
+function isStarred(postId: number) {
+  return starredPostIds.value.has(postId)
+}
+
+function getNavIconMarkup(key: string) {
+  return navIconMarkup[key] || navIconMarkup.home
+}
+
+function getNavGradientId(key: string) {
+  return `tab-gradient-${key}`
+}
+
+function openPage(pageId: string, label?: string) {
+  if (!pageId) {
+    props.showToast(`${label || '该'}功能待接入`)
+    return
+  }
+
+  props.navigation.navigateTo(pageId)
 }
 </script>
 
 <template>
   <section class="circle-page">
-    <article class="circle-header">
-      <div>
-        <p class="page-eyebrow">Community</p>
-        <h1>生活圈</h1>
-        <p>看看社区活动、热门动态和邻里分享，和更多长者保持连接。</p>
-      </div>
-      <button class="circle-headset" type="button" @click="showPendingMessage('客服')">客服</button>
-    </article>
-
-    <section class="circle-banners">
-      <div class="circle-banner-list">
-        <article v-for="item in mock.banners" :key="item.key" class="circle-banner">
-          <p class="page-eyebrow">{{ item.subtitle }}</p>
-          <strong>{{ item.title }}</strong>
-        </article>
-      </div>
-    </section>
-
-    <section class="circle-section">
-      <div class="circle-header">
-        <div>
-          <p class="page-eyebrow">Activities</p>
-          <h2>热门活动</h2>
+    <main class="circle-scroll">
+      <div class="status-bar">
+        <span class="time">11:39</span>
+        <div class="status-icons">
+          <span class="signal">
+            <i></i>
+            <i></i>
+            <i></i>
+            <i></i>
+          </span>
+          <span class="wifi"></span>
+          <span class="battery"></span>
         </div>
-        <button class="command-chip" type="button" @click="props.navigation.navigateTo('community/senior-activities')">更多活动</button>
       </div>
-      <div class="circle-activity-list">
-        <button v-for="item in mock.activities" :key="item.title" class="circle-activity" type="button" @click="openActivity(item.title)">
-          <strong>{{ item.title }}</strong>
-          <span>{{ item.count }}</span>
+
+      <nav class="feed-tabs" aria-label="生活圈栏目">
+        <button
+          v-for="item in mock.feedTabs"
+          :key="item"
+          class="feed-tab"
+          :class="{ active: activeTab === item }"
+          type="button"
+          @click="activeTab = item"
+        >
+          {{ item }}
         </button>
+      </nav>
+
+      <section class="topic-grid" aria-label="热门话题">
+        <button v-for="topic in mock.topics" :key="topic.id" class="topic-card" type="button" @click="pending(topic.title)">
+          <img class="topic-image" :src="topic.image" :alt="topic.title" />
+          <div class="topic-copy">
+            <strong>{{ topic.title }}</strong>
+            <div class="topic-meta">
+              <span>HOT</span>
+              <em>{{ topic.count }}</em>
+            </div>
+          </div>
+        </button>
+      </section>
+
+      <div class="topic-dots" aria-hidden="true">
+        <span></span>
+        <span class="active"></span>
       </div>
-    </section>
 
-    <section class="circle-tabs">
-      <button type="button" :class="{ 'is-active': activeFeedTab === 'hot' }" @click="activeFeedTab = 'hot'">热门</button>
-      <button type="button" :class="{ 'is-active': activeFeedTab === 'follow' }" @click="activeFeedTab = 'follow'">关注</button>
-    </section>
+      <section class="post-list" aria-label="动态列表">
+        <article v-for="post in posts" :key="post.id" class="post-card" role="button" tabindex="0" @click="openPostDetail(post.id)">
+          <header class="post-header">
+            <img class="post-avatar" :src="post.avatar" :alt="post.author" />
+            <div class="post-author">
+              <div>
+                <strong>{{ post.author }}</strong>
+                <span>{{ post.badge }}</span>
+              </div>
+              <small>{{ post.time }}</small>
+            </div>
+            <button class="follow-button" type="button" @click.stop="pending('关注')">+ 关注</button>
+            <button class="more-button" type="button" aria-label="更多" @click.stop="pending('更多')">···</button>
+          </header>
 
-    <section class="circle-section">
-      <div class="circle-post-list">
-        <article v-for="post in currentPosts" :key="`${post.author}-${post.date}`" class="circle-post">
-          <div class="circle-post__meta">
-            <strong>{{ post.author }}</strong>
-            <span>{{ post.date }}</span>
+          <div class="post-images" :class="{ 'post-images--double': post.images.length === 2 }">
+            <img v-for="image in post.images" :key="image" :src="image" :alt="post.content" />
           </div>
-          <p>{{ post.content }}</p>
-          <div class="circle-post__actions">
-            <button type="button" @click="showPendingMessage('点赞')">点赞 {{ post.likes }}</button>
-            <button type="button" @click="showPendingMessage('评论')">评论 {{ post.comments }}</button>
-            <button type="button" @click="showPendingMessage('分享')">分享</button>
-          </div>
+
+          <p class="post-content">{{ post.content }}</p>
+
+          <button class="tag-chip" type="button" @click.stop="pending(post.tag)">
+            <span></span>
+            {{ post.tag }}
+          </button>
+
+          <footer class="post-actions">
+            <button class="post-action-button" :class="{ active: isStarred(post.id) }" type="button" @click.stop="toggleStar(post.id)">
+              <Star :theme="isStarred(post.id) ? 'filled' : 'outline'" size="22" :fill="isStarred(post.id) ? '#f4bf25' : '#454952'" />
+              {{ post.stars }}
+            </button>
+            <button class="post-action-button" :class="{ active: isLiked(post.id) }" type="button" @click.stop="toggleLike(post.id)">
+              <Like :theme="isLiked(post.id) ? 'filled' : 'outline'" size="22" :fill="isLiked(post.id) ? '#7a6ff0' : '#454952'" />
+              {{ post.likes }}
+            </button>
+            <button class="post-action-button" type="button" @click.stop="pending('转发')">
+              <Share theme="outline" size="22" fill="#454952" />
+              {{ post.shares }}
+            </button>
+          </footer>
         </article>
-      </div>
-    </section>
+      </section>
 
-    <BottomTabBar active-key="circle" @navigate="props.navigation.reLaunch" @pending="props.showToast" />
+      <section class="creator-section">
+        <h2>达人推荐</h2>
+        <div class="creator-list">
+          <button v-for="creator in mock.creators" :key="creator.id" class="creator-card" type="button" @click="pending(creator.name)">
+            <img :src="creator.avatar" :alt="creator.name" />
+            <span>{{ creator.name }}</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="home-tabbar" aria-label="底部导航">
+      <button
+        v-for="item in mock.tabs"
+        :key="item.key"
+        class="tab-item"
+        :class="[
+          `tab-item--${item.key}`,
+          { 'tab-item--active': item.key === 'circle', 'tab-item--publish': item.key === 'publish' },
+        ]"
+        type="button"
+        @click="openPage(item.pageId, item.label || '发布')"
+      >
+        <span v-if="item.key === 'publish'" class="tab-icon tab-icon--publish" aria-hidden="true"></span>
+        <span v-else class="tab-image" :class="`tab-image--${item.key}`" aria-hidden="true">
+          <svg class="tab-svg" viewBox="0 0 48 48" focusable="false">
+            <defs>
+              <linearGradient :id="getNavGradientId(item.key)" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#6a74f1" />
+                <stop offset="100%" stop-color="#ef6f8e" />
+              </linearGradient>
+            </defs>
+            <g
+              :fill="item.key === 'circle' ? `url(#${getNavGradientId(item.key)})` : 'none'"
+              :stroke="item.key === 'circle' ? 'none' : 'currentColor'"
+              stroke-width="3.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              v-html="getNavIconMarkup(item.key)"
+            ></g>
+          </svg>
+        </span>
+        <span v-if="item.label" class="tab-label">{{ item.label }}</span>
+      </button>
+    </nav>
   </section>
 </template>
 
 <style scoped>
 .circle-page {
-  display: grid;
-  gap: 18px;
+  position: relative;
+  left: 50%;
+  width: min(402px, 100vw);
+  height: min(874px, calc(100vh - 36px));
+  min-height: min(874px, calc(100vh - 36px));
+  max-height: 874px;
+  margin: -18px 0;
+  transform: translateX(-50%);
+  overflow: hidden;
+  background: #f5f6f7;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
-.circle-header,
-.circle-banners,
-.circle-section,
-.circle-tabs {
-  padding: 18px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
+.circle-scroll {
+  height: 100%;
+  padding: 0 18px 106px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.circle-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
+.circle-scroll::-webkit-scrollbar {
+  display: none;
 }
 
-.circle-header h1,
-.circle-section h2 {
-  margin: 6px 0 0;
+.feed-tab,
+.topic-card,
+.follow-button,
+.more-button,
+.tag-chip,
+.post-actions button,
+.creator-card,
+.tab-item {
+  border: 0;
+  background: transparent;
+  color: inherit;
 }
 
-.circle-header p,
-.circle-section p {
-  margin: 0;
-  color: #607089;
-}
-
-.circle-headset {
-  width: 48px;
+.status-bar {
   height: 48px;
-  border: 0;
-  border-radius: 18px;
-  background: rgba(36, 87, 245, 0.08);
-  color: #2457f5;
-  font-weight: 800;
-}
-
-.circle-banner-list,
-.circle-activity-list,
-.circle-post-list {
-  display: grid;
-  gap: 12px;
-}
-
-.circle-banner {
-  padding: 18px;
-  border-radius: 22px;
-  background: linear-gradient(135deg, rgba(36, 87, 245, 0.16), rgba(255, 123, 97, 0.16));
-}
-
-.circle-banner strong,
-.circle-activity strong,
-.circle-post strong {
-  display: block;
-}
-
-.circle-activity {
-  padding: 16px;
-  border-radius: 20px;
-  border: 0;
-  text-align: left;
-  background: #f8fbff;
-}
-
-.circle-tabs {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px 0;
+  box-sizing: border-box;
 }
 
-.circle-tabs button {
-  flex: 1;
-  padding: 12px 14px;
-  border-radius: 999px;
-  border: 0;
-  background: #edf3ff;
-  color: #5c6f91;
+.time {
+  color: #191b20;
+  font-size: 16px;
   font-weight: 700;
 }
 
-.circle-tabs button.is-active {
-  background: linear-gradient(135deg, #2457f5, #4f84ff);
-  color: #fff;
-}
-
-.circle-post {
-  padding: 16px;
-  border-radius: 20px;
-  background: #f9fbff;
-}
-
-.circle-post__meta {
+.status-icons {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-  color: #667790;
-  font-size: 13px;
+  align-items: center;
+  gap: 7px;
 }
 
-.circle-post__actions {
+.signal {
+  width: 18px;
+  height: 13px;
   display: flex;
-  gap: 10px;
-  margin-top: 12px;
-  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2px;
 }
 
-.circle-post__actions button {
+
+.signal i {
+  width: 3px;
+  border-radius: 1px;
+  background: #111;
+}
+
+.signal i:nth-child(1) {
+  height: 4px;
+}
+
+.signal i:nth-child(2) {
+  height: 7px;
+}
+
+.signal i:nth-child(3) {
+  height: 10px;
+}
+
+.signal i:nth-child(4) {
+  height: 13px;
+}
+
+.wifi {
+  position: relative;
+  width: 18px;
+  height: 13px;
+  overflow: hidden;
+}
+
+.wifi::before,
+.wifi::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  border: 3px solid #111;
+  border-color: #111 transparent transparent;
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.wifi::before {
+  top: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.wifi::after {
+  top: 7px;
+  width: 10px;
+  height: 10px;
+}
+
+.battery {
+  position: relative;
+  width: 22px;
+  height: 12px;
+  border: 2px solid #111;
+  border-radius: 3px;
+  box-sizing: border-box;
+}
+
+.battery::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: -5px;
+  width: 3px;
+  height: 6px;
+  border-radius: 0 2px 2px 0;
+  background: #111;
+}
+
+.feed-tabs {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 6px 0 18px;
+}
+
+.feed-tab {
+  padding: 0;
   border: 0;
+  background: transparent;
+  color: #9fa2a8;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.feed-tab.active {
+  color: #252939;
+  font-size: 24px;
+}
+
+.topic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin-bottom: 10px;
+}
+
+.topic-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.topic-image {
+  width: 48px;
+  height: 48px;
+  display: block;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.topic-copy {
+  min-width: 0;
+}
+
+.topic-copy strong {
+  display: block;
+  margin-bottom: 4px;
+  overflow: hidden;
+  color: #252939;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.topic-meta span {
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #ff4f8f;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 12px;
+}
+
+.topic-meta em {
+  overflow: hidden;
+  color: #b3b5bb;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 4px 0 16px;
+}
+
+.topic-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d0d1d5;
+}
+
+.topic-dots span.active {
+  width: 10px;
+  border-radius: 8px;
+  background: #777a82;
+}
+
+.post-list {
+  display: grid;
+  gap: 14px;
+}
+
+.post-card,
+.creator-section {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(31, 40, 58, 0.04);
+}
+
+.post-card {
+  padding: 16px;
+}
+
+.post-header {
+  display: grid;
+  grid-template-columns: 36px 1fr auto 24px;
+  gap: 9px;
+  align-items: center;
+  margin-bottom: 13px;
+}
+
+.post-avatar {
+  width: 36px;
+  height: 36px;
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.post-author {
+  min-width: 0;
+}
+
+.post-author div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.post-author strong {
+  color: #252939;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.post-author span {
+  height: 13px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #263241;
+  color: #d9f3ff;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.post-author small {
+  color: #b2b4ba;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.follow-button {
+  width: 58px;
+  height: 28px;
+  border: 0;
+  border-radius: 14px;
+  background: #111;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.more-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #c4c6cc;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.post-images {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.post-images--double {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.post-images img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: block;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.post-content {
+  margin: 12px 0 10px;
+  color: #252939;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.tag-chip {
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 13px;
+  background: #f1f2f4;
+  color: #5d626b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tag-chip span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #555b63;
+}
+
+.post-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  margin-top: 13px;
+}
+
+.post-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #454952;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.post-action-button.active {
+  color: #7a6ff0;
+}
+
+.post-action-button:first-child.active {
+  color: #f4bf25;
+}
+
+.creator-section {
+  margin-top: 14px;
+  padding: 16px 12px 14px;
+}
+
+.creator-section h2 {
+  margin: 0 0 13px;
+  color: #252939;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.creator-list {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.creator-list::-webkit-scrollbar {
+  display: none;
+}
+
+.creator-card {
+  width: 58px;
+  flex: 0 0 58px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.creator-card img {
+  width: 54px;
+  height: 54px;
+  display: block;
+  border: 2px solid #252939;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.creator-card span {
+  width: 100%;
+  overflow: hidden;
+  color: #34383f;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-tabbar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
+  height: 74px;
+  padding: 9px 12px 10px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
+}
+
+.home-tabbar::before {
+  position: absolute;
+  top: -29px;
+  left: 50%;
+  z-index: 0;
+  width: 58px;
+  height: 58px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -10px 24px rgba(102, 112, 240, 0.08);
+  transform: translateX(-50%);
+}
+
+.tab-item {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: 0;
+  color: #252939;
+  font-size: 12px;
+  transform: translateY(-6px);
+}
+
+.tab-item--active {
+  color: #6872f0;
+}
+
+.tab-image {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 32px;
+}
+
+.tab-svg {
+  display: block;
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 5px 7px rgba(37, 41, 57, 0.08));
+}
+
+.tab-label {
+  margin-top: 2px;
+}
+
+.tab-item--publish {
+  align-self: start;
+  z-index: 2;
+  transform: none;
+}
+
+.tab-icon--publish {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 42px;
+  margin-top: -29px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6872f0 0%, #ed6d88 100%);
+  box-shadow: 0 15px 25px rgba(102, 112, 240, 0.26);
+}
+
+.tab-icon--publish::before,
+.tab-icon--publish::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 2px;
+  content: "";
   border-radius: 999px;
-  padding: 8px 12px;
-  background: rgba(36, 87, 245, 0.08);
-  color: #2457f5;
+  background: #ffffff;
+  transform: translate(-50%, -50%);
+}
+
+.tab-icon--publish::after {
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 </style>

@@ -1,8 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
+
+type OrderServiceKey = keyof typeof mock.services
+
+const orderServiceKey = computed<OrderServiceKey>(() => {
+  const stack = props.navigation.getStack()
+
+  if (stack.includes('service/rehab-therapy-detail')) {
+    return 'rehab'
+  }
+
+  if (stack.includes('service/home-exam-detail')) {
+    return 'exam'
+  }
+
+  return 'homeCare'
+})
+
+const orderService = computed(() => mock.services[orderServiceKey.value])
+const orderPrice = computed(() => mock.prices[orderServiceKey.value])
 
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
@@ -39,26 +59,26 @@ const submitOrder = () => {
     <main class="order-content">
       <section class="card product-card">
         <div class="product-main">
-          <img class="product-image" :src="mock.service.image" :alt="mock.service.title" />
+          <img class="product-image" :src="orderService.image" :alt="orderService.title" />
           <div class="product-info">
-            <h2>{{ mock.service.title }}</h2>
-            <span>¥{{ mock.service.price }}</span>
+            <h2>{{ orderService.title }}</h2>
+            <span>¥{{ orderService.price }}</span>
           </div>
         </div>
 
         <div class="price-list">
           <div class="price-row">
             <span>商品总价</span>
-            <strong>¥{{ mock.price.total }}</strong>
+            <strong>¥{{ orderPrice.total }}</strong>
           </div>
           <div class="price-row">
             <span>优惠券</span>
-            <strong class="discount">{{ mock.price.coupon }}</strong>
+            <strong class="discount">{{ orderPrice.coupon }}</strong>
           </div>
           <div class="divider"></div>
           <div class="price-row subtotal">
             <span>小计</span>
-            <strong>{{ mock.price.subtotal }}</strong>
+            <strong>{{ orderPrice.subtotal }}</strong>
           </div>
         </div>
       </section>
@@ -93,7 +113,7 @@ const submitOrder = () => {
     </main>
 
     <div class="submit-bar">
-      <div class="total">合计：¥<strong>{{ mock.price.subtotal }}</strong></div>
+      <div class="total">合计：¥<strong>{{ orderPrice.subtotal }}</strong></div>
       <button class="submit-button" type="button" @click="submitOrder">提交订单</button>
     </div>
   </div>

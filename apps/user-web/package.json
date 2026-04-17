@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ihc/page-core": "file:../../packages/page-core",
+    "@icon-park/vue-next": "^1.4.2",
     "vue": "latest"
   },
   "devDependencies": {
