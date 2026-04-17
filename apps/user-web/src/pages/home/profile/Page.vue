@@ -4,12 +4,20 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import { Back, Comment, Like, Male, More, Share, Star } from "@icon-park/vue-next";
 import avatarMe from "@/assets/home/profile/avatar.jpg";
 import coverImage from "@/assets/home/profile/cover.jpg";
+import { loadPublishedProfilePost, type ProfilePost } from "./published-post";
 import mock from "./mock";
+
+type InteractiveProfilePost = ProfilePost & {
+  isLiked: boolean;
+  isFavorited: boolean;
+};
 
 const props = defineProps<PageComponentProps>();
 const isFollowing = ref(false);
-const posts = ref(
-  mock.posts.map((post) => ({
+const publishedPost = loadPublishedProfilePost();
+const initialPosts: ProfilePost[] = publishedPost ? [publishedPost, ...mock.posts] : mock.posts;
+const posts = ref<InteractiveProfilePost[]>(
+  initialPosts.map((post) => ({
     ...post,
     isLiked: false,
     isFavorited: false,
@@ -28,6 +36,8 @@ const profileStats = computed(() =>
     };
   }),
 );
+
+const feedCount = computed(() => mock.feedCount + (publishedPost ? 1 : 0));
 
 function showPendingMessage(label: string) {
   props.showToast(`${label}功能待接入`);
@@ -124,7 +134,7 @@ function imageStyle(src: string, position = "center") {
 
     <section class="feed-panel">
       <div class="feed-heading">
-        <h2>动态 {{ mock.feedCount }}</h2>
+        <h2>动态 {{ feedCount }}</h2>
       </div>
 
       <article v-for="post in posts" :key="post.id" class="feed-item">
@@ -136,6 +146,7 @@ function imageStyle(src: string, position = "center") {
           </div>
         </div>
 
+        <p v-if="post.title" class="feed-item__title">{{ post.title }}</p>
         <p class="feed-item__content">{{ post.content }}</p>
 
         <div v-if="post.gallery.length" class="feed-gallery">
@@ -424,8 +435,16 @@ function imageStyle(src: string, position = "center") {
   color: #b4b8be;
 }
 
-.feed-item__content {
+.feed-item__title {
   margin: 14px 0 0;
+  color: #2c2f34;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.feed-item__content {
+  margin: 10px 0 0;
   color: #4d4f55;
   font-size: 13px;
   line-height: 1.9;

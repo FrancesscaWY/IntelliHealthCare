@@ -14,9 +14,9 @@ const mock = {
     ],
   },
   orders: [
-    { key: "home-care", label: "家政护理", icon: "home" },
-    { key: "therapy", label: "康复理疗", icon: "medical" },
-    { key: "exam", label: "上门体检", icon: "hospital" },
+    { key: "home-care", label: "家政护理", icon: "home", pageId: "service/home-care-orders" },
+    { key: "therapy", label: "康复理疗", icon: "medical", pageId: "service/rehab-therapy" },
+    { key: "exam", label: "上门体检", icon: "hospital", pageId: "service/home-exam" },
   ],
   menus: [
     { key: "coupon", label: "优惠券", icon: "coupon" },

@@ -65,6 +65,15 @@ function openPage(pageId: string, label: string) {
 
   props.navigation.reLaunch(pageId);
 }
+
+function openSubPage(pageId: string, label: string) {
+  if (!pageId) {
+    props.showToast(`${label}功能待接入`);
+    return;
+  }
+
+  props.navigation.navigateTo(pageId);
+}
 </script>
 
 <template>
@@ -97,12 +106,8 @@ function openPage(pageId: string, label: string) {
         </button>
         <div class="profile-main">
           <img class="avatar" :src="mock.profile.avatar" :alt="mock.profile.name" />
-          <button
-            class="homepage-link"
-            type="button"
-            @click="openPage(mock.profile.homepagePageId, '个人主页')"
-          >
-            个人主页 ›
+          <button class="homepage-link" type="button" @click="openSubPage(mock.profile.homepagePageId, '个人主页')">
+            个人主页 >
           </button>
           <div class="profile-text">
             <div class="name-row">
@@ -123,7 +128,13 @@ function openPage(pageId: string, label: string) {
       <section class="order-card">
         <h2>我的订单</h2>
         <div class="order-grid">
-          <button v-for="item in mock.orders" :key="item.key" class="order-item" type="button">
+          <button
+            v-for="item in mock.orders"
+            :key="item.key"
+            class="order-item"
+            type="button"
+            @click="openSubPage(item.pageId, item.label)"
+          >
             <span class="order-icon" :class="`order-icon--${item.key}`">
               <component :is="orderIconMap[item.icon]" theme="outline" size="20" fill="currentColor" />
             </span>
@@ -138,7 +149,7 @@ function openPage(pageId: string, label: string) {
             <component :is="menuIconMap[item.icon]" theme="outline" size="18" fill="currentColor" />
           </span>
           <span>{{ item.label }}</span>
-          <span class="chevron">›</span>
+          <span class="chevron">></span>
         </button>
       </section>
     </main>
@@ -526,7 +537,7 @@ function openPage(pageId: string, label: string) {
 
 .chevron {
   color: #c7cbd1;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
 }
 

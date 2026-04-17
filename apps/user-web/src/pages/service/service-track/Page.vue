@@ -1,18 +1,43 @@
 <script setup lang="ts">
-import type { PageComponentProps } from '@ihc/page-core/types'
-import mock from './mock'
+import { computed } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import { Left } from "@icon-park/vue-next";
+import mock from "./mock";
+import { getActiveHomeCareOrder } from "../home-care-orders/store";
 
-const props = defineProps<PageComponentProps>()
+const props = defineProps<PageComponentProps>();
 
-const goBack = () => {
+const activeOrder = getActiveHomeCareOrder();
+
+const steps = computed(() => {
+  if (!activeOrder) {
+    return mock.pendingPaymentSteps;
+  }
+
+  if (activeOrder.status === "pending_payment") {
+    return mock.pendingPaymentSteps;
+  }
+
+  if (activeOrder.status === "awaiting_accept") {
+    return mock.awaitingAcceptSteps;
+  }
+
+  if (activeOrder.status === "awaiting_service") {
+    return mock.awaitingServiceSteps;
+  }
+
+  return mock.completedSteps;
+});
+
+function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('service/order-detail')
+    props.navigation.reLaunch("service/home-care-orders");
   }
 }
 </script>
 
 <template>
-  <div class="service-track-page">
+  <section class="service-track-page">
     <div class="status-bar">
       <span class="time">8:30</span>
       <div class="status-icons">
@@ -28,22 +53,22 @@ const goBack = () => {
     </div>
 
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
-      <h1>服务跟踪</h1>
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">
+        <Left theme="outline" size="18" fill="currentColor" />
+      </button>
+      <div>
+        <h1>服务进度</h1>
+        <p v-if="activeOrder">{{ activeOrder.title }}</p>
+      </div>
     </header>
 
     <main class="track-content">
       <section class="track-card">
-        <article
-          v-for="(step, index) in mock.steps"
-          :key="step.id"
-          class="track-step"
-          :class="{ active: step.active }"
-        >
+        <article v-for="(step, index) in steps" :key="step.id" class="track-step" :class="{ active: step.active }">
           <time>{{ step.time }}</time>
           <div class="track-line">
             <span class="dot"></span>
-            <span v-if="index < mock.steps.length - 1" class="line"></span>
+            <span v-if="index < steps.length - 1" class="line"></span>
           </div>
           <div class="track-text">
             <h2>{{ step.title }}</h2>
@@ -52,11 +77,15 @@ const goBack = () => {
         </article>
       </section>
     </main>
-  </div>
+  </section>
 </template>
 
 <style scoped>
 .service-track-page {
+  --page-bg: #edf4ff;
+  --card-border: #e3ebf7;
+  --primary: #6872f0;
+  --text-3: #8ea0bc;
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
@@ -65,76 +94,74 @@ const goBack = () => {
   transform: translateX(-50%);
   padding: 0 14px 40px;
   box-sizing: border-box;
-  background: #f5f6f7;
+  background: var(--page-bg);
   color: #34383f;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
 }
 
 .status-bar {
-  height: 52px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px 0;
+  padding: 6px 6px 0;
   box-sizing: border-box;
 }
 
 .time {
-  font-size: 18px;
-  font-weight: 500;
-  color: #2e3033;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .status-icons {
   display: flex;
   align-items: center;
-  gap: 9px;
-  color: #111;
+  gap: 8px;
 }
 
 .signal {
-  width: 22px;
-  height: 16px;
+  width: 18px;
+  height: 12px;
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  gap: 2px;
 }
 
 .signal i {
-  width: 4px;
+  width: 3px;
   border-radius: 1px;
   background: #111;
 }
 
 .signal i:nth-child(1) {
-  height: 5px;
+  height: 4px;
 }
 
 .signal i:nth-child(2) {
-  height: 8px;
+  height: 6px;
 }
 
 .signal i:nth-child(3) {
-  height: 12px;
+  height: 9px;
 }
 
 .signal i:nth-child(4) {
-  height: 16px;
+  height: 12px;
 }
 
 .wifi {
   position: relative;
-  width: 19px;
-  height: 14px;
+  width: 15px;
+  height: 11px;
   overflow: hidden;
 }
 
 .wifi::before,
 .wifi::after {
-  content: '';
   position: absolute;
   left: 50%;
-  border: 3px solid #111;
+  content: "";
+  border: 2px solid #111;
   border-color: #111 transparent transparent;
   border-radius: 50%;
   transform: translateX(-50%);
@@ -142,88 +169,84 @@ const goBack = () => {
 
 .wifi::before {
   top: 0;
-  width: 22px;
-  height: 22px;
+  width: 17px;
+  height: 17px;
 }
 
 .wifi::after {
-  top: 7px;
-  width: 10px;
-  height: 10px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
 }
 
 .battery {
   position: relative;
-  width: 22px;
-  height: 12px;
-  border: 2px solid #111;
+  width: 20px;
+  height: 10px;
+  border: 1.6px solid #111;
   border-radius: 3px;
   box-sizing: border-box;
 }
 
 .battery::before {
-  content: '';
   position: absolute;
   top: 2px;
-  right: -5px;
-  width: 3px;
-  height: 6px;
-  border-radius: 0 2px 2px 0;
+  right: -4px;
+  width: 2px;
+  height: 4px;
+  content: "";
   background: #111;
 }
 
 .page-header {
-  height: 64px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
   align-items: center;
-  margin-bottom: 34px;
+  padding: 6px 0 14px;
 }
 
 .back-button {
-  width: 24px;
+  width: 32px;
   height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 8px 0 -4px;
+  display: grid;
+  place-items: center;
   padding: 0;
-  border: 0;
-  background: transparent;
-  color: #34383f;
-  font-size: 34px;
-  line-height: 26px;
-  font-weight: 300;
-  cursor: pointer;
+  border: 1px solid #e3e4e7;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #50555d;
 }
 
 .page-header h1 {
   margin: 0;
-  color: #34383f;
-  font-size: 22px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: 0;
+}
+
+.page-header p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: var(--text-3);
 }
 
 .track-card {
-  min-height: 330px;
-  padding: 34px 28px 24px;
-  border-radius: 16px;
-  background: #fff;
-  box-sizing: border-box;
+  padding: 16px 14px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .track-step {
   display: grid;
-  grid-template-columns: 112px 36px 1fr;
-  min-height: 86px;
-  color: #b8bbc1;
+  grid-template-columns: 84px 24px minmax(0, 1fr);
+  min-height: 74px;
+  color: #a5abb2;
 }
 
 .track-step time {
   padding-top: 2px;
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
+  font-size: 11px;
 }
 
 .track-line {
@@ -233,60 +256,41 @@ const goBack = () => {
 }
 
 .dot {
-  width: 9px;
-  height: 9px;
-  margin-top: 8px;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
   border-radius: 50%;
-  background: #cfd1d5;
-  z-index: 2;
+  background: #d3d7dc;
+  z-index: 1;
 }
 
 .line {
   position: absolute;
-  top: 21px;
+  top: 16px;
   bottom: -8px;
   left: 50%;
   width: 1px;
   transform: translateX(-50%);
-  background: repeating-linear-gradient(
-    to bottom,
-    #e5e6e9 0,
-    #e5e6e9 4px,
-    transparent 4px,
-    transparent 8px
-  );
-}
-
-.track-text {
-  padding-left: 20px;
+  background: #dfe6f5;
 }
 
 .track-text h2 {
   margin: 0;
-  color: #9699a0;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.track-text p {
-  margin: 18px 0 0;
-  color: #9699a0;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 600;
 }
 
+.track-text p {
+  margin: 5px 0 0;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
 .track-step.active {
-  color: #34383f;
+  color: #43484f;
 }
 
 .track-step.active .dot {
-  width: 10px;
-  height: 10px;
-  background: #34383f;
-}
-
-.track-step.active .track-text h2 {
-  color: #34383f;
+  background: var(--primary);
 }
 </style>
