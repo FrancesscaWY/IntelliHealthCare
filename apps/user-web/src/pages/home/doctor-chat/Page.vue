@@ -1,14 +1,35 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { AddPicture, MessageEmoji, Microphone, Phone } from '@icon-park/vue-next'
 import mock from './mock'
 
+interface ChatMessage {
+  id: number
+  from: 'doctor' | 'me'
+  type: 'text' | 'image' | 'voice'
+  content: string
+  time: string
+  imageUrl?: string
+  audioUrl?: string
+}
+
 const props = defineProps<PageComponentProps>()
 const draft = ref('')
-const messages = ref([...mock.messages])
+const messages = ref<ChatMessage[]>(mock.messages as ChatMessage[])
 const showEmojiPanel = ref(false)
+const showImagePanel = ref(false)
+const isRecording = ref(false)
+const recordingSeconds = ref(0)
 const scrollRef = ref<HTMLElement | null>(null)
+const albumInputRef = ref<HTMLInputElement | null>(null)
+const cameraInputRef = ref<HTMLInputElement | null>(null)
+
+let mediaRecorder: MediaRecorder | null = null
+let mediaStream: MediaStream | null = null
+let audioChunks: Blob[] = []
+let recordingTimer: number | null = null
+let recordingMimeType = 'audio/webm'
 
 const emojiOptions = ['😊', '👍', '🙏', '❤️', '👌', '🌿', '💪', '☀️']
 
@@ -48,29 +69,144 @@ function appendEmoji(emoji: string) {
   draft.value += emoji
 }
 
-function sendImage() {
+function getCurrentTime() {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+function openAlbum() {
+  showImagePanel.value = false
+  albumInputRef.value?.click()
+}
+
+function openCamera() {
+  showImagePanel.value = false
+  cameraInputRef.value?.click()
+}
+
+function handleImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  const imageUrl = URL.createObjectURL(file)
   messages.value.push({
     id: Date.now(),
     from: 'me',
     type: 'image',
-    content: '已发送图片',
-    time: '现在',
+    content: file.name || '图片',
+    imageUrl,
+    time: getCurrentTime(),
   })
-  props.showToast('图片已添加到对话')
+  input.value = ''
   scrollToBottom()
 }
 
-function sendVoice() {
-  messages.value.push({
-    id: Date.now(),
-    from: 'me',
-    type: 'voice',
-    content: '语音 12"',
-    time: '现在',
-  })
-  props.showToast('语音已发送')
-  scrollToBottom()
+function formatDuration(seconds: number) {
+  return `${Math.max(1, seconds)}"`
 }
+
+function startTimer() {
+  recordingSeconds.value = 0
+  recordingTimer = window.setInterval(() => {
+    recordingSeconds.value += 1
+  }, 1000)
+}
+
+function stopTimer() {
+  if (recordingTimer !== null) {
+    window.clearInterval(recordingTimer)
+    recordingTimer = null
+  }
+}
+
+function stopAudioTracks() {
+  mediaStream?.getTracks().forEach((track) => track.stop())
+  mediaStream = null
+}
+
+async function startVoiceRecording() {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    props.showToast('当前浏览器不支持录音')
+    return
+  }
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioChunks = []
+    mediaRecorder = new MediaRecorder(mediaStream)
+    recordingMimeType = mediaRecorder.mimeType || 'audio/webm'
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data)
+      }
+    }
+
+    mediaRecorder.onstop = () => {
+      const duration = recordingSeconds.value
+      stopTimer()
+      stopAudioTracks()
+      isRecording.value = false
+
+      if (!audioChunks.length) {
+        return
+      }
+
+      const audioBlob = new Blob(audioChunks, { type: recordingMimeType })
+      const audioUrl = URL.createObjectURL(audioBlob)
+      messages.value.push({
+        id: Date.now(),
+        from: 'me',
+        type: 'voice',
+        content: `语音 ${formatDuration(duration)}`,
+        audioUrl,
+        time: getCurrentTime(),
+      })
+      scrollToBottom()
+    }
+
+    mediaRecorder.start()
+    isRecording.value = true
+    startTimer()
+  } catch (error) {
+    stopTimer()
+    stopAudioTracks()
+    isRecording.value = false
+    props.showToast('无法访问麦克风，请检查权限')
+  }
+}
+
+function stopVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+    return
+  }
+
+  stopTimer()
+  stopAudioTracks()
+  isRecording.value = false
+}
+
+function toggleVoiceRecording() {
+  if (isRecording.value) {
+    stopVoiceRecording()
+    return
+  }
+
+  void startVoiceRecording()
+}
+
+onBeforeUnmount(() => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  stopTimer()
+  stopAudioTracks()
+})
 </script>
 
 <template>
@@ -109,12 +245,16 @@ function sendVoice() {
         <div class="bubble-wrap">
           <div class="bubble" :class="`bubble--${message.type}`">
             <template v-if="message.type === 'image'">
-              <AddPicture theme="outline" size="24" fill="currentColor" />
-              <span>{{ message.content }}</span>
+              <img v-if="message.imageUrl" class="chat-image" :src="message.imageUrl" :alt="message.content" />
+              <template v-else>
+                <AddPicture theme="outline" size="24" fill="currentColor" />
+                <span>{{ message.content }}</span>
+              </template>
             </template>
             <template v-else-if="message.type === 'voice'">
               <Microphone theme="outline" size="20" fill="currentColor" />
               <span>{{ message.content }}</span>
+              <audio v-if="message.audioUrl" class="voice-player" :src="message.audioUrl" controls></audio>
             </template>
             <template v-else>
               {{ message.content }}
@@ -126,6 +266,11 @@ function sendVoice() {
     </main>
 
     <footer class="composer">
+      <div v-if="showImagePanel" class="image-source-panel">
+        <button type="button" @click="openAlbum">本地相册</button>
+        <button type="button" @click="openCamera">实时拍照</button>
+      </div>
+
       <div v-if="showEmojiPanel" class="emoji-panel">
         <button v-for="emoji in emojiOptions" :key="emoji" type="button" @click="appendEmoji(emoji)">
           {{ emoji }}
@@ -133,14 +278,21 @@ function sendVoice() {
       </div>
 
       <div class="tool-row">
-        <button type="button" aria-label="发送图片" @click="sendImage">
+        <button type="button" aria-label="发送图片" @click="showImagePanel = !showImagePanel">
           <AddPicture theme="outline" size="21" fill="currentColor" />
         </button>
         <button type="button" aria-label="选择表情" @click="showEmojiPanel = !showEmojiPanel">
           <MessageEmoji theme="outline" size="21" fill="currentColor" />
         </button>
-        <button type="button" aria-label="发送语音" @click="sendVoice">
+        <button
+          type="button"
+          class="voice-button"
+          :class="{ recording: isRecording }"
+          :aria-label="isRecording ? '停止录音' : '开始录音'"
+          @click="toggleVoiceRecording"
+        >
           <Microphone theme="outline" size="21" fill="currentColor" />
+          <span v-if="isRecording">{{ recordingSeconds }}s</span>
         </button>
       </div>
 
@@ -149,6 +301,9 @@ function sendVoice() {
         <button type="submit">发送</button>
       </form>
     </footer>
+
+    <input ref="albumInputRef" class="media-input" type="file" accept="image/*" @change="handleImageSelected" />
+    <input ref="cameraInputRef" class="media-input" type="file" accept="image/*" capture="environment" @change="handleImageSelected" />
   </section>
 </template>
 
@@ -336,6 +491,29 @@ input {
   gap: 8px;
 }
 
+.bubble--image {
+  padding: 6px;
+}
+
+.chat-image {
+  width: 170px;
+  max-height: 180px;
+  display: block;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.bubble--voice {
+  flex-wrap: wrap;
+  min-width: 170px;
+}
+
+.voice-player {
+  width: 100%;
+  height: 32px;
+  margin-top: 4px;
+}
+
 .bubble-wrap time {
   color: #a5a9b2;
   font-size: 10px;
@@ -361,13 +539,29 @@ input {
 }
 
 .tool-row button {
-  width: 34px;
+  min-width: 34px;
   height: 34px;
   display: grid;
   place-items: center;
   border-radius: 12px;
   background: #f2f3ff;
   color: #6872f0;
+}
+
+.tool-row .voice-button {
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 0 9px;
+}
+
+.tool-row .voice-button.recording {
+  background: #ffe8ec;
+  color: #f45d76;
+}
+
+.voice-button span {
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .input-row {
@@ -407,10 +601,37 @@ input {
   background: #f5f6f7;
 }
 
+.image-source-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: #f5f6f7;
+}
+
+.image-source-panel button {
+  height: 34px;
+  border-radius: 10px;
+  background: #fff;
+  color: #6872f0;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .emoji-panel button {
   height: 28px;
   border-radius: 8px;
   background: #fff;
   font-size: 16px;
+}
+
+.media-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 </style>

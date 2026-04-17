@@ -26,7 +26,7 @@ const mock = {
     { title: "养老机构", icon: "building", pageId: "" },
     { title: "健康讲堂", icon: "video", pageId: "content/health-lecture" },
     { title: "饮食记录", icon: "bowl", pageId: "" },
-    { title: "健康自测", icon: "test", pageId: "" },
+    { title: "健康自测", icon: "test", pageId: "health/self-test" },
   ],
   reminder: {
     label: "健康\n提醒",

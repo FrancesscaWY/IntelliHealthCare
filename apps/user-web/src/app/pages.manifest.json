@@ -337,6 +337,19 @@
     "legacySources": []
   },
   {
+    "id": "health/self-test",
+    "title": "健康自测",
+    "group": "health",
+    "route": "/health/self-test",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "健康自测项目选择、逐题测评和疾病风险结果展示。",
+    "folderPath": "/apps/user-web/src/pages/health/self-test",
+    "modulePath": "/apps/user-web/src/pages/health/self-test/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/self-test/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/medication-info",
     "title": "用药信息",
     "group": "health",
