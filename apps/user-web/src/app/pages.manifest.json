@@ -207,6 +207,32 @@
     "legacySources": []
   },
   {
+    "id": "diet-record",
+    "title": "饮食记录",
+    "group": "diet-record",
+    "route": "/diet-record",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "按日期查看每日三餐和摄入统计的饮食记录页面。",
+    "folderPath": "/apps/user-web/src/pages/diet-record",
+    "modulePath": "/apps/user-web/src/pages/diet-record/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/diet-record/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "diet-record/history-data",
+    "title": "历史数据",
+    "group": "diet-record",
+    "route": "/diet-record/history-data",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "饮食记录历史数据的日视图、月视图和年视图页面。",
+    "folderPath": "/apps/user-web/src/pages/diet-record/history-data",
+    "modulePath": "/apps/user-web/src/pages/diet-record/history-data/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/diet-record/history-data/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/add-data",
     "title": "添加数据",
     "group": "health",
@@ -838,6 +864,45 @@
     "folderPath": "/apps/user-web/src/pages/orders/rehab-therapy",
     "modulePath": "/apps/user-web/src/pages/orders/rehab-therapy/Page.vue",
     "mockPath": "/apps/user-web/src/pages/orders/rehab-therapy/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/willservice/assessment-report",
+    "title": "评估报告",
+    "group": "orders",
+    "route": "/orders/willservice/assessment-report",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "待服务相关的评估报告正文页。",
+    "folderPath": "/apps/user-web/src/pages/orders/willservice/assessment-report",
+    "modulePath": "/apps/user-web/src/pages/orders/willservice/assessment-report/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/willservice/assessment-report/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/willservice/service-record",
+    "title": "服务记录",
+    "group": "orders",
+    "route": "/orders/willservice/service-record",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "待服务相关的服务记录列表页。",
+    "folderPath": "/apps/user-web/src/pages/orders/willservice/service-record",
+    "modulePath": "/apps/user-web/src/pages/orders/willservice/service-record/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/willservice/service-record/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/willservice/rehab-report",
+    "title": "康复报告",
+    "group": "orders",
+    "route": "/orders/willservice/rehab-report",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "待服务相关的康复报告正文页。",
+    "folderPath": "/apps/user-web/src/pages/orders/willservice/rehab-report",
+    "modulePath": "/apps/user-web/src/pages/orders/willservice/rehab-report/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/willservice/rehab-report/mock.ts",
     "legacySources": []
   },
   {
