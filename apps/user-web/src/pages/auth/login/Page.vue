@@ -2,6 +2,7 @@
 import { reactive } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
+import { setLastLoginPhone } from "../session";
 
 const props = defineProps<PageComponentProps>();
 
@@ -57,6 +58,7 @@ function submitForm() {
     return;
   }
 
+  setLastLoginPhone(state.phone);
   props.showToast("登录成功");
   window.setTimeout(() => {
     props.navigation.reLaunch("auth/real-name");
@@ -64,6 +66,7 @@ function submitForm() {
 }
 
 function handleThirdPartyLogin(label: string) {
+  setLastLoginPhone(state.phone);
   props.showToast(`${label}登录成功`);
   window.setTimeout(() => {
     props.navigation.reLaunch("auth/real-name");

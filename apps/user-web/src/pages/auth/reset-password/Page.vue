@@ -5,6 +5,7 @@ import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 
+  
 const form = reactive({
   password: "",
   confirmPassword: "",

@@ -1,13 +1,35 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { AddPic, AtSign, Close, LocalTwo, Pound } from "@icon-park/vue-next";
+import blossomImage from "@/assets/community/publish/blossom.jpg";
+import { savePublishedProfilePost } from "@/pages/home/profile/published-post";
 import mock from "./mock";
+
+type UploadImage = {
+  id: string;
+  src: string;
+};
+
+type VisibilityOption = (typeof mock.visibilityOptions)[number];
 
 const props = defineProps<PageComponentProps>();
 const fileInput = ref<HTMLInputElement | null>(null);
 const title = ref("");
 const content = ref("");
-const images = ref<string[]>([]);
+const visibility = ref<VisibilityOption>(mock.visibilityOptions[0]);
+const showVisibilityPanel = ref(false);
+const uploadedImages = ref<UploadImage[]>([]);
+
+const displayImages = computed<UploadImage[]>(() => [
+  {
+    id: "sample",
+    src: blossomImage,
+  },
+  ...uploadedImages.value,
+]);
+
+const canSubmit = computed(() => title.value.trim().length > 0 && content.value.trim().length > 0);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -19,11 +41,39 @@ function triggerUpload() {
   fileInput.value?.click();
 }
 
-function handleFileChange(event: Event) {
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement;
-  images.value = Array.from(target.files || [])
-    .map((file) => file.name)
-    .slice(0, 6);
+  const selectedFiles = Array.from(target.files || []).slice(0, 5);
+
+  uploadedImages.value = await Promise.all(
+    selectedFiles.map(async (file, index) => ({
+      id: `${file.name}-${index}`,
+      src: await readFileAsDataUrl(file),
+    })),
+  );
+}
+
+function handleVisibilitySelect(option: VisibilityOption) {
+  visibility.value = option;
+  showVisibilityPanel.value = false;
+}
+
+function toggleVisibilityPanel() {
+  showVisibilityPanel.value = !showVisibilityPanel.value;
+}
+
+function formatPostDate() {
+  const now = new Date();
+  return `${now.getMonth() + 1}月${now.getDate()}日`;
 }
 
 function submitPost() {
@@ -37,139 +87,310 @@ function submitPost() {
     return;
   }
 
-  props.showToast("发布成功");
+  savePublishedProfilePost({
+    id: `published-${Date.now()}`,
+    author: "笑看人生",
+    date: formatPostDate(),
+    title: title.value.trim(),
+    content: content.value.trim(),
+    likes: 0,
+    favorites: 0,
+    comments: 0,
+    gallery: displayImages.value.map((item, index) => ({
+      src: item.src,
+      position: index === 0 ? "center" : "center",
+    })),
+  });
+
+  props.showToast(`${visibility.value.label}发布成功`);
   window.setTimeout(() => {
-    props.navigation.reLaunch("community/circle");
-  }, 280);
+    props.navigation.reLaunch("home/profile");
+  }, 220);
 }
 </script>
 
 <template>
-  <section class="publish-page">
-    <article class="publish-header">
-      <div>
-        <p class="page-eyebrow">Create Post</p>
-        <h1>发布动态</h1>
-        <p>记录今天的康养生活，把照片和心情分享给家人和社区。</p>
-      </div>
-      <button type="button" class="publish-close" @click="goBack">关</button>
-    </article>
+  <section class="publish-page" @click="showVisibilityPanel = false">
+    <header class="publish-topbar">
+      <button class="icon-button icon-button--close" type="button" aria-label="关闭" @click.stop="goBack">
+        <Close theme="outline" size="24" fill="#2e3135" />
+      </button>
+      <button
+        class="publish-button"
+        :class="{ 'publish-button--disabled': !canSubmit }"
+        type="button"
+        @click.stop="submitPost"
+      >
+        发布
+      </button>
+    </header>
+
+    <section class="publish-gallery" aria-label="图片预览">
+      <div
+        v-for="image in displayImages"
+        :key="image.id"
+        class="publish-gallery__item publish-gallery__item--image"
+        :style="{ backgroundImage: `url(${image.src})` }"
+      ></div>
+      <button class="publish-gallery__item publish-gallery__item--adder" type="button" @click.stop="triggerUpload">
+        <AddPic theme="outline" size="30" fill="#a8abb0" />
+      </button>
+      <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="handleFileChange" />
+    </section>
 
     <section class="publish-editor">
-      <input v-model="title" type="text" placeholder="输入标题" />
-      <textarea v-model="content" placeholder="输入内容" />
-      <div class="publish-image-list">
-        <span v-for="item in images" :key="item" class="publish-image-pill">{{ item }}</span>
-      </div>
-      <button type="button" class="publish-upload" @click="triggerUpload">添加图片</button>
-      <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="handleFileChange" />
-      <button type="button" class="publish-submit" @click="submitPost">发布</button>
+      <input v-model="title" class="publish-title" type="text" :placeholder="mock.placeholders.title" />
+      <textarea v-model="content" class="publish-content" :placeholder="mock.placeholders.content"></textarea>
     </section>
 
-    <section class="publish-tips">
-      <p class="page-eyebrow">Tips</p>
-      <ul>
-        <li v-for="item in mock.tips" :key="item">{{ item }}</li>
-      </ul>
-    </section>
+    <footer class="publish-toolbar">
+      <div class="publish-toolbar__actions">
+        <button type="button" class="toolbar-icon" @click.stop="props.showToast('提及功能待接入')">
+          <AtSign theme="outline" size="22" fill="#2f3237" />
+        </button>
+        <button type="button" class="toolbar-icon" @click.stop="props.showToast('话题功能待接入')">
+          <Pound theme="outline" size="22" fill="#2f3237" />
+        </button>
+        <button type="button" class="toolbar-icon" @click.stop="props.showToast('位置功能待接入')">
+          <LocalTwo theme="outline" size="22" fill="#2f3237" />
+        </button>
+      </div>
+
+      <div class="visibility">
+        <button type="button" class="visibility-button" @click.stop="toggleVisibilityPanel">
+          {{ visibility.label }}
+        </button>
+
+        <div v-if="showVisibilityPanel" class="visibility-panel" @click.stop>
+          <button
+            v-for="option in mock.visibilityOptions"
+            :key="option.key"
+            class="visibility-panel__item"
+            :class="{ 'is-active': option.key === visibility.key }"
+            type="button"
+            @click="handleVisibilitySelect(option)"
+          >
+            <strong>{{ option.label }}</strong>
+            <span>{{ option.description }}</span>
+          </button>
+        </div>
+      </div>
+    </footer>
   </section>
 </template>
 
 <style scoped>
 .publish-page {
+  min-height: calc(100vh - 36px);
   display: grid;
+  grid-template-rows: auto auto 1fr auto;
   gap: 18px;
+  margin: -18px;
+  padding: 16px 22px 16px;
+  background: #ffffff;
+  color: #2e3135;
+  font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
 }
 
-.publish-header,
-.publish-editor,
-.publish-tips {
-  padding: 18px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-}
-
-.publish-header {
+.publish-topbar {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.publish-button {
+  min-width: 70px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #6d78f3 0%, #6270ef 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: opacity 160ms ease;
+}
+
+.publish-button--disabled {
+  opacity: 0.55;
+}
+
+.publish-gallery {
+  display: flex;
+  gap: 16px;
   align-items: flex-start;
 }
 
-.publish-header h1 {
-  margin: 6px 0 0;
+.publish-gallery__item {
+  width: 156px;
+  height: 128px;
+  border-radius: 20px;
+  overflow: hidden;
+  flex: 0 0 auto;
 }
 
-.publish-header p,
-.publish-tips li {
-  margin: 0;
-  color: #607089;
-  line-height: 1.6;
+.publish-gallery__item--image {
+  background-color: #eef1f4;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
-.publish-close,
-.publish-submit,
-.publish-upload {
+.publish-gallery__item--adder {
+  display: grid;
+  place-items: center;
   border: 0;
-  border-radius: 18px;
-  font-weight: 700;
-}
-
-.publish-close {
-  width: 48px;
-  height: 48px;
-  background: rgba(36, 87, 245, 0.08);
-  color: #2457f5;
-}
-
-.publish-submit {
-  padding: 12px 18px;
-  background: linear-gradient(135deg, #2457f5, #4f84ff);
-  color: #ffffff;
+  background: linear-gradient(180deg, #f3f3f3 0%, #ececec 100%);
 }
 
 .publish-editor {
   display: grid;
-  gap: 12px;
+  align-content: start;
 }
 
-.publish-editor input,
-.publish-editor textarea {
+.publish-title,
+.publish-content {
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid rgba(35, 82, 173, 0.12);
-  border-radius: 18px;
-  background: #f8fbff;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #2f3237;
+  font-family: inherit;
+  font-weight: 400;
 }
 
-.publish-editor textarea {
-  min-height: 180px;
-  resize: vertical;
+.publish-title::placeholder,
+.publish-content::placeholder {
+  color: #d2d5da;
 }
 
-.publish-upload {
-  padding: 12px 16px;
-  background: rgba(36, 87, 245, 0.08);
-  color: #2457f5;
-}
-
-.publish-image-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.publish-image-pill {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #edf3ff;
-  color: #3f5d9b;
+.publish-title {
+  height: 54px;
+  padding: 0 6px;
+  border-bottom: 1px solid #efefef;
   font-size: 12px;
 }
 
-.publish-tips ul {
-  margin: 10px 0 0;
-  padding-left: 18px;
+.publish-content {
+  min-height: 360px;
+  padding: 18px 6px 0;
+  resize: none;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.publish-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #f2f2f2;
+}
+
+.publish-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.toolbar-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.visibility {
+  position: relative;
+}
+
+.visibility-button {
+  min-width: 66px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: #f2f2f2;
+  color: #44484f;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.visibility-panel {
+  position: absolute;
+  right: 0;
+  bottom: 42px;
+  display: grid;
+  gap: 8px;
+  width: 164px;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 32px rgba(33, 43, 71, 0.12);
+}
+
+.visibility-panel__item {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: #f6f6f7;
+  color: #43474d;
+  text-align: left;
+}
+
+.visibility-panel__item strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.visibility-panel__item span {
+  font-size: 10px;
+  color: #8b9097;
+  line-height: 1.5;
+}
+
+.visibility-panel__item.is-active {
+  background: #eef1ff;
+  color: #5d6df0;
+}
+
+.visibility-panel__item.is-active span {
+  color: #7a85da;
+}
+
+@media (max-width: 389px) {
+  .publish-page {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .publish-gallery {
+    gap: 12px;
+  }
+
+  .publish-gallery__item {
+    width: 138px;
+    height: 116px;
+  }
+
+  .publish-toolbar__actions {
+    gap: 20px;
+  }
 }
 </style>

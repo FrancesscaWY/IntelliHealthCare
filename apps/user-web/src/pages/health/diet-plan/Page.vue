@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import type { DietRecipe } from "../diet-recipes";
+import type { DietMealKey, DietRecipe } from "../diet-recipes";
 import mock from "./mock";
 import { selectedDietRecipeId } from "./state";
 
 const props = defineProps<PageComponentProps>();
-const activeMeal = ref(mock.mealTabs[0]?.key || "breakfast");
+const activeMeal = ref<DietMealKey>((mock.mealTabs[0]?.key as DietMealKey) || "breakfast");
 const searchValue = ref("");
 
 const mealIconMarkup: Record<string, string> = {
@@ -58,7 +58,7 @@ function goBack() {
 }
 
 function selectMeal(key: string) {
-  activeMeal.value = key;
+  activeMeal.value = key as DietMealKey;
 }
 
 function openRecipe(recipe: DietRecipe) {
@@ -69,6 +69,27 @@ function openRecipe(recipe: DietRecipe) {
 function getMealIconMarkup(key: string) {
   return mealIconMarkup[key] || mealIconMarkup.breakfast;
 }
+
+const activeMealMeta = computed(() => mock.mealTabs.find((item) => item.key === activeMeal.value) || mock.mealTabs[0]);
+
+const visibleRecipes = computed(() => {
+  const keyword = searchValue.value.trim().toLowerCase();
+
+  return mock.recipes.filter((item) => {
+    if (!item.mealKeys.includes(activeMeal.value)) {
+      return false;
+    }
+
+    if (!keyword) {
+      return true;
+    }
+
+    const searchText = [item.title, item.subtitle, item.energy, item.time, ...item.tags, ...item.ingredients.map((ingredient) => ingredient.name)]
+      .join(" ")
+      .toLowerCase();
+    return searchText.includes(keyword);
+  });
+});
 </script>
 
 <template>
@@ -134,12 +155,12 @@ function getMealIconMarkup(key: string) {
 
       <section class="recommend-section">
         <header class="section-header">
-          <h2>为您推荐</h2>
-          <span>适合长者的低盐轻食</span>
+          <h2>{{ activeMealMeta?.label }}推荐</h2>
+          <span>{{ activeMealMeta?.highlight || "适合长者的低盐轻食" }}</span>
         </header>
 
-        <div class="recipe-grid">
-          <article v-for="item in mock.recipes" :key="item.id" class="recipe-card" @click="openRecipe(item)">
+        <div v-if="visibleRecipes.length" class="recipe-grid">
+          <article v-for="item in visibleRecipes" :key="item.id" class="recipe-card" @click="openRecipe(item)">
             <img class="recipe-photo" :src="item.imageUrl" :alt="item.title" draggable="false" />
             <h3>{{ item.title }}</h3>
             <p>{{ item.energy }} · {{ item.time }}</p>
@@ -148,6 +169,11 @@ function getMealIconMarkup(key: string) {
             </div>
           </article>
         </div>
+
+        <section v-else class="recipe-empty">
+          <strong>{{ activeMealMeta?.label }}暂无匹配餐品</strong>
+          <p>可以切换其他餐次，或换个关键词试试。</p>
+        </section>
       </section>
     </main>
   </section>
@@ -472,6 +498,30 @@ function getMealIconMarkup(key: string) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
+}
+
+.recipe-empty {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 13px 30px rgba(68, 118, 90, 0.05);
+  text-align: center;
+}
+
+.recipe-empty strong {
+  color: #273242;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.recipe-empty p {
+  margin: 0;
+  color: #97a1ad;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .recipe-card {
