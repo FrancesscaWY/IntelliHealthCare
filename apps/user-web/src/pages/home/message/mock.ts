@@ -61,6 +61,16 @@ const mock = {
   ],
   chats: [
     {
+      id: 3,
+      title: '王医生',
+      desc: '可以咨询用药、康复和日常健康问题',
+      date: '刚刚',
+      count: 1,
+      icon: 'doctor',
+      tone: 'purple',
+      pageId: 'home/doctor-chat',
+    },
+    {
       id: 1,
       title: '你的小助手',
       desc: '预约前请确认上门地址和联系电话',
@@ -68,6 +78,7 @@ const mock = {
       count: 1,
       icon: 'assistant',
       tone: 'green',
+      pageId: '',
     },
     {
       id: 2,
@@ -77,6 +88,7 @@ const mock = {
       count: 2,
       icon: 'health',
       tone: 'purple',
+      pageId: '',
     },
   ],
   navTabs: [

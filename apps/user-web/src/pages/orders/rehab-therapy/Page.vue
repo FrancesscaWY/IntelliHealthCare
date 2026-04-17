@@ -1,0 +1,378 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import type { PageComponentProps } from '@ihc/page-core/types'
+import { Headset } from '@icon-park/vue-next'
+import mock from './mock'
+
+const props = defineProps<PageComponentProps>()
+type ServiceKey = keyof typeof mock.ordersByService
+
+const activeService = ref<ServiceKey>('therapy')
+const activeTab = ref('all')
+
+const currentOrders = computed(() => mock.ordersByService[activeService.value])
+const visibleOrders = computed(() => {
+  if (activeTab.value === 'all') {
+    return currentOrders.value
+  }
+
+  if (activeTab.value === 'review') {
+    return currentOrders.value.filter((item) => item.status === 'done')
+  }
+
+  return currentOrders.value.filter((item) => item.status === activeTab.value)
+})
+
+function selectService(key: string) {
+  activeService.value = key as ServiceKey
+  activeTab.value = 'all'
+}
+
+function goBack() {
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch('home/mine')
+  }
+}
+
+function handleAction(actionKey: string) {
+  if (actionKey === 'pay') {
+    props.navigation.navigateTo('service/payment')
+    return
+  }
+
+  if (actionKey === 'edit') {
+    props.navigation.navigateTo('service/order-edit')
+    return
+  }
+
+  if (actionKey === 'record') {
+    props.navigation.navigateTo('service/service-track')
+    return
+  }
+
+  if (actionKey === 'book') {
+    props.navigation.navigateTo('service/booking')
+    return
+  }
+
+  if (actionKey === 'again') {
+    const detailMap: Record<ServiceKey, string> = {
+      homeCare: 'service/home-care-detail',
+      therapy: 'service/rehab-therapy-detail',
+      exam: 'service/home-exam-detail',
+    }
+
+    props.navigation.navigateTo(detailMap[activeService.value])
+    return
+  }
+
+  const labelMap: Record<string, string> = {
+    cancel: '取消订单',
+    coupon: '服务券码',
+    report: '评估报告',
+    review: '评价',
+  }
+
+  props.showToast(`${labelMap[actionKey] || '该'}功能待接入`)
+}
+</script>
+
+<template>
+  <section class="rehab-order-page">
+    <header class="page-header">
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
+      <h1>我的订单</h1>
+      <button class="service-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
+        <Headset theme="outline" size="22" fill="#34383f" />
+      </button>
+    </header>
+
+    <nav class="service-tabs" aria-label="服务分类">
+      <button
+        v-for="tab in mock.serviceTabs"
+        :key="tab.key"
+        class="service-tab"
+        :class="{ active: activeService === tab.key }"
+        type="button"
+        @click="selectService(tab.key)"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
+
+    <nav class="order-tabs" aria-label="订单状态">
+      <button
+        v-for="tab in mock.tabs"
+        :key="tab.key"
+        class="order-tab"
+        :class="{ active: activeTab === tab.key }"
+        type="button"
+        @click="activeTab = tab.key"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
+
+    <main class="order-scroll">
+      <article v-for="order in visibleOrders" :key="order.id" class="order-card">
+        <div class="order-card-top">
+          <p v-if="'countdown' in order && order.countdown" class="countdown">剩余时间：{{ order.countdown }}</p>
+          <span v-else></span>
+          <strong>{{ order.statusText }}</strong>
+        </div>
+
+        <section class="product-row">
+          <img class="product-image" :src="order.image" :alt="order.title" />
+          <div class="product-copy">
+            <h2>{{ order.title }}</h2>
+            <p>¥{{ order.price }}</p>
+          </div>
+        </section>
+
+        <footer class="action-row">
+          <button
+            v-for="action in order.actions"
+            :key="action.key"
+            class="action-button"
+            :class="{ primary: action.type === 'primary' }"
+            type="button"
+            @click="handleAction(action.key)"
+          >
+            {{ action.label }}
+          </button>
+        </footer>
+      </article>
+
+      <p v-if="visibleOrders.length === 0" class="empty-text">当前没有相关订单</p>
+    </main>
+  </section>
+</template>
+
+<style scoped>
+.rehab-order-page {
+  position: relative;
+  left: 50%;
+  width: min(402px, 100vw);
+  height: min(874px, calc(100vh - 36px));
+  min-height: min(874px, calc(100vh - 36px));
+  max-height: 874px;
+  margin: -18px 0;
+  padding: 16px 18px 28px;
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  overflow: hidden;
+  background: #f5f6f7;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.page-header {
+  height: 52px;
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+}
+
+.back-button {
+  width: 32px;
+  height: 38px;
+  padding: 0;
+  color: #34383f;
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 30px;
+}
+
+.page-header h1 {
+  margin: 0;
+  color: #34383f;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.service-button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.service-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+
+.service-tab {
+  height: 38px;
+  border-radius: 14px;
+  background: #fff;
+  color: #8d929b;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 8px 22px rgba(31, 40, 58, 0.04);
+}
+
+.service-tab.active {
+  background: #6b6ff0;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(107, 111, 240, 0.18);
+}
+
+.order-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
+  gap: 5px;
+  height: 48px;
+  margin-bottom: 8px;
+}
+
+.order-tab {
+  position: relative;
+  padding: 0 0 12px;
+  color: #b9bdc5;
+  font-size: 16px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.order-tab.active {
+  color: #34383f;
+}
+
+.order-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 22px;
+  height: 4px;
+  border-radius: 999px;
+  background: #34383f;
+  transform: translateX(-50%);
+}
+
+.order-scroll {
+  height: calc(100% - 158px);
+  padding: 0 0 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.order-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.order-card {
+  padding: 18px 18px 20px;
+  margin-bottom: 16px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
+}
+
+.order-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 22px;
+  margin-bottom: 16px;
+}
+
+.countdown {
+  margin: 0;
+  color: #f47875;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.order-card-top strong {
+  color: #6b6ff0;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.product-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.product-image {
+  width: 88px;
+  height: 88px;
+  display: block;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 10px 18px rgba(41, 51, 70, 0.08);
+}
+
+.product-copy {
+  min-width: 0;
+}
+
+.product-copy h2 {
+  margin: 0 0 34px;
+  color: #34383f;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.42;
+}
+
+.product-copy p {
+  margin: 0;
+  color: #464a52;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.action-button {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid #eef0f4;
+  border-radius: 18px;
+  background: #fff;
+  color: #555a64;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(31, 40, 58, 0.035);
+}
+
+.action-button.primary {
+  border-color: transparent;
+  background: #6b6ff0;
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(107, 111, 240, 0.18);
+}
+
+.empty-text {
+  margin: 80px 0 0;
+  color: #a5a9b2;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+</style>

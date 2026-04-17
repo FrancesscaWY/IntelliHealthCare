@@ -25,22 +25,7 @@ function pending(label: string) {
 </script>
 
 <template>
-  <section class="message-detail-page">
-    <div class="status-bar">
-      <span class="time">8:30</span>
-      <div class="status-icons">
-        <span class="signal">
-          <i></i>
-          <i></i>
-          <i></i>
-          <i></i>
-        </span>
-        <span class="wifi"></span>
-        <span class="battery"></span>
-      </div>
-    </div>
-
-    <header class="page-header">
+  <section class="message-detail-page"><header class="page-header">
       <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
       <h1>评论&回复</h1>
       <span class="header-space"></span>
@@ -107,6 +92,8 @@ function pending(label: string) {
   max-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
+  padding-top: 16px;
+  box-sizing: border-box;
   overflow: hidden;
   background: #f5f6f7;
   color: #252939;
@@ -118,107 +105,6 @@ button {
   background: transparent;
   color: inherit;
   font: inherit;
-}
-
-.status-bar {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 28px 0;
-  box-sizing: border-box;
-}
-
-.time {
-  color: #191b20;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.signal {
-  width: 18px;
-  height: 13px;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.signal i {
-  width: 3px;
-  border-radius: 1px;
-  background: #111;
-}
-
-.signal i:nth-child(1) {
-  height: 4px;
-}
-
-.signal i:nth-child(2) {
-  height: 7px;
-}
-
-.signal i:nth-child(3) {
-  height: 10px;
-}
-
-.signal i:nth-child(4) {
-  height: 13px;
-}
-
-.wifi {
-  position: relative;
-  width: 18px;
-  height: 13px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  border: 3px solid #111;
-  border-color: #111 transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 22px;
-  height: 22px;
-}
-
-.wifi::after {
-  top: 7px;
-  width: 10px;
-  height: 10px;
-}
-
-.battery {
-  position: relative;
-  width: 22px;
-  height: 12px;
-  border: 2px solid #111;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  right: -5px;
-  width: 3px;
-  height: 6px;
-  border-radius: 0 2px 2px 0;
-  background: #111;
 }
 
 .page-header {
@@ -249,7 +135,7 @@ button {
 }
 
 .detail-scroll {
-  height: calc(100% - 100px);
+  height: calc(100% - 52px);
   padding: 14px 20px 28px;
   box-sizing: border-box;
   overflow-y: auto;

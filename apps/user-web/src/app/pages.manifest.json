@@ -442,6 +442,19 @@
     "legacySources": []
   },
   {
+    "id": "health/self-test",
+    "title": "健康自测",
+    "group": "health",
+    "route": "/health/self-test",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "健康自测项目选择、逐题测评和疾病风险结果展示。",
+    "folderPath": "/apps/user-web/src/pages/health/self-test",
+    "modulePath": "/apps/user-web/src/pages/health/self-test/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/self-test/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/medication-info",
     "title": "用药信息",
     "group": "health",
@@ -654,6 +667,19 @@
     "legacySources": []
   },
   {
+    "id": "home/doctor-chat",
+    "title": "医生咨询",
+    "group": "home",
+    "route": "/home/doctor-chat",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "消息聊天中的医生咨询会话，支持文字、图片、表情和语音交互入口。",
+    "folderPath": "/apps/user-web/src/pages/home/doctor-chat",
+    "modulePath": "/apps/user-web/src/pages/home/doctor-chat/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/doctor-chat/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/message-comment-detail",
     "title": "评论回复",
     "group": "home",
@@ -708,6 +734,19 @@
     "folderPath": "/apps/user-web/src/pages/orders/order-management",
     "modulePath": "/apps/user-web/src/pages/orders/order-management/Page.vue",
     "mockPath": "/apps/user-web/src/pages/orders/order-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/rehab-therapy",
+    "title": "我的订单",
+    "group": "orders",
+    "route": "/orders/rehab-therapy",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我的页面订单列表，支持家政护理、康复理疗、上门体检分类和状态筛选。",
+    "folderPath": "/apps/user-web/src/pages/orders/rehab-therapy",
+    "modulePath": "/apps/user-web/src/pages/orders/rehab-therapy/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/rehab-therapy/mock.ts",
     "legacySources": []
   },
   {
