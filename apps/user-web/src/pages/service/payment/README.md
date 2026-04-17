@@ -2,4 +2,4 @@
 
 - 页面 id：`service/payment`
 - 目录：`apps/user-web/src/pages/service/payment/`
-- 说明：订单提交后的支付页，展示支付金额、倒计时和支付方式。
+- 功能：展示家政护理订单待支付金额、支付方式，并在支付后更新订单状态。

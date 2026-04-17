@@ -2,9 +2,9 @@ import circleIcon from "@/assets/home/nav/circle.png";
 import homeIcon from "@/assets/home/nav/home.png";
 import meIcon from "@/assets/home/nav/me.png";
 import newsIcon from "@/assets/home/nav/news.png";
-import careIcon from "@/assets/home/sections/家政.png";
-import examIcon from "@/assets/home/sections/体检.png";
-import rehabIcon from "@/assets/home/sections/康复.png";
+import careIcon from "@/assets/home/sections/\u5bb6\u653f.png";
+import examIcon from "@/assets/home/sections/\u4f53\u68c0.png";
+import rehabIcon from "@/assets/home/sections/\u5eb7\u590d.png";
 
 const mock = {
   city: "上海",
@@ -20,7 +20,7 @@ const mock = {
     { title: "用药信息", icon: "medicine", pageId: "health/medication-info" },
     { title: "健康膳食", icon: "meal", pageId: "health/diet-plan" },
     { title: "疾病宝典", icon: "book", pageId: "content/disease-guide" },
-    { title: "健康档案", icon: "archive", pageId: "archive/health-records" },
+    { title: "健康档案", icon: "archive", pageId: "healthdocs/health-records" },
     { title: "老年活动", icon: "activity", pageId: "community/senior-activities" },
     { title: "健康资讯", icon: "news", pageId: "content/health-news" },
     { title: "养老机构", icon: "building", pageId: "" },
@@ -33,14 +33,7 @@ const mock = {
     title: "用药提醒",
     detail: "服药时间：06：30  卡托普利  2片",
   },
-  diseases: [
-    "白内障",
-    "高血压",
-    "中风",
-    "阿尔兹海默症",
-    "糖尿病",
-    "心率不齐",
-  ],
+  diseases: ["白内障", "高血压", "中风", "阿尔兹海默症", "糖尿病", "心率不齐"],
   articles: [
     {
       title: "老年人如何控制血糖？",
