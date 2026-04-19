@@ -23,7 +23,7 @@ const mock = {
     { title: "健康档案", icon: "archive", pageId: "healthdocs/health-records" },
     { title: "老年活动", icon: "activity", pageId: "community/senior-activities" },
     { title: "健康资讯", icon: "news", pageId: "content/health-news" },
-    { title: "养老机构", icon: "building", pageId: "" },
+    { title: "养老机构", icon: "building", pageId: "service/elderly-care" },
     { title: "健康讲堂", icon: "video", pageId: "content/health-lecture" },
     { title: "饮食记录", icon: "bowl", pageId: "" },
     { title: "健康自测", icon: "test", pageId: "health/self-test" },
