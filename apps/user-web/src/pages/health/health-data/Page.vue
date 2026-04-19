@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { takeHealthDataBackTarget } from "./source";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -230,11 +231,23 @@ function getNavigateKey(key: string) {
   return map[key];
 }
 
-function goToHome() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("home/dashboard");
-  } else {
-    window.location.href = "/";
+function goBack() {
+  const backTarget = takeHealthDataBackTarget();
+
+  if (backTarget) {
+    if (props.navigation?.reLaunch) {
+      props.navigation.reLaunch(backTarget);
+      return;
+    }
+
+    if (props.navigation?.navigateTo) {
+      props.navigation.navigateTo(backTarget);
+      return;
+    }
+  }
+
+  if (!props.navigation?.navigateBack?.()) {
+    props.navigation?.reLaunch?.("home/dashboard");
   }
 }
 
@@ -248,7 +261,7 @@ function goToAddDevice() {
 <template>
   <section class="health-data-page">
     <header class="medication-nav">
-      <button class="back-btn" type="button" aria-label="返回" @click="goToHome">
+      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
       <h1>健康数据</h1>

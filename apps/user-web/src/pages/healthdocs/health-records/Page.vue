@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { setHealthDataBackTarget } from "@/pages/health/health-data/source";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -43,6 +44,10 @@ function goBack() {
 }
 
 function openPage(pageId: string) {
+  if (pageId === "health/health-data") {
+    setHealthDataBackTarget("healthdocs/health-records");
+  }
+
   props.navigation.navigateTo(pageId);
 }
 
