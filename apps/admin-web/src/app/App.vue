@@ -17,7 +17,7 @@ const config = resolveConfig();
 const { activePage, navigation } = usePageNavigation({
   manifest,
   preferredPageId: config.preferredPageId,
-  pathname: window.location.pathname,
+  pathname: config.mode === "page" ? window.location.pathname : "",
   fallbackPageId: projectInfo.homePageId,
 });
 const { items: toastItems, showToast } = useToastQueue();
@@ -77,7 +77,7 @@ watch(
       loadError.value = error instanceof Error ? error.message : "页面组件加载失败，请检查 Vue 文件语法。";
     }
   },
-  { immediate: true },
+  { immediate: true, flush: "sync" },
 );
 
 watch(
@@ -120,7 +120,7 @@ function copyCommand(command: string) {
   <main class="admin-shell" :class="[`admin-shell--${config.mode}`, { 'admin-shell--auth': isAuthPage }]">
     <template v-if="isAuthPage">
       <section class="auth-stage">
-        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" v-bind="pageProps" />
+        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
         <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
         <section v-else class="empty-state">当前没有可加载的页面，请检查 pages.manifest.json 配置。</section>
       </section>
@@ -193,7 +193,7 @@ function copyCommand(command: string) {
         </section>
 
         <section class="admin-content">
-          <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" v-bind="pageProps" />
+          <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
           <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
           <section v-else class="empty-state">当前没有可加载的页面，请检查 pages.manifest.json 配置。</section>
         </section>

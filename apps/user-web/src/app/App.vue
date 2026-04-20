@@ -16,7 +16,7 @@ const config = resolveConfig();
 const { activePage, navigate, navigation } = usePageNavigation({
   manifest,
   preferredPageId: config.preferredPageId,
-  pathname: window.location.pathname,
+  pathname: config.mode === "page" ? window.location.pathname : "",
   fallbackPageId: projectInfo.homePageId,
 });
 const { items: toastItems, showToast } = useToastQueue();
@@ -61,7 +61,7 @@ watch(
       loadError.value = error instanceof Error ? error.message : "页面组件加载失败，请检查 Vue 文件语法。";
     }
   },
-  { immediate: true },
+  { immediate: true, flush: "sync" },
 );
 
 watch(
@@ -96,7 +96,7 @@ const pageProps = computed(() => {
   <main class="app-shell" :class="config.mode === 'page' ? 'app-shell--page' : 'app-shell--site'">
     <section class="app-canvas">
       <div class="mobile-page-root">
-        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" v-bind="pageProps" />
+        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
         <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
         <section v-else class="page-loader">
           当前没有可加载的页面，请检查 `pages.manifest.json` 配置。
