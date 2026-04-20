@@ -8,6 +8,56 @@ const goBack = () => {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch('service/payment')
   }
+
+  return activeOrder.serviceCode.split(" ");
+});
+
+const qrCodeUrl = computed(() => {
+  if (!activeOrder) {
+    return "";
+  }
+
+  const qrPayload = [
+    "IHC_SERVICE_VOUCHER",
+    `orderNo=${activeOrder.orderNo}`,
+    `serviceCode=${activeOrder.serviceCode.replace(/\s+/g, "")}`,
+    `bookingDate=${activeOrder.bookingDate}`,
+    `weekday=${activeOrder.bookingWeekday}`,
+    `timeSlot=${activeOrder.bookingTimeSlot}`,
+    `contactPhone=${activeOrder.contactPhone}`,
+  ].join(";");
+
+  const searchParams = new URLSearchParams({
+    data: qrPayload,
+    size: "156x156",
+    format: "png",
+    ecc: "M",
+    qzone: "2",
+    margin: "0",
+    "charset-source": "UTF-8",
+    "charset-target": "UTF-8",
+    color: "1d2024",
+    bgcolor: "ffffff",
+  });
+
+  return `https://api.qrserver.com/v1/create-qr-code/?${searchParams.toString()}`;
+});
+
+const barcodeUrl = computed(() => {
+  if (!activeOrder) {
+    return "";
+  }
+
+  const searchParams = new URLSearchParams({
+    includetext: "",
+    height: "46",
+  });
+
+  return `https://barcodeapi.org/api/128/${encodeURIComponent(activeOrder.orderNo)}?${searchParams.toString()}`;
+});
+
+function goBack() {
+  props.navigation.reLaunch("service/home-care-orders");
 }
 
 const viewOrder = () => {
@@ -22,12 +72,55 @@ const viewOrder = () => {
       <h1>支付结果</h1>
     </header>
 
-    <main class="result-content">
-      <div class="success-icon">
-        <Check theme="outline" size="58" fill="#fff" stroke-linejoin="round" stroke-linecap="round" />
-      </div>
-      <h2>支付成功</h2>
-      <p>您的订单已支付成功！</p>
+    <main class="voucher-content">
+      <section class="voucher-card" v-if="activeOrder">
+        <div class="voucher-top">
+          <div>
+            <span class="voucher-label">家政护理</span>
+            <h2>{{ activeOrder.title }}</h2>
+          </div>
+          <strong>¥{{ activeOrder.actualAmount.toFixed(2) }}</strong>
+        </div>
+
+        <div class="voucher-meta">
+          <span>服务时间</span>
+          <p>{{ activeOrder.bookingDate }} {{ activeOrder.bookingWeekday }} {{ activeOrder.bookingTimeSlot }}</p>
+        </div>
+        <div class="voucher-meta">
+          <span>服务地址</span>
+          <p>{{ activeOrder.address }}</p>
+        </div>
+
+        <div class="code-block">
+          <div class="code-number">
+            <span v-for="group in codeGroups" :key="group">{{ group }}</span>
+          </div>
+          <p>{{ activeOrder.serviceCodeHint }}</p>
+        </div>
+
+        <div class="scan-card">
+          <div class="qr-code">
+            <img
+              v-if="qrCodeUrl"
+              class="qr-code__image"
+              :src="qrCodeUrl"
+              :alt="`${activeOrder.title}服务券码二维码`"
+              loading="eager"
+              referrerpolicy="no-referrer"
+            />
+          </div>
+          <div class="barcode">
+            <img
+              v-if="barcodeUrl"
+              class="barcode__image"
+              :src="barcodeUrl"
+              :alt="`${activeOrder.orderNo}服务券码条形码`"
+              loading="eager"
+              referrerpolicy="no-referrer"
+            />
+          </div>
+        </div>
+      </section>
     </main>
 
     <div class="result-bar">
@@ -51,63 +144,41 @@ const viewOrder = () => {
     font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
 
-  .page-header {
-    height: 58px;
-    display: flex;
-    align-items: center;
-  }
+.qr-code {
+  width: 156px;
+  height: 156px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  padding: 10px;
+  border-radius: 14px;
+  background: #f5f5f4;
+  box-sizing: border-box;
+}
 
-  .back-button {
-    width: 24px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 8px 0 -4px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #34383f;
-    font-size: 34px;
-    line-height: 26px;
-    font-weight: 300;
-    cursor: pointer;
-  }
+.qr-code__image {
+  display: block;
+  width: 136px;
+  height: 136px;
+  border-radius: 10px;
+  background: #ffffff;
+}
 
-  .page-header h1 {
-    margin: 0;
-    color: #34383f;
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: 0;
-  }
+.barcode {
+  display: grid;
+  place-items: center;
+  margin: 14px auto 0;
+  padding: 0 8px;
+}
 
-  .result-content {
-    min-height: 602px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-  }
-
-  .success-icon {
-    width: 96px;
-    height: 96px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: #6870f2;
-  }
-
-  .result-content h2 {
-    margin: 34px 0 16px;
-    color: #34383f;
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: 0;
-  }
+.barcode__image {
+  display: block;
+  width: 100%;
+  max-width: 270px;
+  height: 46px;
+  object-fit: fill;
+  background: #ffffff;
+}
 
   .result-content p {
     margin: 0;
