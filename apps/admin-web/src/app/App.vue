@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from "vue";
+import { computed, onMounted, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import { getStatusMeta, groupPagesByGroup } from "@ihc/page-core/runtime";
 import type { PageEntry } from "@ihc/page-core/types";
 import manifestEntries from "./pages.manifest.json";
-import { loadPageComponent } from "./page-registry";
+import { loadPageComponent, preloadPageComponents } from "./page-registry";
 import { resolveConfig } from "./resolve-config";
 import { usePageNavigation } from "./usePageNavigation";
 import { useToastQueue } from "./useToastQueue";
@@ -114,6 +114,20 @@ function openPage(pageId: string) {
 function copyCommand(command: string) {
   showToast(`调试命令：${command}`);
 }
+onMounted(() => {
+  if (config.mode === "page") {
+    return;
+  }
+
+  const preload = () => preloadPageComponents();
+
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    (window as Window & { requestIdleCallback: (callback: IdleRequestCallback) => number }).requestIdleCallback(() => preload());
+    return;
+  }
+
+  globalThis.setTimeout(preload, 0);
+});
 </script>
 
 <template>

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from "vue";
+import { computed, onMounted, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import type { PageEntry } from "@ihc/page-core/types";
 import manifestEntries from "./pages.manifest.json";
-import { loadPageComponent } from "./page-registry";
+import { loadPageComponent, preloadPageComponents } from "./page-registry";
 import { resolveConfig } from "./resolve-config";
 import { usePageNavigation } from "./usePageNavigation";
 import { useToastQueue } from "./useToastQueue";
@@ -24,6 +24,7 @@ const { items: toastItems, showToast } = useToastQueue();
 const activeComponent = shallowRef<Component | null>(null);
 const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
+let appReadyMarked = false;
 
 const resolvedComponent = computed(() => {
   if (!activePage.value || activeComponentPageId.value !== activePage.value.id) {
@@ -32,6 +33,15 @@ const resolvedComponent = computed(() => {
 
   return activeComponent.value;
 });
+
+function markAppReady() {
+  if (appReadyMarked || typeof document === "undefined") {
+    return;
+  }
+
+  document.documentElement.classList.add("ihc-app-ready");
+  appReadyMarked = true;
+}
 
 watch(
   activePage,
@@ -65,6 +75,16 @@ watch(
 );
 
 watch(
+  [resolvedComponent, loadError, activePage],
+  ([component, error, pageEntry]) => {
+    if (component || error || !pageEntry) {
+      markAppReady();
+    }
+  },
+  { immediate: true, flush: "post" },
+);
+
+watch(
   activePage,
   (pageEntry) => {
     if (!pageEntry) {
@@ -89,6 +109,21 @@ const pageProps = computed(() => {
     navigation,
     showToast,
   };
+});
+
+onMounted(() => {
+  if (config.mode === "page") {
+    return;
+  }
+
+  const preload = () => preloadPageComponents();
+
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    (window as Window & { requestIdleCallback: (callback: IdleRequestCallback) => number }).requestIdleCallback(() => preload());
+    return;
+  }
+
+  globalThis.setTimeout(preload, 0);
 });
 </script>
 
