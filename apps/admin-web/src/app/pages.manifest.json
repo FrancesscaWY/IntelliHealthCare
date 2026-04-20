@@ -78,6 +78,32 @@
     "legacySources": []
   },
   {
+    "id": "elder/member-create",
+    "title": "新增用户",
+    "group": "elder",
+    "route": "/elder/member-create",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "新增用户基础资料、联系方式与账户信息录入页面。",
+    "folderPath": "/apps/admin-web/src/pages/elder/member-create",
+    "modulePath": "/apps/admin-web/src/pages/elder/member-create/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/elder/member-create/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "elder/member-detail",
+    "title": "用户详情",
+    "group": "elder",
+    "route": "/elder/member-detail",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "用户基础资料、健康信息、用药信息、设备信息与服务记录查看。",
+    "folderPath": "/apps/admin-web/src/pages/elder/member-detail",
+    "modulePath": "/apps/admin-web/src/pages/elder/member-detail/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/elder/member-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "elder/member-list",
     "title": "长者档案",
     "group": "elder",
