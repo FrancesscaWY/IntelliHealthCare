@@ -1,0 +1,81 @@
+const productImage =
+  "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320";
+
+const mock = {
+  title: "售后管理",
+  statusTabs: ["全部", "处理中", "售后完成", "售后关闭"],
+  rows: [
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "处理中",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "售后完成",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "售后关闭",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "处理中",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "售后完成",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "售后关闭",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+    {
+      orderNo: "2400126677",
+      afterSaleNo: "2400126677",
+      title: "日常清洁 2小时1人急速清洁全程质保",
+      image: productImage,
+      paidAmount: "300.00",
+      refundAmount: "300.00",
+      status: "处理中",
+      appliedAt: "2023-03-21 17:10:43",
+    },
+  ],
+};
+
+export default mock;

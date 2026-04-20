@@ -4,7 +4,8 @@
     "pages/login/login",
     "pages/circle/circle",
     "pages/publish/publish",
-    "pages/home/home"
+    "pages/home/home",
+    "pages/profile/profile"
   ],
   "window": {
     "navigationBarTextStyle": "black",

@@ -36,6 +36,7 @@ const mock = {
   diseases: ["白内障", "高血压", "中风", "阿尔兹海默症", "糖尿病", "心率不齐"],
   articles: [
     {
+      id: "blood-sugar-guide-1",
       title: "老年人如何控制血糖？",
       desc: "控制血糖对于维持健康的生活方式和预防糖尿病等疾病至关重要。以下是一些控制血糖的方法：",
       likes: 1001,
@@ -43,6 +44,7 @@ const mock = {
       comments: 6,
     },
     {
+      id: "blood-sugar-guide-2",
       title: "老年人如何控制血糖？",
       desc: "控制血糖对于维持健康的生活方式和预防糖尿病等疾病至关重要。以下是一些控制血糖的方法：",
       likes: 1001,

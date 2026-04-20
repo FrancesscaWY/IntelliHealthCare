@@ -771,6 +771,19 @@
     "legacySources": []
   },
   {
+    "id": "home/profile",
+    "title": "个人主页",
+    "group": "home",
+    "route": "/home/profile",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "展示用户公开资料、动态内容与社交互动入口，由“我的”页面进入。",
+    "folderPath": "/apps/user-web/src/pages/home/profile",
+    "modulePath": "/apps/user-web/src/pages/home/profile/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/profile/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/message",
     "title": "消息",
     "group": "home",

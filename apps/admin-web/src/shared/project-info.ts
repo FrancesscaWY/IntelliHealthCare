@@ -1,55 +1,156 @@
 export const projectInfo = {
-  name: "智诊康养后台",
-  summary: "面向养老机构、服务运营和健康管理团队的后台管理工作区。",
-  delivery: "与 APP 端保持一致，采用 Vue 3 + TypeScript + Vite 的页面工作区模式。",
+  name: "黛西健康",
+  summary: "面向健康服务、护理调度与机构运营的后台管理工作台。",
+  delivery: "后台工作区基于 Vue 3、TypeScript 与 Vite 构建。",
   homePageId: "auth/login",
   prototypeUrl: "https://www.axureshop.com/ys/2296569",
-  featureHighlights: ["登录入口", "长者档案", "服务调度", "健康预警", "设备巡检", "内容运营", "系统设置"],
+  featureHighlights: ["登录入口", "工作台", "用户管理", "订单调度", "健康预警", "数据分析", "系统设置"],
 };
 
 export const groupMeta: Record<string, { title: string; description: string }> = {
   auth: {
     title: "登录认证",
-    description: "后台管理端账号密码登录与工作台进入入口。",
+    description: "后台账号登录、角色切换与入口校验。",
   },
   dashboard: {
-    title: "运营总览",
-    description: "首页概览、关键指标、风险提醒与待办汇总。",
+    title: "首页",
+    description: "工作台总览、经营指标与核心数据看板。",
   },
   elder: {
-    title: "长者管理",
-    description: "长者档案、入住状态、家属联系人与服务画像。",
+    title: "用户管理",
+    description: "用户档案、健康标签与预约服务信息。",
   },
   service: {
-    title: "服务调度",
-    description: "上门服务、护理排班、订单流转与异常处理。",
+    title: "服务",
+    description: "服务人员、工单执行、佣金与打赏等服务侧运营管理。",
   },
   health: {
-    title: "健康监测",
-    description: "生命体征、预警事件、报告跟踪与干预闭环。",
+    title: "健康管理",
+    description: "标签分布、预警事件与慢病人群跟踪。",
   },
   device: {
     title: "设备中心",
-    description: "设备在线率、告警处理、定位轨迹与巡检任务。",
+    description: "设备在线、巡检任务与钱包结算信息。",
   },
   content: {
     title: "内容运营",
-    description: "资讯、讲堂、栏目与首页运营位管理。",
+    description: "活动运营、消息触达与专题配置。",
   },
   community: {
-    title: "社区活动",
-    description: "活动发布、报名统计、审核与互动数据。",
+    title: "社区互动",
+    description: "活动管理、动态内容与社区服务数据。",
   },
   staff: {
-    title: "人员与机构",
-    description: "护理员、医生、服务团队和机构资源视图。",
+    title: "人员管理",
+    description: "服务人员排班、绩效和审核流程。",
   },
   analytics: {
     title: "数据分析",
-    description: "业务看板、服务质量、健康趋势与经营分析。",
+    description: "趋势、榜单与经营统计分析。",
   },
   system: {
     title: "系统设置",
-    description: "账号权限、角色菜单、通知规则与基础配置。",
+    description: "账号权限、角色配置与消息规则。",
   },
 };
+
+export const pageMeta: Record<string, { title: string; summary: string; shortTitle?: string }> = {
+  "analytics/data-board": {
+    title: "数据看板",
+    shortTitle: "数据分析",
+    summary: "查看业务趋势、支付表现和服务结构。",
+  },
+  "auth/login": {
+    title: "登录页",
+    summary: "角色选择登录与后台工作台入口。",
+  },
+  "community/activity-management": {
+    title: "活动管理",
+    summary: "管理社区活动、报名审核和互动数据。",
+  },
+  "content/content-management": {
+    title: "内容管理",
+    summary: "维护首页内容、消息和运营位。",
+  },
+  "dashboard/overview": {
+    title: "首页",
+    shortTitle: "工作台",
+    summary: "首页工作台、统计卡、标签分布与趋势排行榜。",
+  },
+  "dashboard/session": {
+    title: "会话",
+    shortTitle: "工作台",
+    summary: "查看客服会话、聊天记录和客户订单资料。",
+  },
+  "dashboard/order-list": {
+    title: "全部订单",
+    shortTitle: "工作台",
+    summary: "查看订单筛选、状态分组和订单操作信息。",
+  },
+  "dashboard/work-order": {
+    title: "工单管理",
+    shortTitle: "工作台",
+    summary: "查看服务工单、派单时间和服务人员安排。",
+  },
+  "dashboard/review-management": {
+    title: "审核管理",
+    shortTitle: "工作台",
+    summary: "查看审核状态、申请时间和审核处理信息。",
+  },
+  "dashboard/review-detail": {
+    title: "审核详情",
+    shortTitle: "工作台",
+    summary: "查看服务人员审核资料、实名信息与审核处理动作。",
+  },
+  "dashboard/after-sale": {
+    title: "售后管理",
+    shortTitle: "工作台",
+    summary: "查看退款金额、售后状态和售后处理信息。",
+  },
+  "device/device-monitor": {
+    title: "设备监控",
+    summary: "查看设备在线、巡检任务和结算信息。",
+  },
+  "elder/member-list": {
+    title: "全部用户",
+    summary: "查看用户列表、档案标签和服务信息。",
+  },
+  "elder/report-management": {
+    title: "报告管理",
+    summary: "管理体检报告、上传来源和关联工单信息。",
+  },
+  "health/alert-center": {
+    title: "健康预警",
+    summary: "查看健康标签、异常提醒和跟踪记录。",
+  },
+  "service/staff-management": {
+    title: "服务人员管理",
+    summary: "管理服务人员列表、标签、加入方式和启用状态。",
+  },
+  "service/order-dispatch": {
+    title: "订单管理",
+    summary: "管理支付订单、服务工单与上门安排。",
+  },
+  "staff/caregiver-roster": {
+    title: "人员管理",
+    summary: "管理服务人员、排班信息与绩效排行。",
+  },
+  "system/account-settings": {
+    title: "账号设置",
+    summary: "维护账号资料、角色权限与系统偏好。",
+  },
+  "system/reset-password": {
+    title: "重置密码",
+    summary: "修改旧密码并设置新的登录密码。",
+  },
+};
+
+export const railGroupOrder = [
+  "dashboard",
+  "elder",
+  "service",
+  "health",
+  "device",
+  "analytics",
+  "system",
+] as const;

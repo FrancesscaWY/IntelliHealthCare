@@ -65,6 +65,84 @@
     "legacySources": []
   },
   {
+    "id": "dashboard/session",
+    "title": "会话",
+    "group": "dashboard",
+    "route": "/dashboard/session",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "客服会话、聊天记录与客户资料查看。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/session",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/session/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/session/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/order-list",
+    "title": "全部订单",
+    "group": "dashboard",
+    "route": "/dashboard/order-list",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "订单筛选、状态查看与批量操作。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/order-list",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/order-list/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/order-list/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/work-order",
+    "title": "工单管理",
+    "group": "dashboard",
+    "route": "/dashboard/work-order",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "服务工单筛选、状态查看和操作管理。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/work-order",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/work-order/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/work-order/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/review-management",
+    "title": "审核管理",
+    "group": "dashboard",
+    "route": "/dashboard/review-management",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "审核筛选、状态查看和批量操作。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/review-management",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/review-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/review-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/review-detail",
+    "title": "审核详情",
+    "group": "dashboard",
+    "route": "/dashboard/review-detail",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "查看服务人员审核资料、实名信息与审核处理动作。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/review-detail",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/review-detail/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/review-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/after-sale",
+    "title": "售后管理",
+    "group": "dashboard",
+    "route": "/dashboard/after-sale",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "售后筛选、状态查看和详情处理。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/after-sale",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/after-sale/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/after-sale/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "device/device-monitor",
     "title": "设备监控",
     "group": "device",
@@ -91,6 +169,19 @@
     "legacySources": []
   },
   {
+    "id": "elder/report-management",
+    "title": "报告管理",
+    "group": "elder",
+    "route": "/elder/report-management",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "管理体检报告、上传来源和关联工单信息。",
+    "folderPath": "/apps/admin-web/src/pages/elder/report-management",
+    "modulePath": "/apps/admin-web/src/pages/elder/report-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/elder/report-management/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/alert-center",
     "title": "健康预警",
     "group": "health",
@@ -101,6 +192,19 @@
     "folderPath": "/apps/admin-web/src/pages/health/alert-center",
     "modulePath": "/apps/admin-web/src/pages/health/alert-center/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/health/alert-center/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/staff-management",
+    "title": "服务人员管理",
+    "group": "service",
+    "route": "/service/staff-management",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "管理服务人员筛选、标签、负责区域与启用状态。",
+    "folderPath": "/apps/admin-web/src/pages/service/staff-management",
+    "modulePath": "/apps/admin-web/src/pages/service/staff-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/service/staff-management/mock.ts",
     "legacySources": []
   },
   {
@@ -140,6 +244,19 @@
     "folderPath": "/apps/admin-web/src/pages/system/account-settings",
     "modulePath": "/apps/admin-web/src/pages/system/account-settings/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/system/account-settings/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "system/reset-password",
+    "title": "重置密码",
+    "group": "system",
+    "route": "/system/reset-password",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "修改旧密码并设置新的登录密码。",
+    "folderPath": "/apps/admin-web/src/pages/system/reset-password",
+    "modulePath": "/apps/admin-web/src/pages/system/reset-password/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/system/reset-password/mock.ts",
     "legacySources": []
   }
 ]
