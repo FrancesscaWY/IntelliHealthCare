@@ -101,8 +101,6 @@ apps/
   admin-web/                后台端网页工作区
 packages/
   page-core/                页面类型与运行时工具
-legacy/
-  miniprogram-user/         APP 端历史小程序参考代码
 scripts/
   *.mjs                     开发、构建、校验、脚手架脚本
 docs/
@@ -139,6 +137,8 @@ apps/admin-web/src/app/pages.manifest.json
 ## 参考资料
 
 - [架构说明](./docs/architecture.md)
+- [后端架构说明](./docs/backend-architecture.md)
+- [Hermes 多智能体框架实施路径](./docs/hermes-multi-agent-implementation.md)
 - [成员开发手册](./docs/member-development-manual.md)
 - [后台端开发手册](./docs/admin-development-manual.md)
 - [Codex 协作说明](./docs/codex-workflow.md)

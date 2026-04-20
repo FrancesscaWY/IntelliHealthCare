@@ -29,7 +29,6 @@ const prompt = [
   `2. 页面必须支持 ${pageCommand} -- --page <page-id> 的单页调试。`,
   "3. mock.ts 需要保留可独立预览的数据，不要把调试数据散落到全局。",
   "4. 页面还未接 API 时，优先完成稳定的静态结构和本地交互。",
-  "5. 如果参考 legacy/miniprogram-user，请把它当成视觉和业务原型，不要反向污染新骨架。",
   "",
   "当前页面信息：",
   JSON.stringify(pageEntry, null, 2),

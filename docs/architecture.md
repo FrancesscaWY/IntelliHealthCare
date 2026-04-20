@@ -18,8 +18,6 @@ apps/
   admin-web/                后台端网页工作区
 packages/
   page-core/                页面类型与运行时工具
-legacy/
-  miniprogram-user/         APP 端历史参考代码
 scripts/
   *.mjs                     开发、构建、校验、脚手架脚本
 docs/
@@ -38,7 +36,6 @@ apps/user-web/
 
 - 面向长者与家属的业务页面工作区
 - 保留移动端页面壳与轻量导航模型
-- 可参考 `legacy/miniprogram-user/` 的历史原型代码
 
 ### 后台端
 
