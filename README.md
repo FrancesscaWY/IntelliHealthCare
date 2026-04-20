@@ -1,16 +1,16 @@
 # IntelliHealthCare
 
-IntelliHealthCare 当前采用 Monorepo 结构，统一维护两个前端工作区：
+IntelliHealthCare 当前采用全栈 Monorepo 结构，统一维护三个应用工作区：
 
 - `apps/user-web`：面向长者与家属的 APP 端网页工作区
 - `apps/admin-web`：面向运营、护理和机构管理团队的后台端网页工作区
+- `apps/backend`：面向用户端、后台端和后续 Agent 能力的统一后端服务
 
-两个工作区保持一致的技术栈与开发范式：
+前后端目前的工程基线如下：
 
-- `Vue 3`
-- `TypeScript`
-- `Vite`
-- 页面清单驱动的整站/单页预览模式
+- 前端：`Vue 3` + `TypeScript` + `Vite`
+- 后端：`NestJS` + `TypeScript` + `Prisma`
+- 仓库维度统一使用 `npm workspaces`
 
 ## 环境要求
 
@@ -51,9 +51,15 @@ npm run dev:admin
 npm run dev:admin:page -- --page auth/login
 ```
 
+后端开发：
+
+```bash
+npm run dev:backend
+```
+
 ## 常用命令
 
-校验整个工作区：
+校验整个工作区（用户端、后台端、后端）：
 
 ```bash
 npm run check
@@ -64,9 +70,10 @@ npm run check
 ```bash
 npm run check:user
 npm run check:admin
+npm run check:backend
 ```
 
-构建全部前端：
+构建整个工作区（用户端、后台端、后端）：
 
 ```bash
 npm run build
@@ -77,6 +84,7 @@ npm run build
 ```bash
 npm run build:user
 npm run build:admin
+npm run build:backend
 ```
 
 创建新页面骨架：
@@ -99,6 +107,7 @@ npm run prompt:admin-page -- --page dashboard/overview
 apps/
   user-web/                 APP 端网页工作区
   admin-web/                后台端网页工作区
+  backend/                  统一后端服务
 packages/
   page-core/                页面类型与运行时工具
 scripts/

@@ -21,18 +21,46 @@ enum UserStatus {
   PENDING
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum RealNameStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 enum DeviceType {
   BLOOD_PRESSURE_METER
   GLUCOSE_METER
   WATCH
   THERMOMETER
   OXIMETER
+  SMART_SCALE
+  BED_SENSOR
 }
 
 enum DeviceStatus {
   ONLINE
   OFFLINE
   UNBOUND
+  MAINTENANCE
+}
+
+enum MetricType {
+  STEPS
+  HEART_RATE
+  SLEEP
+  WEIGHT
+  BLOOD_GLUCOSE
+  BLOOD_PRESSURE
+  OXYGEN
+  STRESS
+  TEMPERATURE
 }
 
 enum ServiceCategory {
@@ -43,12 +71,15 @@ enum ServiceCategory {
 }
 
 enum OrderStatus {
+  PENDING_PAYMENT
   PENDING_CONFIRMATION
   DISPATCHING
+  WAITING_ASSESSMENT
   SCHEDULED
   IN_SERVICE
   COMPLETED
   AFTER_SALE
+  REFUNDED
   CANCELLED
 }
 
@@ -62,11 +93,56 @@ enum WorkOrderStatus {
   CLOSED
 }
 
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CLOSED
+}
+
+enum PaymentChannel {
+  WECHAT
+  ALIPAY
+  BALANCE
+  OFFLINE
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+enum AfterSaleType {
+  REFUND
+  COMPLAINT
+  RESCHEDULE
+  OTHER
+}
+
+enum AfterSaleStatus {
+  SUBMITTED
+  PROCESSING
+  RESOLVED
+  REJECTED
+  CLOSED
+}
+
 enum ReportType {
   CHECKUP
   SERVICE
   REHAB
   ASSESSMENT
+}
+
+enum ReportStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  ARCHIVED
 }
 
 enum ConversationScene {
@@ -76,6 +152,13 @@ enum ConversationScene {
   AFTER_SALE
 }
 
+enum MessageContentType {
+  TEXT
+  IMAGE
+  AUDIO
+  SYSTEM
+}
+
 enum AgentTaskStatus {
   PENDING
   RUNNING
@@ -83,27 +166,231 @@ enum AgentTaskStatus {
   FAILED
 }
 
+enum NotificationType {
+  SYSTEM
+  HEALTH_ALERT
+  ORDER
+  CONTENT
+  COMMUNITY
+  COMMENT
+  LIKE
+  FOLLOW
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CommunityPostStatus {
+  PUBLISHED
+  HIDDEN
+  DELETED
+}
+
+enum ActivityStatus {
+  UPCOMING
+  ONGOING
+  ENDED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CANCELLED
+  CHECKED_IN
+  WAITLIST
+}
+
+enum CouponStatus {
+  UNUSED
+  USED
+  EXPIRED
+}
+
+enum PointChangeType {
+  INCOME
+  EXPENSE
+}
+
+enum FileCategory {
+  REPORT
+  AVATAR
+  POST_IMAGE
+  CHAT_IMAGE
+  CHAT_AUDIO
+  CONTENT_COVER
+  ACTIVITY_BANNER
+}
+
+enum StaffRole {
+  CAREGIVER
+  DOCTOR
+  THERAPIST
+  NURSE
+  CUSTOMER_SERVICE
+  OPERATOR
+}
+
+enum StaffStatus {
+  ACTIVE
+  OFF_DUTY
+  LEAVE
+  DISABLED
+}
+
+enum ShiftStatus {
+  SCHEDULED
+  ON_DUTY
+  COMPLETED
+  CANCELLED
+}
+
+enum AlertLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  CLOSED
+}
+
+enum MedicationDoseStatus {
+  SCHEDULED
+  TAKEN
+  MISSED
+  SKIPPED
+}
+
+enum DietMealType {
+  BREAKFAST
+  LUNCH
+  SNACK
+  DINNER
+}
+
+enum AssessmentLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum InstitutionType {
+  NURSING_HOME
+  CLINIC
+  REHAB_CENTER
+  SERVICE_PROVIDER
+  COMMUNITY_CENTER
+}
+
+enum InstitutionStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum DiscountType {
+  CASH
+  DISCOUNT
+}
+
+enum SearchTargetType {
+  SERVICE
+  ARTICLE
+  LECTURE
+  DISEASE
+  ACTIVITY
+}
+
+enum FootprintTargetType {
+  SERVICE
+  ARTICLE
+  LECTURE
+  DISEASE
+  ACTIVITY
+}
+
+enum ReactionType {
+  LIKE
+  FAVORITE
+  SHARE
+}
+
+enum ContentTargetType {
+  ARTICLE
+  LECTURE
+  DISEASE
+}
+
+enum ContentActionType {
+  LIKE
+  FAVORITE
+  SHARE
+  VIEW
+}
+
 model User {
-  id               String                    @id @default(cuid())
-  phone            String                    @unique
-  nickname         String?
-  passwordHash     String?
-  type             UserType
-  status           UserStatus                @default(ACTIVE)
-  realName         String?
-  avatarUrl        String?
-  lastLoginAt      DateTime?
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
-  roles            UserRole[]
-  ownedOrders      Order[]                   @relation("OrderOwner")
-  familyBindings   FamilyBinding[]           @relation("FamilyMember")
-  elderBindings    FamilyBinding[]           @relation("ElderMember")
-  archive          HealthArchive?
-  devices          Device[]
-  participants     ConversationParticipant[]
-  sentMessages     ConversationMessage[]     @relation("MessageSender")
-  agentTasks       AgentTask[]               @relation("TaskOwner")
+  id                     String                    @id @default(cuid())
+  phone                  String                    @unique
+  nickname               String?
+  passwordHash           String?
+  type                   UserType
+  status                 UserStatus                @default(ACTIVE)
+  realName               String?
+  avatarUrl              String?
+  gender                 Gender                    @default(UNKNOWN)
+  birthday               DateTime?
+  idCard                 String?                   @unique
+  city                   String?
+  realNameStatus         RealNameStatus            @default(UNVERIFIED)
+  lastLoginAt            DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  roles                  UserRole[]
+  ownedOrders            Order[]                   @relation("OrderOwner")
+  elderOrders            Order[]                   @relation("OrderElder")
+  familyBindings         FamilyBinding[]           @relation("FamilyMember")
+  elderBindings          FamilyBinding[]           @relation("ElderMember")
+  archive                HealthArchive?
+  devices                Device[]
+  metricRecords          HealthMetricRecord[]
+  healthAlerts           HealthAlert[]             @relation("AlertOwner")
+  medications            Medication[]
+  medicationLogs         MedicationDoseLog[]       @relation("DoseOwner")
+  dietRecords            DietRecord[]
+  selfTestAttempts       SelfTestAttempt[]
+  participants           ConversationParticipant[]
+  sentMessages           ConversationMessage[]     @relation("MessageSender")
+  agentTasks             AgentTask[]               @relation("TaskOwner")
+  addresses              Address[]                 @relation("AddressOwner")
+  elderAddresses         Address[]                 @relation("AddressElder")
+  searchHistories        SearchHistory[]
+  footprints             UserFootprint[]
+  pointLedgers           UserPointLedger[]
+  coupons                UserCoupon[]
+  notificationRecipients NotificationRecipient[]
+  notificationsSent      Notification[]            @relation("NotificationSender")
+  communityPosts         CommunityPost[]
+  communityComments      CommunityComment[]
+  communityReactions     CommunityPostReaction[]
+  activityRegistrations  ActivityRegistration[]
+  reviews                OrderReview[]
+  afterSaleRequests      AfterSaleRequest[]
+  paymentOrders          PaymentOrder[]            @relation("PaymentPayer")
+  refundRequests         RefundOrder[]             @relation("RefundRequester")
+  managedInstitutions    Institution[]             @relation("InstitutionManager")
+  staffProfile           Staff?
+  uploadedFiles          FileAsset[]               @relation("FileUploader")
+  dispatchWorkOrders     WorkOrder[]               @relation("WorkOrderDispatcher")
+  following              UserFollow[]              @relation("FollowFollower")
+  followers              UserFollow[]              @relation("FollowFollowee")
+  contentInteractions    ContentInteraction[]
 }
 
 model Role {
@@ -141,97 +428,495 @@ model FamilyBinding {
   @@unique([familyMemberId, elderMemberId])
 }
 
+model Address {
+  id            String   @id @default(cuid())
+  ownerId       String
+  elderId       String?
+  label         String?
+  receiverName  String
+  receiverPhone String
+  province      String
+  city          String
+  district      String
+  street        String?
+  detailAddress String
+  longitude     Decimal? @db.Decimal(10, 6)
+  latitude      Decimal? @db.Decimal(10, 6)
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  owner         User     @relation("AddressOwner", fields: [ownerId], references: [id])
+  elder         User?    @relation("AddressElder", fields: [elderId], references: [id])
+  orders        Order[]
+
+  @@index([ownerId, isDefault])
+}
+
 model HealthArchive {
-  id             String   @id @default(cuid())
-  userId         String   @unique
+  id             String        @id @default(cuid())
+  userId         String        @unique
   baseProfile    Json
   medicalHistory Json
   riskTags       Json
   longTermMemory Json
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  user           User     @relation(fields: [userId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id])
   reports        Report[]
+  alerts         HealthAlert[]
 }
 
 model Device {
-  id            String       @id @default(cuid())
-  serialNo      String       @unique
+  id            String               @id @default(cuid())
+  serialNo      String               @unique
   ownerId       String
+  institutionId String?
   type          DeviceType
-  status        DeviceStatus @default(OFFLINE)
+  status        DeviceStatus         @default(OFFLINE)
   nickname      String?
+  batteryLevel  Int?
+  locationLabel String?
+  settings      Json?
   latestPayload Json?
   lastSyncedAt  DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  owner         User                 @relation(fields: [ownerId], references: [id])
+  institution   Institution?         @relation(fields: [institutionId], references: [id])
+  metricRecords HealthMetricRecord[]
+}
+
+model HealthMetricRecord {
+  id         String        @id @default(cuid())
+  userId     String
+  deviceId   String?
+  metricType MetricType
+  value      Decimal?      @db.Decimal(10, 2)
+  unit       String?
+  payload    Json?
+  source     String        @default("manual")
+  note       String?
+  abnormal   Boolean       @default(false)
+  measuredAt DateTime
+  createdAt  DateTime      @default(now())
+  user       User          @relation(fields: [userId], references: [id])
+  device     Device?       @relation(fields: [deviceId], references: [id])
+  alerts     HealthAlert[]
+
+  @@index([userId, metricType, measuredAt])
+}
+
+model HealthAlert {
+  id               String              @id @default(cuid())
+  userId           String
+  archiveId        String?
+  metricRecordId   String?
+  handledByStaffId String?
+  level            AlertLevel
+  status           AlertStatus         @default(OPEN)
+  sourceType       String
+  title            String
+  summary          String
+  suggestion       Json?
+  triggeredAt      DateTime            @default(now())
+  handledAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  owner            User                @relation("AlertOwner", fields: [userId], references: [id])
+  archive          HealthArchive?      @relation(fields: [archiveId], references: [id])
+  metricRecord     HealthMetricRecord? @relation(fields: [metricRecordId], references: [id])
+  handler          Staff?              @relation("AlertHandler", fields: [handledByStaffId], references: [id])
+
+  @@index([userId, status, level])
+}
+
+model Medication {
+  id            String              @id @default(cuid())
+  userId        String
+  name          String
+  dosage        String
+  frequency     String
+  mealTiming    String?
+  route         String?
+  indication    String?
+  scheduleTimes Json?
+  startDate     DateTime
+  endDate       DateTime?
+  active        Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  user          User                @relation(fields: [userId], references: [id])
+  logs          MedicationDoseLog[]
+}
+
+model MedicationDoseLog {
+  id           String               @id @default(cuid())
+  medicationId String
+  userId       String
+  scheduledAt  DateTime
+  takenAt      DateTime?
+  status       MedicationDoseStatus @default(SCHEDULED)
+  note         String?
+  createdAt    DateTime             @default(now())
+  medication   Medication           @relation(fields: [medicationId], references: [id])
+  user         User                 @relation("DoseOwner", fields: [userId], references: [id])
+
+  @@index([userId, scheduledAt])
+}
+
+model DietRecipe {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  title       String
+  summary     String?
+  mealType    DietMealType
+  calories    Int
+  tags        Json?
+  ingredients Json
+  steps       Json
+  coverUrl    String?
+  suitableFor Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  records     DietRecord[]
+}
+
+model DietRecord {
+  id            String       @id @default(cuid())
+  userId        String
+  recipeId      String?
+  mealType      DietMealType
+  foods         Json
+  totalCalories Int
+  macros        Json?
+  note          String?
+  eatenAt       DateTime
   createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  owner         User         @relation(fields: [ownerId], references: [id])
+  user          User         @relation(fields: [userId], references: [id])
+  recipe        DietRecipe?  @relation(fields: [recipeId], references: [id])
+
+  @@index([userId, eatenAt])
+}
+
+model SelfTestProject {
+  id            String             @id @default(cuid())
+  code          String             @unique
+  title         String
+  category      String
+  intro         String
+  accentColor   String
+  measuredCount Int                @default(0)
+  resultAdvice  Json
+  enabled       Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  questions     SelfTestQuestion[]
+  attempts      SelfTestAttempt[]
+}
+
+model SelfTestQuestion {
+  id        String          @id @default(cuid())
+  projectId String
+  sortOrder Int
+  text      String
+  helper    String?
+  options   Json
+  createdAt DateTime        @default(now())
+  project   SelfTestProject @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, sortOrder])
+}
+
+model SelfTestAttempt {
+  id          String          @id @default(cuid())
+  projectId   String
+  userId      String
+  totalScore  Int
+  level       AssessmentLevel
+  answers     Json
+  summary     String
+  completedAt DateTime
+  createdAt   DateTime        @default(now())
+  project     SelfTestProject @relation(fields: [projectId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, completedAt])
+}
+
+model Institution {
+  id            String            @id @default(cuid())
+  code          String            @unique
+  name          String
+  type          InstitutionType
+  status        InstitutionStatus @default(ACTIVE)
+  managerUserId String?
+  phone         String?
+  city          String
+  district      String?
+  address       String
+  latitude      Decimal?          @db.Decimal(10, 6)
+  longitude     Decimal?          @db.Decimal(10, 6)
+  rating        Decimal?          @db.Decimal(3, 2)
+  bedCount      Int?
+  intro         String?
+  tags          Json?
+  serviceScope  Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  manager       User?             @relation("InstitutionManager", fields: [managerUserId], references: [id])
+  services      ServiceItem[]
+  staffMembers  Staff[]
+  workOrders    WorkOrder[]
+  devices       Device[]
+  activities    Activity[]        @relation("ActivityOrganizer")
+}
+
+model Staff {
+  id                 String          @id @default(cuid())
+  userId             String?         @unique
+  institutionId      String
+  staffNo            String          @unique
+  name               String
+  role               StaffRole
+  title              String?
+  phone              String
+  avatarUrl          String?
+  employmentStatus   StaffStatus     @default(ACTIVE)
+  rating             Decimal?        @db.Decimal(3, 2)
+  serviceRadiusKm    Int?
+  expertise          Json?
+  certifications     Json?
+  hireDate           DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  user               User?           @relation(fields: [userId], references: [id])
+  institution        Institution     @relation(fields: [institutionId], references: [id])
+  schedules          StaffSchedule[]
+  assignedWorkOrders WorkOrder[]     @relation("WorkOrderAssignee")
+  handledAlerts      HealthAlert[]   @relation("AlertHandler")
+  authoredReports    Report[]        @relation("ReportAuthor")
+}
+
+model StaffSchedule {
+  id            String      @id @default(cuid())
+  staffId       String
+  shiftDate     DateTime
+  startAt       DateTime
+  endAt         DateTime
+  status        ShiftStatus @default(SCHEDULED)
+  capacity      Int         @default(0)
+  assignedCount Int         @default(0)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  staff         Staff       @relation(fields: [staffId], references: [id])
+  workOrders    WorkOrder[]
+
+  @@index([staffId, shiftDate])
 }
 
 model ServiceItem {
-  id          String          @id @default(cuid())
-  code        String          @unique
-  category    ServiceCategory
-  title       String
-  summary     String?
-  price       Decimal         @db.Decimal(10, 2)
-  marketPrice Decimal?        @db.Decimal(10, 2)
-  regionScope Json?
-  ragSnippet  Json?
-  enabled     Boolean         @default(true)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  orders      Order[]
+  id              String          @id @default(cuid())
+  institutionId   String?
+  code            String          @unique
+  category        ServiceCategory
+  title           String
+  summary         String?
+  price           Decimal         @db.Decimal(10, 2)
+  marketPrice     Decimal?        @db.Decimal(10, 2)
+  durationMinutes Int?
+  rating          Decimal?        @db.Decimal(3, 2)
+  salesVolume     Int             @default(0)
+  coverUrl        String?
+  tags            Json?
+  regionScope     Json?
+  serviceContent  Json?
+  ragSnippet      Json?
+  enabled         Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  institution     Institution?    @relation(fields: [institutionId], references: [id])
+  orders          Order[]
 }
 
 model Order {
-  id                    String      @id @default(cuid())
-  orderNo               String      @unique
+  id                    String             @id @default(cuid())
+  orderNo               String             @unique
   ownerId               String
+  elderId               String?
   serviceId             String
-  status                OrderStatus @default(PENDING_CONFIRMATION)
-  source                String      @default("app")
+  addressId             String?
+  couponId              String?
+  status                OrderStatus        @default(PENDING_PAYMENT)
+  source                String             @default("app")
   bookingDate           DateTime?
   bookingTimeSlot       String?
-  urgencyLevel          Int         @default(0)
+  urgencyLevel          Int                @default(0)
+  remark                String?
+  originalAmount        Decimal            @db.Decimal(10, 2)
+  discountAmount        Decimal            @default(0) @db.Decimal(10, 2)
+  payableAmount         Decimal            @db.Decimal(10, 2)
+  actualAmount          Decimal?           @db.Decimal(10, 2)
   addressSnapshot       Json
   contactSnapshot       Json
   healthSummarySnapshot Json?
   aiSummary             Json?
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
-  owner                 User        @relation("OrderOwner", fields: [ownerId], references: [id])
-  service               ServiceItem @relation(fields: [serviceId], references: [id])
+  paidAt                DateTime?
+  cancelledAt           DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  owner                 User               @relation("OrderOwner", fields: [ownerId], references: [id])
+  elder                 User?              @relation("OrderElder", fields: [elderId], references: [id])
+  service               ServiceItem        @relation(fields: [serviceId], references: [id])
+  address               Address?           @relation(fields: [addressId], references: [id])
+  coupon                UserCoupon?        @relation(fields: [couponId], references: [id])
   workOrders            WorkOrder[]
   reports               Report[]
+  payments              PaymentOrder[]
+  afterSales            AfterSaleRequest[]
+  reviews               OrderReview[]
+  timeline              OrderTimeline[]
+
+  @@index([ownerId, status])
+}
+
+model OrderTimeline {
+  id           String       @id @default(cuid())
+  orderId      String
+  status       OrderStatus?
+  title        String
+  description  String?
+  operatorName String?
+  createdAt    DateTime     @default(now())
+  order        Order        @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, createdAt])
 }
 
 model WorkOrder {
-  id                     String          @id @default(cuid())
-  orderId                String
-  status                 WorkOrderStatus @default(PENDING)
-  institutionName        String?
-  assigneeName           String?
-  scheduleAt             DateTime?
+  id                      String          @id @default(cuid())
+  orderId                 String
+  institutionId           String?
+  assigneeStaffId         String?
+  scheduleId              String?
+  dispatcherId            String?
+  status                  WorkOrderStatus @default(PENDING)
+  institutionName         String?
+  assigneeName            String?
+  scheduleAt              DateTime?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  dispatchNote            String?
   agentDispatchSuggestion Json?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  order                  Order           @relation(fields: [orderId], references: [id])
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  order                   Order           @relation(fields: [orderId], references: [id])
+  institution             Institution?    @relation(fields: [institutionId], references: [id])
+  assignee                Staff?          @relation("WorkOrderAssignee", fields: [assigneeStaffId], references: [id])
+  schedule                StaffSchedule?  @relation(fields: [scheduleId], references: [id])
+  dispatcher              User?           @relation("WorkOrderDispatcher", fields: [dispatcherId], references: [id])
+}
+
+model PaymentOrder {
+  id            String         @id @default(cuid())
+  paymentNo     String         @unique
+  orderId       String
+  payerId       String
+  channel       PaymentChannel
+  status        PaymentStatus  @default(PENDING)
+  amount        Decimal        @db.Decimal(10, 2)
+  transactionNo String?
+  failureReason String?
+  paidAt        DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  order         Order          @relation(fields: [orderId], references: [id])
+  payer         User           @relation("PaymentPayer", fields: [payerId], references: [id])
+  refunds       RefundOrder[]
+
+  @@index([orderId, status])
+}
+
+model RefundOrder {
+  id          String       @id @default(cuid())
+  refundNo    String       @unique
+  paymentId   String
+  requesterId String
+  status      RefundStatus @default(PENDING)
+  reason      String
+  amount      Decimal      @db.Decimal(10, 2)
+  processedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  payment     PaymentOrder @relation(fields: [paymentId], references: [id])
+  requester   User         @relation("RefundRequester", fields: [requesterId], references: [id])
+}
+
+model AfterSaleRequest {
+  id              String          @id @default(cuid())
+  orderId         String
+  userId          String
+  type            AfterSaleType
+  status          AfterSaleStatus @default(SUBMITTED)
+  reason          String
+  description     String?
+  amountRequested Decimal?        @db.Decimal(10, 2)
+  attachments     Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  resolvedAt      DateTime?
+  order           Order           @relation(fields: [orderId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
+
+  @@index([orderId, status])
+}
+
+model OrderReview {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  userId    String
+  score     Int
+  tags      Json?
+  content   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Report {
-  id         String     @id @default(cuid())
-  orderId    String?
-  archiveId  String?
-  type       ReportType
-  title      String
-  summary    Json
-  attachment Json?
-  reviewedAt DateTime?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  order      Order?     @relation(fields: [orderId], references: [id])
-  archive    HealthArchive? @relation(fields: [archiveId], references: [id])
+  id            String         @id @default(cuid())
+  orderId       String?
+  archiveId     String?
+  authorStaffId String?
+  type          ReportType
+  status        ReportStatus   @default(PUBLISHED)
+  title         String
+  summary       Json
+  attachment    Json?
+  reviewedAt    DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  order         Order?         @relation(fields: [orderId], references: [id])
+  archive       HealthArchive? @relation(fields: [archiveId], references: [id])
+  author        Staff?         @relation("ReportAuthor", fields: [authorStaffId], references: [id])
+}
+
+model FileAsset {
+  id         String       @id @default(cuid())
+  uploaderId String?
+  category   FileCategory
+  fileName   String
+  objectKey  String       @unique
+  mimeType   String
+  size       Int
+  bucket     String
+  url        String?
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+  uploader   User?        @relation("FileUploader", fields: [uploaderId], references: [id])
 }
 
 model Conversation {
@@ -259,14 +944,298 @@ model ConversationParticipant {
 }
 
 model ConversationMessage {
-  id             String       @id @default(cuid())
+  id             String             @id @default(cuid())
   conversationId String
   senderId       String?
-  contentType    String
+  contentType    MessageContentType
   content        Json
+  createdAt      DateTime           @default(now())
+  conversation   Conversation       @relation(fields: [conversationId], references: [id])
+  sender         User?              @relation("MessageSender", fields: [senderId], references: [id])
+}
+
+model Notification {
+  id         String                  @id @default(cuid())
+  senderId   String?
+  type       NotificationType
+  title      String
+  content    String
+  metadata   Json?
+  createdAt  DateTime                @default(now())
+  sender     User?                   @relation("NotificationSender", fields: [senderId], references: [id])
+  recipients NotificationRecipient[]
+}
+
+model NotificationRecipient {
+  notificationId String
+  userId         String
+  isRead         Boolean      @default(false)
+  readAt         DateTime?
   createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  sender         User?        @relation("MessageSender", fields: [senderId], references: [id])
+  notification   Notification @relation(fields: [notificationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@id([notificationId, userId])
+  @@index([userId, isRead])
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  summary     String
+  coverUrl    String?
+  authorName  String?
+  sourceName  String?
+  status      ContentStatus @default(PUBLISHED)
+  sortOrder   Int           @default(0)
+  content     Json
+  tags        Json?
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Lecture {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  summary         String
+  speakerName     String?
+  speakerTitle    String?
+  coverUrl        String?
+  videoUrl        String?
+  durationMinutes Int?
+  status          ContentStatus @default(PUBLISHED)
+  content         Json
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model DiseaseDepartment {
+  id        String             @id @default(cuid())
+  code      String             @unique
+  name      String
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  diseases  DiseaseKnowledge[]
+}
+
+model DiseaseKnowledge {
+  id           String            @id @default(cuid())
+  slug         String            @unique
+  departmentId String
+  title        String
+  summary      String
+  symptoms     Json
+  causes       Json
+  preventions  Json
+  treatments   Json
+  status       ContentStatus     @default(PUBLISHED)
+  publishedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  department   DiseaseDepartment @relation(fields: [departmentId], references: [id])
+}
+
+model CommunityTopic {
+  id               String          @id @default(cuid())
+  title            String
+  coverUrl         String?
+  participantCount Int             @default(0)
+  tone             String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  posts            CommunityPost[]
+}
+
+model CommunityPost {
+  id             String                  @id @default(cuid())
+  authorId       String
+  topicId        String?
+  status         CommunityPostStatus     @default(PUBLISHED)
+  content        String
+  images         Json?
+  tagLabel       String?
+  likesCount     Int                     @default(0)
+  favoritesCount Int                     @default(0)
+  commentsCount  Int                     @default(0)
+  sharesCount    Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  author         User                    @relation(fields: [authorId], references: [id])
+  topic          CommunityTopic?         @relation(fields: [topicId], references: [id])
+  comments       CommunityComment[]
+  reactions      CommunityPostReaction[]
+}
+
+model CommunityComment {
+  id        String             @id @default(cuid())
+  postId    String
+  userId    String
+  parentId  String?
+  content   String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  post      CommunityPost      @relation(fields: [postId], references: [id])
+  user      User               @relation(fields: [userId], references: [id])
+  parent    CommunityComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   CommunityComment[] @relation("CommentReplies")
+}
+
+model CommunityPostReaction {
+  postId       String
+  userId       String
+  reactionType ReactionType
+  createdAt    DateTime      @default(now())
+  post         CommunityPost @relation(fields: [postId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@id([postId, userId, reactionType])
+}
+
+model Activity {
+  id                     String                 @id @default(cuid())
+  organizerInstitutionId String?
+  title                  String
+  category               String
+  status                 ActivityStatus         @default(UPCOMING)
+  fee                    Decimal?               @db.Decimal(10, 2)
+  location               String
+  coverUrl               String?
+  startAt                DateTime
+  endAt                  DateTime
+  signupDeadline         DateTime
+  maxParticipants        Int?
+  detailContent          Json
+  likesCount             Int                    @default(0)
+  favoritesCount         Int                    @default(0)
+  commentsCount          Int                    @default(0)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  organizerInstitution   Institution?           @relation("ActivityOrganizer", fields: [organizerInstitutionId], references: [id])
+  registrations          ActivityRegistration[]
+}
+
+model ActivityRegistration {
+  id                 String             @id @default(cuid())
+  activityId         String
+  userId             String
+  status             RegistrationStatus @default(REGISTERED)
+  registeredAt       DateTime           @default(now())
+  checkedInAt        DateTime?
+  cancellationReason String?
+  activity           Activity           @relation(fields: [activityId], references: [id])
+  user               User               @relation(fields: [userId], references: [id])
+
+  @@unique([activityId, userId])
+}
+
+model SearchHistory {
+  id         String            @id @default(cuid())
+  userId     String
+  keyword    String
+  targetType SearchTargetType?
+  createdAt  DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model HotSearchKeyword {
+  id        String   @id @default(cuid())
+  keyword   String   @unique
+  rank      Int
+  hotScore  Int
+  scene     String?  @default("app")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserFootprint {
+  id         String              @id @default(cuid())
+  userId     String
+  targetType FootprintTargetType
+  targetId   String
+  title      String
+  coverUrl   String?
+  metadata   Json?
+  viewedAt   DateTime
+  user       User                @relation(fields: [userId], references: [id])
+
+  @@index([userId, viewedAt])
+}
+
+model CouponTemplate {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  title           String
+  description     String?
+  discountType    DiscountType
+  discountValue   Decimal      @db.Decimal(10, 2)
+  minSpend        Decimal?     @db.Decimal(10, 2)
+  startAt         DateTime
+  endAt           DateTime
+  totalStock      Int
+  remainingStock  Int
+  applicableScope Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  userCoupons     UserCoupon[]
+}
+
+model UserCoupon {
+  id               String         @id @default(cuid())
+  couponTemplateId String
+  userId           String
+  status           CouponStatus   @default(UNUSED)
+  claimedAt        DateTime       @default(now())
+  usedAt           DateTime?
+  expiresAt        DateTime?
+  orderRemark      String?
+  couponTemplate   CouponTemplate @relation(fields: [couponTemplateId], references: [id])
+  user             User           @relation(fields: [userId], references: [id])
+  orders           Order[]
+
+  @@index([userId, status])
+}
+
+model UserPointLedger {
+  id             String          @id @default(cuid())
+  userId         String
+  type           PointChangeType
+  title          String
+  delta          Int
+  balanceAfter   Int
+  relatedOrderNo String?
+  createdAt      DateTime        @default(now())
+  user           User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model UserFollow {
+  followerId String
+  followeeId String
+  createdAt  DateTime @default(now())
+  follower   User     @relation("FollowFollower", fields: [followerId], references: [id])
+  followee   User     @relation("FollowFollowee", fields: [followeeId], references: [id])
+
+  @@id([followerId, followeeId])
+}
+
+model ContentInteraction {
+  id         String            @id @default(cuid())
+  userId     String
+  targetType ContentTargetType
+  targetId   String
+  actionType ContentActionType
+  createdAt  DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id])
+
+  @@index([userId, targetType, targetId])
 }
 
 model AgentTask {

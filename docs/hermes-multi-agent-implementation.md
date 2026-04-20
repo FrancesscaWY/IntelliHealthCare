@@ -4,6 +4,8 @@
 
 本文档不是在定义一个通用 AI 平台，而是在当前 IntelliHealthCare 仓库内，为 `apps/backend/src/modules/agents` 规划一套可逐步落地的多智能体编排框架。
 
+如果当前关注点是“多 Agent 框架本身需要什么能力、有哪些 Agent 类型、每个 Agent 的职责边界是什么”，应优先阅读 `docs/hermes-agent-framework-requirements.md`。本文更偏实施顺序与落地路径。
+
 结合当前仓库现状：
 
 - 后端已经采用 `NestJS + Prisma + Redis + BullMQ + MinIO`
