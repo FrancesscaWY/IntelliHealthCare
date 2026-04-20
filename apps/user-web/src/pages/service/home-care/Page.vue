@@ -1,15 +1,5 @@
 <template>
-  <div class="home-care-page">
-    <div class="status-bar">
-      <span class="time">8:30</span>
-      <div class="status-icons">
-        <span class="signal"></span>
-        <span class="wifi"></span>
-        <span class="battery"></span>
-      </div>
-    </div>
-
-    <div class="page-header">
+  <div class="home-care-page"><div class="page-header">
       <button class="back" type="button" aria-label="返回首页" @click="goBack">‹</button>
       <div class="title">家政护理</div>
     </div>
@@ -233,55 +223,11 @@ onBeforeUnmount(() => {
   margin: -18px 0;
   transform: translateX(-50%);
   background: #f5f6f8;
-  padding: 0 16px 24px;
+  padding: 16px 16px 24px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
   sans-serif;
   color: #333;
-}
-
-.status-bar {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 6px;
-  box-sizing: border-box;
-}
-
-.time {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f1f1f;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.signal,
-.wifi,
-.battery {
-  display: inline-block;
-  border-radius: 2px;
-  background: #111;
-}
-
-.signal {
-  width: 18px;
-  height: 12px;
-}
-
-.wifi {
-  width: 16px;
-  height: 12px;
-}
-
-.battery {
-  width: 24px;
-  height: 12px;
 }
 
 .page-header {

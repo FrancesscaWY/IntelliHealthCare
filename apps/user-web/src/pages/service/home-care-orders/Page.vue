@@ -235,7 +235,7 @@ function getAmountText(order: HomeCareOrder) {
   min-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
-  padding: 0 14px 28px;
+  padding: 16px 14px 28px;
   box-sizing: border-box;
   background: var(--page-bg);
   color: var(--text-1);

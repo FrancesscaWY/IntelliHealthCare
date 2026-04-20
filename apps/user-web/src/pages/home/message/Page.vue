@@ -29,6 +29,7 @@ const navIconMarkup: Record<string, string> = {
 const iconMap: Record<string, Component> = {
   system: Remind,
   health: MedicalFiles,
+  doctor: MedicalFiles,
   comment: Comment,
   user: User,
   like: Like,
@@ -61,7 +62,12 @@ function markAllRead() {
   props.showToast('已全部标记为已读')
 }
 
-function openMessage(item: { icon: string; title: string }) {
+function openMessage(item: { icon: string; title: string; pageId?: string }) {
+  if (item.pageId) {
+    props.navigation.navigateTo(item.pageId)
+    return
+  }
+
   if (item.icon === 'comment') {
     props.navigation.navigateTo('home/message-comment-detail')
     return
@@ -79,20 +85,6 @@ function openMessage(item: { icon: string; title: string }) {
 <template>
   <section class="message-page">
     <main class="message-scroll">
-      <div class="status-bar">
-        <span class="time">8:30</span>
-        <div class="status-icons">
-          <span class="signal">
-            <i></i>
-            <i></i>
-            <i></i>
-            <i></i>
-          </span>
-          <span class="wifi"></span>
-          <span class="battery"></span>
-        </div>
-      </div>
-
       <header class="message-header">
         <h1>消息</h1>
         <button type="button" @click="markAllRead">全部已读</button>
@@ -191,7 +183,7 @@ function openMessage(item: { icon: string; title: string }) {
 
 .message-scroll {
   height: 100%;
-  padding: 0 22px 104px;
+  padding: 16px 22px 104px;
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: none;
@@ -208,108 +200,6 @@ function openMessage(item: { icon: string; title: string }) {
   border: 0;
   background: transparent;
   color: inherit;
-}
-
-.status-bar {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px 0;
-  box-sizing: border-box;
-}
-
-.time {
-  color: #2e3033;
-  font-size: 18px;
-  font-weight: 500;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: #111;
-}
-
-.signal {
-  width: 22px;
-  height: 16px;
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.signal i {
-  width: 4px;
-  border-radius: 1px;
-  background: #111;
-}
-
-.signal i:nth-child(1) {
-  height: 5px;
-}
-
-.signal i:nth-child(2) {
-  height: 8px;
-}
-
-.signal i:nth-child(3) {
-  height: 12px;
-}
-
-.signal i:nth-child(4) {
-  height: 16px;
-}
-
-.wifi {
-  position: relative;
-  width: 19px;
-  height: 14px;
-  overflow: hidden;
-}
-
-.wifi::before,
-.wifi::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  border: 3px solid #111;
-  border-color: #111 transparent transparent;
-  border-radius: 50%;
-  transform: translateX(-50%);
-}
-
-.wifi::before {
-  top: 0;
-  width: 22px;
-  height: 22px;
-}
-
-.wifi::after {
-  top: 7px;
-  width: 10px;
-  height: 10px;
-}
-
-.battery {
-  position: relative;
-  width: 22px;
-  height: 12px;
-  border: 2px solid #111;
-  border-radius: 3px;
-  box-sizing: border-box;
-}
-
-.battery::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  right: -5px;
-  width: 3px;
-  height: 6px;
-  border-radius: 0 2px 2px 0;
-  background: #111;
 }
 
 .message-header {
@@ -478,12 +368,13 @@ function openMessage(item: { icon: string; title: string }) {
   right: 0;
   bottom: 0;
   left: 0;
+  z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
   height: 74px;
   padding: 9px 12px 10px;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
 }
 
@@ -496,7 +387,7 @@ function openMessage(item: { icon: string; title: string }) {
   height: 58px;
   content: "";
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   box-shadow: 0 -10px 24px rgba(102, 112, 240, 0.08);
   transform: translateX(-50%);
 }

@@ -623,7 +623,7 @@ function goToAddData() {
   display: block;
   margin: 0 0 4px;
   color: #8e8f94;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.03em;
   line-height: 1.25;
@@ -633,7 +633,7 @@ function goToAddData() {
 .latest-card-summary strong {
   display: block;
   margin-bottom: 4px;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.08;
 }
@@ -655,21 +655,21 @@ function goToAddData() {
 
 .latest-card-summary span {
   color: #8e8f94;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
 }
 
 .latest-card-summary p {
   margin: 0;
   color: #8e8f94;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.35;
 }
 
 .small-card-date {
   margin: 0;
   color: #b7b7bb;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -693,14 +693,14 @@ function goToAddData() {
 .pressure-summary-item span {
   display: block;
   color: #9aa4b7;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .pressure-summary-item strong {
   display: block;
   margin-top: 10px;
   color: #30343f;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.1;
 }
@@ -709,7 +709,7 @@ function goToAddData() {
   display: block;
   margin-top: 6px;
   color: #b7b7bb;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .chart-switch {
@@ -735,7 +735,7 @@ function goToAddData() {
   border-radius: 16px;
   background: transparent;
   color: #5a6474;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -748,7 +748,7 @@ function goToAddData() {
 .pressure-timestamp {
   margin: 12px 0 0;
   color: #8e8f94;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.3;
 }
 
@@ -817,13 +817,13 @@ function goToAddData() {
 
 .gauge-content span {
   color: #9aa4b7;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.3;
 }
 
 .gauge-content strong {
   color: #30343f;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
 }
@@ -834,11 +834,11 @@ function goToAddData() {
   justify-content: center;
   width: fit-content;
   margin: 0 auto;
-  min-width: 58px;
-  height: 32px;
-  padding: 0 14px;
+  min-width: 54px;
+  height: 30px;
+  padding: 0 12px;
   border-radius: 12px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -862,7 +862,7 @@ function goToAddData() {
 
 .chart-card__header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -913,7 +913,7 @@ function goToAddData() {
   gap: 6px;
   padding-top: 8px;
   color: #b7b7bb;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .chart-card__labels span {
@@ -932,7 +932,7 @@ function goToAddData() {
 .stats-card__label {
   display: block;
   color: #8e8f94;
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .stats-card__average {
@@ -944,14 +944,14 @@ function goToAddData() {
 
 .stats-card__average strong {
   color: #30343f;
-  font-size: 38px;
+  font-size: 32px;
   line-height: 1;
   font-weight: 700;
 }
 
 .stats-card__average small {
   color: #5a6474;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .stats-matrix {
@@ -965,7 +965,7 @@ function goToAddData() {
   display: block;
   margin-bottom: 12px;
   color: #9aa4b7;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .stats-matrix__value {
@@ -976,7 +976,7 @@ function goToAddData() {
 
 .stats-matrix__value strong {
   color: #30343f;
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1;
   font-weight: 700;
 }
@@ -986,12 +986,12 @@ function goToAddData() {
   align-items: center;
   justify-content: center;
   min-width: 46px;
-  height: 30px;
+  height: 28px;
   padding: 0 10px;
   border-radius: 10px;
   background: rgba(255, 114, 104, 0.12);
   color: #ff7268;
-  font-size: 14px;
+  font-size: 12px;
   font-style: normal;
 }
 
@@ -1090,5 +1090,31 @@ function goToAddData() {
   .stats-card__average strong {
     font-size: 32px;
   }
+}
+.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2, .metric-table th, .metric-table td, .steps-table th, .steps-table td) {
+  white-space: nowrap;
+}
+
+.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.health-data-page :is(.table-wrapper) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.health-data-page :is(.metric-table, .steps-table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.health-data-page :is(.metric-table th, .metric-table td, .steps-table th, .steps-table td) {
+  padding-right: 6px;
+  padding-left: 6px;
+  font-size: 11px;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 </style>

@@ -207,6 +207,32 @@
     "legacySources": []
   },
   {
+    "id": "diet-record",
+    "title": "饮食记录",
+    "group": "diet-record",
+    "route": "/diet-record",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "按日期查看每日三餐和摄入统计的饮食记录页面。",
+    "folderPath": "/apps/user-web/src/pages/diet-record",
+    "modulePath": "/apps/user-web/src/pages/diet-record/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/diet-record/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "diet-record/history-data",
+    "title": "历史数据",
+    "group": "diet-record",
+    "route": "/diet-record/history-data",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "饮食记录历史数据的日视图、月视图和年视图页面。",
+    "folderPath": "/apps/user-web/src/pages/diet-record/history-data",
+    "modulePath": "/apps/user-web/src/pages/diet-record/history-data/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/diet-record/history-data/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/add-data",
     "title": "添加数据",
     "group": "health",
@@ -442,6 +468,19 @@
     "legacySources": []
   },
   {
+    "id": "health/self-test",
+    "title": "健康自测",
+    "group": "health",
+    "route": "/health/self-test",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "健康自测项目选择、逐题测评和疾病风险结果展示。",
+    "folderPath": "/apps/user-web/src/pages/health/self-test",
+    "modulePath": "/apps/user-web/src/pages/health/self-test/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/health/self-test/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "health/medication-info",
     "title": "用药信息",
     "group": "health",
@@ -628,6 +667,97 @@
     "legacySources": []
   },
   {
+    "id": "home/MyJ/myfoot",
+    "title": "我的足迹",
+    "group": "home",
+    "route": "/home/MyJ/myfoot",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我的足迹列表页，展示服务与活动浏览记录并支持清除全部。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/myfoot",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/myfoot/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/myfoot/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/MyJ/integration",
+    "title": "我的积分",
+    "group": "home",
+    "route": "/home/MyJ/integration",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我的积分页，展示当前积分、收入支出切换和积分明细。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/integration",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/integration/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/integration/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/MyJ/setting",
+    "title": "设置",
+    "group": "home",
+    "route": "/home/MyJ/setting",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "设置页，包含资料、安全、消息、缓存和关于我们入口。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/setting",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/setting/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/setting/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/MyJ/profile-info",
+    "title": "个人资料",
+    "group": "home",
+    "route": "/home/MyJ/profile-info",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "个人资料页，展示头像、昵称、ID、性别和简介。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/profile-info",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/profile-info/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/profile-info/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/MyJ/account-security",
+    "title": "账号与安全",
+    "group": "home",
+    "route": "/home/MyJ/account-security",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "账号与安全页，展示手机号、密码和社交账号绑定状态。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/account-security",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/account-security/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/account-security/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/MyJ/message-settings",
+    "title": "消息设置",
+    "group": "home",
+    "route": "/home/MyJ/message-settings",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "消息设置页，展示通知总开关和分类消息开关。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/message-settings",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/message-settings/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/message-settings/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/MyJ/myactivity",
+    "title": "我参加的活动",
+    "group": "home",
+    "route": "/home/MyJ/myactivity",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我参加的活动页，按进行中、未开始、已结束分类展示并支持进入详情。",
+    "folderPath": "/apps/user-web/src/pages/home/MyJ/myactivity",
+    "modulePath": "/apps/user-web/src/pages/home/MyJ/myactivity/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/MyJ/myactivity/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/mine",
     "title": "我的",
     "group": "home",
@@ -651,6 +781,19 @@
     "folderPath": "/apps/user-web/src/pages/home/message",
     "modulePath": "/apps/user-web/src/pages/home/message/Page.vue",
     "mockPath": "/apps/user-web/src/pages/home/message/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "home/doctor-chat",
+    "title": "医生咨询",
+    "group": "home",
+    "route": "/home/doctor-chat",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "消息聊天中的医生咨询会话，支持文字、图片、表情和语音交互入口。",
+    "folderPath": "/apps/user-web/src/pages/home/doctor-chat",
+    "modulePath": "/apps/user-web/src/pages/home/doctor-chat/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/doctor-chat/mock.ts",
     "legacySources": []
   },
   {
@@ -708,6 +851,58 @@
     "folderPath": "/apps/user-web/src/pages/orders/order-management",
     "modulePath": "/apps/user-web/src/pages/orders/order-management/Page.vue",
     "mockPath": "/apps/user-web/src/pages/orders/order-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/rehab-therapy",
+    "title": "我的订单",
+    "group": "orders",
+    "route": "/orders/rehab-therapy",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "我的页面订单列表，支持家政护理、康复理疗、上门体检分类和状态筛选。",
+    "folderPath": "/apps/user-web/src/pages/orders/rehab-therapy",
+    "modulePath": "/apps/user-web/src/pages/orders/rehab-therapy/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/rehab-therapy/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/willservice/assessment-report",
+    "title": "评估报告",
+    "group": "orders",
+    "route": "/orders/willservice/assessment-report",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "待服务相关的评估报告正文页。",
+    "folderPath": "/apps/user-web/src/pages/orders/willservice/assessment-report",
+    "modulePath": "/apps/user-web/src/pages/orders/willservice/assessment-report/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/willservice/assessment-report/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/willservice/service-record",
+    "title": "服务记录",
+    "group": "orders",
+    "route": "/orders/willservice/service-record",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "待服务相关的服务记录列表页。",
+    "folderPath": "/apps/user-web/src/pages/orders/willservice/service-record",
+    "modulePath": "/apps/user-web/src/pages/orders/willservice/service-record/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/willservice/service-record/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/willservice/rehab-report",
+    "title": "康复报告",
+    "group": "orders",
+    "route": "/orders/willservice/rehab-report",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "待服务相关的康复报告正文页。",
+    "folderPath": "/apps/user-web/src/pages/orders/willservice/rehab-report",
+    "modulePath": "/apps/user-web/src/pages/orders/willservice/rehab-report/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/willservice/rehab-report/mock.ts",
     "legacySources": []
   },
   {
@@ -903,6 +1098,32 @@
     "folderPath": "/apps/user-web/src/pages/service/rehab-therapy",
     "modulePath": "/apps/user-web/src/pages/service/rehab-therapy/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/rehab-therapy/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/elderly-care",
+    "title": "养老机构",
+    "group": "service",
+    "route": "/service/elderly-care",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "养老机构选择、排序筛选和机构卡片列表。",
+    "folderPath": "/apps/user-web/src/pages/service/elderly-care",
+    "modulePath": "/apps/user-web/src/pages/service/elderly-care/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/elderly-care/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/elderly-care-detail",
+    "title": "养老机构详情",
+    "group": "service",
+    "route": "/service/elderly-care-detail",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "养老机构名称、星级评分、基础信息、服务内容、配置、入住须知和评价。",
+    "folderPath": "/apps/user-web/src/pages/service/elderly-care-detail",
+    "modulePath": "/apps/user-web/src/pages/service/elderly-care-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/elderly-care-detail/mock.ts",
     "legacySources": []
   }
 ]
