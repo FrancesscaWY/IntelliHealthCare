@@ -15,6 +15,8 @@
   --admin-radius-xl: 28px;
   --admin-radius-lg: 22px;
   --admin-radius-md: 16px;
+  --admin-font-size-base: 13px;
+  --admin-font-size-small: 12px;
   --admin-font-family:
     "Source Han Sans SC",
     "PingFang SC",
@@ -32,6 +34,10 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  font-family: var(--admin-font-family);
+  font-size: var(--admin-font-size-base);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
   background:
     radial-gradient(circle at top left, rgba(31, 122, 90, 0.14), transparent 24%),
     radial-gradient(circle at right 18%, rgba(224, 138, 58, 0.14), transparent 20%),
@@ -42,7 +48,8 @@ body {
 body,
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
   font-weight: 400;
   font-synthesis-weight: none;

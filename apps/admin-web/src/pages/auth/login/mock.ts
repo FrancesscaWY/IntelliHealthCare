@@ -1,20 +1,33 @@
 const mock = {
   title: "登录页",
-  summary: "后台管理端账号密码登录与工作台进入入口。",
-  welcome: "欢迎进入智诊康养后台",
-  subtitle: "当前为演示登录模式，不限制账号和密码，点击即可直接进入后台。",
-  account: "",
+  summary: "智慧养老后台管理系统登录页，支持角色选择、协议确认和后台入口演示。",
+  brandTitle: "智慧养老后台管理系统",
+  brandSummary: "聚合健康档案、服务协同与运营数据，用更轻量的后台界面支撑养老服务管理。",
+  phone: "",
   password: "",
-  remember: true,
-  notices: [
-    "当前登录不校验账号密码，输入任意内容或直接点击登录都可进入后台。",
-    "默认整站入口进入登录页，适合演示和后续接入真实认证流程。",
-    "如需调试具体页面，仍可通过单页命令直接进入目标后台页面。",
-  ],
-  quickEntries: [
-    { label: "后台首页", pageId: "dashboard/overview" },
-    { label: "服务调度", pageId: "service/order-dispatch" },
-    { label: "健康预警", pageId: "health/alert-center" },
+  agreePolicy: false,
+  policyLabel: "我已阅读并同意",
+  policyName: "《用户隐私政策》",
+  forgotPasswordText: "忘记密码请联系管理员处理",
+  roles: [
+    {
+      key: "platform-admin",
+      label: "平台管理员",
+      description: "负责平台全局配置、权限分配与运营总览。",
+      icon: "shield",
+    },
+    {
+      key: "customer-service",
+      label: "客服人员",
+      description: "处理咨询工单、服务回访与消息协同。",
+      icon: "headset",
+    },
+    {
+      key: "institution-manager",
+      label: "机构主管",
+      description: "管理机构成员、排班任务与健康服务执行。",
+      icon: "building",
+    },
   ],
 };
 

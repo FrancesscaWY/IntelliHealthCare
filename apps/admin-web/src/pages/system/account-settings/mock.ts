@@ -1,8 +1,11 @@
 const mock = {
-  title: "账号设置",
-  summary: "账号权限、角色菜单、通知规则和基础参数配置。",
-  sections: [],
-  actions: [],
+  title: "个人资料",
+  employeeId: "4001009001",
+  name: "李明明",
+  phone: "17615904456",
+  role: "派单员",
+  note: "",
+  roleOptions: ["派单员", "平台管理员", "客服人员", "机构主管"],
 };
 
 export default mock;
