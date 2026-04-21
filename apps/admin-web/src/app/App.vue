@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import {
   ApplicationMenu,
@@ -35,6 +35,8 @@ const activeComponent = shallowRef<Component | null>(null);
 const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
 const searchKeyword = ref("");
+const isAccountMenuOpen = ref(false);
+const accountMenuRef = ref<HTMLElement | null>(null);
 
 type PrimaryNavKey = "home" | "users" | "services" | "transactions" | "analytics" | "system" | "messages";
 type SecondaryNavItem = {
@@ -266,6 +268,7 @@ function openPage(pageId: string) {
     return;
   }
 
+  isAccountMenuOpen.value = false;
   navigation.reLaunch(pageId);
 }
 
@@ -285,9 +288,69 @@ function submitSearch() {
   showToast(keyword ? `已搜索：${keyword}` : "请输入关键字后再搜索。");
 }
 
+function shouldToggleAccountMenu(label: string) {
+  return label === "账号菜单";
+}
+
 function notifyAction(label: string) {
+  if (shouldToggleAccountMenu(label)) {
+    toggleAccountMenu();
+    return;
+  }
   showToast(`${label}入口为演示状态。`);
 }
+function getRailItemOrder(key: PrimaryNavKey) {
+  if (key === "messages") {
+    return 1;
+  }
+
+  if (key === "system") {
+    return 2;
+  }
+
+  return 0;
+}
+
+function toggleAccountMenu() {
+  isAccountMenuOpen.value = !isAccountMenuOpen.value;
+}
+
+function handleAccountMenuSelect(action: "profile" | "password" | "logout") {
+  if (action === "profile") {
+    openPage("system/account-settings");
+    return;
+  }
+
+  if (action === "password") {
+    openPage("system/reset-password");
+    return;
+  }
+
+  openPage("auth/login");
+}
+
+function handleDocumentClick(event: MouseEvent) {
+  const target = event.target;
+  if (target instanceof Element && (target.closest(".account") || target.closest(".account-menu__panel"))) {
+    return;
+  }
+
+  if (!(target instanceof Node)) {
+    return;
+  }
+
+  if (!accountMenuRef.value?.contains(target)) {
+    isAccountMenuOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("click", handleDocumentClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("click", handleDocumentClick);
+});
 </script>
 
 <template>
@@ -325,6 +388,7 @@ function notifyAction(label: string) {
             :class="{ 'rail__item--active': item.key === activePrimaryNavKey }"
             type="button"
             :aria-label="item.label"
+            :style="{ order: getRailItemOrder(item.key) }"
             @click="openPage(item.pageId)"
           >
             <span class="rail__item-icon">
@@ -397,6 +461,17 @@ function notifyAction(label: string) {
               <span class="account__name">Daisy</span>
               <span class="account__caret">▼</span>
             </button>
+            <div v-if="isAccountMenuOpen" ref="accountMenuRef" class="account-menu__panel" role="menu">
+              <button class="account-menu__item" type="button" role="menuitem" @click="handleAccountMenuSelect('profile')">
+                个人资料
+              </button>
+              <button class="account-menu__item" type="button" role="menuitem" @click="handleAccountMenuSelect('password')">
+                修改密码
+              </button>
+              <button class="account-menu__item" type="button" role="menuitem" @click="handleAccountMenuSelect('logout')">
+                退出系统
+              </button>
+            </div>
           </div>
         </header>
 
@@ -426,9 +501,10 @@ function notifyAction(label: string) {
   --rail-muted: rgba(219, 229, 255, 0.62);
   --rail-accent: #45d1ac;
   --rail-accent-strong: #2ec8a1;
-  grid-template-columns: 220px 176px minmax(0, 1fr);
+  grid-template-columns: 180px 150px minmax(0, 1fr);
   background: #f0fdf9;
-  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -450,57 +526,57 @@ function notifyAction(label: string) {
   display: grid;
   grid-template-rows: auto auto 1fr;
   align-content: start;
-  gap: 18px;
-  padding: 20px 16px 18px;
+  gap: 12px;
+  padding: 16px 12px 16px;
   background: linear-gradient(180deg, var(--rail-bg) 0%, var(--rail-bg-end) 100%);
 }
 
 .rail__logo {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--rail-surface);
   color: #8eeab6;
 }
 
 .rail__logo svg {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   fill: currentColor;
 }
 
 .rail__brand {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  padding: 0 4px;
+  padding: 0 2px;
   color: #ffffff;
   text-align: left;
 }
 
 .rail__brand-mark {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: 0.04em;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
 }
 
 .rail__brand small {
   color: var(--rail-muted);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .rail__nav {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   padding-top: 2px;
   width: 100%;
 }
@@ -508,12 +584,12 @@ function notifyAction(label: string) {
 .rail__item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 52px;
-  padding: 0 14px;
+  min-height: 42px;
+  padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: 12px;
   background: transparent;
   color: var(--rail-text);
   text-align: left;
@@ -533,20 +609,20 @@ function notifyAction(label: string) {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   background: var(--rail-surface);
 }
 
 .rail__item-icon :deep(svg) {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .rail__item-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
   letter-spacing: 0.01em;
 }
 
@@ -571,11 +647,11 @@ function notifyAction(label: string) {
 .subnav__header {
   display: flex;
   align-items: center;
-  min-height: 58px;
-  padding: 0 18px;
+  min-height: 50px;
+  padding: 0 14px;
   border-bottom: 1px solid #edf3ef;
   color: #2f3946;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -583,14 +659,14 @@ function notifyAction(label: string) {
 .subnav__list {
   display: grid;
   gap: 2px;
-  padding: 12px 14px 18px;
+  padding: 10px 10px 14px;
 }
 
 .subnav__section {
-  margin-top: 10px;
-  padding: 8px 2px 10px;
+  margin-top: 8px;
+  padding: 6px 2px 8px;
   color: #2f3946;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -601,15 +677,15 @@ function notifyAction(label: string) {
 
 .subnav__item {
   width: 100%;
-  min-height: 48px;
-  padding: 12px 14px;
+  min-height: 38px;
+  padding: 9px 12px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: #9ca7b4;
   font-size: 13px;
   font-weight: 400;
-  line-height: 1.25;
+  line-height: 1.3;
   letter-spacing: 0.01em;
   text-align: left;
 }
@@ -677,6 +753,7 @@ function notifyAction(label: string) {
 }
 
 .topbar__actions {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -719,6 +796,7 @@ function notifyAction(label: string) {
   border: 0;
   background: transparent;
   color: #253443;
+  cursor: pointer;
 }
 
 .account__avatar {
@@ -745,6 +823,35 @@ function notifyAction(label: string) {
   font-size: 11px;
 }
 
+.account-menu__panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  min-width: 180px;
+  padding: 10px 0;
+  border: 1px solid #e9efea;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(31, 46, 61, 0.14);
+  z-index: 20;
+}
+
+.account-menu__item {
+  display: block;
+  width: 100%;
+  padding: 14px 22px;
+  border: 0;
+  background: transparent;
+  color: #2f3946;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-menu__item:hover {
+  background: #f5fbf8;
+}
+
 .content {
   min-width: 0;
   padding: 26px 28px 16px;
@@ -760,7 +867,7 @@ function notifyAction(label: string) {
 
 @media (max-width: 1280px) {
   .admin-shell--app {
-    grid-template-columns: 196px 164px minmax(0, 1fr);
+    grid-template-columns: 170px 140px minmax(0, 1fr);
   }
 
   .content {
