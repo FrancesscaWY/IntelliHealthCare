@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
 import type { Component } from "vue";
-import { Analysis, HexagonOne, Home, People, Protect, Search, Star, Video } from "@icon-park/vue-next";
-import { groupPagesByGroup } from "@ihc/page-core/runtime";
+import {
+  ApplicationMenu,
+  ChartHistogram,
+  EveryUser,
+  Home,
+  MessageOne,
+  Search,
+  SettingTwo,
+  TransactionOrder,
+} from "@icon-park/vue-next";
 import type { PageEntry } from "@ihc/page-core/types";
 import manifestEntries from "./pages.manifest.json";
 import { loadPageComponent } from "./page-registry";
 import { resolveConfig } from "./resolve-config";
 import { usePageNavigation } from "./usePageNavigation";
 import { useToastQueue } from "./useToastQueue";
-import { groupMeta, pageMeta, projectInfo, railGroupOrder } from "@/shared/project-info";
+import { pageMeta, projectInfo } from "@/shared/project-info";
 import PagePlaceholder from "@/components/PagePlaceholder.vue";
 import ToastViewport from "@/components/ToastViewport.vue";
 
@@ -28,9 +36,18 @@ const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
 const searchKeyword = ref("");
 
+type PrimaryNavKey = "home" | "users" | "services" | "transactions" | "analytics" | "system" | "messages";
+type SecondaryNavItem = {
+  key: string;
+  label: string;
+  kind: "section" | "item";
+  active?: boolean;
+  pageId?: string;
+  toast?: string;
+};
+
 const isAuthPage = computed(() => activePage.value?.group === "auth");
-const groupedPages = computed(() => groupPagesByGroup(manifest));
-const currentGroup = computed(() => activePage.value?.group || "dashboard");
+const activePageId = computed(() => activePage.value?.id || "");
 
 const resolvedComponent = computed(() => {
   if (!activePage.value || activeComponentPageId.value !== activePage.value.id) {
@@ -40,141 +57,154 @@ const resolvedComponent = computed(() => {
   return activeComponent.value;
 });
 
-const railItems = computed(() =>
-  railGroupOrder
-    .map((groupKey) => {
-      const pages = groupedPages.value[groupKey] || [];
-      if (!pages.length) {
-        return null;
-      }
+const railItems: Array<{ key: PrimaryNavKey; label: string; pageId: string; icon: Component }> = [
+  { key: "home", label: "首页", pageId: "dashboard/overview", icon: Home },
+  { key: "users", label: "用户管理", pageId: "elder/member-list", icon: EveryUser },
+  { key: "services", label: "服务管理", pageId: "service/staff-management", icon: ApplicationMenu },
+  { key: "transactions", label: "交易管理", pageId: "service/order-dispatch", icon: TransactionOrder },
+  { key: "analytics", label: "数据分析", pageId: "analytics/data-board", icon: ChartHistogram },
+  { key: "system", label: "系统设置", pageId: "system/account-settings", icon: SettingTwo },
+  { key: "messages", label: "消息管理", pageId: "dashboard/session", icon: MessageOne },
+];
 
-      return {
-        key: groupKey,
-        title: groupMeta[groupKey]?.title || groupKey,
-        pageId:
-          groupKey === "system"
-            ? "system/reset-password"
-            : groupKey === "service"
-              ? "service/staff-management"
-              : pages[0].id,
-        icon: railIcons[groupKey] || railIcons.dashboard,
-      };
-    })
-    .filter(Boolean) as Array<{ key: string; title: string; pageId: string; icon: Component }>,
-);
+function isPageActive(...pageIds: string[]) {
+  return pageIds.includes(activePageId.value);
+}
 
-const secondaryNavItems = computed(() => {
-  if (currentGroup.value === "dashboard") {
+function resolvePrimaryNavKey(pageEntry?: PageEntry | null): PrimaryNavKey {
+  const pageId = pageEntry?.id || "";
+
+  if (pageId.startsWith("elder/")) {
+    return "users";
+  }
+
+  if (
+    [
+      "service/staff-management",
+      "service/review-management",
+      "service/review-detail",
+      "service/product-management",
+      "service/product-editor",
+    ].includes(pageId)
+  ) {
+    return "services";
+  }
+
+  if (
+    [
+      "service/order-dispatch",
+      "dashboard/order-list",
+      "dashboard/work-order",
+      "dashboard/after-sale",
+    ].includes(pageId)
+  ) {
+    return "transactions";
+  }
+
+  if (
+    pageId.startsWith("analytics/") ||
+    pageId.startsWith("health/") ||
+    pageId.startsWith("device/") ||
+    pageId.startsWith("staff/")
+  ) {
+    return "analytics";
+  }
+
+  if (pageId.startsWith("system/")) {
+    return "system";
+  }
+
+  if (pageId.startsWith("content/") || pageId.startsWith("community/") || pageId === "dashboard/session") {
+    return "messages";
+  }
+
+  return "home";
+}
+
+const activePrimaryNavKey = computed(() => resolvePrimaryNavKey(activePage.value));
+
+const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
+  if (activePrimaryNavKey.value === "home") {
     return [
-      { key: "home", label: "首页", active: activePage.value?.id === "dashboard/overview", pageId: "dashboard/overview", kind: "item" },
-      { key: "workbench", label: "工作台", active: activePage.value?.id === "dashboard/overview", pageId: "dashboard/overview", kind: "item" },
-      { key: "booking", label: "预约看板", active: activePage.value?.id === "dashboard/booking-board", pageId: "dashboard/booking-board", kind: "item" },
+      { key: "home-section", label: "工作台", kind: "section" },
+      { key: "overview", label: "首页总览", active: isPageActive("dashboard/overview"), pageId: "dashboard/overview", kind: "item" },
+      { key: "booking", label: "预约看板", active: isPageActive("dashboard/booking-board"), pageId: "dashboard/booking-board", kind: "item" },
     ];
   }
 
-  if (currentGroup.value === "elder") {
+  if (activePrimaryNavKey.value === "users") {
     return [
-      { key: "elder-section-user", label: "用户管理", kind: "section" },
-      { key: "elder-member-list", label: "用户列表", active: activePage.value?.id === "elder/member-list", pageId: "elder/member-list", kind: "item" },
-      { key: "elder-tags", label: "标签管理", active: false, pageId: "", toast: "标签管理原型页暂未接入。", kind: "item" },
-      {
-        key: "elder-reports",
-        label: "报告管理",
-        active: activePage.value?.id === "elder/report-management",
-        pageId: "elder/report-management",
-        kind: "item",
-      },
-      { key: "elder-levels", label: "等级管理", active: false, pageId: "", toast: "等级管理原型页暂未接入。", kind: "item" },
-      { key: "elder-section-message", label: "消息管理", kind: "section" },
-      { key: "elder-mass-message", label: "消息群发", active: false, pageId: "", toast: "消息群发原型页暂未接入。", kind: "item" },
-      { key: "elder-session", label: "会话", active: false, pageId: "", toast: "会话原型页暂未接入。", kind: "item" },
-      { key: "elder-section-marketing", label: "营销管理", kind: "section" },
-      { key: "elder-coupon", label: "优惠券管理", active: false, pageId: "", toast: "优惠券管理原型页暂未接入。", kind: "item" },
-      { key: "elder-points", label: "积分规则", active: false, pageId: "", toast: "积分规则原型页暂未接入。", kind: "item" },
-      { key: "elder-growth", label: "成长值规则", active: false, pageId: "", toast: "成长值规则原型页暂未接入。", kind: "item" },
+      { key: "users-section", label: "用户中心", kind: "section" },
+      { key: "member-list", label: "用户列表", active: isPageActive("elder/member-list"), pageId: "elder/member-list", kind: "item" },
+      { key: "report-management", label: "报告管理", active: isPageActive("elder/report-management"), pageId: "elder/report-management", kind: "item" },
+      { key: "tags", label: "标签管理", toast: "标签管理原型页暂未接入。", kind: "item" },
+      { key: "levels", label: "等级管理", toast: "等级管理原型页暂未接入。", kind: "item" },
     ];
   }
 
-  if (currentGroup.value === "service") {
+  if (activePrimaryNavKey.value === "services") {
     return [
-      { key: "service-section-staff", label: "服务人员管理", kind: "section" },
+      { key: "service-team", label: "服务团队", kind: "section" },
       {
-        key: "service-staff-management",
-        label: "全部服务人员",
-        active: activePage.value?.id === "service/staff-management",
+        key: "staff-management",
+        label: "服务人员",
+        active: isPageActive("service/staff-management"),
         pageId: "service/staff-management",
         kind: "item",
       },
-      { key: "service-staff-tags", label: "标签管理", active: false, pageId: "", toast: "标签管理原型页暂未接入。", kind: "item" },
       {
-        key: "service-staff-review",
+        key: "service-review",
         label: "审核管理",
-        active: ["service/review-management", "service/review-detail"].includes(activePage.value?.id || ""),
+        active: isPageActive("service/review-management", "service/review-detail"),
         pageId: "service/review-management",
         kind: "item",
       },
-      { key: "service-section-order", label: "服务管理", kind: "section" },
-      {
-        key: "service-order-dispatch",
-        label: "工单管理",
-        active: activePage.value?.id === "dashboard/work-order",
-        pageId: "dashboard/work-order",
-        kind: "item",
-      },
-      { key: "service-commission", label: "佣金记录", active: false, pageId: "", toast: "佣金记录原型页暂未接入。", kind: "item" },
-      { key: "service-reward", label: "打赏记录", active: false, pageId: "", toast: "打赏记录原型页暂未接入。", kind: "item" },
-      { key: "service-setting", label: "工单设置", active: false, pageId: "", toast: "工单设置原型页暂未接入。", kind: "item" },
+      { key: "service-product", label: "商品管理", active: isPageActive("service/product-management"), pageId: "service/product-management", kind: "item" },
+      { key: "service-editor", label: "新增服务", active: isPageActive("service/product-editor"), pageId: "service/product-editor", kind: "item" },
     ];
   }
 
-  if (currentGroup.value === "system") {
+  if (activePrimaryNavKey.value === "transactions") {
     return [
-      { key: "system-section", label: "系统设置", kind: "section" },
-      { key: "system-staff", label: "员工管理", active: false, pageId: "", toast: "员工管理原型页暂未接入。", kind: "item" },
-      { key: "system-role", label: "角色管理", active: false, pageId: "", toast: "角色管理原型页暂未接入。", kind: "item" },
-      { key: "system-unit", label: "药品单位管理", active: false, pageId: "", toast: "药品单位管理原型页暂未接入。", kind: "item" },
-      { key: "system-protocol", label: "协议管理", active: false, pageId: "", toast: "协议管理原型页暂未接入。", kind: "item" },
-      { key: "system-log", label: "操作日志", active: false, pageId: "", toast: "操作日志原型页暂未接入。", kind: "item" },
-      {
-        key: "system-profile",
-        label: "个人资料",
-        active: activePage.value?.id === "system/account-settings",
-        pageId: "system/account-settings",
-        kind: "item",
-      },
-      {
-        key: "system-reset-password",
-        label: "重置密码",
-        active: activePage.value?.id === "system/reset-password",
-        pageId: "system/reset-password",
-        kind: "item",
-      },
+      { key: "transaction-section", label: "交易中心", kind: "section" },
+      { key: "dispatch", label: "订单调度", active: isPageActive("service/order-dispatch"), pageId: "service/order-dispatch", kind: "item" },
+      { key: "order-list", label: "全部订单", active: isPageActive("dashboard/order-list"), pageId: "dashboard/order-list", kind: "item" },
+      { key: "work-order", label: "工单管理", active: isPageActive("dashboard/work-order"), pageId: "dashboard/work-order", kind: "item" },
+      { key: "after-sale", label: "售后管理", active: isPageActive("dashboard/after-sale"), pageId: "dashboard/after-sale", kind: "item" },
     ];
   }
 
-  return (groupedPages.value[currentGroup.value] || []).map((page) => ({
-    key: page.id,
-    label: pageMeta[page.id]?.shortTitle || pageMeta[page.id]?.title || page.title,
-    active: page.id === activePage.value?.id,
-    pageId: page.id,
-    kind: "item",
-  }));
+  if (activePrimaryNavKey.value === "analytics") {
+    return [
+      { key: "analytics-section", label: "分析中心", kind: "section" },
+      { key: "data-board", label: "数据看板", active: isPageActive("analytics/data-board"), pageId: "analytics/data-board", kind: "item" },
+      { key: "health-alert", label: "健康预警", active: isPageActive("health/alert-center"), pageId: "health/alert-center", kind: "item" },
+      { key: "device-monitor", label: "设备监控", active: isPageActive("device/device-monitor"), pageId: "device/device-monitor", kind: "item" },
+      { key: "staff-roster", label: "人员排班", active: isPageActive("staff/caregiver-roster"), pageId: "staff/caregiver-roster", kind: "item" },
+    ];
+  }
+
+  if (activePrimaryNavKey.value === "system") {
+    return [
+      { key: "system-section", label: "系统配置", kind: "section" },
+      { key: "account-settings", label: "账号设置", active: isPageActive("system/account-settings"), pageId: "system/account-settings", kind: "item" },
+      { key: "reset-password", label: "重置密码", active: isPageActive("system/reset-password"), pageId: "system/reset-password", kind: "item" },
+      { key: "role", label: "角色管理", toast: "角色管理原型页暂未接入。", kind: "item" },
+      { key: "log", label: "操作日志", toast: "操作日志原型页暂未接入。", kind: "item" },
+    ];
+  }
+
+  return [
+    { key: "message-section", label: "消息中心", kind: "section" },
+    { key: "session", label: "会话中心", active: isPageActive("dashboard/session"), pageId: "dashboard/session", kind: "item" },
+    { key: "content-management", label: "内容管理", active: isPageActive("content/content-management"), pageId: "content/content-management", kind: "item" },
+    { key: "activity-management", label: "活动管理", active: isPageActive("community/activity-management"), pageId: "community/activity-management", kind: "item" },
+    { key: "mass-message", label: "群发消息", toast: "群发消息原型页暂未接入。", kind: "item" },
+  ];
 });
 
 const currentGroupTitle = computed(() => {
-  if (currentGroup.value === "elder") {
-    return "用户";
-  }
-
-  if (currentGroup.value === "service") {
-    return "服务";
-  }
-
-  if (currentGroup.value === "system") {
-    return "设置";
-  }
-
-  return groupMeta[currentGroup.value]?.title || pageMeta[activePage.value?.id || ""]?.title || "首页";
+  return railItems.find((item) => item.key === activePrimaryNavKey.value)?.label || pageMeta[activePageId.value]?.title || "首页";
 });
 
 watch(
@@ -258,16 +288,6 @@ function submitSearch() {
 function notifyAction(label: string) {
   showToast(`${label}入口为演示状态。`);
 }
-
-const railIcons: Record<string, Component> = {
-  dashboard: Home,
-  elder: People,
-  service: Protect,
-  health: Star,
-  device: Video,
-  analytics: Analysis,
-  system: HexagonOne,
-};
 </script>
 
 <template>
@@ -293,20 +313,24 @@ const railIcons: Record<string, Component> = {
         </button>
 
         <div class="rail__brand">
-          <span>黛西健康</span>
+          <span class="rail__brand-mark">黛西健康</span>
+          <small>Admin Console</small>
         </div>
 
-        <nav class="rail__nav" aria-label="分组导航">
+        <nav class="rail__nav" aria-label="主导航">
           <button
             v-for="item in railItems"
             :key="item.key"
             class="rail__item"
-            :class="{ 'rail__item--active': item.key === currentGroup }"
+            :class="{ 'rail__item--active': item.key === activePrimaryNavKey }"
             type="button"
-            :aria-label="item.title"
+            :aria-label="item.label"
             @click="openPage(item.pageId)"
           >
-            <component :is="item.icon" theme="outline" :size="24" :stroke-width="3" />
+            <span class="rail__item-icon">
+              <component :is="item.icon" theme="outline" :size="22" :stroke-width="3" />
+            </span>
+            <span class="rail__item-label">{{ item.label }}</span>
           </button>
         </nav>
       </aside>
@@ -395,7 +419,14 @@ const railIcons: Record<string, Component> = {
 }
 
 .admin-shell--app {
-  grid-template-columns: 68px 160px minmax(0, 1fr);
+  --rail-bg: #111432;
+  --rail-bg-end: #171d48;
+  --rail-surface: rgba(255, 255, 255, 0.06);
+  --rail-text: rgba(255, 255, 255, 0.78);
+  --rail-muted: rgba(219, 229, 255, 0.62);
+  --rail-accent: #45d1ac;
+  --rail-accent-strong: #2ec8a1;
+  grid-template-columns: 220px 176px minmax(0, 1fr);
   background: #f0fdf9;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -418,67 +449,116 @@ const railIcons: Record<string, Component> = {
 .rail {
   display: grid;
   grid-template-rows: auto auto 1fr;
-  justify-items: center;
-  gap: 6px;
-  padding: 10px 0 18px;
-  background: #111432;
+  align-content: start;
+  gap: 18px;
+  padding: 20px 16px 18px;
+  background: linear-gradient(180deg, var(--rail-bg) 0%, var(--rail-bg-end) 100%);
 }
 
 .rail__logo {
-  width: 36px;
-  height: 36px;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 16px;
+  background: var(--rail-surface);
   color: #8eeab6;
 }
 
 .rail__logo svg {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   fill: currentColor;
 }
 
 .rail__brand {
-  width: 48px;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 0 4px;
   color: #ffffff;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: 0.03em;
-  text-align: center;
+  text-align: left;
+}
+
+.rail__brand-mark {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+}
+
+.rail__brand small {
+  color: var(--rail-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .rail__nav {
   display: grid;
-  justify-items: center;
   align-content: start;
-  grid-auto-rows: max-content;
-  gap: 14px;
-  padding-top: 8px;
+  gap: 8px;
+  padding-top: 2px;
   width: 100%;
 }
 
 .rail__item {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 16px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--rail-text);
+  text-align: left;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.rail__item :deep(svg) {
-  width: 21px;
-  height: 21px;
+.rail__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.rail__item-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--rail-surface);
+}
+
+.rail__item-icon :deep(svg) {
+  width: 20px;
+  height: 20px;
+}
+
+.rail__item-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .rail__item--active {
-  background: #42d1a6;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, var(--rail-accent) 0%, var(--rail-accent-strong) 100%);
   color: #ffffff;
+  box-shadow: 0 16px 30px rgba(48, 200, 165, 0.26);
+}
+
+.rail__item--active .rail__item-icon {
+  background: rgba(17, 20, 50, 0.14);
 }
 
 .subnav {
@@ -680,7 +760,7 @@ const railIcons: Record<string, Component> = {
 
 @media (max-width: 1280px) {
   .admin-shell--app {
-    grid-template-columns: 64px 148px minmax(0, 1fr);
+    grid-template-columns: 196px 164px minmax(0, 1fr);
   }
 
   .content {
