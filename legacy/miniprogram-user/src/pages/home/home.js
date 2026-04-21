@@ -205,6 +205,13 @@ Page({
       return;
     }
 
+    if (key === "mine") {
+      wx.redirectTo({
+        url: "/pages/profile/profile"
+      });
+      return;
+    }
+
     this.setData({
       activeTab: key
     });

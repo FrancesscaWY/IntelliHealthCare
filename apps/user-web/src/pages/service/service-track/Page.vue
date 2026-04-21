@@ -1,37 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
-import { Left } from "@icon-park/vue-next";
-import mock from "./mock";
-import { getActiveHomeCareOrder } from "../home-care-orders/store";
+import type { PageComponentProps } from '@ihc/page-core/types'
+import mock from './mock'
 
-const props = defineProps<PageComponentProps>();
+const props = defineProps<PageComponentProps>()
 
-const activeOrder = getActiveHomeCareOrder();
-
-const steps = computed(() => {
-  if (!activeOrder) {
-    return mock.pendingPaymentSteps;
-  }
-
-  if (activeOrder.status === "pending_payment") {
-    return mock.pendingPaymentSteps;
-  }
-
-  if (activeOrder.status === "awaiting_accept") {
-    return mock.awaitingAcceptSteps;
-  }
-
-  if (activeOrder.status === "awaiting_service") {
-    return mock.awaitingServiceSteps;
-  }
-
-  return mock.completedSteps;
-});
-
-function goBack() {
+const goBack = () => {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch("service/home-care-orders");
+    props.navigation.reLaunch('service/order-detail')
   }
 }
 </script>
@@ -39,22 +14,22 @@ function goBack() {
 <template>
   <div class="service-track-page">
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">
-        <Left theme="outline" size="18" fill="currentColor" />
-      </button>
-      <div>
-        <h1>服务进度</h1>
-        <p v-if="activeOrder">{{ activeOrder.title }}</p>
-      </div>
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
+      <h1>服务跟踪</h1>
     </header>
 
     <main class="track-content">
       <section class="track-card">
-        <article v-for="(step, index) in steps" :key="step.id" class="track-step" :class="{ active: step.active }">
+        <article
+            v-for="(step, index) in mock.steps"
+            :key="step.id"
+            class="track-step"
+            :class="{ active: step.active }"
+        >
           <time>{{ step.time }}</time>
           <div class="track-line">
             <span class="dot"></span>
-            <span v-if="index < steps.length - 1" class="line"></span>
+            <span v-if="index < mock.steps.length - 1" class="line"></span>
           </div>
           <div class="track-text">
             <h2>{{ step.title }}</h2>
@@ -63,15 +38,11 @@ function goBack() {
         </article>
       </section>
     </main>
-  </section>
+  </div>
 </template>
 
 <style scoped>
 .service-track-page {
-  --page-bg: #edf4ff;
-  --card-border: #e3ebf7;
-  --primary: #6872f0;
-  --text-3: #8ea0bc;
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
@@ -80,60 +51,63 @@ function goBack() {
   transform: translateX(-50%);
   padding: 16px 14px 40px;
   box-sizing: border-box;
-  background: var(--page-bg);
+  background: #f5f6f7;
   color: #34383f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .page-header {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 10px;
+  height: 64px;
+  display: flex;
   align-items: center;
-  padding: 6px 0 14px;
+  margin-bottom: 34px;
 }
 
 .back-button {
-  width: 32px;
+  width: 24px;
   height: 32px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px 0 -4px;
   padding: 0;
-  border: 1px solid #e3e4e7;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #50555d;
+  border: 0;
+  background: transparent;
+  color: #34383f;
+  font-size: 34px;
+  line-height: 26px;
+  font-weight: 300;
+  cursor: pointer;
 }
 
 .page-header h1 {
   margin: 0;
-  font-size: 16px;
+  color: #34383f;
+  font-size: 22px;
   font-weight: 600;
-}
-
-.page-header p {
-  margin: 3px 0 0;
-  font-size: 11px;
-  color: var(--text-3);
+  letter-spacing: 0;
 }
 
 .track-card {
-  padding: 16px 14px 8px;
-  border: 1px solid var(--card-border);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.94);
+  min-height: 330px;
+  padding: 34px 28px 24px;
+  border-radius: 16px;
+  background: #fff;
+  box-sizing: border-box;
 }
 
 .track-step {
   display: grid;
-  grid-template-columns: 84px 24px minmax(0, 1fr);
-  min-height: 74px;
-  color: #a5abb2;
+  grid-template-columns: 112px 36px 1fr;
+  min-height: 86px;
+  color: #b8bbc1;
 }
 
 .track-step time {
   padding-top: 2px;
-  font-size: 11px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .track-line {
@@ -143,41 +117,60 @@ function goBack() {
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
+  width: 9px;
+  height: 9px;
+  margin-top: 8px;
   border-radius: 50%;
-  background: #d3d7dc;
-  z-index: 1;
+  background: #cfd1d5;
+  z-index: 2;
 }
 
 .line {
   position: absolute;
-  top: 16px;
+  top: 21px;
   bottom: -8px;
   left: 50%;
   width: 1px;
   transform: translateX(-50%);
-  background: #dfe6f5;
+  background: repeating-linear-gradient(
+      to bottom,
+      #e5e6e9 0,
+      #e5e6e9 4px,
+      transparent 4px,
+      transparent 8px
+  );
+}
+
+.track-text {
+  padding-left: 20px;
 }
 
 .track-text h2 {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
+  color: #9699a0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .track-text p {
-  margin: 5px 0 0;
-  font-size: 10px;
-  line-height: 1.6;
+  margin: 18px 0 0;
+  color: #9699a0;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .track-step.active {
-  color: #43484f;
+  color: #34383f;
 }
 
 .track-step.active .dot {
-  background: var(--primary);
+  width: 10px;
+  height: 10px;
+  background: #34383f;
+}
+
+.track-step.active .track-text h2 {
+  color: #34383f;
 }
 </style>

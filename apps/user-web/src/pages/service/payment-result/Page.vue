@@ -1,50 +1,89 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Left } from "@icon-park/vue-next";
 import { getActiveHomeCareOrder } from "../home-care-orders/store";
 
 const props = defineProps<PageComponentProps>();
 
-const activeOrder = getActiveHomeCareOrder();
+const activeOrder = computed(() => getActiveHomeCareOrder());
 
 const codeGroups = computed(() => {
-  if (!activeOrder) {
-    return ["0000", "0000", "0000"];
+  const serviceCode = activeOrder.value?.serviceCode || "";
+  return serviceCode ? serviceCode.split(" ") : [];
+});
+
+const qrCodeUrl = computed(() => {
+  const order = activeOrder.value;
+  if (!order) {
+    return "";
   }
 
-  return activeOrder.serviceCode.split(" ");
+  const qrPayload = [
+    "IHC_SERVICE_VOUCHER",
+    `orderNo=${order.orderNo}`,
+    `serviceCode=${order.serviceCode.replace(/\s+/g, "")}`,
+    `bookingDate=${order.bookingDate}`,
+    `weekday=${order.bookingWeekday}`,
+    `timeSlot=${order.bookingTimeSlot}`,
+    `contactPhone=${order.contactPhone}`,
+  ].join(";");
+
+  const searchParams = new URLSearchParams({
+    data: qrPayload,
+    size: "156x156",
+    format: "png",
+    ecc: "M",
+    qzone: "2",
+    margin: "0",
+    "charset-source": "UTF-8",
+    "charset-target": "UTF-8",
+    color: "1d2024",
+    bgcolor: "ffffff",
+  });
+
+  return `https://api.qrserver.com/v1/create-qr-code/?${searchParams.toString()}`;
+});
+
+const barcodeUrl = computed(() => {
+  const order = activeOrder.value;
+  if (!order) {
+    return "";
+  }
+
+  const searchParams = new URLSearchParams({
+    includetext: "",
+    height: "46",
+  });
+
+  return `https://barcodeapi.org/api/128/${encodeURIComponent(order.orderNo)}?${searchParams.toString()}`;
 });
 
 function goBack() {
-  props.navigation.reLaunch("service/home-care-orders");
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch("service/home-care-orders");
+  }
 }
 
-function finish() {
-  props.navigation.reLaunch("service/home-care-orders");
+function viewOrder() {
+  props.navigation.navigateTo("service/order-detail");
 }
 </script>
 
 <template>
   <div class="payment-result-page">
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">
-        <Left theme="outline" size="18" fill="currentColor" />
-      </button>
-      <div>
-        <h1>服务券码</h1>
-        <p>上门服务前向护理人员出示即可</p>
-      </div>
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
+      <h1>支付结果</h1>
     </header>
 
     <main class="voucher-content">
-      <section class="voucher-card" v-if="activeOrder">
+      <section v-if="activeOrder" class="voucher-card">
         <div class="voucher-top">
           <div>
             <span class="voucher-label">家政护理</span>
             <h2>{{ activeOrder.title }}</h2>
           </div>
-          <strong>¥{{ activeOrder.actualAmount.toFixed(2) }}</strong>
+          <strong>￥{{ activeOrder.actualAmount.toFixed(2) }}</strong>
         </div>
 
         <div class="voucher-meta">
@@ -64,31 +103,43 @@ function finish() {
         </div>
 
         <div class="scan-card">
-          <div class="qr-code" aria-hidden="true">
-            <span v-for="index in 36" :key="index" :class="`cell cell--${index}`"></span>
+          <div class="qr-code">
+            <img
+              v-if="qrCodeUrl"
+              class="qr-code__image"
+              :src="qrCodeUrl"
+              :alt="`${activeOrder.title}服务二维码`"
+              loading="eager"
+              referrerpolicy="no-referrer"
+            />
           </div>
-          <div class="barcode" aria-hidden="true">
-            <span v-for="index in 42" :key="index" :class="{ wide: index % 5 === 0 || index % 7 === 0 }"></span>
+          <div class="barcode">
+            <img
+              v-if="barcodeUrl"
+              class="barcode__image"
+              :src="barcodeUrl"
+              :alt="`${activeOrder.orderNo}服务条形码`"
+              loading="eager"
+              referrerpolicy="no-referrer"
+            />
           </div>
-          <small>{{ activeOrder.orderNo }}</small>
         </div>
+      </section>
+
+      <section v-else class="empty-card">
+        <h2>未找到订单</h2>
+        <p>当前没有可展示的服务券信息，请返回订单列表重新进入。</p>
       </section>
     </main>
 
-    <footer class="finish-bar">
-      <button class="finish-button" type="button" @click="finish">完成</button>
-    </footer>
-  </section>
+    <div class="result-bar">
+      <button class="result-button" type="button" @click="viewOrder">查看订单</button>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.voucher-page {
-  --page-bg: #edf4ff;
-  --card-border: #e3ebf7;
-  --primary: #6872f0;
-  --primary-2: #ed6d88;
-  --primary-soft: rgba(104, 114, 240, 0.1);
-  --text-3: #8ea0bc;
+.payment-result-page {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
@@ -97,103 +148,107 @@ function finish() {
   transform: translateX(-50%);
   padding: 16px 14px 96px;
   box-sizing: border-box;
-  background: var(--page-bg);
+  background: #f5f6f7;
   color: #34383f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 10px;
+  height: 58px;
+  display: flex;
   align-items: center;
-  padding: 6px 0 12px;
+  margin-bottom: 26px;
 }
 
 .back-button {
-  width: 32px;
+  width: 24px;
   height: 32px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px 0 -4px;
   padding: 0;
-  border: 1px solid #e3e4e7;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #50555d;
+  border: 0;
+  background: transparent;
+  color: #34383f;
+  font-size: 34px;
+  line-height: 26px;
+  font-weight: 300;
+  cursor: pointer;
 }
 
 .page-header h1 {
   margin: 0;
-  font-size: 16px;
+  color: #34383f;
+  font-size: 22px;
   font-weight: 600;
+  letter-spacing: 0;
 }
 
-.page-header p {
-  margin: 3px 0 0;
-  font-size: 11px;
-  color: var(--text-3);
+.voucher-content {
+  display: flex;
+  flex-direction: column;
 }
 
-.voucher-card {
-  padding: 16px;
-  border: 1px solid var(--card-border);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.96);
+.voucher-card,
+.empty-card {
+  padding: 24px 22px;
+  border-radius: 16px;
+  background: #fff;
 }
 
 .voucher-top {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
+  gap: 16px;
 }
 
 .voucher-label {
-  display: inline-flex;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 10px;
+  display: inline-block;
+  margin-bottom: 10px;
+  color: #6870f2;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .voucher-top h2 {
-  margin: 8px 0 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.4;
 }
 
 .voucher-top strong {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--primary);
+  color: #f1736d;
+  font-size: 24px;
+  white-space: nowrap;
 }
 
 .voucher-meta {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 10px;
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
 .voucher-meta span {
-  font-size: 11px;
-  color: var(--text-3);
+  display: block;
+  margin-bottom: 8px;
+  color: #9fa2a9;
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.voucher-meta p {
+.voucher-meta p,
+.code-block p,
+.empty-card p {
   margin: 0;
-  font-size: 11px;
+  color: #34383f;
+  font-size: 16px;
   line-height: 1.6;
-  color: #50565e;
 }
 
 .code-block {
-  margin-top: 16px;
-  padding: 14px 12px;
-  border-radius: 18px;
-  background: #fff;
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f6f7fb;
   text-align: center;
 }
 
@@ -201,114 +256,93 @@ function finish() {
   display: flex;
   justify-content: center;
   gap: 10px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #2f343a;
+  margin-bottom: 10px;
 }
 
-.code-block p {
-  margin: 9px 0 0;
-  font-size: 10px;
-  color: var(--text-3);
+.code-number span {
+  min-width: 60px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .scan-card {
-  margin-top: 14px;
-  padding: 14px 12px 12px;
-  border-radius: 18px;
-  background: #fff;
-  text-align: center;
+  margin-top: 24px;
+  padding: 18px 0 6px;
+  border-top: 1px solid #ededee;
 }
 
 .qr-code {
   width: 156px;
   height: 156px;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 3px;
+  place-items: center;
   margin: 0 auto;
   padding: 10px;
   border-radius: 14px;
   background: #f5f5f4;
+  box-sizing: border-box;
 }
 
-.cell {
-  border-radius: 2px;
-  background: #17191c;
-  opacity: 0.14;
-}
-
-.cell--1,
-.cell--2,
-.cell--3,
-.cell--7,
-.cell--9,
-.cell--13,
-.cell--15,
-.cell--16,
-.cell--18,
-.cell--19,
-.cell--21,
-.cell--24,
-.cell--25,
-.cell--27,
-.cell--28,
-.cell--30,
-.cell--31,
-.cell--33,
-.cell--34,
-.cell--35,
-.cell--36 {
-  opacity: 1;
+.qr-code__image {
+  display: block;
+  width: 136px;
+  height: 136px;
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 .barcode {
-  display: flex;
-  justify-content: center;
-  gap: 2px;
+  display: grid;
+  place-items: center;
   margin: 14px auto 0;
   padding: 0 8px;
 }
 
-.barcode span {
-  width: 2px;
-  height: 46px;
-  background: #1d2024;
-}
-
-.barcode span.wide {
-  width: 3px;
-}
-
-.scan-card small {
+.barcode__image {
   display: block;
-  margin-top: 10px;
-  font-size: 10px;
-  color: var(--text-3);
-  letter-spacing: 0.08em;
+  width: 100%;
+  max-width: 270px;
+  height: 46px;
+  object-fit: fill;
+  background: #ffffff;
 }
 
-.finish-bar {
+.empty-card h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.result-bar {
   position: fixed;
   left: 50%;
   bottom: 0;
+  z-index: 20;
   width: 100%;
   max-width: 402px;
-  padding: 10px 16px 18px;
+  padding: 12px 26px 28px;
   box-sizing: border-box;
   transform: translateX(-50%);
-  background: rgba(240, 248, 251, 0.96);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -8px 20px rgba(20, 24, 36, 0.04);
 }
 
-.finish-button {
-  width: 100%;
-  height: 36px;
+.result-button {
+  width: 350px;
+  max-width: 100%;
+  height: 48px;
+  display: block;
+  margin: 0 auto;
   border: 0;
-  border-radius: 999px;
-  background: var(--primary);
+  border-radius: 8px;
+  background: #6870f2;
   color: #fff;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  cursor: pointer;
 }
 </style>
