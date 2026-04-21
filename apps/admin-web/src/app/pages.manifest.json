@@ -65,6 +65,19 @@
     "legacySources": []
   },
   {
+    "id": "dashboard/booking-board",
+    "title": "预约看板",
+    "group": "dashboard",
+    "route": "/dashboard/booking-board",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "按时间轴查看预约服务、服务人员和服务状态。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/booking-board",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/booking-board/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/booking-board/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "dashboard/session",
     "title": "会话",
     "group": "dashboard",
@@ -244,6 +257,32 @@
     "folderPath": "/apps/admin-web/src/pages/service/order-dispatch",
     "modulePath": "/apps/admin-web/src/pages/service/order-dispatch/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/service/order-dispatch/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/product-management",
+    "title": "商品管理",
+    "group": "service",
+    "route": "/service/product-management",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "合并家政护理、上门体检和康复理疗的商品管理列表页。",
+    "folderPath": "/apps/admin-web/src/pages/service/product-management",
+    "modulePath": "/apps/admin-web/src/pages/service/product-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/service/product-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/product-editor",
+    "title": "新增商品信息",
+    "group": "service",
+    "route": "/service/product-editor",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "商品基础信息、参数设置与售卖信息编辑页。",
+    "folderPath": "/apps/admin-web/src/pages/service/product-editor",
+    "modulePath": "/apps/admin-web/src/pages/service/product-editor/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/service/product-editor/mock.ts",
     "legacySources": []
   },
   {

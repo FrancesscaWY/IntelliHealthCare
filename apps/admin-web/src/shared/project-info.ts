@@ -77,6 +77,11 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
     shortTitle: "工作台",
     summary: "首页工作台、统计卡、标签分布与趋势排行。",
   },
+  "dashboard/booking-board": {
+    title: "预约看板",
+    shortTitle: "工作台",
+    summary: "按时间轴查看预约安排、服务人员和服务状态。",
+  },
   "dashboard/session": {
     title: "会话",
     shortTitle: "工作台",
@@ -138,6 +143,14 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   "service/order-dispatch": {
     title: "订单管理",
     summary: "管理支付订单、服务工单与上门安排。",
+  },
+  "service/product-management": {
+    title: "商品管理",
+    summary: "合并家政护理、上门体检和康复理疗的商品管理列表页。",
+  },
+  "service/product-editor": {
+    title: "新增商品信息",
+    summary: "商品基础信息、参数设置与售卖信息编辑页。",
   },
   "staff/caregiver-roster": {
     title: "人员管理",

@@ -66,9 +66,9 @@ const railItems = computed(() =>
 const secondaryNavItems = computed(() => {
   if (currentGroup.value === "dashboard") {
     return [
-      { key: "home", label: "首页", active: false, pageId: "dashboard/overview", kind: "item" },
-      { key: "workbench", label: "工作台", active: true, pageId: "dashboard/overview", kind: "item" },
-      { key: "booking", label: "预约看板", active: false, pageId: "", toast: "预约看板原型页暂未接入。", kind: "item" },
+      { key: "home", label: "首页", active: activePage.value?.id === "dashboard/overview", pageId: "dashboard/overview", kind: "item" },
+      { key: "workbench", label: "工作台", active: activePage.value?.id === "dashboard/overview", pageId: "dashboard/overview", kind: "item" },
+      { key: "booking", label: "预约看板", active: activePage.value?.id === "dashboard/booking-board", pageId: "dashboard/booking-board", kind: "item" },
     ];
   }
 
@@ -117,8 +117,8 @@ const secondaryNavItems = computed(() => {
       {
         key: "service-order-dispatch",
         label: "工单管理",
-        active: activePage.value?.id === "service/order-dispatch",
-        pageId: "service/order-dispatch",
+        active: activePage.value?.id === "dashboard/work-order",
+        pageId: "dashboard/work-order",
         kind: "item",
       },
       { key: "service-commission", label: "佣金记录", active: false, pageId: "", toast: "佣金记录原型页暂未接入。", kind: "item" },
