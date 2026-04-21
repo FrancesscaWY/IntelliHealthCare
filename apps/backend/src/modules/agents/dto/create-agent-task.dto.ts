@@ -2,6 +2,7 @@ import { AgentTaskStatus } from "@prisma/client";
 import { Type } from "class-transformer";
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmptyObject,
   IsObject,
@@ -26,6 +27,7 @@ export class CreateAgentTaskDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(["assistant", "internal-api", "event", "schedule"])
   triggerSource = "internal-api";
 
   @IsObject()

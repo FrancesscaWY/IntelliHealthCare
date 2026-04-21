@@ -106,16 +106,48 @@ API / Domain Modules
 - `AGENT_LLM_BASE_URL`
 - `AGENT_LLM_API_KEY`
 
-但要真正落地，通常还需要补充以下配置项：
+当前仓库落地后的 backbone 建议固定为：
+
+- `provider`：`OpenRouter`
+- `planner / main model`：`deepseek/deepseek-v3.2`
+- `worker / light model`：`qwen/qwen3-30b-a3b-instruct-2507`
+- `embedding model`：`qwen/qwen3-embedding-8b`
+- `embedding fallback model`：`baai/bge-m3`
+
+落地时不建议只保留“一个 `AGENT_LLM_MODEL` 配置跑所有任务”，而应至少把下面这些配置项显式建模：
 
 - `AGENT_LLM_PROVIDER`
 - `AGENT_LLM_MODEL`
+- `AGENT_LLM_LIGHT_MODEL`
 - `AGENT_LLM_FALLBACK_MODEL`
 - `AGENT_EMBEDDING_MODEL`
+- `AGENT_EMBEDDING_FALLBACK_MODEL`
 - `AGENT_LLM_TIMEOUT_MS`
+- `AGENT_EMBEDDING_TIMEOUT_MS`
+- `AGENT_LLM_MAX_CONTEXT_TOKENS`
+- `AGENT_TASK_BUDGET_USD`
+- `AGENT_STRICT_JSON_OUTPUT`
+- `AGENT_REQUIRE_TOOL_CALLING`
+- `AGENT_OPENROUTER_ALLOW_FALLBACKS`
+- `AGENT_OPENROUTER_ZDR`
 - `AGENT_MAX_RETRIES`
 - `AGENT_MAX_TOOL_STEPS`
 - `AGENT_ENABLE_TRACING`
+
+首期建议的运行约束如下：
+
+- 严格要求 `tool calling` 能力，但只在需要工具决策的 planner / router / reviewer 场景启用
+- 结构化任务默认要求严格 `JSON Schema` 输出，不再只依赖 `json_object`
+- 主链路上下文预算按 `>= 128K` 设计，超长材料仍优先走 `RAG + 摘要压缩`
+- 默认单次任务预算上限建议控制在 `US$0.05`
+- 开发环境可以直连 OpenRouter，生产环境建议经由私有 `llm-gateway` 或内网转发层统一出站
+
+当前仓库中的 gateway 层应承担的职责建议明确为：
+
+- `llm.gateway.ts`：负责主模型 / 轻量模型 / fallback model 路由、严格结构化输出、tool-calling 请求以及 OpenRouter provider 参数透传
+- `embedding.gateway.ts`：负责 embedding model / fallback embedding model 调用与向量降级
+- 当主模型失败时，先降级到轻量 / fallback 模型
+- 当 embedding 失败时，先降级到 fallback embedding；再由上层检索链路继续降级到词法检索或人工兜底
 
 ## 3.3 Phase 2：先定义工具层，再谈多 Agent 协作
 

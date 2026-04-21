@@ -144,7 +144,7 @@ User Web / Admin Web / Internal Events / Scheduled Jobs
 
 ## 6. Agent 体系蓝图
 
-统一框架当前定义 `8` 个核心 Agent，按角色分为控制层、交互层、领域层和治理层。
+统一框架当前定义 `9` 个核心 Agent，按角色分为控制层、交互层、领域层和治理层。
 
 ### 6.1 控制层
 
@@ -461,10 +461,22 @@ type AgentDefinition = {
   timeoutMs: number;
   maxSteps: number;
   humanReviewRequired: boolean;
+  humanFallback: {
+    handoffTo: string[];
+    when: string[];
+    action: string;
+  };
+  sla: {
+    serviceLevel: string;
+    hardTimeoutMs: number;
+    onTimeout: string;
+  };
 };
 ```
 
 定义卡片是治理基线，不允许仅通过 Prompt 文案隐式定义 Agent 能力。
+
+现有设计中的 `9` 个核心 Agent 卡片，见 `docs/intellihealthcare-agent-cards.md`。
 
 ### 8.2 上下文分层
 

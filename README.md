@@ -101,9 +101,11 @@ npm run dev:backend
 
 - 用户端：`http://127.0.0.1:5173`
 - 后台端：`http://127.0.0.1:5174`
-- 后端 API：`http://localhost:3000/api/v1`
-- Swagger：`http://localhost:3000/api/v1/docs`
-- 健康检查：`http://localhost:3000/api/v1/system/health`
+- 后端 API：`http://localhost:8190/api/v1`
+- Swagger：`http://localhost:8190/api/v1/docs`
+- 健康检查：`http://localhost:8190/api/v1/system/health`
+
+远程服务器部署时，后端默认绑定 `0.0.0.0:8190`。若 `8190` 对外放通，可通过 `http://<服务器IP>:8190/api/v1/docs` 访问 Swagger；若需要本机浏览器使用 `localhost:8190`，请通过 VS Code 端口转发或 SSH 隧道映射。
 
 ## 常用命令
 
@@ -211,10 +213,7 @@ apps/<app>/src/pages/<domain>/<page>/
 - [项目架构说明](./docs/architecture.md)
 - [后端架构说明](./docs/backend-architecture.md)
 - [后端工作区说明](./apps/backend/README.md)
-- [成员开发手册](./docs/member-development-manual.md)
-- [后台端开发手册](./docs/admin-development-manual.md)
-- [页面协作说明](./docs/page-collaboration.md)
-- [Codex 协作说明](./docs/codex-workflow.md)
+- [成员协作开发手册](./docs/member-development-manual.md)
 - [Hermes 多智能体实施文档](./docs/hermes-multi-agent-implementation.md)
 
 ## 开发建议

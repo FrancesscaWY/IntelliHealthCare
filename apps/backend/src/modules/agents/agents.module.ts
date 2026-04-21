@@ -4,6 +4,7 @@ import { AgentOrchestratorService } from "./application/agent-orchestrator.servi
 import { AgentTaskService } from "./application/agent-task.service";
 import { AgentsController } from "./controllers/agents.controller";
 import { AgentRegistry } from "./domain/agent-registry";
+import { EmbeddingGateway } from "./gateways/embedding.gateway";
 import { LlmGateway } from "./gateways/llm.gateway";
 import { HealthArchiveTool } from "./tools/health-archive.tool";
 import { HealthMetricsTool } from "./tools/health-metrics.tool";
@@ -19,6 +20,7 @@ import { AgentTaskProcessor } from "./workers/agent-task.processor";
     AgentDispatchService,
     AgentOrchestratorService,
     LlmGateway,
+    EmbeddingGateway,
     ReportsTool,
     HealthArchiveTool,
     HealthMetricsTool,

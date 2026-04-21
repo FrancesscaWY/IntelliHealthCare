@@ -24,8 +24,18 @@ interface AddressInput {
   isDefault?: boolean;
 }
 
+interface MessageSettingsState {
+  systemNotice: boolean;
+  orderNotice: boolean;
+  healthAlert: boolean;
+  communityNotice: boolean;
+  smsEnabled: boolean;
+}
+
 @Injectable()
 export class UsersService {
+  private readonly messageSettingsStore = new Map<string, MessageSettingsState>();
+
   constructor(private readonly prismaService: PrismaService) {}
 
   async getCurrentUser(userId: string) {
@@ -104,6 +114,251 @@ export class UsersService {
         name: item.elderMember.realName ?? item.elderMember.nickname ?? item.elderMember.phone
       }))
     };
+  }
+
+  async getSecurity(userId: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    return {
+      userId: user.id,
+      phone: user.phone,
+      realNameStatus: user.realNameStatus,
+      hasPassword: Boolean(user.passwordHash),
+      lastLoginAt: toDateTimeString(user.lastLoginAt),
+      thirdPartyBindings: [
+        { provider: "wechat", bound: false },
+        { provider: "alipay", bound: false },
+        { provider: "qq", bound: false }
+      ]
+    };
+  }
+
+  async getSettings(userId: string) {
+    await this.ensureUserExists(userId);
+
+    return {
+      messageSettings: this.getMessageSettings(userId),
+      privacySettings: {
+        searchableByPhone: false,
+        allowFamilyAccessReminder: true
+      },
+      commonSettings: {
+        language: "zh-CN",
+        fontScale: "medium"
+      }
+    };
+  }
+
+  async updateMessageSettings(
+    userId: string,
+    payload: Partial<MessageSettingsState>
+  ) {
+    await this.ensureUserExists(userId);
+    const nextSettings = {
+      ...this.getMessageSettings(userId),
+      ...payload
+    };
+
+    this.messageSettingsStore.set(userId, nextSettings);
+
+    return {
+      updated: true,
+      messageSettings: nextSettings
+    };
+  }
+
+  async getPoints(userId: string, page: number, pageSize: number) {
+    await this.ensureUserExists(userId);
+
+    const ledgers = await this.prismaService.userPointLedger.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    const summary = ledgers.reduce(
+      (acc, item) => {
+        if (item.delta > 0) {
+          acc.totalIncome += item.delta;
+        } else {
+          acc.totalExpense += Math.abs(item.delta);
+        }
+
+        return acc;
+      },
+      {
+        balance: ledgers[0]?.balanceAfter ?? 0,
+        totalIncome: 0,
+        totalExpense: 0
+      }
+    );
+
+    return {
+      summary,
+      records: paginate(
+        ledgers.map((item) => ({
+          pointId: item.id,
+          type: item.type,
+          title: item.title,
+          delta: item.delta,
+          balanceAfter: item.balanceAfter,
+          relatedOrderNo: item.relatedOrderNo,
+          createdAt: toDateTimeString(item.createdAt)
+        })),
+        page,
+        pageSize
+      )
+    };
+  }
+
+  async getFootprints(userId: string, page: number, pageSize: number) {
+    await this.ensureUserExists(userId);
+
+    const footprints = await this.prismaService.userFootprint.findMany({
+      where: { userId },
+      orderBy: { viewedAt: "desc" }
+    });
+
+    return paginate(
+      footprints.map((item) => ({
+        footprintId: item.id,
+        targetType: item.targetType,
+        targetId: item.targetId,
+        title: item.title,
+        coverUrl: item.coverUrl,
+        metadata: item.metadata,
+        viewedAt: toDateTimeString(item.viewedAt)
+      })),
+      page,
+      pageSize
+    );
+  }
+
+  async clearFootprints(userId: string) {
+    const result = await this.prismaService.userFootprint.deleteMany({
+      where: { userId }
+    });
+
+    return {
+      cleared: true,
+      count: result.count
+    };
+  }
+
+  async getMyActivities(userId: string, page: number, pageSize: number) {
+    await this.ensureUserExists(userId);
+
+    const registrations = await this.prismaService.activityRegistration.findMany({
+      where: { userId },
+      include: {
+        activity: true
+      },
+      orderBy: { registeredAt: "desc" }
+    });
+
+    return paginate(
+      registrations.map((item) => ({
+        registrationId: item.id,
+        status: item.status,
+        registeredAt: toDateTimeString(item.registeredAt),
+        checkedInAt: toDateTimeString(item.checkedInAt),
+        cancellationReason: item.cancellationReason,
+        activity: {
+          activityId: item.activity.id,
+          title: item.activity.title,
+          category: item.activity.category,
+          status: item.activity.status,
+          location: item.activity.location,
+          coverUrl: item.activity.coverUrl,
+          startAt: toDateTimeString(item.activity.startAt),
+          endAt: toDateTimeString(item.activity.endAt)
+        }
+      })),
+      page,
+      pageSize
+    );
+  }
+
+  async getMyReviews(userId: string, page: number, pageSize: number) {
+    await this.ensureUserExists(userId);
+
+    const reviews = await this.prismaService.orderReview.findMany({
+      where: { userId },
+      include: {
+        order: {
+          include: {
+            service: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return paginate(
+      reviews.map((item) => ({
+        reviewId: item.id,
+        orderId: item.orderId,
+        orderNo: item.order.orderNo,
+        score: item.score,
+        tags: item.tags,
+        content: item.content,
+        createdAt: toDateTimeString(item.createdAt),
+        service: {
+          serviceId: item.order.service.id,
+          title: item.order.service.title,
+          category: item.order.service.category,
+          coverUrl: item.order.service.coverUrl
+        }
+      })),
+      page,
+      pageSize
+    );
+  }
+
+  async getMyCoupons(
+    userId: string,
+    page: number,
+    pageSize: number,
+    status?: "UNUSED" | "USED" | "EXPIRED"
+  ) {
+    await this.ensureUserExists(userId);
+
+    const coupons = await this.prismaService.userCoupon.findMany({
+      where: {
+        userId,
+        status: status ?? undefined
+      },
+      include: {
+        couponTemplate: true
+      },
+      orderBy: [{ status: "asc" }, { claimedAt: "desc" }]
+    });
+
+    return paginate(
+      coupons.map((item) => ({
+        couponId: item.id,
+        status: item.status,
+        claimedAt: toDateTimeString(item.claimedAt),
+        usedAt: toDateTimeString(item.usedAt),
+        expiresAt: toDateTimeString(item.expiresAt),
+        orderRemark: item.orderRemark,
+        template: {
+          couponTemplateId: item.couponTemplate.id,
+          title: item.couponTemplate.title,
+          description: item.couponTemplate.description,
+          discountType: item.couponTemplate.discountType,
+          discountValue: toNumber(item.couponTemplate.discountValue),
+          minSpend: toNumber(item.couponTemplate.minSpend)
+        }
+      })),
+      page,
+      pageSize
+    );
   }
 
   async updateProfile(
@@ -515,6 +770,27 @@ export class UsersService {
     });
 
     return binding?.elderMemberId ?? user.id;
+  }
+
+  private getMessageSettings(userId: string): MessageSettingsState {
+    return this.messageSettingsStore.get(userId) ?? {
+      systemNotice: true,
+      orderNotice: true,
+      healthAlert: true,
+      communityNotice: true,
+      smsEnabled: true
+    };
+  }
+
+  private async ensureUserExists(userId: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { id: true }
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
   }
 
   private async assertAddressAccess(user: AuthenticatedUser, elderId: string | null) {

@@ -21,7 +21,12 @@ export class AgentTaskService {
   ) {}
 
   async createTask(input: CreateAgentTaskDto) {
-    const { resolved } = this.agentRegistry.resolve(input.agentName, input.taskType);
+    const normalizedAgentName = this.agentRegistry.normalizeAgentName(input.agentName);
+    const normalizedTaskType = this.agentRegistry.normalizeTaskType(input.taskType);
+    const { resolved } = this.agentRegistry.resolve(
+      normalizedAgentName,
+      normalizedTaskType
+    );
 
     let normalizedPayload: unknown;
 
@@ -36,8 +41,8 @@ export class AgentTaskService {
     return this.prismaService.agentTask.create({
       data: {
         ownerId: input.ownerId ?? null,
-        agentName: input.agentName,
-        taskType: input.taskType,
+        agentName: normalizedAgentName,
+        taskType: normalizedTaskType,
         triggerSource: input.triggerSource,
         payload: normalizedPayload as unknown as Prisma.InputJsonValue
       }
