@@ -19,7 +19,7 @@
     "route": "/auth/login",
     "owner": "后台组",
     "status": "implemented",
-    "summary": "后台管理端账号密码登录与工作台进入入口。",
+    "summary": "后台管理端账号密码登录与工作台入口。",
     "folderPath": "/apps/admin-web/src/pages/auth/login",
     "modulePath": "/apps/admin-web/src/pages/auth/login/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/auth/login/mock.ts",
@@ -205,6 +205,32 @@
     "folderPath": "/apps/admin-web/src/pages/service/staff-management",
     "modulePath": "/apps/admin-web/src/pages/service/staff-management/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/service/staff-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/review-management",
+    "title": "审核管理",
+    "group": "service",
+    "route": "/service/review-management",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "查看服务人员审核状态、申请时间和审核处理信息。",
+    "folderPath": "/apps/admin-web/src/pages/service/review-management",
+    "modulePath": "/apps/admin-web/src/pages/service/review-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/service/review-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/review-detail",
+    "title": "审核详情",
+    "group": "service",
+    "route": "/service/review-detail",
+    "owner": "后台组",
+    "status": "planned",
+    "summary": "查看服务人员审核资料、实名信息与审核处理动作。",
+    "folderPath": "/apps/admin-web/src/pages/service/review-detail",
+    "modulePath": "/apps/admin-web/src/pages/service/review-detail/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/service/review-detail/mock.ts",
     "legacySources": []
   },
   {

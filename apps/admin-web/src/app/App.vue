@@ -106,7 +106,13 @@ const secondaryNavItems = computed(() => {
         kind: "item",
       },
       { key: "service-staff-tags", label: "标签管理", active: false, pageId: "", toast: "标签管理原型页暂未接入。", kind: "item" },
-      { key: "service-staff-review", label: "审核管理", active: false, pageId: "", toast: "审核管理原型页暂未接入。", kind: "item" },
+      {
+        key: "service-staff-review",
+        label: "审核管理",
+        active: ["service/review-management", "service/review-detail"].includes(activePage.value?.id || ""),
+        pageId: "service/review-management",
+        kind: "item",
+      },
       { key: "service-section-order", label: "服务管理", kind: "section" },
       {
         key: "service-order-dispatch",

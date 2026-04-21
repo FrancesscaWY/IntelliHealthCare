@@ -30,7 +30,7 @@ export const groupMeta: Record<string, { title: string; description: string }> =
   },
   device: {
     title: "设备中心",
-    description: "设备在线、巡检任务与钱包结算信息。",
+    description: "设备在线、巡检任务与结算信息。",
   },
   content: {
     title: "内容运营",
@@ -75,7 +75,7 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   "dashboard/overview": {
     title: "首页",
     shortTitle: "工作台",
-    summary: "首页工作台、统计卡、标签分布与趋势排行榜。",
+    summary: "首页工作台、统计卡、标签分布与趋势排行。",
   },
   "dashboard/session": {
     title: "会话",
@@ -127,6 +127,14 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
     title: "服务人员管理",
     summary: "管理服务人员列表、标签、加入方式和启用状态。",
   },
+  "service/review-management": {
+    title: "审核管理",
+    summary: "查看服务人员审核状态、申请时间和审核处理信息。",
+  },
+  "service/review-detail": {
+    title: "审核详情",
+    summary: "查看服务人员审核资料、实名信息与审核处理动作。",
+  },
   "service/order-dispatch": {
     title: "订单管理",
     summary: "管理支付订单、服务工单与上门安排。",
@@ -145,12 +153,4 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   },
 };
 
-export const railGroupOrder = [
-  "dashboard",
-  "elder",
-  "service",
-  "health",
-  "device",
-  "analytics",
-  "system",
-] as const;
+export const railGroupOrder = ["dashboard", "elder", "service", "health", "device", "analytics", "system"] as const;

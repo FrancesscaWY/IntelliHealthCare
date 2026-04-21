@@ -1,5 +1,5 @@
 const mock = {
-  greeting: "早上好！ Daisy",
+  greeting: "早上好！Daisy",
   stats: [
     {
       label: "新增用户数量",
@@ -48,15 +48,15 @@ const mock = {
     { title: "会话", icon: "message", tone: "rose", pageId: "dashboard/session" },
     { title: "全部订单", icon: "database", tone: "violet", pageId: "dashboard/order-list" },
     { title: "工单管理", icon: "file", tone: "blue", pageId: "dashboard/work-order" },
-    { title: "审核管理", icon: "refresh", tone: "teal", pageId: "dashboard/review-management" },
+    { title: "审核管理", icon: "refresh", tone: "teal", pageId: "service/review-management" },
     { title: "售后管理", icon: "star", tone: "yellow", pageId: "dashboard/after-sale" },
     { title: "动态管理", icon: "send", tone: "salmon" },
   ],
   tagDistribution: [
     { label: "高血压", value: 80, max: 140 },
     { label: "冠心病", value: 120, max: 140 },
-    { label: "高血糖", value: 40, max: 140 },
-    { label: "高血脂", value: 30, max: 140 },
+    { label: "高血脂", value: 40, max: 140 },
+    { label: "高血糖", value: 30, max: 140 },
     { label: "慢病护理", value: 110, max: 140 },
     { label: "多动症", value: 88, max: 140 },
   ],
@@ -80,11 +80,11 @@ const mock = {
     { rank: 5, title: "日常清洁 2小时1人急速清洁全程质保", orders: 1300 },
   ],
   staffRanking: [
-    { rank: 1, name: "王小倩", category: "家政护工", orders: 2678 },
-    { rank: 2, name: "王小倩", category: "家政护工", orders: 2678 },
-    { rank: 3, name: "王小倩", category: "家政护工", orders: 2678 },
-    { rank: 4, name: "王小倩", category: "家政护工", orders: 2678 },
-    { rank: 5, name: "王小倩", category: "家政护工", orders: 2678 },
+    { rank: 1, name: "王小依", category: "家政护工", orders: 2678 },
+    { rank: 2, name: "王小依", category: "家政护工", orders: 2678 },
+    { rank: 3, name: "王小依", category: "家政护工", orders: 2678 },
+    { rank: 4, name: "王小依", category: "家政护工", orders: 2678 },
+    { rank: 5, name: "王小依", category: "家政护工", orders: 2678 },
   ],
   productImage:
     "https://images.pexels.com/photos/9462743/pexels-photo-9462743.jpeg?auto=compress&cs=tinysrgb&w=300",
