@@ -216,7 +216,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 - 创建页面目录
 - 生成 `Page.vue`
 - 生成 `mock.ts`
-- 生成 `README.md`
+- 在需要时通过 `--with-readme` 生成 `README.md`
 - 写入对应应用的 `pages.manifest.json`
 
 ## 7. packages/page-core 的职责

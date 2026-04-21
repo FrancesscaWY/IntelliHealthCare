@@ -94,6 +94,8 @@ npm run create:page -- --group health --page health-data --title "健康数据" 
 npm run create:admin-page -- --group elder --page member-list --title "长者档案" --owner "后台组"
 ```
 
+如页面需要单独交接说明，可追加 `--with-readme` 生成目录内 `README.md`。
+
 生成页面开发提示：
 
 ```bash
@@ -127,14 +129,15 @@ docs/
 apps/<app>/src/pages/<domain>/<page>/
   Page.vue
   mock.ts
-  README.md
+  README.md   # 可选，仅在需要补充上下文时保留
 ```
 
 说明：
 
 - `Page.vue`：页面结构、交互与局部状态
 - `mock.ts`：单页调试数据
-- `README.md`：页面职责、边界和协作说明
+- `pages.manifest.json`：页面标题、摘要、负责人和运行入口的主数据源
+- `README.md`：可选补充文档，用于记录额外交接、依赖或迁移说明
 
 页面清单位于：
 
@@ -150,4 +153,5 @@ apps/admin-web/src/app/pages.manifest.json
 - [Hermes 多智能体框架实施路径](./docs/hermes-multi-agent-implementation.md)
 - [成员开发手册](./docs/member-development-manual.md)
 - [后台端开发手册](./docs/admin-development-manual.md)
+- [页面协作说明](./docs/page-collaboration.md)
 - [Codex 协作说明](./docs/codex-workflow.md)

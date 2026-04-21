@@ -1,7 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { resolveAppTarget } from "./app-targets.mjs";
-import { buildPageEntry, loadManifest, normalizePageId, parseArgs, resolvePageFolder, saveManifest } from "./utils.mjs";
+import {
+  DEFAULT_PAGE_SUMMARY,
+  buildPageEntry,
+  loadManifest,
+  normalizePageId,
+  parseArgs,
+  resolvePageFolder,
+  saveManifest,
+} from "./utils.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const appTarget = resolveAppTarget(args.app || "user");
@@ -9,7 +17,8 @@ const group = args.group || args.module;
 const pageName = args.page;
 const title = args.title || "未命名页面";
 const owner = args.owner || "待分配";
-const summary = args.summary || "请根据原型补充页面职责说明。";
+const summary = args.summary || DEFAULT_PAGE_SUMMARY;
+const shouldCreateReadme = args["with-readme"] === "true";
 
 if (!group || !pageName) {
   console.error('用法：npm run create:page -- --group health --page health-data --title "健康数据" --owner "成员A"');
@@ -89,23 +98,25 @@ fs.writeFileSync(
   "utf8",
 );
 
-fs.writeFileSync(
-  path.join(pageFolder, "README.md"),
-  [
-    `# ${title}`,
-    "",
-    `- 页面 id：\`${pageId}\``,
-    `- 页面目录：\`apps/${appTarget.dirName}/src/pages/${pageId}\``,
-    `- 负责人：${owner}`,
-    "",
-    "开发约定：",
-    "- 在 `Page.vue` 中编写页面结构和交互。",
-    "- 在 `mock.ts` 中维护单页调试数据。",
-    "- 如果需要复用能力，优先抽到 `packages/page-core`。",
-    "",
-  ].join("\n"),
-  "utf8",
-);
+if (shouldCreateReadme) {
+  fs.writeFileSync(
+    path.join(pageFolder, "README.md"),
+    [
+      `# ${title}`,
+      "",
+      `- 页面 id：\`${pageId}\``,
+      `- 页面目录：\`apps/${appTarget.dirName}/src/pages/${pageId}\``,
+      `- 负责人：${owner}`,
+      "",
+      "开发约定：",
+      "- 在 `Page.vue` 中编写页面结构和交互。",
+      "- 在 `mock.ts` 中维护单页调试数据。",
+      "- 如果需要复用能力，优先抽到 `packages/page-core`。",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+}
 
 const manifest = loadManifest(appTarget.key);
 manifest.push(

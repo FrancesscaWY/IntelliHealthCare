@@ -51,7 +51,8 @@ npm run create:page -- --group health --page blood-pressure --title "血压监�
 
 - `Page.vue`
 - `mock.ts`
-- `README.md`
+- 页面清单条目
+- 可选的 `README.md`（仅在使用 `--with-readme` 时生成）
 
 3. 再让 Codex 基于该目录继续实现页面
 
@@ -79,13 +80,14 @@ Codex 在新增或修改页面时，应遵守当前目录契约：
 apps/user-web/src/pages/<domain>/<page>/
   Page.vue
   mock.ts
-  README.md
+  README.md   # 可选
 ```
 
 约束如下：
 
 - `Page.vue` 负责页面结构、状态和交互
 - `mock.ts` 负责本页调试数据
+- `pages.manifest.json` 是页面摘要、负责人和运行入口的主数据源
 - 页面组件应兼容 `PageComponentProps`
 - 页面应支持 `npm run dev:page -- --page <page-id>` 单独调试
 

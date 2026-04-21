@@ -2,7 +2,7 @@
 
 ## 1. 选型结论
 
-结合 `/home/wy/IntelliHealthCare/智诊康养项目文档0420.pdf` 的业务要求，后端建议采用：
+结合 [`智诊康养项目文档0420.pdf`](./智诊康养项目文档0420.pdf) 的业务要求，后端建议采用：
 
 - `Node.js 20 + TypeScript`
 - `NestJS` 作为主框架

@@ -77,6 +77,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 ```
 
 - 创建页面脚手架并登记到对应清单
+- 如页面需要额外交接说明，可追加 `--with-readme`
 
 ## 4. 仓库目录怎么理解
 
@@ -127,14 +128,15 @@ packages/page-core/src/
 apps/<app>/src/pages/<domain>/<page>/
   Page.vue
   mock.ts
-  README.md
+  README.md   # 可选
 ```
 
 职责划分：
 
 - `Page.vue`：页面结构、交互、局部状态
 - `mock.ts`：本页调试数据
-- `README.md`：页面职责、边界、协作说明
+- `pages.manifest.json`：页面标题、摘要、负责人和运行入口的主数据源
+- `README.md`：可选补充文档，用于记录额外协作说明
 
 ## 6. 怎么找到自己负责的页面
 

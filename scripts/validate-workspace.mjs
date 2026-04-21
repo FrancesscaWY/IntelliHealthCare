@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { listAppTargets, resolveAppTarget } from "./app-targets.mjs";
-import { loadManifest, resolvePageFolder } from "./utils.mjs";
+import { DEFAULT_PAGE_SUMMARY, loadManifest, resolvePageFolder } from "./utils.mjs";
 
 function validateAppWorkspace(appTarget) {
   const manifest = loadManifest(appTarget.key);
@@ -34,8 +34,12 @@ function validateAppWorkspace(appTarget) {
       if (!fs.existsSync(mockFilePath)) {
         errors.push(`已实现页面缺少 mock.ts：${entry.id}`);
       }
-    } else if (!fs.existsSync(readmePath) && !fs.existsSync(pageFilePath)) {
-      errors.push(`规划页面至少需要 README.md 或 Page.vue：${entry.id}`);
+    } else {
+      const hasMeaningfulSummary = Boolean(entry.summary && entry.summary !== DEFAULT_PAGE_SUMMARY);
+
+      if (!fs.existsSync(readmePath) && !fs.existsSync(pageFilePath) && !hasMeaningfulSummary) {
+        errors.push(`规划页面至少需要 Page.vue、README.md 或 pages.manifest.json 中的有效 summary：${entry.id}`);
+      }
     }
   }
 

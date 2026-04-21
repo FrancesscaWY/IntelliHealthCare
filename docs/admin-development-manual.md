@@ -45,25 +45,18 @@ npm run dev:admin:page -- --page health/alert-center
 
 ## 3. 当前页面清单
 
-已搭建的首批后台页面：
+当前已登记到 `pages.manifest.json`、可直接运行的后台页面：
 
 - `auth/login`：登录页
 - `dashboard/overview`：后台首页
-- `elder/member-list`：长者档案
-- `service/order-dispatch`：服务调度
-- `health/alert-center`：健康预警
-- `device/device-monitor`：设备监控
-- `content/content-management`：内容管理
-- `community/activity-management`：活动管理
-- `staff/caregiver-roster`：人员排班
-- `analytics/data-board`：数据看板
-- `system/account-settings`：账号设置
 
 对应页面清单位于：
 
 ```text
 apps/admin-web/src/app/pages.manifest.json
 ```
+
+仓库中还保留了若干后台页面原型目录，但在登记进 `pages.manifest.json` 之前，它们不会参与运行时加载。
 
 ## 4. 页面目录规范
 
@@ -73,14 +66,15 @@ apps/admin-web/src/app/pages.manifest.json
 apps/admin-web/src/pages/<domain>/<page>/
   Page.vue
   mock.ts
-  README.md
+  README.md   # 可选
 ```
 
 约定和 APP 端一致：
 
 - `Page.vue` 只关注当前页面实现
 - `mock.ts` 提供单页预览数据
-- `README.md` 记录页面职责和协作说明
+- `pages.manifest.json` 是页面摘要、负责人和运行入口的主数据源
+- `README.md` 只在需要额外交接时保留
 
 ## 5. 当前后台信息架构
 
@@ -114,6 +108,8 @@ npm run create:admin-page -- --group <group> --page <page> --title "<title>" --o
 ```bash
 npm run create:admin-page -- --group elder --page profile-detail --title "长者详情" --owner "后台组"
 ```
+
+如页面需要额外交接说明，可追加 `--with-readme`。
 
 ## 7. 联调前建议
 
