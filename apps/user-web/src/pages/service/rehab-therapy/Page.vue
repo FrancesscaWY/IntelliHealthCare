@@ -85,7 +85,7 @@ const openProduct = () => {
   box-sizing: border-box;
   transform: translateX(-50%);
   overflow-x: hidden;
-  background: #f6f7f8;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -142,10 +142,10 @@ const openProduct = () => {
 }
 
 .filter-button.active {
-  border-color: #6a72f4;
-  background: #6a72f4;
+  border-color: #75d6df;
+  background: #75d6df;
   color: #fff;
-  box-shadow: none;
+  box-shadow: 0 8px 18px rgba(45, 144, 240, 0.16);
 }
 
 .price-arrows {
@@ -219,7 +219,7 @@ const openProduct = () => {
   padding: 0 7px;
   border-radius: 4px;
   background: rgba(51, 201, 158, 0.1);
-  color: #28bf97;
+  color: #12bfae;
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -227,7 +227,7 @@ const openProduct = () => {
 
 .product-tag:nth-child(2) {
   background: rgba(246, 201, 92, 0.12);
-  color: #f0c85c;
+  color: #BE2DEA;
 }
 
 .meta-row {
@@ -237,7 +237,7 @@ const openProduct = () => {
 }
 
 .price {
-  color: #f2736d;
+  color: #006DFF;
   font-size: 20px;
   font-weight: 800;
 }

@@ -46,7 +46,7 @@ const viewOrder = () => {
     transform: translateX(-50%);
     padding: 16px 14px 96px;
     box-sizing: border-box;
-    background: #f5f6f7;
+    background: #ffffff;
     color: #34383f;
     font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
@@ -98,7 +98,7 @@ const viewOrder = () => {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: #6870f2;
+    background: #75d6df;
   }
 
   .result-content h2 {
@@ -139,7 +139,7 @@ const viewOrder = () => {
     margin: 0 auto;
     border: 0;
     border-radius: 8px;
-    background: #6870f2;
+    background: #75d6df;
     color: #fff;
     font-size: 18px;
     font-weight: 700;

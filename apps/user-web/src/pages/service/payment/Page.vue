@@ -76,7 +76,7 @@ const confirmPay = () => {
   transform: translateX(-50%);
   padding: 16px 14px 96px;
   box-sizing: border-box;
-  background: #f5f6f7;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -140,7 +140,7 @@ const confirmPay = () => {
 .amount-block strong {
   display: block;
   margin-top: 18px;
-  color: #f3706b;
+  color: #006DFF;
   font-size: 38px;
   line-height: 1;
   font-weight: 800;
@@ -159,7 +159,7 @@ const confirmPay = () => {
 }
 
 .countdown span {
-  color: #6c73f0;
+  color: #2d90f0;
 }
 
 .method-section {
@@ -250,7 +250,7 @@ const confirmPay = () => {
 }
 
 .radio.active {
-  border: 7px solid #6970f0;
+  border: 7px solid #75d6df;
 }
 
 .pay-bar {
@@ -275,7 +275,7 @@ const confirmPay = () => {
   margin: 0 auto;
   border: 0;
   border-radius: 8px;
-  background: #6870f2;
+  background: #75d6df;
   color: #fff;
   font-size: 18px;
   font-weight: 700;

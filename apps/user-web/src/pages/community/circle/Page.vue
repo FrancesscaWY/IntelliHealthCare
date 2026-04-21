@@ -154,11 +154,11 @@ function openPage(pageId: string, label?: string) {
 
           <footer class="post-actions">
             <button class="post-action-button" :class="{ active: isStarred(post.id) }" type="button" @click.stop="toggleStar(post.id)">
-              <Star :theme="isStarred(post.id) ? 'filled' : 'outline'" size="22" :fill="isStarred(post.id) ? '#f4bf25' : '#454952'" />
+              <Star :theme="isStarred(post.id) ? 'filled' : 'outline'" size="22" :fill="isStarred(post.id) ? '#f2c94c' : '#454952'" />
               {{ post.stars }}
             </button>
             <button class="post-action-button" :class="{ active: isLiked(post.id) }" type="button" @click.stop="toggleLike(post.id)">
-              <Like :theme="isLiked(post.id) ? 'filled' : 'outline'" size="22" :fill="isLiked(post.id) ? '#7a6ff0' : '#454952'" />
+              <Like :theme="isLiked(post.id) ? 'filled' : 'outline'" size="22" :fill="isLiked(post.id) ? '#f45d76' : '#454952'" />
               {{ post.likes }}
             </button>
             <button class="post-action-button" type="button" @click.stop="pending('转发')">
@@ -228,8 +228,8 @@ function openPage(pageId: string, label?: string) {
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
-  background: #f5f6f7;
-  color: #252939;
+  background: #fff;
+  color: #24372e;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
@@ -277,7 +277,7 @@ function openPage(pageId: string, label?: string) {
 }
 
 .feed-tab.active {
-  color: #252939;
+  color: #24372e;
   font-size: 24px;
 }
 
@@ -317,7 +317,7 @@ function openPage(pageId: string, label?: string) {
   display: block;
   margin-bottom: 4px;
   overflow: hidden;
-  color: #252939;
+  color: #24372e;
   font-size: 13px;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -336,8 +336,8 @@ function openPage(pageId: string, label?: string) {
   align-items: center;
   padding: 0 5px;
   border-radius: 3px;
-  background: #ff4f8f;
-  color: #fff;
+  background: #fff4c7;
+  color: #b67800;
   font-size: 8px;
   font-weight: 900;
   font-style: italic;
@@ -365,13 +365,13 @@ function openPage(pageId: string, label?: string) {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #d0d1d5;
+  background: #cfddd6;
 }
 
 .topic-dots span.active {
   width: 10px;
   border-radius: 8px;
-  background: #777a82;
+  background: #15955d;
 }
 
 .post-list {
@@ -383,7 +383,7 @@ function openPage(pageId: string, label?: string) {
 .creator-section {
   border-radius: 14px;
   background: #fff;
-  box-shadow: 0 6px 18px rgba(31, 40, 58, 0.04);
+  box-shadow: 0 8px 20px rgba(21, 149, 93, 0.055);
 }
 
 .post-card {
@@ -417,7 +417,7 @@ function openPage(pageId: string, label?: string) {
 }
 
 .post-author strong {
-  color: #252939;
+  color: #24372e;
   font-size: 14px;
   font-weight: 900;
 }
@@ -428,8 +428,8 @@ function openPage(pageId: string, label?: string) {
   align-items: center;
   padding: 0 4px;
   border-radius: 3px;
-  background: #263241;
-  color: #d9f3ff;
+  background: #e5f7ee;
+  color: #116f49;
   font-size: 8px;
   font-weight: 900;
 }
@@ -443,10 +443,10 @@ function openPage(pageId: string, label?: string) {
 .follow-button {
   width: 58px;
   height: 28px;
-  border: 0;
+  border: 1px solid #116f49;
   border-radius: 14px;
-  background: #111;
-  color: #fff;
+  background: transparent;
+  color: #116f49;
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
@@ -482,7 +482,7 @@ function openPage(pageId: string, label?: string) {
 
 .post-content {
   margin: 12px 0 10px;
-  color: #252939;
+  color: #24372e;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.55;
@@ -496,8 +496,8 @@ function openPage(pageId: string, label?: string) {
   padding: 0 10px;
   border: 0;
   border-radius: 13px;
-  background: #f1f2f4;
-  color: #5d626b;
+  background: #edf8f2;
+  color: #176b48;
   font-size: 12px;
   font-weight: 800;
 }
@@ -506,7 +506,7 @@ function openPage(pageId: string, label?: string) {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #555b63;
+  background: #8bd7ba;
 }
 
 .post-actions {
@@ -530,11 +530,11 @@ function openPage(pageId: string, label?: string) {
 }
 
 .post-action-button.active {
-  color: #7a6ff0;
+  color: #f45d76;
 }
 
 .post-action-button:first-child.active {
-  color: #f4bf25;
+  color: #f2c94c;
 }
 
 .creator-section {
@@ -544,7 +544,7 @@ function openPage(pageId: string, label?: string) {
 
 .creator-section h2 {
   margin: 0 0 13px;
-  color: #252939;
+  color: #111;
   font-size: 16px;
   font-weight: 900;
 }
@@ -576,7 +576,7 @@ function openPage(pageId: string, label?: string) {
   width: 54px;
   height: 54px;
   display: block;
-  border: 2px solid #252939;
+  border: 2px solid #f2c94c;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -628,7 +628,7 @@ function openPage(pageId: string, label?: string) {
   justify-items: center;
   gap: 0;
   padding: 0;
-  color: #252939;
+  color: #24372e;
   font-size: 12px;
   transform: translateY(-6px);
 }
