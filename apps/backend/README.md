@@ -1,18 +1,6 @@
 # IntelliHealthCare Backend
 
-`apps/backend` 是智诊康养项目当前的后端工作区。现阶段已经不是纯脚手架，而是一个可启动、可联调、带种子数据的 `NestJS + Prisma + BullMQ` 模块化单体；同时它还保留了不少明显的 MVP 特征，尤其是在 Agent、鉴权安全和未开放业务域上。
-
-这份 README 的目标只有三个：
-
-1. 说明当前后端的整体设计
-2. 明确哪些已经完成，哪些还只是规划或边界占位
-3. 给出可以直接复制执行的后端测试 CLI
-
-## 1. 整体设计
-
-### 1.1 架构定位
-
-当前后端采用单仓库下的模块化单体方案：
+`apps/backend` 是智诊康养项目的后端基础工程，采用 TypeScript 统一栈的模块化单体方案：
 
 - `NestJS`：REST API、模块边界、鉴权守卫、Swagger
 - `PostgreSQL + Prisma`：核心业务数据和种子数据
