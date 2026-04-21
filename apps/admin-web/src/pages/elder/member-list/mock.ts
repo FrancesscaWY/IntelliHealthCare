@@ -1,116 +1,132 @@
-const avatar =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
+export type MemberTagTone = "mint" | "peach" | "lavender" | "gold";
+
+export interface MemberTag {
+  label: string;
+  tone: MemberTagTone;
+}
+
+export interface MemberItem {
+  id: string;
+  nickname: string;
+  realName: string;
+  phone: string;
+  registeredAt: string;
+  tags: MemberTag[];
+  avatarAccent: string;
+  avatarShadow: string;
+}
 
 const mock = {
   title: "全部用户",
-  summary: "查看用户档案、标签分布和注册信息。",
-  tagOptions: ["全部标签", "高血压", "糖尿病", "多次购买", "冠心病"],
-  users: [
+  summary: "用户标签筛选、注册时间过滤与用户档案卡片管理。",
+  tagOptions: ["高血压", "糖尿病", "多次购买", "重点关注", "康复训练", "睡眠异常"],
+  members: [
     {
       id: "202409000001",
       nickname: "笑看人生",
       realName: "王强",
       phone: "19233664486",
       registeredAt: "2024-10-09 10:09:09",
-      avatar,
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "高血压", tone: "mint" },
+        { label: "糖尿病", tone: "peach" },
+        { label: "多次购买", tone: "lavender" },
       ],
+      avatarAccent: "#9ca2aa",
+      avatarShadow: "#31363d",
     },
     {
-      id: "202409000021",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-10 09:28:17",
-      avatar,
+      id: "202409000002",
+      nickname: "平安岁月",
+      realName: "李芳",
+      phone: "18620336618",
+      registeredAt: "2024-10-12 14:18:22",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "重点关注", tone: "gold" },
+        { label: "康复训练", tone: "mint" },
       ],
+      avatarAccent: "#8f959d",
+      avatarShadow: "#424850",
     },
     {
-      id: "202409000043",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-11 11:22:08",
-      avatar,
+      id: "202409000003",
+      nickname: "静水流深",
+      realName: "陈静",
+      phone: "17786553210",
+      registeredAt: "2024-10-15 08:26:45",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "糖尿病", tone: "peach" },
+        { label: "多次购买", tone: "lavender" },
       ],
+      avatarAccent: "#9a9aa0",
+      avatarShadow: "#4b4b53",
     },
     {
-      id: "202409000051",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-12 08:46:50",
-      avatar,
+      id: "202409000004",
+      nickname: "晨光熹微",
+      realName: "赵明",
+      phone: "13966542118",
+      registeredAt: "2024-10-18 17:42:31",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "高血压", tone: "mint" },
+        { label: "睡眠异常", tone: "gold" },
       ],
+      avatarAccent: "#858d96",
+      avatarShadow: "#2f3740",
     },
     {
-      id: "202409000066",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-13 14:06:24",
-      avatar,
+      id: "202409000005",
+      nickname: "清风徐来",
+      realName: "周燕",
+      phone: "15322887450",
+      registeredAt: "2024-10-21 11:33:07",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "康复训练", tone: "mint" },
+        { label: "多次购买", tone: "lavender" },
       ],
+      avatarAccent: "#9b9692",
+      avatarShadow: "#4c4640",
     },
     {
-      id: "202409000073",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-14 16:15:47",
-      avatar,
+      id: "202409000006",
+      nickname: "知足常乐",
+      realName: "孙莉",
+      phone: "18850091237",
+      registeredAt: "2024-10-24 09:20:56",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "重点关注", tone: "gold" },
+        { label: "糖尿病", tone: "peach" },
       ],
+      avatarAccent: "#91999f",
+      avatarShadow: "#374047",
     },
     {
-      id: "202409000084",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-15 13:38:16",
-      avatar,
+      id: "202409000007",
+      nickname: "温故知新",
+      realName: "吴江",
+      phone: "13166549802",
+      registeredAt: "2024-10-26 15:06:13",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "高血压", tone: "mint" },
+        { label: "多次购买", tone: "lavender" },
       ],
+      avatarAccent: "#90959a",
+      avatarShadow: "#30353a",
     },
     {
-      id: "202409000097",
-      nickname: "笑看人生",
-      realName: "王强",
-      phone: "19233664486",
-      registeredAt: "2024-10-16 10:52:30",
-      avatar,
+      id: "202409000008",
+      nickname: "安然自在",
+      realName: "刘敏",
+      phone: "18599003412",
+      registeredAt: "2024-10-29 13:15:39",
       tags: [
-        { label: "高血压", tone: "green" },
-        { label: "糖尿病", tone: "red" },
-        { label: "多次购买", tone: "violet" },
+        { label: "睡眠异常", tone: "gold" },
+        { label: "康复训练", tone: "mint" },
       ],
+      avatarAccent: "#96908c",
+      avatarShadow: "#47413d",
     },
-  ],
+  ] as MemberItem[],
 };
 
 export default mock;
