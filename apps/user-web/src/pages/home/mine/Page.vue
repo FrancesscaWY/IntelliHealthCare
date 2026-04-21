@@ -154,8 +154,8 @@ function openSubPage(pageId: string, label: string) {
           <svg class="tab-svg" viewBox="0 0 48 48" focusable="false">
             <defs>
               <linearGradient :id="getNavGradientId(item.key)" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#6a74f1" />
-                <stop offset="100%" stop-color="#ef6f8e" />
+                <stop offset="0%" stop-color="#75d6df" />
+                <stop offset="100%" stop-color="#7be28e" />
               </linearGradient>
             </defs>
             <g
@@ -648,7 +648,7 @@ function openSubPage(pageId: string, label: string) {
 }
 
 .tab-item--active {
-  color: #6872f0;
+  color: #66cfa7;
 }
 
 .tab-image {
@@ -682,8 +682,8 @@ function openSubPage(pageId: string, label: string) {
   height: 42px;
   margin-top: -29px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6872f0 0%, #ed6d88 100%);
-  box-shadow: 0 15px 25px rgba(102, 112, 240, 0.26);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
 }
 
 .tab-icon--publish::before,

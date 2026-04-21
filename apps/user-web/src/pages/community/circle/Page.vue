@@ -197,8 +197,8 @@ function openPage(pageId: string, label?: string) {
           <svg class="tab-svg" viewBox="0 0 48 48" focusable="false">
             <defs>
               <linearGradient :id="getNavGradientId(item.key)" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#6a74f1" />
-                <stop offset="100%" stop-color="#ef6f8e" />
+                <stop offset="0%" stop-color="#75d6df" />
+                <stop offset="100%" stop-color="#7be28e" />
               </linearGradient>
             </defs>
             <g
@@ -336,8 +336,8 @@ function openPage(pageId: string, label?: string) {
   align-items: center;
   padding: 0 5px;
   border-radius: 3px;
-  background: #fff4c7;
-  color: #b67800;
+  background: #cbffff;
+  color: #000fb6;
   font-size: 8px;
   font-weight: 900;
   font-style: italic;
@@ -371,7 +371,7 @@ function openPage(pageId: string, label?: string) {
 .topic-dots span.active {
   width: 10px;
   border-radius: 8px;
-  background: #15955d;
+  background: #cbffff;
 }
 
 .post-list {
@@ -428,7 +428,7 @@ function openPage(pageId: string, label?: string) {
   align-items: center;
   padding: 0 4px;
   border-radius: 3px;
-  background: #e5f7ee;
+  background: #cbffff;
   color: #116f49;
   font-size: 8px;
   font-weight: 900;
@@ -496,17 +496,17 @@ function openPage(pageId: string, label?: string) {
   padding: 0 10px;
   border: 0;
   border-radius: 13px;
-  background: #edf8f2;
-  color: #176b48;
-  font-size: 12px;
+  background: rgba(255, 255, 255, 0.81);
+  color: #012db6;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .tag-chip span {
-  width: 14px;
-  height: 14px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #8bd7ba;
+  background: #072de1;
 }
 
 .post-actions {
@@ -634,7 +634,7 @@ function openPage(pageId: string, label?: string) {
 }
 
 .tab-item--active {
-  color: #6872f0;
+  color: #66cfa7;
 }
 
 .tab-image {
@@ -668,8 +668,8 @@ function openPage(pageId: string, label?: string) {
   height: 42px;
   margin-top: -29px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6872f0 0%, #ed6d88 100%);
-  box-shadow: 0 15px 25px rgba(102, 112, 240, 0.26);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
 }
 
 .tab-icon--publish::before,

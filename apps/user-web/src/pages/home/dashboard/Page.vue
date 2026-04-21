@@ -732,18 +732,18 @@ function showAction(label: string) {
   display: grid;
   gap: 2px;
   min-width: 52px;
-  color: #35d19c;
-  font-size: 18px;
-  font-weight: 900;
+  color: #ba0303;
+  font-size: 22px;
+  font-weight: 999;
   line-height: 1.18;
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
 .reminder-divider {
-  width: 1px;
-  height: 38px;
-  background: #c9c9c9;
+  width: 2px;
+  height: 44px;
+  background: #131313;
 }
 
 .reminder-content {
@@ -754,7 +754,7 @@ function showAction(label: string) {
   display: flex;
   align-items: center;
   gap: 11px;
-  color: #252939;
+  color: #000000;
   font-size: 15px;
   font-weight: 800;
 }
@@ -764,7 +764,7 @@ function showAction(label: string) {
   width: 15px;
   height: 17px;
   border-radius: 10px 10px 5px 5px;
-  background: #35d19c;
+  background: #ed0505;
 }
 
 .bell-icon::after {
@@ -775,12 +775,12 @@ function showAction(label: string) {
   height: 4px;
   content: "";
   border-radius: 0 0 999px 999px;
-  background: #35d19c;
+  background: #ed0505;
 }
 
 .reminder-content p {
   margin: 8px 0 0;
-  color: #9ca0aa;
+  color: #000000;
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
