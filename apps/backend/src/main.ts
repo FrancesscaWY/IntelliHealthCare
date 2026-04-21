@@ -3,17 +3,22 @@ import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import "reflect-metadata";
-import { AppModule } from "./app.module";
-import { EnvironmentVariables } from "./common/config/env.schema";
+import { bootstrapDatabase } from "./common/bootstrap/database-bootstrap";
+import type { DatabaseBootstrapResult } from "./common/bootstrap/database-bootstrap";
+import type { EnvironmentVariables } from "./common/config/env.schema";
 import { AllExceptionsFilter } from "./common/http/all-exceptions.filter";
 import { ApiResponseInterceptor } from "./common/http/api-response.interceptor";
 
+let databaseBootstrap: DatabaseBootstrapResult | null = null;
+
 async function bootstrap() {
+  const logger = new Logger("Bootstrap");
+  databaseBootstrap = await bootstrapDatabase(logger);
+  const { AppModule } = await import("./app.module");
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true
   });
 
-  const logger = new Logger("Bootstrap");
   const configService = app.get<ConfigService<EnvironmentVariables, true>>(
     ConfigService
   );
@@ -54,6 +59,28 @@ async function bootstrap() {
 
   await app.listen(port);
 
+  let shuttingDown = false;
+  const shutdown = async (exitCode: number) => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
+
+    await app.close().catch(() => undefined);
+    await databaseBootstrap?.cleanup().catch(() => undefined);
+
+    process.exit(exitCode);
+  };
+
+  process.once("SIGINT", () => {
+    void shutdown(0);
+  });
+
+  process.once("SIGTERM", () => {
+    void shutdown(0);
+  });
+
   logger.log(
     `${configService.get("APP_NAME", { infer: true })} is running at ${await app.getUrl()}/${apiPrefix}`
   );
@@ -62,5 +89,7 @@ async function bootstrap() {
 bootstrap().catch((error: unknown) => {
   const logger = new Logger("Bootstrap");
   logger.error(error);
-  process.exit(1);
+  void databaseBootstrap?.cleanup().finally(() => {
+    process.exit(1);
+  });
 });

@@ -31,6 +31,13 @@ export class QueueService implements OnModuleDestroy {
     return this.redis;
   }
 
+  createClient() {
+    return this.redis.duplicate({
+      lazyConnect: true,
+      maxRetriesPerRequest: null
+    });
+  }
+
   async onModuleDestroy() {
     if (this.redis.status !== "end") {
       await this.redis.quit();

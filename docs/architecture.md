@@ -6,7 +6,7 @@ IntelliHealthCare 当前使用全栈 Monorepo 统一管理前后端工作区。
 
 核心目标：
 
-- APP 端、后台端与后端在同一仓库内演进
+- 用户端、后台端与后端在同一仓库内演进
 - 前后端统一使用 TypeScript 体系，降低协作切换成本
 - 整站预览与单页预览使用同一套启动机制
 - 前端页面开发以“页面目录”作为最小协作单元
@@ -16,7 +16,7 @@ IntelliHealthCare 当前使用全栈 Monorepo 统一管理前后端工作区。
 
 ```text
 apps/
-  user-web/                 APP 端网页工作区
+  user-web/                 用户端网页工作区
   admin-web/                后台端网页工作区
   backend/                  统一后端服务
 packages/
@@ -29,7 +29,7 @@ docs/
 
 ## 2. 三应用结构
 
-### APP 端
+### 用户端
 
 ```text
 apps/user-web/
@@ -37,7 +37,8 @@ apps/user-web/
 
 定位：
 
-- 面向长者与家属的业务页面工作区
+- 面向长者与家属的统一业务页面工作区
+- 老人和家属共用同一套用户端系统，不单独拆分为两个前端应用
 - 保留移动端页面壳与轻量导航模型
 
 ### 后台端
@@ -230,7 +231,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 - `normalizePageId`
 - `resolveInitialPage`
 - 页面分组工具
-- APP 端底部导航数据
+- 用户端底部导航数据
 
 如果逻辑满足以下条件，优先放到 `packages/page-core`：
 

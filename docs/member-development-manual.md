@@ -5,9 +5,10 @@
 ## 1. 先知道这些
 
 - 当前主要开发对象是网页工作区，不是小程序
-- 仓库同时维护 APP 端与后台端两个前端应用
+- 仓库同时维护用户端与后台端两个前端应用
 - 两个应用都基于 `Vue 3 + TypeScript + Vite`
 - 页面目录是最小协作单元
+- 老人和家属共用同一套用户端工作区，不单独拆成两个系统
 
 你日常最常接触的目录通常是：
 
@@ -26,13 +27,13 @@ scripts/
 npm install
 ```
 
-APP 端整站：
+用户端整站：
 
 ```bash
 npm run dev:user
 ```
 
-APP 端单页：
+用户端单页：
 
 ```bash
 npm run dev:page -- --page home/dashboard
@@ -90,7 +91,7 @@ apps/admin-web/
 
 其中：
 
-- `user-web` 面向长者与家属
+- `user-web` 面向长者与家属，是统一用户侧入口
 - `admin-web` 面向后台运营与机构管理
 
 ### 运行时与页面清单

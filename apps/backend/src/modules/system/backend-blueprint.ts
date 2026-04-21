@@ -28,7 +28,7 @@ export const BACKEND_BOUNDED_CONTEXTS = [
   {
     key: "health-archive",
     priority: "P0",
-    responsibilities: ["基础档案", "病史标签", "长期记忆", "家属摘要"]
+    responsibilities: ["基础档案", "病史标签", "长期记忆", "健康摘要"]
   },
   {
     key: "health-metrics",

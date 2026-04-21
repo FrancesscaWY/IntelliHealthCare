@@ -21,6 +21,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.4.4",
+    "@electric-sql/pglite-socket": "^0.1.4",
     "@nestjs/common": "latest",
     "@nestjs/config": "latest",
     "@nestjs/core": "latest",
@@ -32,8 +34,10 @@
     "bullmq": "latest",
     "class-transformer": "latest",
     "class-validator": "latest",
+    "dotenv": "^17.2.3",
     "ioredis": "latest",
     "minio": "latest",
+    "pg": "^8.20.0",
     "reflect-metadata": "latest",
     "rxjs": "latest",
     "swagger-ui-express": "latest",
@@ -41,6 +45,7 @@
   },
   "devDependencies": {
     "@types/node": "latest",
+    "@types/pg": "^8.15.6",
     "prisma": "^5.20.0",
     "tsx": "latest",
     "typescript": "latest"

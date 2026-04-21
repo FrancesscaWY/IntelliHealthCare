@@ -56,7 +56,7 @@ export class SystemService {
     return {
       pattern: "modular-monolith",
       summary:
-        "先以模块化单体承接老人端、家属端、后台端和 Agent 协同层，稳定业务边界后再拆分高吞吐或高耦合域。",
+        "先以模块化单体承接统一用户端、后台端和 Agent 协同层，稳定业务边界后再拆分高吞吐或高耦合域。",
       stack: BACKEND_STACK,
       boundedContexts: BACKEND_BOUNDED_CONTEXTS,
       defaultApiPrefix: this.configService.get("API_PREFIX", { infer: true })
