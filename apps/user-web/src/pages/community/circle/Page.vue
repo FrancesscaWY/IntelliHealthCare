@@ -228,7 +228,10 @@ function openPage(pageId: string, label?: string) {
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
-  background: #fff;
+  background:
+    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
   color: #24372e;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }

@@ -1131,6 +1131,32 @@
     "legacySources": []
   },
   {
+    "id": "service/home-exam-recommend-waiting",
+    "title": "上门体检智能推荐等待",
+    "group": "service",
+    "route": "/service/home-exam-recommend-waiting",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "豆沙包为用户推荐上门体检项目前的等待进度页。",
+    "folderPath": "/apps/user-web/src/pages/service/home-exam-recommend-waiting",
+    "modulePath": "/apps/user-web/src/pages/service/home-exam-recommend-waiting/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-exam-recommend-waiting/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/home-exam-recommend",
+    "title": "上门体检项目推荐",
+    "group": "service",
+    "route": "/service/home-exam-recommend",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "豆沙包上门体检项目推荐结果页入口。",
+    "folderPath": "/apps/user-web/src/pages/service/home-exam-recommend",
+    "modulePath": "/apps/user-web/src/pages/service/home-exam-recommend/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-exam-recommend/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "service/home-exam-detail",
     "title": "上门体检项目详情",
     "group": "service",

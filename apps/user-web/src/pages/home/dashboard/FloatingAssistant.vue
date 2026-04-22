@@ -275,7 +275,7 @@ defineExpose({
   display: block;
   width: 200px;
   height: 200px;
-  filter: drop-shadow(0 10px 5px rgba(41, 41, 51, 0.14));
+  filter: drop-shadow(8px 13px 20px rgba(41, 41, 51, 0.6));
   pointer-events: none;
 }
 </style>

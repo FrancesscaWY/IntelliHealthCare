@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
@@ -12,26 +12,25 @@ const STATE_MACHINE_NAME = "State Machine 1";
 const BLINK_TRIGGER_NAME = "blinkTrigger";
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const draft = ref("");
-const typedText = ref("");
 const quickActions = [
   { label: "报告解读", icon: Editor },
   { label: "商品智选", icon: Commodity },
   { label: "体检定制", icon: Stethoscope },
 ];
 
-const typedParagraphs = computed(() => typedText.value.split("\n\n").filter(Boolean));
-
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
-let typingTimer: ReturnType<typeof setTimeout> | null = null;
 let resizeObserver: ResizeObserver | null = null;
-let typingIndex = 0;
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch("orders/checkup-report");
+    props.navigation.reLaunch("service/home-exam");
   }
+}
+
+function buyProject() {
+  props.navigation.navigateTo("service/payment");
 }
 
 function useQuickAction(label: string) {
@@ -48,34 +47,6 @@ function sendMessage() {
 
   draft.value = "";
   props.showToast("消息已发送");
-}
-
-function nextTypingSize(text: string) {
-  const current = text[typingIndex] ?? "";
-
-  if (current === "\n") {
-    return text[typingIndex + 1] === "\n" ? 2 : 1;
-  }
-
-  const nextChar = text[typingIndex + 1] ?? "";
-  if (/^[\u4e00-\u9fa5A-Za-z0-9]$/.test(current) && /^[\u4e00-\u9fa5A-Za-z0-9]$/.test(nextChar)) {
-    return Math.random() > 0.5 ? 2 : 1;
-  }
-
-  return 1;
-}
-
-function typeNextChunk() {
-  const source = mock.analysisText;
-
-  if (typingIndex >= source.length) {
-    return;
-  }
-
-  const size = nextTypingSize(source);
-  typedText.value += source.slice(typingIndex, typingIndex + size);
-  typingIndex += size;
-  typingTimer = setTimeout(typeNextChunk, 34 + Math.random() * 42);
 }
 
 function bindStateMachineInputs() {
@@ -104,8 +75,6 @@ function resizeRive() {
 }
 
 onMounted(() => {
-  typingTimer = setTimeout(typeNextChunk, 280);
-
   const canvas = canvasRef.value;
 
   if (!canvas) {
@@ -134,7 +103,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(blinkTimer ?? undefined);
-  clearTimeout(typingTimer ?? undefined);
   resizeObserver?.disconnect();
   resizeObserver = null;
   blinkTrigger = null;
@@ -144,8 +112,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="analysis-page">
-    <main class="analysis-main">
+  <section class="recommend-page">
+    <main class="recommend-main">
       <header class="assistant-hero">
         <button class="assistant-back" type="button" aria-label="返回" @click="goBack">
           <span aria-hidden="true"></span>
@@ -154,31 +122,34 @@ onBeforeUnmount(() => {
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
           <strong>您好！我是豆沙包</strong>
-          <strong>正在为您解读报告。</strong>
-          <p>分析仅供参考，医学建议请询问专业医生</p>
+          <strong>这是我为您推荐的项目～</strong>
+          <p>推荐仅供参考，您可以根据实际需求继续调整哦</p>
         </div>
         <button class="more-btn" type="button" @click="props.showToast('更多功能待接入')">更多</button>
       </header>
 
-      <section class="report-section" aria-label="报告分析">
+      <section class="project-section" aria-label="项目推荐">
         <div class="section-title">
           <span></span>
-          <strong>报告分析</strong>
+          <strong>项目推荐</strong>
           <span></span>
         </div>
 
-        <section class="report-card">
-          <h2>老年人全面健康体检报告</h2>
-          <div class="metric-grid">
-            <span>血压 正常</span>
-            <span>血糖 正常</span>
-            <span>血氧 正常</span>
-            <span class="warning">血脂 偏高</span>
-          </div>
-          <div class="analysis-text">
-            <p v-for="paragraph in typedParagraphs" :key="paragraph">{{ paragraph }}</p>
-            <i v-if="typedText.length < mock.analysisText.length" aria-hidden="true"></i>
-          </div>
+        <div class="section">
+          <p>
+            已根据您的体检需求，为您筛选出更适合的上门体检项目。您可以先查看推荐理由，再选择需要购买的服务。
+          </p>
+        </div>
+
+        <section class="project-card">
+          <article v-for="item in mock.projects" :key="item.id" class="project-item">
+            <img :src="item.image" :alt="item.name" />
+            <div class="project-info">
+              <h2>{{ item.name }}</h2>
+              <p>{{ item.desc }}</p>
+              <button type="button" @click="buyProject">立即购买</button>
+            </div>
+          </article>
         </section>
       </section>
     </main>
@@ -198,7 +169,7 @@ onBeforeUnmount(() => {
         <button class="camera-btn" type="button" aria-label="拍照或上传图片" @click="props.showToast('图片功能待接入')">
           <Camera theme="outline" size="23" fill="currentColor" aria-hidden="true" />
         </button>
-        <input v-model="draft" type="text" placeholder="有任何报告问题，请随时问我～" @keyup.enter="sendMessage" />
+        <input v-model="draft" type="text" placeholder="有任何服务需求，请随时问我～" @keyup.enter="sendMessage" />
         <button class="send-btn" type="button" @click="sendMessage">发送</button>
       </div>
     </footer>
@@ -206,7 +177,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.analysis-page {
+.recommend-page {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
@@ -225,7 +196,7 @@ onBeforeUnmount(() => {
   -webkit-font-smoothing: antialiased;
 }
 
-.analysis-main {
+.recommend-main {
   height: calc(100% - 126px);
   padding: 8px 14px 0;
   box-sizing: border-box;
@@ -233,7 +204,7 @@ onBeforeUnmount(() => {
   scrollbar-width: none;
 }
 
-.analysis-main::-webkit-scrollbar {
+.recommend-main::-webkit-scrollbar {
   display: none;
 }
 
@@ -248,6 +219,7 @@ onBeforeUnmount(() => {
 
 .assistant-back,
 .more-btn,
+.project-item button,
 .quick-actions button,
 .voice-btn,
 .camera-btn,
@@ -332,7 +304,7 @@ onBeforeUnmount(() => {
   font-weight: 900;
 }
 
-.report-section {
+.project-section {
   margin-top: -28px;
 }
 
@@ -356,7 +328,19 @@ onBeforeUnmount(() => {
   letter-spacing: 0.08em;
 }
 
-.report-card {
+.section p {
+  margin: 0 0 12px;
+  padding: 0 0 0 2px;
+  color: rgba(45, 55, 79, 0.68);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.75;
+  text-align: justify;
+}
+
+.project-card {
+  display: grid;
+  gap: 10px;
   padding: 14px;
   border-radius: 6px;
   background:
@@ -366,71 +350,57 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 
-.report-card h2 {
-  margin: 0 0 12px;
-  color: #25305a;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.metric-grid {
+.project-item {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-bottom: 13px;
-}
-
-.metric-grid span {
-  min-height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #2b9fa9;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.metric-grid .warning {
-  color: #006dff;
-}
-
-.analysis-text {
-  min-height: 260px;
-  padding: 14px 13px;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 112px;
+  padding: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
 }
 
-.analysis-text p {
-  margin: 0 0 12px;
-  color: rgba(45, 55, 79, 0.78);
-  font-size: 14px;
+.project-item img {
+  width: 86px;
+  height: 92px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.project-info {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+}
+
+.project-info h2 {
+  margin: 0;
+  color: #25305a;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.project-info p {
+  margin: 6px 0 10px;
+  color: rgba(63, 75, 99, 0.68);
+  font-size: 12px;
   font-weight: 800;
-  line-height: 1.72;
-  text-align: justify;
+  line-height: 1.45;
 }
 
-.analysis-text p:last-of-type {
-  margin-bottom: 0;
-}
-
-.analysis-text i {
-  display: inline-block;
-  width: 7px;
-  height: 17px;
-  margin-left: 2px;
+.project-item button {
+  justify-self: end;
+  align-self: end;
+  height: 30px;
+  padding: 0 14px;
   border-radius: 999px;
   background: #75d6df;
-  vertical-align: -3px;
-  animation: blink-cursor 0.82s steps(2, start) infinite;
-}
-
-@keyframes blink-cursor {
-  50% {
-    opacity: 0;
-  }
+  color: #1f2a44;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(78, 169, 171, 0.16);
 }
 
 .chat-footer {
