@@ -8,6 +8,7 @@ import { AgentTaskStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../../../infra/prisma/prisma.service";
 import { AgentRegistry } from "../domain/agent-registry";
 import type { AgentExecutionEnvelope } from "../domain/agent-types";
+import { AgentGovernanceService } from "./agent-governance.service";
 import type {
   CreateAgentTaskDto,
   ListAgentTasksQueryDto
@@ -17,7 +18,8 @@ import type {
 export class AgentTaskService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly agentRegistry: AgentRegistry
+    private readonly agentRegistry: AgentRegistry,
+    private readonly governanceService: AgentGovernanceService
   ) {}
 
   async createTask(input: CreateAgentTaskDto) {
@@ -38,7 +40,7 @@ export class AgentTaskService {
       );
     }
 
-    return this.prismaService.agentTask.create({
+    const task = await this.prismaService.agentTask.create({
       data: {
         ownerId: input.ownerId ?? null,
         agentName: normalizedAgentName,
@@ -47,6 +49,9 @@ export class AgentTaskService {
         payload: normalizedPayload as unknown as Prisma.InputJsonValue
       }
     });
+
+    await this.governanceService.recordTaskCreated(task);
+    return task;
   }
 
   async findByIdOrThrow(taskId: string) {
@@ -77,57 +82,70 @@ export class AgentTaskService {
   }
 
   async retryTask(taskId: string) {
-    const task = await this.findByIdOrThrow(taskId);
+    const existingTask = await this.findByIdOrThrow(taskId);
 
-    if (task.status === AgentTaskStatus.RUNNING) {
+    if (existingTask.status === AgentTaskStatus.RUNNING) {
       throw new ConflictException("Running task cannot be retried");
     }
 
-    return this.prismaService.agentTask.update({
+    const task = await this.prismaService.agentTask.update({
       where: { id: taskId },
       data: {
         status: AgentTaskStatus.PENDING
       }
     });
+
+    await this.governanceService.recordTaskRetried(task);
+    return task;
   }
 
   async markRunning(taskId: string, result: AgentExecutionEnvelope) {
-    return this.prismaService.agentTask.update({
+    const task = await this.prismaService.agentTask.update({
       where: { id: taskId },
       data: {
         status: AgentTaskStatus.RUNNING,
         result: result as unknown as Prisma.InputJsonValue
       }
     });
+
+    await this.governanceService.recordTaskRunning(taskId, result);
+    return task;
   }
 
   async markPendingRetry(taskId: string, result: AgentExecutionEnvelope) {
-    return this.prismaService.agentTask.update({
+    const task = await this.prismaService.agentTask.update({
       where: { id: taskId },
       data: {
         status: AgentTaskStatus.PENDING,
         result: result as unknown as Prisma.InputJsonValue
       }
     });
+
+    await this.governanceService.recordTaskPendingRetry(taskId, result);
+    return task;
   }
 
   async markSucceeded(taskId: string, result: AgentExecutionEnvelope) {
+    const nextResult = await this.governanceService.finalizeSucceededTask(taskId, result);
     return this.prismaService.agentTask.update({
       where: { id: taskId },
       data: {
         status: AgentTaskStatus.SUCCEEDED,
-        result: result as unknown as Prisma.InputJsonValue
+        result: nextResult as unknown as Prisma.InputJsonValue
       }
     });
   }
 
   async markFailed(taskId: string, result: AgentExecutionEnvelope) {
-    return this.prismaService.agentTask.update({
+    const task = await this.prismaService.agentTask.update({
       where: { id: taskId },
       data: {
         status: AgentTaskStatus.FAILED,
         result: result as unknown as Prisma.InputJsonValue
       }
     });
+
+    await this.governanceService.recordTaskFailed(taskId, result);
+    return task;
   }
 }

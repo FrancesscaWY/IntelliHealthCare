@@ -67,7 +67,7 @@ export class AppRagSearchQueryDto {
   @IsInt()
   @Min(1)
   @Max(8)
-  limit = 5;
+  limit: number = 5;
 }
 
 export class InternalRagSearchDto {
@@ -100,7 +100,7 @@ export class InternalRagSearchDto {
   @IsInt()
   @Min(1)
   @Max(20)
-  limit = 8;
+  limit: number = 8;
 }
 
 export class InternalRagKnowledgeBaseQueryDto {

@@ -166,6 +166,13 @@ enum AgentTaskStatus {
   FAILED
 }
 
+enum AgentHumanReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+}
+
 enum RagKnowledgeType {
   SERVICE_CATALOG
   HEALTH_KNOWLEDGE
@@ -191,6 +198,19 @@ enum RagIngestionStatus {
   SUCCEEDED
   FAILED
   PARTIAL
+}
+
+enum RagEvalRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum RagEvalCaseStatus {
+  PASSED
+  FAILED
+  SKIPPED
 }
 
 enum RagSourceType {
@@ -1340,6 +1360,57 @@ model AgentTask {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   owner         User?           @relation("TaskOwner", fields: [ownerId], references: [id])
+  humanReview   AgentHumanReview?
+  auditLogs     AgentAuditLog[]
+
+  @@index([status, updatedAt])
+  @@index([ownerId, status])
+  @@index([agentName, taskType, status])
+}
+
+model AgentHumanReview {
+  id              String                 @id @default(cuid())
+  agentTaskId     String                 @unique
+  status          AgentHumanReviewStatus @default(PENDING)
+  riskLevel       String?
+  queueName       String?
+  sourceAgent     String?
+  reviewDecision  String?
+  blockedAction   String?
+  riskFlags       Json?
+  reviewNotes     Json?
+  payloadSnapshot Json?
+  outputSnapshot  Json?
+  traceSnapshot   Json?
+  resolution      Json?
+  reviewerId      String?
+  requestedAt     DateTime               @default(now())
+  reviewedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  agentTask       AgentTask              @relation(fields: [agentTaskId], references: [id], onDelete: Cascade)
+  auditLogs       AgentAuditLog[]
+
+  @@index([status, requestedAt])
+  @@index([queueName, status, requestedAt])
+}
+
+model AgentAuditLog {
+  id            String            @id @default(cuid())
+  agentTaskId   String?
+  humanReviewId String?
+  eventType     String
+  actorType     String
+  actorId       String?
+  summary       String?
+  payload       Json?
+  createdAt     DateTime          @default(now())
+  agentTask     AgentTask?        @relation(fields: [agentTaskId], references: [id], onDelete: Cascade)
+  humanReview   AgentHumanReview? @relation(fields: [humanReviewId], references: [id], onDelete: Cascade)
+
+  @@index([agentTaskId, createdAt])
+  @@index([humanReviewId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model RagKnowledgeBase {
@@ -1446,4 +1517,41 @@ model RagIngestionRun {
 
   @@index([knowledgeBaseId, startedAt])
   @@index([status, startedAt])
+}
+
+model RagEvalRun {
+  id             String           @id @default(cuid())
+  datasetName    String
+  datasetVersion String?
+  triggerSource  String
+  status         RagEvalRunStatus @default(RUNNING)
+  summary        Json?
+  metadata       Json?
+  startedAt      DateTime         @default(now())
+  completedAt    DateTime?
+  caseResults    RagEvalCaseResult[]
+
+  @@index([status, startedAt])
+  @@index([datasetName, startedAt])
+}
+
+model RagEvalCaseResult {
+  id               String            @id @default(cuid())
+  evalRunId        String
+  caseKey          String
+  status           RagEvalCaseStatus
+  query            String
+  limit            Int
+  targetUserId     String?
+  institutionId    String?
+  knowledgeTypes   Json?
+  visibilityScopes Json?
+  expected         Json?
+  actual           Json?
+  metrics          Json?
+  createdAt        DateTime          @default(now())
+  evalRun          RagEvalRun        @relation(fields: [evalRunId], references: [id], onDelete: Cascade)
+
+  @@unique([evalRunId, caseKey])
+  @@index([evalRunId, status])
 }

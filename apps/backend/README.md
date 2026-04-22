@@ -205,7 +205,13 @@ npm run dev --workspace @ihc/backend
 
 ## 后端测试 CLI
 
-当前后端还没有自动化测试套件，推荐先用 CLI 做 smoke test。下面命令分为两部分：
+当前后端已经补齐三层回归：
+
+- `单测`：`npm run test:backend:unit`
+- `集成测试`：`npm run test:backend:integration`
+- `冒烟回归`：`npm run test:backend:smoke:regression`
+
+推荐先执行自动化测试，再按下面的 CLI 清单做补充排查。下面命令分为两部分：
 
 - `API`：验证用户端/后台端 REST API
 - `Agent`：验证 Hermes MVP，包括 `Multi-Agent` 和 `单Agent`

@@ -11,6 +11,11 @@ import type {
   AccessTokenPayload,
   AuthScope
 } from "../../common/auth/auth.types";
+import {
+  generateSmsCode,
+  hashPassword,
+  verifyPassword
+} from "../../common/auth/password";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
 interface SmsCodeRecord {
@@ -38,19 +43,30 @@ export class AuthService {
   ) {}
 
   async sendSmsCode(phone: string, purpose: string) {
-    const code = "123456";
+    const code = generateSmsCode();
     this.smsCodes.set(`${purpose}:${phone}`, {
       code,
       expiresAt: Date.now() + 10 * 60 * 1000
     });
 
-    return {
+    const response: {
+      phone: string;
+      purpose: string;
+      sent: true;
+      expiresInSeconds: number;
+      debugCode?: string;
+    } = {
       phone,
       purpose,
       sent: true,
-      expiresInSeconds: 600,
-      code
+      expiresInSeconds: 600
     };
+
+    if (this.configService.get("NODE_ENV", { infer: true }) !== "production") {
+      response.debugCode = code;
+    }
+
+    return response;
   }
 
   async verifySmsCode(phone: string, code: string, purpose: string) {
@@ -67,7 +83,7 @@ export class AuthService {
     const user = await this.findAuthUserByPhone(phone);
     this.ensureScopeAllowed(user, scope);
 
-    if (!this.matchesPassword(user.passwordHash, password)) {
+    if (!(await this.matchesPassword(user.passwordHash, password))) {
       throw new UnauthorizedException("Invalid phone or password");
     }
 
@@ -120,7 +136,7 @@ export class AuthService {
     await this.prismaService.user.update({
       where: { id: user.id },
       data: {
-        passwordHash: newPassword
+        passwordHash: await hashPassword(newPassword)
       }
     });
 
@@ -139,16 +155,12 @@ export class AuthService {
     };
   }
 
-  private matchesPassword(passwordHash: string | null, password: string) {
+  private async matchesPassword(passwordHash: string | null, password: string) {
     if (!passwordHash) {
       return false;
     }
 
-    if (passwordHash === password) {
-      return true;
-    }
-
-    return passwordHash.startsWith("demo_hash_") && password === "123456";
+    return verifyPassword(passwordHash, password);
   }
 
   private async touchLastLogin(userId: string) {

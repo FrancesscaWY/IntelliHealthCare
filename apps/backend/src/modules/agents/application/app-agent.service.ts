@@ -516,13 +516,15 @@ export class AppAgentService {
 
     try {
       const envelope = await this.orchestrator.executeTask(task, runtime);
-      await this.taskService.markSucceeded(task.id, envelope);
+      const persistedTask = await this.taskService.markSucceeded(task.id, envelope);
+      const persistedResult = this.ensureRecord(persistedTask.result);
 
       return {
         taskId: task.id,
-        status: envelope.status,
-        output: this.ensureRecord(envelope.output),
-        trace: this.ensureRecord(envelope.trace)
+        status:
+          typeof persistedResult.status === "string" ? persistedResult.status : envelope.status,
+        output: this.ensureRecord(persistedResult.output),
+        trace: this.ensureRecord(persistedResult.trace)
       };
     } catch (error) {
       const failureEnvelope =

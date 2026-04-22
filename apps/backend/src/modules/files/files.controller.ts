@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { FileCategory } from "@prisma/client";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
+import { SwaggerTags } from "../../common/http/swagger-tags";
 import { AppFilesService } from "./files.service";
 
 class PresignUploadDto {
@@ -44,7 +45,7 @@ class CompleteUploadDto {
   metadata?: Record<string, unknown>;
 }
 
-@ApiTags("文件上传")
+@ApiTags(SwaggerTags.AppFiles)
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("app/files")

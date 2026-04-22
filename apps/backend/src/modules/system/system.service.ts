@@ -19,9 +19,10 @@ export class SystemService {
   ) {}
 
   async getHealth() {
-    const [database, redis] = await Promise.allSettled([
+    const [database, redis, storage] = await Promise.allSettled([
       this.prismaService.ping(),
-      this.queueService.ping()
+      this.queueService.ping(),
+      this.storageService.ping()
     ]);
 
     const checks = [
@@ -36,8 +37,11 @@ export class SystemService {
       },
       {
         name: "object-storage",
-        status: "configured",
-        bucket: this.storageService.getBucketName()
+        status: storage.status === "fulfilled" ? storage.value.status : "down",
+        bucket:
+          storage.status === "fulfilled"
+            ? storage.value.bucket
+            : this.storageService.getBucketName()
       }
     ];
 

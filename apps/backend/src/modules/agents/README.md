@@ -32,6 +32,8 @@ Hermes 不应被理解成：
 - `Agent Orchestrator`：默认入口已从“只路由到单 Specialist”升级为受控多 Agent 分工，支持健康理解补风险研判、风险任务补健康背景、后台 Copilot 汇总多域摘要
 - 多 Agent trace：`AgentTask.result.trace.coordination.steps` 会记录每一步 handoff 的 Agent、任务类型、输出摘要、模型信息和该步工具调用
 - 审计结果：路由、工具调用、模型信息、失败原因全部写回 `AgentTask.result`
+- 高风险治理：命中 `SafetyReviewAgent` 或高风险输出标记后，会生成 `AgentHumanReview` 复核工单，并同步写入 `AgentAuditLog`
+- RAG 质量闭环：`build-rag-db.ts` 已支持增量同步和真实 embedding 回填，`eval-rag.ts` 会把回归结果写入 `RagEvalRun / RagEvalCaseResult`
 
 当前可执行任务：
 
@@ -112,8 +114,14 @@ Hermes 不应被理解成：
 - `GET /api/v1/internal/agents/tasks`
 - `GET /api/v1/internal/agents/tasks/:taskId`
 - `POST /api/v1/internal/agents/tasks/:taskId/retry`
+- `GET /api/v1/internal/agents/reviews`
+- `GET /api/v1/internal/agents/reviews/:reviewId`
+- `POST /api/v1/internal/agents/reviews/:reviewId/decision`
+- `GET /api/v1/internal/agents/audit-logs`
 - `GET /api/v1/internal/agents/rag/knowledge-bases`
 - `POST /api/v1/internal/agents/rag/search`
+- `GET /api/v1/internal/agents/rag/evals`
+- `GET /api/v1/internal/agents/rag/evals/:runId`
 
 ## App 层 AI 接口
 
@@ -164,7 +172,10 @@ Hermes 不应被理解成：
 
 - 候选召回：`RagChunk.title/content contains`
 - 排序：词法分 + query embedding 与 chunk embedding 的余弦相似度重排
-- DeepSeek 官方直连模式下，query embedding 继续走确定性兜底向量；后续如接入独立 embedding 网关，可直接替换，不需要改 API 契约
+- `AGENT_EMBEDDING_PROVIDER / BASE_URL / API_KEY` 配好后，查询侧和离线构建侧会共用真实 embedding 网关；未配置时仍回退到确定性向量
+- `npm run db:build-rag:backend` 默认走增量同步，只重建变更文档和需要重算 embedding 的 chunk
+- `npm run db:rebuild-rag:backend` 可强制全量重建
+- `npm run db:eval-rag:backend` 会执行固定评测集并把结果落到 `RagEvalRun / RagEvalCaseResult`
 
 创建任务示例：
 
@@ -189,6 +200,9 @@ Hermes 不应被理解成：
 - `AGENT_LLM_MODEL`
 - `AGENT_LLM_LIGHT_MODEL`
 - `AGENT_LLM_FALLBACK_MODEL`
+- `AGENT_EMBEDDING_PROVIDER`
+- `AGENT_EMBEDDING_BASE_URL`
+- `AGENT_EMBEDDING_API_KEY`
 - `AGENT_EMBEDDING_MODEL`
 - `AGENT_EMBEDDING_FALLBACK_MODEL`
 - `AGENT_LLM_TIMEOUT_MS`
@@ -209,7 +223,7 @@ Hermes 不应被理解成：
 - provider：`DeepSeek`
 - 主模型：`deepseek-chat`
 - 轻量 / 降级模型：`deepseek-chat`
-- embedding：当前直连模式下继续走确定性向量兜底；如需真实 embedding，请单独接入兼容网关
+- embedding：推荐单独走 `openai-compatible` 或 `OpenRouter` 兼容 embedding 网关；未配置时继续走确定性向量兜底
 
 DeepSeek 官方直连模式下，网关会自动把 `deepseek/deepseek-chat` 归一化为 `deepseek-chat`，并将严格 `JSON Schema` 请求降级为 `json_object` 兼容模式，最终仍由服务端 `zod` schema 做结构校验。
 

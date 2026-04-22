@@ -15,6 +15,7 @@ import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
+import { SwaggerTags } from "../../common/http/swagger-tags";
 import { AppHealthLifestyleService } from "./health-lifestyle.service";
 
 class ElderQueryDto {
@@ -81,7 +82,7 @@ class SubmitSelfTestDto extends ElderQueryDto {
   }>;
 }
 
-@ApiTags("健康膳食与自测")
+@ApiTags(SwaggerTags.AppHealthLifestyle)
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("app/health")

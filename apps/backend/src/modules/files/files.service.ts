@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException
@@ -25,20 +27,20 @@ export class AppFilesService {
       size: number;
     }
   ) {
-    const bucket = this.storageService.getBucketName();
     const objectKey = this.buildObjectKey(payload.category, payload.fileName);
+    const upload = await this.storageService.createPresignedUpload(objectKey);
 
     return {
       uploadId: `upl_${randomUUID().slice(0, 8)}`,
-      bucket,
+      bucket: upload.bucket,
       objectKey,
       method: "PUT",
-      uploadUrl: `/minio/${bucket}/${objectKey}`,
+      uploadUrl: upload.uploadUrl,
       headers: {
-        "content-type": payload.mimeType,
-        "x-upload-user": userId
+        "content-type": payload.mimeType
       },
-      expiresInSeconds: 900
+      expiresInSeconds: upload.expiresInSeconds,
+      uploaderId: userId
     };
   }
 
@@ -53,8 +55,15 @@ export class AppFilesService {
       metadata?: Record<string, unknown>;
     }
   ) {
+    this.ensureObjectKeyAllowed(payload.category, payload.objectKey);
+
+    const objectStat = await this.storageService.assertObjectExists(payload.objectKey);
+    if (objectStat.size !== payload.size) {
+      throw new ConflictException("Uploaded object size does not match declared size");
+    }
+
     const bucket = this.storageService.getBucketName();
-    const url = `/storage/${bucket}/${payload.objectKey}`;
+    const url = this.storageService.getObjectUrl(payload.objectKey);
 
     const file = await this.prismaService.fileAsset.create({
       data: {
@@ -63,10 +72,13 @@ export class AppFilesService {
         fileName: payload.fileName,
         objectKey: payload.objectKey,
         mimeType: payload.mimeType,
-        size: payload.size,
+        size: objectStat.size,
         bucket,
         url,
-        metadata: toPrismaJson(payload.metadata ?? {})
+        metadata: toPrismaJson({
+          ...(payload.metadata ?? {}),
+          etag: objectStat.etag
+        })
       }
     });
 
@@ -110,8 +122,23 @@ export class AppFilesService {
   }
 
   private buildObjectKey(category: FileCategory, fileName: string) {
-    const ext = fileName.includes(".") ? fileName.split(".").pop() : "bin";
+    const ext = normalizeFileExtension(fileName);
     const day = new Date().toISOString().slice(0, 10);
     return `app/${category.toLowerCase()}/${day}/${randomUUID()}.${ext}`;
   }
+
+  private ensureObjectKeyAllowed(category: FileCategory, objectKey: string) {
+    const prefix = `app/${category.toLowerCase()}/`;
+
+    if (!objectKey.startsWith(prefix)) {
+      throw new BadRequestException("Object key does not match file category");
+    }
+  }
+}
+
+function normalizeFileExtension(fileName: string) {
+  const ext = fileName.includes(".") ? fileName.split(".").pop() ?? "bin" : "bin";
+  const normalized = ext.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+  return normalized || "bin";
 }

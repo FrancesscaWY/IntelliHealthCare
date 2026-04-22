@@ -22,6 +22,7 @@ import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
+import { SwaggerTags } from "../../common/http/swagger-tags";
 import { AppCommunityService } from "./community.service";
 
 class PostListQueryDto extends PaginationQueryDto {
@@ -106,7 +107,7 @@ class ActivityCancelDto {
   reason?: string;
 }
 
-@ApiTags("社区与活动")
+@ApiTags(SwaggerTags.AppCommunity)
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("app/community")

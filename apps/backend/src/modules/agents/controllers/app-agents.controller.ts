@@ -12,6 +12,7 @@ import { CurrentUser } from "../../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../../common/auth/jwt-auth.guard";
 import type { AuthenticatedUser } from "../../../common/auth/auth.types";
 import { PaginationQueryDto } from "../../../common/dto/pagination-query.dto";
+import { SwaggerTags } from "../../../common/http/swagger-tags";
 import { AppAgentService } from "../application/app-agent.service";
 import { RagKnowledgeService } from "../application/rag-knowledge.service";
 import {
@@ -24,7 +25,7 @@ import {
 } from "../dto/app-agent.dto";
 import { AppRagSearchQueryDto } from "../dto/rag-search.dto";
 
-@ApiTags("app-ai")
+@ApiTags(SwaggerTags.AppAi)
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("app/ai")

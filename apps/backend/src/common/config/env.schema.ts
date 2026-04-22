@@ -42,6 +42,13 @@ export const envSchema = z.object({
   MINIO_ACCESS_KEY: z.string().min(1).default("minioadmin"),
   MINIO_SECRET_KEY: z.string().min(1).default("minioadmin"),
   MINIO_BUCKET: z.string().min(1).default("ihc-files"),
+  MINIO_REGION: z.string().min(1).default("us-east-1"),
+  MINIO_PUBLIC_ENDPOINT: z.string().default(""),
+  MINIO_PUBLIC_PORT: z.coerce.number().int().positive().optional(),
+  MINIO_PUBLIC_USE_SSL: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === undefined ? undefined : value === "true"),
   AGENT_RAG_COLLECTION: z.string().min(1).default("ihc-rag"),
   AGENT_LLM_PROVIDER: z
     .enum(["mock", "deepseek", "openrouter", "openai-compatible"])
@@ -57,6 +64,11 @@ export const envSchema = z.object({
     .string()
     .min(1)
     .default("deepseek-chat"),
+  AGENT_EMBEDDING_PROVIDER: z
+    .enum(["mock", "openrouter", "openai-compatible"])
+    .optional(),
+  AGENT_EMBEDDING_BASE_URL: z.string().default(""),
+  AGENT_EMBEDDING_API_KEY: z.string().default(""),
   AGENT_EMBEDDING_MODEL: z
     .string()
     .min(1)
@@ -92,6 +104,38 @@ export function validateEnv(config: Record<string, unknown>) {
 
   if (!agentApiKey && deepseekApiKey) {
     normalized.AGENT_LLM_API_KEY = deepseekApiKey;
+  }
+
+  const llmProvider =
+    typeof normalized.AGENT_LLM_PROVIDER === "string"
+      ? normalized.AGENT_LLM_PROVIDER.trim()
+      : "";
+  const embeddingProvider =
+    typeof normalized.AGENT_EMBEDDING_PROVIDER === "string"
+      ? normalized.AGENT_EMBEDDING_PROVIDER.trim()
+      : "";
+  const embeddingBaseUrl =
+    typeof normalized.AGENT_EMBEDDING_BASE_URL === "string"
+      ? normalized.AGENT_EMBEDDING_BASE_URL.trim()
+      : "";
+  const embeddingApiKey =
+    typeof normalized.AGENT_EMBEDDING_API_KEY === "string"
+      ? normalized.AGENT_EMBEDDING_API_KEY.trim()
+      : "";
+
+  if (!embeddingProvider) {
+    normalized.AGENT_EMBEDDING_PROVIDER =
+      llmProvider === "openrouter" || llmProvider === "openai-compatible"
+        ? llmProvider
+        : "mock";
+  }
+
+  if (!embeddingBaseUrl && typeof normalized.AGENT_LLM_BASE_URL === "string") {
+    normalized.AGENT_EMBEDDING_BASE_URL = normalized.AGENT_LLM_BASE_URL;
+  }
+
+  if (!embeddingApiKey && typeof normalized.AGENT_LLM_API_KEY === "string") {
+    normalized.AGENT_EMBEDDING_API_KEY = normalized.AGENT_LLM_API_KEY;
   }
 
   return envSchema.parse(normalized);

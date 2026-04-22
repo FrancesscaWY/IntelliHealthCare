@@ -16,7 +16,7 @@ import { DEFAULT_AGENT_NAME } from "../agents.constants";
 export class CreateAgentTaskDto {
   @IsOptional()
   @IsString()
-  agentName = DEFAULT_AGENT_NAME;
+  agentName: string = DEFAULT_AGENT_NAME;
 
   @IsString()
   taskType!: string;
@@ -28,7 +28,8 @@ export class CreateAgentTaskDto {
   @IsOptional()
   @IsString()
   @IsIn(["assistant", "internal-api", "event", "schedule"])
-  triggerSource = "internal-api";
+  triggerSource: "assistant" | "internal-api" | "event" | "schedule" =
+    "internal-api";
 
   @IsObject()
   @IsNotEmptyObject()
@@ -57,5 +58,5 @@ export class ListAgentTasksQueryDto {
   @IsInt()
   @Min(1)
   @Max(50)
-  limit = 20;
+  limit: number = 20;
 }

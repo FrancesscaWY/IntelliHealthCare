@@ -14,6 +14,12 @@ import {
   StaffStatus
 } from "@prisma/client";
 import { bootstrapDatabase } from "../src/common/bootstrap/database-bootstrap";
+import type { EnvironmentVariables } from "../src/common/config/env.schema";
+import {
+  buildDeterministicVector as buildFallbackEmbeddingVector,
+  embedTextBatches,
+  resolveEmbeddingRuntimeConfig
+} from "../src/modules/agents/gateways/embedding.runtime";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -104,13 +110,145 @@ type BuildOutcome = {
   visibility: RagVisibilityScope;
 };
 
+type SyncMode = "full" | "incremental";
+
+type RagBuildContext = {
+  prisma: PrismaClient;
+  logger: Logger;
+  embeddingConfig: ReturnType<typeof resolveBuildEmbeddingConfig>;
+  syncMode: SyncMode;
+};
+
+type ResolvedChunkConfig = {
+  targetChars: number;
+  overlapChars: number;
+  minChunkChars: number;
+};
+
+type PreparedChunkSeed = {
+  chunkIndex: number;
+  title: string;
+  content: string;
+  contentHash: string;
+  tokenCount: number;
+  charCount: number;
+  headings: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined;
+  keywords: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined;
+  metadata: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined;
+  visibility: RagVisibilityScope;
+  ownerUserId?: string;
+  institutionId?: string;
+};
+
+type PreparedChunkInsert = PreparedChunkSeed & {
+  embedding: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
+  embeddingModel: string;
+};
+
+type PreparedDocumentSeed = {
+  key: string;
+  document: SeedDocument;
+  contentHash: string;
+  chunks: PreparedChunkSeed[];
+};
+
+type PreparedDocumentInsert = PreparedDocumentSeed & {
+  chunks: PreparedChunkInsert[];
+};
+
+type ExistingRagDocument = {
+  id: string;
+  sourceType: RagSourceType;
+  sourceUri: string | null;
+  externalId: string | null;
+  title: string;
+  summary: string | null;
+  contentHash: string;
+  language: string;
+  tags: Prisma.JsonValue | null;
+  metadata: Prisma.JsonValue | null;
+  accessPolicy: Prisma.JsonValue | null;
+  status: RagDocumentStatus;
+  ownerUserId: string | null;
+  institutionId: string | null;
+  retrievedAt: Date | null;
+  publishedAt: Date | null;
+  chunks: Array<{
+    id: string;
+    chunkIndex: number;
+    title: string | null;
+    contentHash: string;
+    tokenCount: number | null;
+    charCount: number;
+    headings: Prisma.JsonValue | null;
+    keywords: Prisma.JsonValue | null;
+    metadata: Prisma.JsonValue | null;
+    embedding: Prisma.JsonValue | null;
+    embeddingModel: string | null;
+    visibility: RagVisibilityScope;
+    ownerUserId: string | null;
+    institutionId: string | null;
+  }>;
+};
+
 type ChildProcessError = NodeJS.ErrnoException & {
   stderr?: string;
   stdout?: string;
 };
 
+function parseBuildOptions(args: string[]) {
+  let syncMode: SyncMode = "incremental";
+
+  for (const arg of args) {
+    if (arg === "--full" || arg === "--mode=full") {
+      syncMode = "full";
+      continue;
+    }
+
+    if (arg === "--incremental" || arg === "--mode=incremental") {
+      syncMode = "incremental";
+    }
+  }
+
+  return {
+    syncMode
+  };
+}
+
+function resolveBuildEmbeddingConfig() {
+  return resolveEmbeddingRuntimeConfig({
+    llmProvider: process.env.AGENT_LLM_PROVIDER as
+      | EnvironmentVariables["AGENT_LLM_PROVIDER"]
+      | undefined,
+    llmBaseUrl: process.env.AGENT_LLM_BASE_URL,
+    llmApiKey: process.env.AGENT_LLM_API_KEY,
+    embeddingProvider: process.env.AGENT_EMBEDDING_PROVIDER as
+      | EnvironmentVariables["AGENT_EMBEDDING_PROVIDER"]
+      | undefined,
+    embeddingBaseUrl: process.env.AGENT_EMBEDDING_BASE_URL,
+    embeddingApiKey: process.env.AGENT_EMBEDDING_API_KEY,
+    primaryModel: process.env.AGENT_EMBEDDING_MODEL ?? "qwen/qwen3-embedding-8b",
+    fallbackModel: process.env.AGENT_EMBEDDING_FALLBACK_MODEL ?? "baai/bge-m3",
+    timeoutMs: Number(process.env.AGENT_EMBEDDING_TIMEOUT_MS ?? 15_000),
+    allowProviderFallbacks: parseBooleanEnv(
+      process.env.AGENT_OPENROUTER_ALLOW_FALLBACKS,
+      true
+    ),
+    zeroDataRetention: parseBooleanEnv(process.env.AGENT_OPENROUTER_ZDR, true)
+  });
+}
+
+function parseBooleanEnv(value: string | undefined, fallback: boolean) {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return value === "true";
+}
+
 async function main() {
   const logger = new Logger("RagDatabaseBuilder");
+  const options = parseBuildOptions(process.argv.slice(2));
   const databaseBootstrap = await bootstrapDatabase(logger);
   const backendRoot = resolve(__dirname, "..");
   const prisma = new PrismaClient({
@@ -122,6 +260,13 @@ async function main() {
   });
 
   try {
+    const context: RagBuildContext = {
+      prisma,
+      logger,
+      embeddingConfig: resolveBuildEmbeddingConfig(),
+      syncMode: options.syncMode
+    };
+
     await runPrismaCommand(
       "prisma migrate deploy",
       [getPrismaCliEntry(backendRoot), "migrate", "deploy", "--schema", join(backendRoot, "prisma", "schema.prisma")],
@@ -133,14 +278,15 @@ async function main() {
     await seedBusinessDataIfEmpty(prisma, backendRoot, databaseBootstrap.databaseUrl, logger);
 
     const outcomes: BuildOutcome[] = [];
-    outcomes.push(await buildServiceCatalogKnowledge(prisma));
-    outcomes.push(await buildHealthKnowledge(prisma));
-    outcomes.push(await buildPlatformRuleKnowledge(prisma, backendRoot));
+    logger.log(`RAG sync mode: ${context.syncMode}`);
+    outcomes.push(await buildServiceCatalogKnowledge(context));
+    outcomes.push(await buildHealthKnowledge(context));
+    outcomes.push(await buildPlatformRuleKnowledge(context, backendRoot));
 
-    const institutionOutcomes = await buildInstitutionKnowledge(prisma);
+    const institutionOutcomes = await buildInstitutionKnowledge(context);
     outcomes.push(...institutionOutcomes);
 
-    const privateOutcomes = await buildUserPrivateKnowledge(prisma);
+    const privateOutcomes = await buildUserPrivateKnowledge(context);
     outcomes.push(...privateOutcomes);
 
     const totals = outcomes.reduce(
@@ -166,8 +312,8 @@ async function main() {
   }
 }
 
-async function buildServiceCatalogKnowledge(prisma: PrismaClient) {
-  const knowledgeBase = await upsertKnowledgeBase(prisma, {
+async function buildServiceCatalogKnowledge(context: RagBuildContext) {
+  const knowledgeBase = await upsertKnowledgeBase(context.prisma, {
     code: "rag-service-catalog-public",
     name: "服务目录知识库",
     knowledgeType: RagKnowledgeType.SERVICE_CATALOG,
@@ -189,7 +335,7 @@ async function buildServiceCatalogKnowledge(prisma: PrismaClient) {
     }
   });
 
-  const services = await prisma.serviceItem.findMany({
+  const services = await context.prisma.serviceItem.findMany({
     where: { enabled: true },
     include: {
       institution: true
@@ -249,11 +395,16 @@ async function buildServiceCatalogKnowledge(prisma: PrismaClient) {
     };
   });
 
-  return rebuildKnowledgeBase(prisma, knowledgeBase.id, documents, "build-rag-db:service-catalog");
+  return syncKnowledgeBase(
+    context,
+    knowledgeBase.id,
+    documents,
+    "build-rag-db:service-catalog"
+  );
 }
 
-async function buildHealthKnowledge(prisma: PrismaClient) {
-  const knowledgeBase = await upsertKnowledgeBase(prisma, {
+async function buildHealthKnowledge(context: RagBuildContext) {
+  const knowledgeBase = await upsertKnowledgeBase(context.prisma, {
     code: "rag-health-knowledge-public",
     name: "健康知识库",
     knowledgeType: RagKnowledgeType.HEALTH_KNOWLEDGE,
@@ -280,15 +431,15 @@ async function buildHealthKnowledge(prisma: PrismaClient) {
   documents.push(...crawledDocuments);
 
   const [articles, lectures, diseases] = await Promise.all([
-    prisma.article.findMany({
+    context.prisma.article.findMany({
       where: { status: ContentStatus.PUBLISHED },
       orderBy: [{ sortOrder: "desc" }, { publishedAt: "desc" }]
     }),
-    prisma.lecture.findMany({
+    context.prisma.lecture.findMany({
       where: { status: ContentStatus.PUBLISHED },
       orderBy: { publishedAt: "desc" }
     }),
-    prisma.diseaseKnowledge.findMany({
+    context.prisma.diseaseKnowledge.findMany({
       where: { status: ContentStatus.PUBLISHED },
       include: { department: true },
       orderBy: { publishedAt: "desc" }
@@ -404,11 +555,19 @@ async function buildHealthKnowledge(prisma: PrismaClient) {
     }))
   );
 
-  return rebuildKnowledgeBase(prisma, knowledgeBase.id, documents, "build-rag-db:health-knowledge");
+  return syncKnowledgeBase(
+    context,
+    knowledgeBase.id,
+    documents,
+    "build-rag-db:health-knowledge"
+  );
 }
 
-async function buildPlatformRuleKnowledge(prisma: PrismaClient, backendRoot: string) {
-  const knowledgeBase = await upsertKnowledgeBase(prisma, {
+async function buildPlatformRuleKnowledge(
+  context: RagBuildContext,
+  backendRoot: string
+) {
+  const knowledgeBase = await upsertKnowledgeBase(context.prisma, {
     code: "rag-platform-rule-public",
     name: "平台规则知识库",
     knowledgeType: RagKnowledgeType.PLATFORM_RULE,
@@ -522,11 +681,16 @@ async function buildPlatformRuleKnowledge(prisma: PrismaClient, backendRoot: str
     }
   ];
 
-  return rebuildKnowledgeBase(prisma, knowledgeBase.id, documents, "build-rag-db:platform-rule");
+  return syncKnowledgeBase(
+    context,
+    knowledgeBase.id,
+    documents,
+    "build-rag-db:platform-rule"
+  );
 }
 
-async function buildInstitutionKnowledge(prisma: PrismaClient) {
-  const institutions = await prisma.institution.findMany({
+async function buildInstitutionKnowledge(context: RagBuildContext) {
+  const institutions = await context.prisma.institution.findMany({
     orderBy: { name: "asc" },
     include: {
       services: {
@@ -549,7 +713,7 @@ async function buildInstitutionKnowledge(prisma: PrismaClient) {
   const outcomes: BuildOutcome[] = [];
 
   for (const institution of institutions) {
-    const knowledgeBase = await upsertKnowledgeBase(prisma, {
+    const knowledgeBase = await upsertKnowledgeBase(context.prisma, {
       code: `rag-institution-resource-${institution.code.toLowerCase()}`,
       name: `${institution.name} 机构资源知识库`,
       knowledgeType: RagKnowledgeType.INSTITUTION_RESOURCE,
@@ -638,8 +802,8 @@ async function buildInstitutionKnowledge(prisma: PrismaClient) {
     ];
 
     outcomes.push(
-      await rebuildKnowledgeBase(
-        prisma,
+      await syncKnowledgeBase(
+        context,
         knowledgeBase.id,
         documents,
         `build-rag-db:institution:${institution.code.toLowerCase()}`
@@ -650,8 +814,8 @@ async function buildInstitutionKnowledge(prisma: PrismaClient) {
   return outcomes;
 }
 
-async function buildUserPrivateKnowledge(prisma: PrismaClient) {
-  const archives = await prisma.healthArchive.findMany({
+async function buildUserPrivateKnowledge(context: RagBuildContext) {
+  const archives = await context.prisma.healthArchive.findMany({
     orderBy: { createdAt: "asc" },
     include: {
       user: true,
@@ -674,7 +838,7 @@ async function buildUserPrivateKnowledge(prisma: PrismaClient) {
     }
   });
 
-  const familyBindings = await prisma.familyBinding.findMany({
+  const familyBindings = await context.prisma.familyBinding.findMany({
     where: {
       elderMemberId: {
         in: archives.map((item) => item.userId)
@@ -693,7 +857,7 @@ async function buildUserPrivateKnowledge(prisma: PrismaClient) {
     );
     const baseAccessPolicy = buildPrivateAccessPolicy(archive.userId, relatedFamilyBindings);
 
-    const knowledgeBase = await upsertKnowledgeBase(prisma, {
+    const knowledgeBase = await upsertKnowledgeBase(context.prisma, {
       code: `rag-user-private-${archive.userId}`,
       name: `${archive.user.realName ?? archive.user.nickname ?? archive.user.id} 用户私有档案知识库`,
       knowledgeType: RagKnowledgeType.USER_PRIVATE_ARCHIVE,
@@ -717,13 +881,13 @@ async function buildUserPrivateKnowledge(prisma: PrismaClient) {
     });
 
     const documents: SeedDocument[] = [];
-    const metrics = await prisma.healthMetricRecord.findMany({
+    const metrics = await context.prisma.healthMetricRecord.findMany({
       where: { userId: archive.userId },
       orderBy: { measuredAt: "desc" },
       take: 24
     });
 
-    const orders = await prisma.order.findMany({
+    const orders = await context.prisma.order.findMany({
       where: {
         OR: [{ ownerId: archive.userId }, { elderId: archive.userId }]
       },
@@ -872,8 +1036,8 @@ async function buildUserPrivateKnowledge(prisma: PrismaClient) {
     }
 
     outcomes.push(
-      await rebuildKnowledgeBase(
-        prisma,
+      await syncKnowledgeBase(
+        context,
         knowledgeBase.id,
         documents,
         `build-rag-db:user-private:${archive.userId}`
@@ -940,29 +1104,33 @@ async function buildPublicHealthWebDocuments() {
   return documents;
 }
 
-async function rebuildKnowledgeBase(
-  prisma: PrismaClient,
+async function syncKnowledgeBase(
+  context: RagBuildContext,
   knowledgeBaseId: string,
   documents: SeedDocument[],
   triggerSource: string
 ) {
-  const knowledgeBase = await prisma.ragKnowledgeBase.findUniqueOrThrow({
+  const knowledgeBase = await context.prisma.ragKnowledgeBase.findUniqueOrThrow({
     where: { id: knowledgeBaseId }
   });
-
-  const ingestionRun = await prisma.ragIngestionRun.create({
+  const chunkConfig = resolveChunkConfig(knowledgeBase.chunkConfig);
+  const preparedDocuments = documents.map((document) =>
+    prepareDocumentSeed(document, chunkConfig)
+  );
+  const ingestionRun = await context.prisma.ragIngestionRun.create({
     data: {
       knowledgeBaseId,
       triggerSource,
       status: RagIngestionStatus.RUNNING,
       metadata: {
-        requestedDocumentCount: documents.length
+        requestedDocumentCount: documents.length,
+        syncMode: context.syncMode
       }
     }
   });
 
   if (documents.length === 0) {
-    await prisma.ragIngestionRun.update({
+    await context.prisma.ragIngestionRun.update({
       where: { id: ingestionRun.id },
       data: {
         status: RagIngestionStatus.FAILED,
@@ -975,64 +1143,22 @@ async function rebuildKnowledgeBase(
   }
 
   try {
-    const chunkRecords = documents.flatMap((document) => chunkSeedDocument(knowledgeBaseId, document));
+    const summary =
+      context.syncMode === "full"
+        ? await executeFullSync(context, knowledgeBaseId, preparedDocuments)
+        : await executeIncrementalSync(context, knowledgeBaseId, preparedDocuments);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.ragChunk.deleteMany({
-        where: { knowledgeBaseId }
-      });
-
-      await tx.ragDocument.deleteMany({
-        where: { knowledgeBaseId }
-      });
-
-      for (const document of documents) {
-        const createdDocument = await tx.ragDocument.create({
-          data: {
-            knowledgeBaseId,
-            sourceType: document.sourceType,
-            sourceUri: document.sourceUri,
-            externalId: document.externalId,
-            title: document.title,
-            summary: document.summary,
-            contentText: document.contentText,
-            language: document.language,
-            tags: toJsonValue(document.tags),
-            metadata: toJsonValue(document.metadata),
-            accessPolicy: toJsonValue(document.accessPolicy),
-            contentHash: hashText(document.contentText),
-            status: document.status ?? RagDocumentStatus.ACTIVE,
-            ownerUserId: document.ownerUserId,
-            institutionId: document.institutionId,
-            retrievedAt: document.retrievedAt ?? undefined,
-            publishedAt: document.publishedAt ?? undefined
-          }
-        });
-
-        const preparedChunks = chunkSeedDocument(knowledgeBaseId, document).map((chunk) => ({
-          ...chunk,
-          documentId: createdDocument.id
-        }));
-
-        if (preparedChunks.length > 0) {
-          await tx.ragChunk.createMany({
-            data: preparedChunks
-          });
-        }
-      }
-    });
-
-    await prisma.ragIngestionRun.update({
+    await context.prisma.ragIngestionRun.update({
       where: { id: ingestionRun.id },
       data: {
-        status: RagIngestionStatus.SUCCEEDED,
-        documentCount: documents.length,
-        chunkCount: chunkRecords.length,
+        status: summary.partial ? RagIngestionStatus.PARTIAL : RagIngestionStatus.SUCCEEDED,
+        documentCount: summary.documentCount,
+        chunkCount: summary.chunkCount,
         completedAt: new Date(),
         metadata: {
           requestedDocumentCount: documents.length,
-          insertedDocumentCount: documents.length,
-          insertedChunkCount: chunkRecords.length
+          syncMode: context.syncMode,
+          ...summary.metadata
         }
       }
     });
@@ -1042,11 +1168,11 @@ async function rebuildKnowledgeBase(
       name: knowledgeBase.name,
       visibility: knowledgeBase.visibility,
       knowledgeType: knowledgeBase.knowledgeType,
-      documentCount: documents.length,
-      chunkCount: chunkRecords.length
+      documentCount: summary.documentCount,
+      chunkCount: summary.chunkCount
     };
   } catch (error) {
-    await prisma.ragIngestionRun.update({
+    await context.prisma.ragIngestionRun.update({
       where: { id: ingestionRun.id },
       data: {
         status: RagIngestionStatus.FAILED,
@@ -1089,35 +1215,545 @@ async function upsertKnowledgeBase(prisma: PrismaClient, config: KnowledgeBaseCo
   });
 }
 
-function chunkSeedDocument(knowledgeBaseId: string, document: SeedDocument) {
-  const chunks = chunkText(document.contentText, DEFAULT_CHUNK_CONFIG.targetChars, DEFAULT_CHUNK_CONFIG.overlapChars);
+function prepareDocumentSeed(
+  document: SeedDocument,
+  chunkConfig: ResolvedChunkConfig
+): PreparedDocumentSeed {
+  const chunks = chunkText(
+    document.contentText,
+    chunkConfig.targetChars,
+    chunkConfig.overlapChars,
+    chunkConfig.minChunkChars
+  );
 
-  return chunks.map((chunk, index) => ({
-    knowledgeBaseId,
-    documentId: "",
-    chunkIndex: index,
-    title: document.title,
-    content: chunk,
-    contentHash: hashText(chunk),
-    tokenCount: estimateTokenCount(chunk),
-    charCount: chunk.length,
-    headings: toJsonValue(document.sectionHeadings),
-    keywords: toJsonValue(extractKeywords(chunk)),
-    metadata: toJsonValue({
-      sourceUri: document.sourceUri,
+  return {
+    key: buildSeedDocumentKey(document),
+    document,
+    contentHash: hashText(document.contentText),
+    chunks: chunks.map((chunk, index) => ({
+      chunkIndex: index,
       title: document.title,
+      content: chunk,
+      contentHash: hashText(chunk),
+      tokenCount: estimateTokenCount(chunk),
+      charCount: chunk.length,
+      headings: toJsonValue(document.sectionHeadings),
+      keywords: toJsonValue(extractKeywords(chunk)),
+      metadata: toJsonValue({
+        sourceUri: document.sourceUri,
+        title: document.title,
+        visibility: document.visibility,
+        chunkIndex: index
+      }),
       visibility: document.visibility,
-      chunkIndex: index
-    }),
-    embedding: toJsonValue(buildDeterministicVector(chunk)),
-    embeddingModel: "deterministic-hash-v1",
-    visibility: document.visibility,
-    ownerUserId: document.ownerUserId,
-    institutionId: document.institutionId
-  }));
+      ownerUserId: document.ownerUserId,
+      institutionId: document.institutionId
+    }))
+  };
 }
 
-function chunkText(text: string, targetChars: number, overlapChars: number) {
+async function executeFullSync(
+  context: RagBuildContext,
+  knowledgeBaseId: string,
+  preparedDocuments: PreparedDocumentSeed[]
+) {
+  const embeddedDocuments = await attachEmbeddingsToDocuments(context, preparedDocuments);
+
+  await context.prisma.$transaction(async (tx) => {
+    await tx.ragChunk.deleteMany({
+      where: { knowledgeBaseId }
+    });
+
+    await tx.ragDocument.deleteMany({
+      where: { knowledgeBaseId }
+    });
+
+    await persistPreparedDocuments(tx, knowledgeBaseId, embeddedDocuments);
+  });
+
+  return {
+    documentCount: embeddedDocuments.length,
+    chunkCount: embeddedDocuments.reduce((sum, item) => sum + item.chunks.length, 0),
+    partial: false,
+    metadata: {
+      insertedDocumentCount: embeddedDocuments.length,
+      insertedChunkCount: embeddedDocuments.reduce((sum, item) => sum + item.chunks.length, 0),
+      updatedDocumentCount: 0,
+      updatedChunkCount: 0,
+      skippedDocumentCount: 0,
+      deletedDocumentCount: 0,
+      deletedChunkCount: 0
+    }
+  };
+}
+
+async function executeIncrementalSync(
+  context: RagBuildContext,
+  knowledgeBaseId: string,
+  preparedDocuments: PreparedDocumentSeed[]
+) {
+  const existingDocuments = await context.prisma.ragDocument.findMany({
+    where: { knowledgeBaseId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      sourceType: true,
+      sourceUri: true,
+      externalId: true,
+      title: true,
+      summary: true,
+      contentHash: true,
+      language: true,
+      tags: true,
+      metadata: true,
+      accessPolicy: true,
+      status: true,
+      ownerUserId: true,
+      institutionId: true,
+      retrievedAt: true,
+      publishedAt: true,
+      chunks: {
+        orderBy: { chunkIndex: "asc" },
+        select: {
+          id: true,
+          chunkIndex: true,
+          title: true,
+          contentHash: true,
+          tokenCount: true,
+          charCount: true,
+          headings: true,
+          keywords: true,
+          metadata: true,
+          embedding: true,
+          embeddingModel: true,
+          visibility: true,
+          ownerUserId: true,
+          institutionId: true
+        }
+      }
+    }
+  });
+  const existingByKey = new Map(
+    existingDocuments.map((document) => [buildExistingDocumentKey(document), document])
+  );
+  const incomingKeys = new Set(preparedDocuments.map((document) => document.key));
+  const removedDocuments = existingDocuments.filter(
+    (document) => !incomingKeys.has(buildExistingDocumentKey(document))
+  );
+  const changedPlans = preparedDocuments.filter((document) => {
+    const existing = existingByKey.get(document.key);
+    return !existing || shouldRefreshDocument(document, existing, context.embeddingConfig);
+  });
+  const embeddedPlans = await attachEmbeddingsToDocuments(context, changedPlans);
+  const embeddedByKey = new Map(embeddedPlans.map((document) => [document.key, document]));
+  const unchangedDocuments = preparedDocuments.length - changedPlans.length;
+
+  await context.prisma.$transaction(async (tx) => {
+    if (removedDocuments.length > 0) {
+      await tx.ragDocument.deleteMany({
+        where: {
+          id: {
+            in: removedDocuments.map((document) => document.id)
+          }
+        }
+      });
+    }
+
+    for (const prepared of preparedDocuments) {
+      const existing = existingByKey.get(prepared.key);
+      const embedded = embeddedByKey.get(prepared.key);
+
+      if (!existing && embedded) {
+        await persistPreparedDocument(tx, knowledgeBaseId, embedded);
+        continue;
+      }
+
+      if (!existing || !embedded) {
+        continue;
+      }
+
+      await tx.ragDocument.update({
+        where: { id: existing.id },
+        data: buildDocumentMutation(prepared)
+      });
+      await tx.ragChunk.deleteMany({
+        where: { documentId: existing.id }
+      });
+      await tx.ragChunk.createMany({
+        data: embedded.chunks.map((chunk) => ({
+          knowledgeBaseId,
+          documentId: existing.id,
+          chunkIndex: chunk.chunkIndex,
+          title: chunk.title,
+          content: chunk.content,
+          contentHash: chunk.contentHash,
+          tokenCount: chunk.tokenCount,
+          charCount: chunk.charCount,
+          headings: chunk.headings,
+          keywords: chunk.keywords,
+          metadata: chunk.metadata,
+          embedding: chunk.embedding,
+          embeddingModel: chunk.embeddingModel,
+          visibility: chunk.visibility,
+          ownerUserId: chunk.ownerUserId,
+          institutionId: chunk.institutionId
+        }))
+      });
+    }
+  });
+
+  return {
+    documentCount: preparedDocuments.length,
+    chunkCount: preparedDocuments.reduce((sum, item) => sum + item.chunks.length, 0),
+    partial: false,
+    metadata: {
+      insertedDocumentCount: embeddedPlans.filter(
+        (document) => !existingByKey.has(document.key)
+      ).length,
+      insertedChunkCount: embeddedPlans
+        .filter((document) => !existingByKey.has(document.key))
+        .reduce((sum, item) => sum + item.chunks.length, 0),
+      updatedDocumentCount: embeddedPlans.filter((document) => existingByKey.has(document.key))
+        .length,
+      updatedChunkCount: embeddedPlans
+        .filter((document) => existingByKey.has(document.key))
+        .reduce((sum, item) => sum + item.chunks.length, 0),
+      skippedDocumentCount: unchangedDocuments,
+      deletedDocumentCount: removedDocuments.length,
+      deletedChunkCount: removedDocuments.reduce(
+        (sum, document) => sum + document.chunks.length,
+        0
+      )
+    }
+  };
+}
+
+async function attachEmbeddingsToDocuments(
+  context: RagBuildContext,
+  documents: PreparedDocumentSeed[]
+) {
+  if (documents.length === 0) {
+    return [] as PreparedDocumentInsert[];
+  }
+
+  const texts = documents.flatMap((document) => document.chunks.map((chunk) => chunk.content));
+  const embeddingsResponse = await embedTextBatches({
+    agentName: "RagDatabaseBuilder",
+    texts,
+    config: context.embeddingConfig,
+    batchSize: 24,
+    logger: context.logger
+  });
+  const embeddingModel = inferStoredEmbeddingModel(
+    embeddingsResponse.trace.model,
+    context.embeddingConfig
+  );
+  let cursor = 0;
+
+  return documents.map((document) => {
+    const chunks = document.chunks.map((chunk) => {
+      const vector = embeddingsResponse.vectors[cursor] ?? buildFallbackEmbeddingVector(chunk.content);
+      cursor += 1;
+
+      return {
+        ...chunk,
+        embedding: toJsonValue(vector) ?? Prisma.JsonNull,
+        embeddingModel
+      };
+    });
+
+    return {
+      ...document,
+      chunks
+    };
+  });
+}
+
+async function persistPreparedDocuments(
+  tx: Prisma.TransactionClient,
+  knowledgeBaseId: string,
+  documents: PreparedDocumentInsert[]
+) {
+  for (const document of documents) {
+    await persistPreparedDocument(tx, knowledgeBaseId, document);
+  }
+}
+
+async function persistPreparedDocument(
+  tx: Prisma.TransactionClient,
+  knowledgeBaseId: string,
+  document: PreparedDocumentInsert
+) {
+  const createdDocument = await tx.ragDocument.create({
+    data: {
+      knowledgeBaseId,
+      ...buildDocumentMutation(document)
+    }
+  });
+
+  if (document.chunks.length > 0) {
+    await tx.ragChunk.createMany({
+      data: document.chunks.map((chunk) => ({
+        knowledgeBaseId,
+        documentId: createdDocument.id,
+        chunkIndex: chunk.chunkIndex,
+        title: chunk.title,
+        content: chunk.content,
+        contentHash: chunk.contentHash,
+        tokenCount: chunk.tokenCount,
+        charCount: chunk.charCount,
+        headings: chunk.headings,
+        keywords: chunk.keywords,
+        metadata: chunk.metadata,
+        embedding: chunk.embedding,
+        embeddingModel: chunk.embeddingModel,
+        visibility: chunk.visibility,
+        ownerUserId: chunk.ownerUserId,
+        institutionId: chunk.institutionId
+      }))
+    });
+  }
+}
+
+function buildDocumentMutation(document: PreparedDocumentSeed) {
+  return {
+    sourceType: document.document.sourceType,
+    sourceUri: document.document.sourceUri,
+    externalId: document.document.externalId,
+    title: document.document.title,
+    summary: document.document.summary,
+    contentText: document.document.contentText,
+    language: document.document.language,
+    tags: toJsonValue(document.document.tags),
+    metadata: toJsonValue(document.document.metadata),
+    accessPolicy: toJsonValue(document.document.accessPolicy),
+    contentHash: document.contentHash,
+    status: document.document.status ?? RagDocumentStatus.ACTIVE,
+    ownerUserId: document.document.ownerUserId,
+    institutionId: document.document.institutionId,
+    retrievedAt: document.document.retrievedAt ?? undefined,
+    publishedAt: document.document.publishedAt ?? undefined
+  };
+}
+
+function shouldRefreshDocument(
+  prepared: PreparedDocumentSeed,
+  existing: ExistingRagDocument,
+  embeddingConfig: RagBuildContext["embeddingConfig"]
+) {
+  if (existing.sourceType !== prepared.document.sourceType) {
+    return true;
+  }
+
+  if (existing.sourceUri !== (prepared.document.sourceUri ?? null)) {
+    return true;
+  }
+
+  if (existing.externalId !== (prepared.document.externalId ?? null)) {
+    return true;
+  }
+
+  if (existing.title !== prepared.document.title) {
+    return true;
+  }
+
+  if (existing.summary !== (prepared.document.summary ?? null)) {
+    return true;
+  }
+
+  if (existing.contentHash !== prepared.contentHash) {
+    return true;
+  }
+
+  if (existing.language !== prepared.document.language) {
+    return true;
+  }
+
+  if (!jsonEquals(existing.tags, toJsonValue(prepared.document.tags) ?? null)) {
+    return true;
+  }
+
+  if (!jsonEquals(existing.metadata, toJsonValue(prepared.document.metadata) ?? null)) {
+    return true;
+  }
+
+  if (!jsonEquals(existing.accessPolicy, toJsonValue(prepared.document.accessPolicy) ?? null)) {
+    return true;
+  }
+
+  if (existing.status !== (prepared.document.status ?? RagDocumentStatus.ACTIVE)) {
+    return true;
+  }
+
+  if (existing.ownerUserId !== (prepared.document.ownerUserId ?? null)) {
+    return true;
+  }
+
+  if (existing.institutionId !== (prepared.document.institutionId ?? null)) {
+    return true;
+  }
+
+  if (!sameDate(existing.retrievedAt, prepared.document.retrievedAt ?? null)) {
+    return true;
+  }
+
+  if (!sameDate(existing.publishedAt, prepared.document.publishedAt ?? null)) {
+    return true;
+  }
+
+  if (existing.chunks.length !== prepared.chunks.length) {
+    return true;
+  }
+
+  return existing.chunks.some((chunk, index) =>
+    shouldRefreshChunk(chunk, prepared.chunks[index], embeddingConfig)
+  );
+}
+
+function shouldRefreshChunk(
+  existing: ExistingRagDocument["chunks"][number],
+  prepared: PreparedChunkSeed,
+  embeddingConfig: RagBuildContext["embeddingConfig"]
+) {
+  if (!prepared) {
+    return true;
+  }
+
+  if (existing.chunkIndex !== prepared.chunkIndex) {
+    return true;
+  }
+
+  if (existing.title !== prepared.title) {
+    return true;
+  }
+
+  if (existing.contentHash !== prepared.contentHash) {
+    return true;
+  }
+
+  if (existing.tokenCount !== prepared.tokenCount) {
+    return true;
+  }
+
+  if (existing.charCount !== prepared.charCount) {
+    return true;
+  }
+
+  if (!jsonEquals(existing.headings, prepared.headings ?? null)) {
+    return true;
+  }
+
+  if (!jsonEquals(existing.keywords, prepared.keywords ?? null)) {
+    return true;
+  }
+
+  if (!jsonEquals(existing.metadata, prepared.metadata ?? null)) {
+    return true;
+  }
+
+  if (existing.visibility !== prepared.visibility) {
+    return true;
+  }
+
+  if (existing.ownerUserId !== (prepared.ownerUserId ?? null)) {
+    return true;
+  }
+
+  if (existing.institutionId !== (prepared.institutionId ?? null)) {
+    return true;
+  }
+
+  return !isEmbeddingCurrent(existing.embeddingModel, existing.embedding, embeddingConfig);
+}
+
+function resolveChunkConfig(value: Prisma.JsonValue | null): ResolvedChunkConfig {
+  const record = toJsonRecord(value);
+  const targetChars = Number(record.targetChars ?? DEFAULT_CHUNK_CONFIG.targetChars);
+  const overlapChars = Number(record.overlapChars ?? DEFAULT_CHUNK_CONFIG.overlapChars);
+  const minChunkChars = Number(record.minChunkChars ?? DEFAULT_CHUNK_CONFIG.minChunkChars);
+
+  return {
+    targetChars: Number.isFinite(targetChars) ? targetChars : DEFAULT_CHUNK_CONFIG.targetChars,
+    overlapChars: Number.isFinite(overlapChars)
+      ? overlapChars
+      : DEFAULT_CHUNK_CONFIG.overlapChars,
+    minChunkChars: Number.isFinite(minChunkChars)
+      ? minChunkChars
+      : DEFAULT_CHUNK_CONFIG.minChunkChars
+  };
+}
+
+function buildSeedDocumentKey(document: SeedDocument) {
+  return [
+    document.externalId ?? "",
+    document.sourceUri ?? "",
+    document.title,
+    document.ownerUserId ?? "",
+    document.institutionId ?? ""
+  ].join("|");
+}
+
+function buildExistingDocumentKey(document: ExistingRagDocument) {
+  return [
+    document.externalId ?? "",
+    document.sourceUri ?? "",
+    document.title,
+    document.ownerUserId ?? "",
+    document.institutionId ?? ""
+  ].join("|");
+}
+
+function inferStoredEmbeddingModel(
+  model: string,
+  embeddingConfig: RagBuildContext["embeddingConfig"]
+) {
+  if (
+    embeddingConfig.provider === "mock" ||
+    !embeddingConfig.baseUrl ||
+    !embeddingConfig.apiKey
+  ) {
+    return "deterministic-hash-v1";
+  }
+
+  return model;
+}
+
+function isEmbeddingCurrent(
+  embeddingModel: string | null,
+  embedding: Prisma.JsonValue | null,
+  embeddingConfig: RagBuildContext["embeddingConfig"]
+) {
+  const hasVector = Array.isArray(embedding) && embedding.length > 0;
+
+  if (!hasVector || !embeddingModel) {
+    return false;
+  }
+
+  if (
+    embeddingConfig.provider === "mock" ||
+    !embeddingConfig.baseUrl ||
+    !embeddingConfig.apiKey
+  ) {
+    return embeddingModel === "deterministic-hash-v1";
+  }
+
+  return [embeddingConfig.primaryModel, embeddingConfig.fallbackModel].includes(embeddingModel);
+}
+
+function jsonEquals(left: Prisma.JsonValue | null, right: Prisma.InputJsonValue | null) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+function sameDate(left: Date | null, right: Date | null) {
+  return (left?.toISOString() ?? null) === (right?.toISOString() ?? null);
+}
+
+function chunkText(
+  text: string,
+  targetChars: number,
+  overlapChars: number,
+  minChunkChars: number
+) {
   const normalized = normalizeText(text);
   const rawParagraphs = normalized
     .split(/\n{2,}/)
@@ -1135,7 +1771,7 @@ function chunkText(text: string, targetChars: number, overlapChars: number) {
   for (const paragraph of paragraphs) {
     const nextChunk = current ? `${current}\n\n${paragraph}` : paragraph;
 
-    if (nextChunk.length <= targetChars || current.length < DEFAULT_CHUNK_CONFIG.minChunkChars) {
+    if (nextChunk.length <= targetChars || current.length < minChunkChars) {
       current = nextChunk;
       continue;
     }
@@ -1617,23 +2253,6 @@ function extractKeywords(text: string, limit = 12) {
     .sort((left, right) => right[1] - left[1])
     .slice(0, limit)
     .map(([token]) => token);
-}
-
-function buildDeterministicVector(text: string, dimensions = 64) {
-  const vector = Array.from({ length: dimensions }, () => 0);
-
-  for (let index = 0; index < text.length; index += 1) {
-    const slot = index % dimensions;
-    vector[slot] += text.charCodeAt(index);
-  }
-
-  const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value ** 2, 0));
-
-  if (magnitude === 0) {
-    return vector;
-  }
-
-  return vector.map((value) => Number((value / magnitude).toFixed(8)));
 }
 
 function estimateTokenCount(text: string) {

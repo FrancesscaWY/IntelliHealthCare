@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
+import { SwaggerTags } from "../../common/http/swagger-tags";
 import { AppContentService } from "./content.service";
 
 class ContentListQueryDto extends PaginationQueryDto {
@@ -37,7 +38,7 @@ class CreateContentCommentDto {
   content!: string;
 }
 
-@ApiTags("健康内容")
+@ApiTags(SwaggerTags.AppContent)
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("app/content")

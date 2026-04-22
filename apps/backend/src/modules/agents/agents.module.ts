@@ -1,9 +1,11 @@
 import { Module } from "@nestjs/common";
 import { AppAgentService } from "./application/app-agent.service";
+import { AgentGovernanceService } from "./application/agent-governance.service";
 import { AgentDispatchService } from "./application/agent-dispatch.service";
 import { AgentOrchestratorService } from "./application/agent-orchestrator.service";
 import { AgentTaskService } from "./application/agent-task.service";
 import { RagKnowledgeService } from "./application/rag-knowledge.service";
+import { RagEvaluationService } from "./application/rag-evaluation.service";
 import { AppAgentsController } from "./controllers/app-agents.controller";
 import { AgentsController } from "./controllers/agents.controller";
 import { AgentRegistry } from "./domain/agent-registry";
@@ -21,10 +23,12 @@ import { AgentTaskProcessor } from "./workers/agent-task.processor";
   providers: [
     AgentRegistry,
     AgentTaskService,
+    AgentGovernanceService,
     AppAgentService,
     AgentDispatchService,
     AgentOrchestratorService,
     RagKnowledgeService,
+    RagEvaluationService,
     LlmGateway,
     EmbeddingGateway,
     ReportsTool,

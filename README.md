@@ -1,95 +1,101 @@
 # IntelliHealthCare
 
-IntelliHealthCare（智诊康养）是一个面向长者、家属与机构运营团队的智慧健康养老平台。项目采用全栈 Monorepo 组织方式，在同一仓库内统一管理用户端网页、管理后台、后端服务以及共享运行时工具，便于跨端协同开发、接口联调和文档沉淀。
+IntelliHealthCare（智诊康养）是一个面向长者、家属与机构运营团队的智慧康养平台。仓库采用 `npm workspaces` 管理的 Monorepo 结构，统一维护用户端、后台端、NestJS 后端以及共享脚本与文档，目标是把健康档案、健康监测、服务预约、内容社区和智能体能力落到同一套业务底座中。
 
-## 项目概述
+## 项目组成
 
-- 用户端：面向长者与家属的统一移动端网页应用，支持健康数据、服务预约、内容浏览、社区互动等场景。老人和家属共享同一套用户端系统，不单独拆分为两个独立产品，差异通过账号关系、授权范围与页面内容呈现。
-- 后台端：面向运营、护理、医生与机构管理人员的管理后台，承接运营配置、成员管理、服务调度与数据看板等能力。
-- 后端：基于模块化单体架构提供统一业务 API，并接入数据库、缓存、对象存储、异步任务和多智能体能力。
-- 协作方式：仓库使用 `npm workspaces` 管理多应用、多包与共享脚本，前后端统一采用 TypeScript 技术栈。
+| 组成 | 路径 | 说明 |
+| --- | --- | --- |
+| 用户端 | `apps/user-web` | 面向长者与家属的统一 Web 应用 |
+| 后台端 | `apps/admin-web` | 面向运营、医生、护理、机构管理人员的后台 |
+| 后端 | `apps/backend` | 基于 `NestJS + Prisma + PostgreSQL + Redis/BullMQ + MinIO` 的统一业务服务 |
+| 共享运行时 | `packages/page-core` | 前端页面清单、页面元信息和共享基础能力 |
+| 脚本与工具 | `scripts` | 本地开发、页面脚手架、后端冒烟回归等脚本 |
+| 文档 | `docs` | 架构、开发、API、Agent、RAG 等说明文档 |
+
+## 核心能力
+
+- 统一用户侧入口：老人和家属共用一套用户端，通过家庭绑定、授权范围和页面差异区分角色。
+- 模块化后端：认证、用户、家庭、健康档案、健康指标、服务目录、订单、支付、报告、消息、内容、社区、后台和智能体能力统一落在一个 NestJS 服务中。
+- 多智能体运行时：后端内置 Hermes 受控多智能体宿主，已接入任务调度、工具调用、追踪、人工复核和审计。
+- RAG 检索闭环：已具备知识库构建、增量更新、真实 embedding 接入、App 侧检索、内部检索与评测回归能力。
+- 本地联调友好：Swagger、种子数据、数据库自动回退、MinIO 文件上传和冒烟脚本均已内置。
 
 ## 技术栈
 
 | 层级 | 技术方案 |
 | --- | --- |
 | 前端 | Vue 3、TypeScript、Vite |
-| 后端 | NestJS、TypeScript |
+| 后端框架 | NestJS、TypeScript |
 | 数据访问 | Prisma、PostgreSQL |
-| 基础设施 | Redis、BullMQ、MinIO |
-| 仓库管理 | npm workspaces |
+| 缓存与队列 | Redis、BullMQ、ioredis |
+| 对象存储 | MinIO（S3-compatible） |
+| 接口契约 | Swagger / OpenAPI |
+| 校验与配置 | class-validator、class-transformer、zod |
+| AI 能力 | LLM Gateway、Embedding Gateway、RAG、Agent Orchestration |
 
 ## 仓库结构
 
 ```text
 .
 ├── apps/
-│   ├── user-web/                  用户端网页工作区
-│   ├── admin-web/                 后台端网页工作区
-│   └── backend/                   统一后端服务
+│   ├── user-web/
+│   ├── admin-web/
+│   └── backend/
 ├── packages/
-│   └── page-core/                 前端共享页面运行时与类型定义
-├── scripts/                       开发、构建、校验、脚手架脚本
-├── docs/                          架构与协作文档
-├── docker-compose.backend.yml     本地后端依赖服务编排
-└── package.json                   根工作区配置
+│   └── page-core/
+├── scripts/
+├── docs/
+├── docker-compose.backend.yml
+└── package.json
 ```
-
-## 环境要求
-
-- Node.js `>= 20`
-- npm `>= 10`
-- Docker 与 Docker Compose（用于启动 PostgreSQL、Redis、MinIO）
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 环境要求
+
+- Node.js `>= 20`
+- npm `>= 10`
+- Docker 与 Docker Compose
+
+### 2. 安装依赖
 
 ```bash
 npm install
 ```
 
-说明：根目录安装依赖后，会自动执行后端 `postinstall` 脚本生成 Prisma Client。
-
-### 2. 配置后端环境变量
+### 3. 配置后端环境变量
 
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 ```
 
-### 3. 启动本地基础设施
+### 4. 启动本地依赖
 
 ```bash
 docker compose -f docker-compose.backend.yml up -d
 ```
 
-如果当前网络到 Docker Hub 不稳定，项目默认会从 `docker.m.daocloud.io` 拉取基础镜像。
-如需显式切回官方仓库：
+默认端口：
 
-```bash
-IHC_IMAGE_REGISTRY=docker.io docker compose -f docker-compose.backend.yml up -d
-```
+- PostgreSQL：`5432`
+- Redis：`6379`
+- MinIO API：`9000`
+- MinIO Console：`9001`
 
-默认启动的依赖服务如下：
+说明：
 
-- PostgreSQL：`localhost:5432`
-- Redis：`localhost:6379`
-- MinIO API：`localhost:9000`
-- MinIO Console：`localhost:9001`
+- 镜像默认通过 `docker.m.daocloud.io` 拉取，可用 `IHC_IMAGE_REGISTRY=docker.io` 切回官方源。
+- 开发环境下若 `DATABASE_URL` 不可达，后端支持自动回退到嵌入式 PostgreSQL，并可自动执行 migration/seed。
 
-### 4. 初始化数据库
+### 5. 初始化数据库
 
 ```bash
 npm run db:migrate:backend
-```
-
-如需导入演示数据，可继续执行：
-
-```bash
 npm run db:seed:backend
 ```
 
-### 5. 启动开发环境
+### 6. 启动应用
 
 ```bash
 npm run dev:user
@@ -105,119 +111,113 @@ npm run dev:backend
 - Swagger：`http://localhost:8190/api/v1/docs`
 - 健康检查：`http://localhost:8190/api/v1/system/health`
 
-远程服务器部署时，后端默认绑定 `0.0.0.0:8190`。若 `8190` 对外放通，可通过 `http://<服务器IP>:8190/api/v1/docs` 访问 Swagger；若需要本机浏览器使用 `localhost:8190`，请通过 VS Code 端口转发或 SSH 隧道映射。
-
 ## 常用命令
 
-### 前端预览
+### 前端开发
 
 ```bash
-# 用户端整站预览
 npm run dev:user
-
-# 用户端单页预览
 npm run dev:page -- --page home/dashboard
-
-# 后台端整站预览
 npm run dev:admin
-
-# 后台端单页预览
 npm run dev:admin:page -- --page dashboard/overview
 ```
 
-### 构建与校验
+### 构建与检查
 
 ```bash
-# 全仓校验
 npm run check
+npm run build
+```
 
-# 分应用校验
+按工作区执行：
+
+```bash
 npm run check:user
 npm run check:admin
 npm run check:backend
 
-# 全仓构建
-npm run build
-
-# 分应用构建
 npm run build:user
 npm run build:admin
 npm run build:backend
 ```
 
-### 后端数据库相关
+### 后端数据库与 RAG
 
 ```bash
 npm run db:generate:backend
 npm run db:migrate:backend
 npm run db:seed:backend
+npm run db:build-rag:backend
+npm run db:rebuild-rag:backend
+npm run db:eval-rag:backend
 ```
 
-### 页面脚手架与协作提示
+### 后端测试
 
 ```bash
-# 创建用户端页面
+npm run test:backend
+npm run test:backend:unit
+npm run test:backend:integration
+npm run test:backend:smoke:regression
+```
+
+### 页面脚手架
+
+```bash
 npm run create:page -- --group health --page health-data --title "健康数据" --owner "成员A"
-
-# 创建后台端页面
 npm run create:admin-page -- --group elder --page member-list --title "长者档案" --owner "后台组"
-
-# 生成用户端页面开发提示
-npm run prompt:page -- --page health/health-data
-
-# 生成后台端页面开发提示
-npm run prompt:admin-page -- --page dashboard/overview
 ```
 
-## 核心能力边界
+## 后端说明
 
-### 前端
+后端当前已完成以下能力：
 
-- 用户端与后台端均支持整站模式和单页模式预览。
-- 用户端统一承接老人和家属两类角色，仅在权限和内容呈现上区分，不单独维护多套前端实现。
-- 页面以目录为最小协作单元，便于并行开发、评审和交接。
-- 共享运行时能力由 `packages/page-core` 提供，包括页面类型、导航辅助与页面元数据处理。
+- 统一 API 前缀与通用响应封装：`/api/v1`
+- 用户端、后台端、公开接口、系统接口、内部智能体接口的分层路由
+- JWT 鉴权、RBAC、内部接口来源 IP 与共享密钥校验
+- Prisma 数据模型、Redis/BullMQ 队列、MinIO 文件上传
+- Hermes 多智能体运行时、RAG 检索、RAG 构建与评测、人工复核与审计日志
 
-### 后端
+后端当前已挂载的主要模块：
 
-后端当前以 NestJS 模块化单体承载核心业务域，已纳入以下模块边界：
+- `system`
+- `auth`
+- `users`
+- `family`
+- `health-archive`
+- `health-metrics`
+- `health-lifestyle`
+- `service-catalog`
+- `orders`
+- `payments`
+- `reports`
+- `files`
+- `messaging`
+- `community`
+- `content`
+- `agents`
+- `admin`
 
-- 系统、认证与权限
-- 用户、家庭、健康档案、健康指标
-- 服务目录、订单、支付、报告
-- 消息、社区内容、管理后台
-- Agents 多智能体能力
+## 联调账号
 
-基础设施层统一封装 Prisma、Redis/BullMQ 与 MinIO，为后续接口扩展、异步任务处理和智能体编排提供支撑。
+默认种子账号：
 
-## 页面目录约定
-
-两个前端工作区遵循相同的页面组织方式：
-
-```text
-apps/<app>/src/pages/<domain>/<page>/
-  Page.vue
-  mock.ts
-  README.md   # 可选
-```
-
-约定说明：
-
-- `Page.vue`：页面主体结构、交互逻辑与局部状态。
-- `mock.ts`：页面独立预览所需的模拟数据。
-- `README.md`：可选补充说明，用于记录上下文、交接事项或特殊依赖。
-- `pages.manifest.json`：页面注册、标题、负责人、摘要与加载入口的主数据源。
+- 家属账号：`13900139000 / 123456`
+- 长者账号：`13800138000 / 123456`
+- 后台账号：`13600136000 / 123456`
 
 ## 文档索引
 
 - [项目架构说明](./docs/architecture.md)
 - [后端架构说明](./docs/backend-architecture.md)
-- [后端工作区说明](./apps/backend/README.md)
-- [成员协作开发手册](./docs/member-development-manual.md)
+- [后端开发文档](./docs/智诊康养后端开发文档.md)
+- [后端 API 手册](./docs/backend-api-manual.md)
+- [前端 Swagger 联调手册](./docs/frontend-api-integration-guide.md)
 - [Hermes 多智能体实施文档](./docs/hermes-multi-agent-implementation.md)
+- [IntelliHealthCare Agent 卡片](./docs/intellihealthcare-agent-cards.md)
 
 ## 开发建议
 
-- 提交前至少执行一次 `npm run check`，确保前端页面清单、类型检查和后端编译通过。
-- 新增页面时优先使用脚手架命令，避免遗漏 `Page.vue`、`mock.ts` 或清单登记。
-- 涉及后端环境、数据模型或基础设施变更时，请同步更新对应文档与示例配置。
+- 提交前至少执行一次 `npm run check`，后端改动建议补跑 `npm run test:backend`。
+- 涉及后端模型、接口、RAG 或智能体能力的修改时，请同步更新 `docs/智诊康养后端开发文档.md` 与 `docs/backend-api-manual.md`。
+- 新增页面优先使用脚手架命令，避免遗漏 `Page.vue`、`mock.ts` 与 `pages.manifest.json` 登记。

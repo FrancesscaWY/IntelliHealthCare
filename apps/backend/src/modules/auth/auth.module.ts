@@ -10,6 +10,7 @@ import {
   AppAuthController,
   PublicDocumentController
 } from "./auth.controller";
+import { AuthSecurityService } from "./auth-security.service";
 import { AuthService } from "./auth.service";
 
 @Global()
@@ -27,7 +28,13 @@ import { AuthService } from "./auth.service";
     AdminAuthController,
     PublicDocumentController
   ],
-  providers: [AuthService, JwtAuthGuard, InternalAccessGuard, RolesGuard],
+  providers: [
+    AuthService,
+    AuthSecurityService,
+    JwtAuthGuard,
+    InternalAccessGuard,
+    RolesGuard
+  ],
   exports: [
     AuthService,
     JwtModule,

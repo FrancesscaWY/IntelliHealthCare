@@ -19,6 +19,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
+import { SwaggerTags } from "../../common/http/swagger-tags";
 import { FamilyService } from "./family.service";
 
 class SaveAddressDto {
@@ -69,7 +70,7 @@ class SaveAddressDto {
 
 @Controller("app/family")
 @UseGuards(JwtAuthGuard)
-@ApiTags("家庭与地址")
+@ApiTags(SwaggerTags.AppFamily)
 @ApiBearerAuth()
 export class AppFamilyController {
   constructor(private readonly familyService: FamilyService) {}

@@ -22,6 +22,7 @@ import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
+import { SwaggerTags } from "../../common/http/swagger-tags";
 import { UsersService } from "./users.service";
 
 class UpdateProfileDto {
@@ -97,7 +98,7 @@ class CouponQueryDto extends PaginationQueryDto {
 
 @Controller("app/users")
 @UseGuards(JwtAuthGuard)
-@ApiTags("用户中心")
+@ApiTags(SwaggerTags.AppUsers)
 @ApiBearerAuth()
 export class AppUsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -212,7 +213,7 @@ export class AppUsersController {
 
 @Controller("app/home")
 @UseGuards(JwtAuthGuard)
-@ApiTags("首页")
+@ApiTags(SwaggerTags.AppHome)
 @ApiBearerAuth()
 export class AppHomeController {
   constructor(private readonly usersService: UsersService) {}
@@ -226,7 +227,7 @@ export class AppHomeController {
 
 @Controller("app/locations")
 @UseGuards(JwtAuthGuard)
-@ApiTags("定位")
+@ApiTags(SwaggerTags.AppLocation)
 @ApiBearerAuth()
 export class AppLocationController {
   constructor(private readonly usersService: UsersService) {}
@@ -246,7 +247,7 @@ export class AppLocationController {
 
 @Controller("app/search")
 @UseGuards(JwtAuthGuard)
-@ApiTags("搜索")
+@ApiTags(SwaggerTags.AppSearch)
 @ApiBearerAuth()
 export class AppSearchController {
   constructor(private readonly usersService: UsersService) {}
