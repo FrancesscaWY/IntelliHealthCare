@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { Comment, Like, Share, Star } from "@icon-park/vue-next";
 import mock, { type HealthNewsTabKey } from "./mock";
 import { healthNewsDetailTarget } from "./state";
 
@@ -37,9 +38,7 @@ function showPending(label: string) {
 <template>
   <section class="health-news-page">
     <header class="page-nav">
-      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
-        <span class="back-arrow" aria-hidden="true"></span>
-      </button>
+      <button class="back-btn" type="button" aria-label="返回" @click="goBack">‹</button>
       <h1>{{ mock.title }}</h1>
     </header>
 
@@ -75,31 +74,21 @@ function showPending(label: string) {
 
           <footer class="card-actions">
             <button class="action-btn action-btn--share" type="button" aria-label="分享" @click="showPending('分享')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M14 3h7v7" />
-                <path d="M10 14 21 3" />
-                <path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6" />
-              </svg>
+              <Share theme="outline" size="22" fill="#454952" />
             </button>
 
             <button class="action-btn" type="button" @click="showPending('点赞')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
-              </svg>
+              <Like theme="outline" size="22" fill="#454952" />
               <span>{{ card.likes }}</span>
             </button>
 
             <button class="action-btn" type="button" @click="showPending('收藏')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
-              </svg>
+              <Star theme="outline" size="22" fill="#454952" />
               <span>{{ card.stars }}</span>
             </button>
 
             <button class="action-btn" type="button" @click="openDetailComments">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
-              </svg>
+              <Comment theme="outline" size="22" fill="#454952" />
               <span>{{ card.comments }}</span>
             </button>
           </footer>
@@ -113,30 +102,28 @@ function showPending(label: string) {
 .health-news-page {
   position: relative;
   left: 50%;
-  width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  width: min(402px, 100vw);
+  height: min(874px, calc(100vh - 36px));
+  min-height: min(874px, calc(100vh - 36px));
+  max-height: 874px;
   margin: -18px 0;
   overflow: hidden;
-  background: #f5f5f5;
-  color: #333333;
-  font-family: var(--ihc-font-family);
+  background: #f5f6f7;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   transform: translateX(-50%);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 .page-nav {
   display: flex;
   align-items: center;
-  height: 66px;
-  padding: 0 16px 0 18px;
+  height: 64px;
+  padding: 0 18px;
 }
 
 .page-scroll {
-  height: calc(100% - 66px);
-  padding: 2px 16px 22px;
+  height: calc(100% - 64px);
+  padding: 0 18px 24px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -152,75 +139,68 @@ function showPending(label: string) {
   border: 0;
   background: transparent;
   color: inherit;
+  font: inherit;
 }
 
 .back-btn {
-  display: grid;
-  place-items: center;
-  width: 28px;
+  width: 32px;
   height: 38px;
   padding: 0;
-}
-
-.back-arrow {
-  width: 12px;
-  height: 12px;
-  border-bottom: 2px solid #2f3138;
-  border-left: 2px solid #2f3138;
-  transform: rotate(45deg);
+  color: #34383f;
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 30px;
 }
 
 .page-nav h1 {
-  margin: 0 0 0 10px;
-  color: #30343d;
-  font-size: 20px;
-  font-weight: 500;
+  margin: 0 0 0 8px;
+  color: #252939;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .tab-bar {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 5px;
-  border-radius: 12px;
-  background: #eeeeee;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 2px 0 18px;
 }
 
 .tab-btn {
-  height: 36px;
-  border-radius: 10px;
-  color: #8d8d8d;
-  font-size: 15px;
-  font-weight: 400;
+  height: auto;
+  padding: 0;
+  color: #9fa2a8;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .tab-btn--active {
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  color: #6872f0;
-  font-weight: 500;
+  color: #252939;
+  font-size: 24px;
+  font-weight: 900;
 }
 
 .card-list {
   display: grid;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 14px;
 }
 
 .news-card {
-  padding: 14px 16px 12px;
-  border: 1px solid #e9e9e9;
-  border-radius: 12px;
+  padding: 16px;
+  border: 0;
+  border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 1px 6px rgba(34, 39, 50, 0.025);
+  box-shadow: 0 6px 18px rgba(31, 40, 58, 0.04);
 }
 
 .news-card h2 {
   margin: 0;
-  color: #333333;
+  color: #252939;
   font-size: 17px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 900;
+  line-height: 1.42;
 }
 
 .news-entry {
@@ -231,21 +211,22 @@ function showPending(label: string) {
 }
 
 .news-layout {
-  margin-top: 10px;
+  margin-top: 11px;
 }
 
 .news-layout p {
   margin: 0;
-  color: #9a9a9a;
+  color: #8f939b;
   font-size: 14px;
-  line-height: 1.8;
+  font-weight: 700;
+  line-height: 1.72;
 }
 
 .news-gallery {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 11px;
 }
 
 .news-gallery img,
@@ -258,7 +239,7 @@ function showPending(label: string) {
 
 .news-gallery img {
   aspect-ratio: 1;
-  border-radius: 16px;
+  border-radius: 7px;
 }
 
 .news-layout--single {
@@ -270,15 +251,15 @@ function showPending(label: string) {
 
 .news-thumb {
   aspect-ratio: 1;
-  border-radius: 18px;
+  border-radius: 7px;
 }
 
 .card-actions {
   display: grid;
   grid-template-columns: 1fr auto auto auto;
   align-items: center;
-  gap: 16px;
-  margin-top: 10px;
+  gap: 22px;
+  margin-top: 13px;
 }
 
 .action-btn {
@@ -286,36 +267,27 @@ function showPending(label: string) {
   align-items: center;
   gap: 6px;
   padding: 0;
-  color: #383b43;
-  font-size: 15px;
-  font-weight: 400;
+  color: #454952;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .action-btn--share {
   justify-self: start;
 }
 
-.action-btn svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 @media (min-width: 561px) {
   .health-news-page {
-    height: 844px;
-    min-height: 844px;
+    height: 874px;
+    min-height: 874px;
   }
 }
 
 @media (max-width: 389px) {
   .page-scroll {
-    padding-right: 14px;
-    padding-left: 14px;
+    padding-right: 16px;
+    padding-left: 16px;
   }
 
   .news-card {
@@ -324,7 +296,7 @@ function showPending(label: string) {
   }
 
   .news-gallery {
-    gap: 10px;
+    gap: 6px;
   }
 
   .news-layout--single {
@@ -333,11 +305,11 @@ function showPending(label: string) {
   }
 
   .card-actions {
-    gap: 12px;
+    gap: 16px;
   }
 
   .action-btn {
-    font-size: 14px;
+    font-size: 12px;
   }
 }
 </style>

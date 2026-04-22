@@ -91,7 +91,7 @@ const nextStep = () => {
   transform: translateX(-50%);
   padding: 16px 14px 92px;
   box-sizing: border-box;
-  background: #f5f6f7;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -210,7 +210,7 @@ const nextStep = () => {
 }
 
 .day-button.active {
-  background: #6d74f2;
+  background: #75d6df;
   color: #fff;
 }
 
@@ -233,7 +233,7 @@ const nextStep = () => {
 }
 
 .time-button.active {
-  background: #6d74f2;
+  background: #75d6df;
   color: #fff;
 }
 
@@ -283,7 +283,7 @@ const nextStep = () => {
   height: 46px;
   border: 0;
   border-radius: 8px;
-  background: #6870f2;
+  background: #75d6df;
   color: #fff;
   font-size: 17px;
   font-weight: 700;

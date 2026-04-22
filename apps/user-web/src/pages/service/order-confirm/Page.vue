@@ -115,7 +115,7 @@ const submitOrder = () => {
   transform: translateX(-50%);
   padding: 16px 14px 118px;
   box-sizing: border-box;
-  background: #f5f6f7;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -191,7 +191,7 @@ const submitOrder = () => {
 }
 
 .product-info span {
-  color: #34383f;
+  color: #006DFF;
   font-size: 17px;
   font-weight: 700;
 }
@@ -213,12 +213,12 @@ const submitOrder = () => {
 }
 
 .price-row strong {
-  color: #34383f;
+  color: #006DFF;
   font-size: 18px;
 }
 
 .price-row .discount {
-  color: #f1736d;
+  color: #006DFF;
 }
 
 .divider {
@@ -232,7 +232,7 @@ const submitOrder = () => {
 }
 
 .subtotal strong {
-  color: #f1736d;
+  color: #006DFF;
   font-size: 24px;
 }
 
@@ -307,6 +307,7 @@ dd {
 }
 
 .total strong {
+  color: #006DFF;
   font-size: 32px;
   line-height: 1;
 }
@@ -318,7 +319,7 @@ dd {
   display: block;
   border: 0;
   border-radius: 8px;
-  background: #6870f2;
+  background: #75d6df;
   color: #fff;
   font-size: 17px;
   font-weight: 700;
