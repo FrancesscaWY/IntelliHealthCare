@@ -119,14 +119,14 @@ const iconMap: Record<string, any> = {
 
 const getIconColor = (type: string): string => {
   const colorMap: Record<string, string> = {
-    life: '#44c7a1',
-    medical: '#6875f5',
-    rehab: '#f0c85c',
-    mental: '#3567e8',
-    cooking: '#f47c73',
-    health: '#42caa1',
-    accompany: '#6b76f2',
-    clean: '#e9c95f',
+    life: '#1AE7CE',
+    medical: '#2D90F0',
+    rehab: '#BE2DEA',
+    mental: '#4B63FC',
+    cooking: '#2D90F0',
+    health: '#1AE7CE',
+    accompany: '#2D90F0',
+    clean: '#BE2DEA',
   }
 
   return colorMap[type] || '#999999'
@@ -222,7 +222,7 @@ onBeforeUnmount(() => {
   min-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
-  background: #f5f6f8;
+  background: #ffffff;
   padding: 16px 16px 24px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
@@ -328,7 +328,7 @@ onBeforeUnmount(() => {
 }
 
 .discount-section {
-  background: #dfeaf7;
+  background: #e9f8fb;
   border-radius: 22px;
   padding: 20px 14px 18px;
   margin-bottom: 28px;
@@ -356,8 +356,8 @@ onBeforeUnmount(() => {
   min-width: 38px;
   height: 34px;
   padding: 0 8px;
-  background: #eef3fb;
-  color: #f27f79;
+  background: #e9f8fb;
+  color: #2d90f0;
   font-size: 15px;
   font-weight: 700;
   border-radius: 17px;
@@ -426,7 +426,7 @@ onBeforeUnmount(() => {
 .current-price {
   font-size: 18px;
   font-weight: 700;
-  color: #f37a72;
+  color: #006DFF;
 }
 
 .old-price {
@@ -550,7 +550,7 @@ onBeforeUnmount(() => {
 .recommend-price {
   font-size: 18px;
   font-weight: 700;
-  color: #f37a72;
+  color: #006DFF;
 }
 
 .recommend-sales {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { listAppTargets, resolveAppTarget } from "./app-targets.mjs";
-import { loadManifest, resolvePageFolder, rootDir } from "./utils.mjs";
+import { loadManifest, resolvePageFolder } from "./utils.mjs";
 
 function validateAppWorkspace(appTarget) {
   const manifest = loadManifest(appTarget.key);
@@ -36,13 +36,6 @@ function validateAppWorkspace(appTarget) {
       }
     } else if (!fs.existsSync(readmePath) && !fs.existsSync(pageFilePath)) {
       errors.push(`规划页面至少需要 README.md 或 Page.vue：${entry.id}`);
-    }
-  }
-
-  if (appTarget.referenceMode === "legacy") {
-    const legacyPath = path.join(rootDir, "legacy", "miniprogram-user");
-    if (!fs.existsSync(legacyPath)) {
-      errors.push("缺少 legacy/miniprogram-user，无法保留现有小程序参考代码。");
     }
   }
 

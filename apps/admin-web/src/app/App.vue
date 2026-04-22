@@ -13,7 +13,7 @@ import {
 } from "@icon-park/vue-next";
 import type { PageEntry } from "@ihc/page-core/types";
 import manifestEntries from "./pages.manifest.json";
-import { loadPageComponent } from "./page-registry";
+import { loadPageComponent, preloadPageComponents } from "./page-registry";
 import { resolveConfig } from "./resolve-config";
 import { usePageNavigation } from "./usePageNavigation";
 import { useToastQueue } from "./useToastQueue";
@@ -26,7 +26,7 @@ const config = resolveConfig();
 const { activePage, navigation } = usePageNavigation({
   manifest,
   preferredPageId: config.preferredPageId,
-  pathname: window.location.pathname,
+  pathname: config.mode === "page" ? window.location.pathname : "",
   fallbackPageId: projectInfo.homePageId,
 });
 const { items: toastItems, showToast } = useToastQueue();
@@ -255,7 +255,7 @@ watch(
       loadError.value = error instanceof Error ? error.message : "页面组件加载失败，请检查 Vue 文件语法。";
     }
   },
-  { immediate: true },
+  { immediate: true, flush: "sync" },
 );
 
 watch(
@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
   <main class="admin-shell" :class="[`admin-shell--${config.mode}`, { 'admin-shell--auth': isAuthPage }]">
     <template v-if="isAuthPage">
       <section class="auth-stage">
-        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" v-bind="pageProps" />
+        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
         <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
         <section v-else class="empty-state">当前没有可加载的页面，请检查页面清单配置。</section>
       </section>
@@ -493,8 +493,23 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <section class="content">
-          <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" v-bind="pageProps" />
+        <section class="workspace-metrics">
+          <article>
+            <span>当前模式</span>
+            <strong>{{ config.mode === "page" ? "单页预览" : "整站预览" }}</strong>
+          </article>
+          <article>
+            <span>已登记页面</span>
+            <strong>{{ manifest.length }}</strong>
+          </article>
+          <article>
+            <span>登录入口</span>
+            <strong>{{ projectInfo.homePageId }}</strong>
+          </article>
+        </section>
+
+        <section class="admin-content">
+          <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
           <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
           <section v-else class="empty-state">当前没有可加载的页面，请检查页面清单配置。</section>
         </section>
@@ -899,6 +914,12 @@ onBeforeUnmount(() => {
     grid-template-columns: 170px 170px minmax(0, 1fr);
   }
 
+  .workspace-metrics,
+  .admin-content {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
   .content {
     padding-right: 20px;
     padding-left: 20px;
@@ -927,6 +948,15 @@ onBeforeUnmount(() => {
 
   .topbar__actions {
     justify-content: flex-end;
+  }
+
+  .workspace-metrics {
+    grid-template-columns: 1fr;
+    padding: 16px 16px 0;
+  }
+
+  .admin-content {
+    padding: 16px;
   }
 
   .content {

@@ -5,14 +5,6 @@ export const STATUS_META: Record<PageStatus, StatusMeta> = {
     label: "已实现",
     tone: "implemented",
   },
-  "in-progress": {
-    label: "开发中",
-    tone: "in-progress",
-  },
-  planned: {
-    label: "待开发",
-    tone: "planned",
-  },
 };
 
 export const bottomTabItems: BottomTabItem[] = [
@@ -63,5 +55,5 @@ export function groupPagesByGroup(pages: PageEntry[]) {
 }
 
 export function getStatusMeta(status: PageStatus) {
-  return STATUS_META[status] || STATUS_META.planned;
+  return STATUS_META[status] || STATUS_META.implemented;
 }

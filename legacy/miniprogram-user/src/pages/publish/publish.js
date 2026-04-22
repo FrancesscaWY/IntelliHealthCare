@@ -98,7 +98,7 @@ Page({
     const nextPost = {
       id: `published-${Date.now()}`,
       author: "笑看人生",
-      date: `${now.getMonth() + 1}月${now.getDate()}日`,
+      date: `${now.getMonth() + 1}/${now.getDate()}`,
       title: title.trim(),
       content: content.trim(),
       images,
@@ -123,8 +123,6 @@ Page({
       icon: "success"
     });
 
-    setTimeout(() => {
-      navigateToProfile();
-    }, 300);
+    navigateToProfile();
   }
 });

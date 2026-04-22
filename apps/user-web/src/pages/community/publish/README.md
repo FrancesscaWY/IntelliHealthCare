@@ -1,5 +1,4 @@
 # 发布动态
 
-- 页面 id：`community/publish`
-- 来源：保留并重构自 `legacy/miniprogram-user/src/pages/publish/`
-- 说明：用于单页调试图文发布交互
+- 页面 ID：`community/publish`
+- 说明：社区发布页，支持图文发布、可见性选择，并在个人主页读取最新发布内容

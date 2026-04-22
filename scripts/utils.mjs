@@ -8,7 +8,6 @@ const __dirname = path.dirname(__filename);
 
 export const rootDir = path.resolve(__dirname, "..");
 export const packageCoreDir = path.join(rootDir, "packages", "page-core");
-export const legacyDir = path.join(rootDir, "legacy", "miniprogram-user");
 
 export function getAppPaths(appArg = "user") {
   const target = resolveAppTarget(appArg);
@@ -84,7 +83,7 @@ export function buildPageEntry({
   group,
   summary,
   owner,
-  status = "planned",
+  status = "implemented",
 }) {
   const { target } = getAppPaths(app);
   const normalizedId = normalizePageId(id);
