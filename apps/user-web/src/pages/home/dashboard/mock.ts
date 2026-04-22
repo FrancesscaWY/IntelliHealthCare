@@ -2,9 +2,9 @@ import circleIcon from "@/assets/home/nav/circle.png";
 import homeIcon from "@/assets/home/nav/home.png";
 import meIcon from "@/assets/home/nav/me.png";
 import newsIcon from "@/assets/home/nav/news.png";
-import careIcon from "@/assets/home/sections/\u5bb6\u653f.png";
-import examIcon from "@/assets/home/sections/\u4f53\u68c0.png";
-import rehabIcon from "@/assets/home/sections/\u5eb7\u590d.png";
+import careIcon from "@/assets/home/sections/people1.PNG";
+import examIcon from "@/assets/home/sections/door1.PNG";
+import rehabIcon from "@/assets/home/sections/home1.PNG";
 
 const mock = {
   city: "上海",
