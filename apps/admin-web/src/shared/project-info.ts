@@ -1,4 +1,4 @@
-export const projectInfo = {
+﻿export const projectInfo = {
   name: "黛西健康",
   summary: "面向健康服务、护理调度与机构运营的后台管理工作台。",
   delivery: "后台工作区基于 Vue 3、TypeScript 与 Vite 构建。",
@@ -56,9 +56,54 @@ export const groupMeta: Record<string, { title: string; description: string }> =
 
 export const pageMeta: Record<string, { title: string; summary: string; shortTitle?: string }> = {
   "analytics/data-board": {
-    title: "数据看板",
+    title: "用户概况",
     shortTitle: "数据分析",
-    summary: "查看业务趋势、支付表现和服务结构。",
+    summary: "查看用户新增趋势、年龄结构和性别分布。",
+  },
+  "analytics/user-age": {
+    title: "用户年龄分析",
+    shortTitle: "数据分析",
+    summary: "查看用户年龄段构成和占比统计。",
+  },
+  "analytics/user-gender": {
+    title: "用户性别分析",
+    shortTitle: "数据分析",
+    summary: "查看用户性别构成和占比统计。",
+  },
+  "analytics/user-social": {
+    title: "用户社交统计",
+    shortTitle: "数据分析",
+    summary: "查看用户社交行为、阅读量和互动指标。",
+  },
+  "analytics/trade-overview": {
+    title: "交易概况",
+    shortTitle: "数据分析",
+    summary: "查看浏览、下单、支付和退款的交易转化表现。",
+  },
+  "analytics/product-analysis": {
+    title: "产品分析",
+    shortTitle: "数据分析",
+    summary: "查看产品浏览、支付、收藏和分享表现。",
+  },
+  "analytics/service-workorder": {
+    title: "工单分析",
+    shortTitle: "数据分析",
+    summary: "查看服务工单分布、人员执行和状态表现。",
+  },
+  "analytics/service-repurchase": {
+    title: "复购分析",
+    shortTitle: "数据分析",
+    summary: "查看复购用户、购买次数和客单价表现。",
+  },
+  "analytics/service-performance": {
+    title: "业绩统计",
+    shortTitle: "数据分析",
+    summary: "查看服务人员订单金额、佣金和收入统计。",
+  },
+  "analytics/service-review": {
+    title: "评价统计",
+    shortTitle: "数据分析",
+    summary: "查看服务人员评价、满意度和参评量统计。",
   },
   "auth/login": {
     title: "登录页",
@@ -71,6 +116,14 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   "content/content-management": {
     title: "内容管理",
     summary: "维护首页内容、消息和运营位。",
+  },
+  "content/mass-message": {
+    title: "消息群发",
+    summary: "管理群发消息的筛选、发送通道和操作记录。",
+  },
+  "content/mass-message-create": {
+    title: "新增消息",
+    summary: "配置群发消息名称、接收人、发送时间和消息内容。",
   },
   "dashboard/overview": {
     title: "首页",

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import {
@@ -178,11 +178,19 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
 
   if (activePrimaryNavKey.value === "analytics") {
     return [
-      { key: "analytics-section", label: "分析中心", kind: "section" },
-      { key: "data-board", label: "数据看板", active: isPageActive("analytics/data-board"), pageId: "analytics/data-board", kind: "item" },
-      { key: "health-alert", label: "健康预警", active: isPageActive("health/alert-center"), pageId: "health/alert-center", kind: "item" },
-      { key: "device-monitor", label: "设备监控", active: isPageActive("device/device-monitor"), pageId: "device/device-monitor", kind: "item" },
-      { key: "staff-roster", label: "人员排班", active: isPageActive("staff/caregiver-roster"), pageId: "staff/caregiver-roster", kind: "item" },
+      { key: "analytics-user", label: "用户分析", kind: "section" },
+      { key: "data-board", label: "用户概况", active: isPageActive("analytics/data-board"), pageId: "analytics/data-board", kind: "item" },
+      { key: "age-analysis", label: "用户年龄分析", active: isPageActive("analytics/user-age"), pageId: "analytics/user-age", kind: "item" },
+      { key: "gender-analysis", label: "用户性别分析", active: isPageActive("analytics/user-gender"), pageId: "analytics/user-gender", kind: "item" },
+      { key: "social-analysis", label: "用户社交统计", active: isPageActive("analytics/user-social"), pageId: "analytics/user-social", kind: "item" },
+      { key: "analytics-transaction", label: "交易分析", kind: "section" },
+      { key: "trade-overview", label: "交易概况", active: isPageActive("analytics/trade-overview"), pageId: "analytics/trade-overview", kind: "item" },
+      { key: "product-analysis", label: "产品分析", active: isPageActive("analytics/product-analysis"), pageId: "analytics/product-analysis", kind: "item" },
+      { key: "analytics-service", label: "服务分析", kind: "section" },
+      { key: "workorder-analysis", label: "工单分析", active: isPageActive("analytics/service-workorder"), pageId: "analytics/service-workorder", kind: "item" },
+      { key: "repurchase-analysis", label: "复购分析", active: isPageActive("analytics/service-repurchase"), pageId: "analytics/service-repurchase", kind: "item" },
+      { key: "performance-analysis", label: "业绩统计", active: isPageActive("analytics/service-performance"), pageId: "analytics/service-performance", kind: "item" },
+      { key: "review-analysis", label: "评价统计", active: isPageActive("analytics/service-review"), pageId: "analytics/service-review", kind: "item" },
     ];
   }
 
@@ -201,11 +209,21 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
     { key: "session", label: "会话中心", active: isPageActive("dashboard/session"), pageId: "dashboard/session", kind: "item" },
     { key: "content-management", label: "内容管理", active: isPageActive("content/content-management"), pageId: "content/content-management", kind: "item" },
     { key: "activity-management", label: "活动管理", active: isPageActive("community/activity-management"), pageId: "community/activity-management", kind: "item" },
-    { key: "mass-message", label: "群发消息", toast: "群发消息原型页暂未接入。", kind: "item" },
+    {
+      key: "mass-message",
+      label: "群发消息",
+      active: isPageActive("content/mass-message", "content/mass-message-create"),
+      pageId: "content/mass-message",
+      kind: "item",
+    },
   ];
 });
 
 const currentGroupTitle = computed(() => {
+  if (activePrimaryNavKey.value === "analytics") {
+    return "数据";
+  }
+
   return railItems.find((item) => item.key === activePrimaryNavKey.value)?.label || pageMeta[activePageId.value]?.title || "首页";
 });
 
@@ -285,11 +303,11 @@ function openSecondaryItem(item: { pageId?: string; toast?: string }) {
 
 function submitSearch() {
   const keyword = searchKeyword.value.trim();
-  showToast(keyword ? `已搜索：${keyword}` : "请输入关键字后再搜索。");
+  showToast(keyword ? `已搜索：${keyword}` : "请输入关键词后再搜索。");
 }
 
 function shouldToggleAccountMenu(label: string) {
-  return label === "账号菜单";
+  return label === "璐﹀彿鑿滃崟";
 }
 
 function notifyAction(label: string) {
@@ -365,7 +383,7 @@ onBeforeUnmount(() => {
 
     <template v-else>
       <aside v-if="config.mode === 'app'" class="rail">
-        <button class="rail__logo" type="button" aria-label="返回首页" @click="openPage('dashboard/overview')">
+        <button class="rail__logo" type="button" aria-label="杩斿洖棣栭〉" @click="openPage('dashboard/overview')">
           <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
             <path
               d="M24 39.5 10.7 26.4c-3.3-3.3-5.3-6.4-5.3-10.7 0-5.7 4.5-10.2 10.1-10.2 3.4 0 6.1 1.6 8.5 4.8 2.4-3.2 5.1-4.8 8.5-4.8 5.6 0 10.1 4.5 10.1 10.2 0 4.3-2 7.4-5.3 10.7L24 39.5Z"
@@ -404,7 +422,7 @@ onBeforeUnmount(() => {
           <strong>{{ currentGroupTitle }}</strong>
         </header>
 
-        <nav class="subnav__list" aria-label="二级导航">
+        <nav class="subnav__list" aria-label="浜岀骇瀵艰埅">
           <template v-for="item in secondaryNavItems" :key="item.key">
             <div v-if="item.kind === 'section'" class="subnav__section">
               {{ item.label }}
@@ -425,28 +443,28 @@ onBeforeUnmount(() => {
       <section class="main">
         <header class="topbar">
           <div class="topbar__search">
-            <button class="topbar__search-icon" type="button" aria-label="搜索" @click="submitSearch">
+            <button class="topbar__search-icon" type="button" aria-label="鎼滅储" @click="submitSearch">
               <Search theme="outline" :size="24" :stroke-width="3" />
             </button>
-            <input v-model="searchKeyword" type="text" placeholder="请输入关键字" @keydown.enter="submitSearch" />
+            <input v-model="searchKeyword" type="text" placeholder="请输入关键词" @keydown.enter="submitSearch" />
           </div>
 
           <div class="topbar__actions">
-            <button class="topbar__icon" type="button" aria-label="客服" @click="notifyAction('客服')">
+            <button class="topbar__icon" type="button" aria-label="瀹㈡湇" @click="notifyAction('瀹㈡湇')">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M5 12a7 7 0 1 1 14 0v4a2 2 0 0 1-2 2h-2v-6h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 <path d="M5 18H3a2 2 0 0 1-2-2v-4h4v6Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
               </svg>
             </button>
 
-            <button class="topbar__icon topbar__icon--badge" type="button" aria-label="消息" @click="notifyAction('消息')">
+            <button class="topbar__icon topbar__icon--badge" type="button" aria-label="娑堟伅" @click="notifyAction('娑堟伅')">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M12 4a5 5 0 0 1 5 5v2.7c0 .8.2 1.6.7 2.3l1 1.5H5.3l1-1.5c.5-.7.7-1.5.7-2.3V9a5 5 0 0 1 5-5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
                 <path d="M9.5 18a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
               </svg>
             </button>
 
-            <button class="account" type="button" @click="notifyAction('账号菜单')">
+            <button class="account" type="button" @click="notifyAction('璐﹀彿鑿滃崟')">
               <span class="account__avatar">
                 <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
                   <circle cx="24" cy="24" r="24" fill="currentColor" />
@@ -501,7 +519,7 @@ onBeforeUnmount(() => {
   --rail-muted: rgba(219, 229, 255, 0.62);
   --rail-accent: #45d1ac;
   --rail-accent-strong: #2ec8a1;
-  grid-template-columns: 180px 150px minmax(0, 1fr);
+  grid-template-columns: 180px 184px minmax(0, 1fr);
   background: #f0fdf9;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-weight: 400;
@@ -642,32 +660,33 @@ onBeforeUnmount(() => {
   align-content: start;
   background: #ffffff;
   border-right: 1px solid #edf3ef;
+  overflow-y: auto;
 }
 
 .subnav__header {
   display: flex;
   align-items: center;
   min-height: 50px;
-  padding: 0 14px;
+  padding: 0 18px;
   border-bottom: 1px solid #edf3ef;
   color: #2f3946;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .subnav__list {
   display: grid;
-  gap: 2px;
-  padding: 10px 10px 14px;
+  gap: 4px;
+  padding: 14px 12px 20px;
 }
 
 .subnav__section {
-  margin-top: 8px;
-  padding: 6px 2px 8px;
+  margin-top: 12px;
+  padding: 8px 6px 10px;
   color: #2f3946;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -677,23 +696,33 @@ onBeforeUnmount(() => {
 
 .subnav__item {
   width: 100%;
-  min-height: 38px;
-  padding: 9px 12px;
+  min-height: 42px;
+  padding: 11px 14px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  color: #9ca7b4;
-  font-size: 13px;
+  color: #97a1ad;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.3;
   letter-spacing: 0.01em;
   text-align: left;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.subnav__item:hover {
+  background: #f3fbf8;
+  color: #54616d;
 }
 
 .subnav__item--active {
-  background: #42d1a6;
+  background: linear-gradient(135deg, #41d1a7 0%, #34c59a 100%);
   color: #ffffff;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 0 10px 22px rgba(60, 201, 159, 0.18);
 }
 
 .main {
@@ -867,7 +896,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
   .admin-shell--app {
-    grid-template-columns: 170px 140px minmax(0, 1fr);
+    grid-template-columns: 170px 170px minmax(0, 1fr);
   }
 
   .content {
@@ -905,3 +934,5 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+
+
