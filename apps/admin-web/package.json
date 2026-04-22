@@ -9,8 +9,9 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@ihc/page-core": "file:../../packages/page-core",
     "@icon-park/vue-next": "^1.4.2",
+    "@ihc/page-core": "file:../../packages/page-core",
+    "echarts": "^6.0.0",
     "vue": "latest"
   },
   "devDependencies": {

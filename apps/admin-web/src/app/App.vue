@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from "vue";
+﻿<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import {
   ApplicationMenu,
@@ -35,6 +35,8 @@ const activeComponent = shallowRef<Component | null>(null);
 const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
 const searchKeyword = ref("");
+const isAccountMenuOpen = ref(false);
+const accountMenuRef = ref<HTMLElement | null>(null);
 
 type PrimaryNavKey = "home" | "users" | "services" | "transactions" | "analytics" | "system" | "messages";
 type SecondaryNavItem = {
@@ -176,11 +178,19 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
 
   if (activePrimaryNavKey.value === "analytics") {
     return [
-      { key: "analytics-section", label: "分析中心", kind: "section" },
-      { key: "data-board", label: "数据看板", active: isPageActive("analytics/data-board"), pageId: "analytics/data-board", kind: "item" },
-      { key: "health-alert", label: "健康预警", active: isPageActive("health/alert-center"), pageId: "health/alert-center", kind: "item" },
-      { key: "device-monitor", label: "设备监控", active: isPageActive("device/device-monitor"), pageId: "device/device-monitor", kind: "item" },
-      { key: "staff-roster", label: "人员排班", active: isPageActive("staff/caregiver-roster"), pageId: "staff/caregiver-roster", kind: "item" },
+      { key: "analytics-user", label: "用户分析", kind: "section" },
+      { key: "data-board", label: "用户概况", active: isPageActive("analytics/data-board"), pageId: "analytics/data-board", kind: "item" },
+      { key: "age-analysis", label: "用户年龄分析", active: isPageActive("analytics/user-age"), pageId: "analytics/user-age", kind: "item" },
+      { key: "gender-analysis", label: "用户性别分析", active: isPageActive("analytics/user-gender"), pageId: "analytics/user-gender", kind: "item" },
+      { key: "social-analysis", label: "用户社交统计", active: isPageActive("analytics/user-social"), pageId: "analytics/user-social", kind: "item" },
+      { key: "analytics-transaction", label: "交易分析", kind: "section" },
+      { key: "trade-overview", label: "交易概况", active: isPageActive("analytics/trade-overview"), pageId: "analytics/trade-overview", kind: "item" },
+      { key: "product-analysis", label: "产品分析", active: isPageActive("analytics/product-analysis"), pageId: "analytics/product-analysis", kind: "item" },
+      { key: "analytics-service", label: "服务分析", kind: "section" },
+      { key: "workorder-analysis", label: "工单分析", active: isPageActive("analytics/service-workorder"), pageId: "analytics/service-workorder", kind: "item" },
+      { key: "repurchase-analysis", label: "复购分析", active: isPageActive("analytics/service-repurchase"), pageId: "analytics/service-repurchase", kind: "item" },
+      { key: "performance-analysis", label: "业绩统计", active: isPageActive("analytics/service-performance"), pageId: "analytics/service-performance", kind: "item" },
+      { key: "review-analysis", label: "评价统计", active: isPageActive("analytics/service-review"), pageId: "analytics/service-review", kind: "item" },
     ];
   }
 
@@ -199,11 +209,21 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
     { key: "session", label: "会话中心", active: isPageActive("dashboard/session"), pageId: "dashboard/session", kind: "item" },
     { key: "content-management", label: "内容管理", active: isPageActive("content/content-management"), pageId: "content/content-management", kind: "item" },
     { key: "activity-management", label: "活动管理", active: isPageActive("community/activity-management"), pageId: "community/activity-management", kind: "item" },
-    { key: "mass-message", label: "群发消息", toast: "群发消息原型页暂未接入。", kind: "item" },
+    {
+      key: "mass-message",
+      label: "群发消息",
+      active: isPageActive("content/mass-message", "content/mass-message-create"),
+      pageId: "content/mass-message",
+      kind: "item",
+    },
   ];
 });
 
 const currentGroupTitle = computed(() => {
+  if (activePrimaryNavKey.value === "analytics") {
+    return "数据";
+  }
+
   return railItems.find((item) => item.key === activePrimaryNavKey.value)?.label || pageMeta[activePageId.value]?.title || "首页";
 });
 
@@ -266,6 +286,7 @@ function openPage(pageId: string) {
     return;
   }
 
+  isAccountMenuOpen.value = false;
   navigation.reLaunch(pageId);
 }
 
@@ -282,25 +303,71 @@ function openSecondaryItem(item: { pageId?: string; toast?: string }) {
 
 function submitSearch() {
   const keyword = searchKeyword.value.trim();
-  showToast(keyword ? `已搜索：${keyword}` : "请输入关键字后再搜索。");
+  showToast(keyword ? `已搜索：${keyword}` : "请输入关键词后再搜索。");
+}
+
+function shouldToggleAccountMenu(label: string) {
+  return label === "璐﹀彿鑿滃崟";
 }
 
 function notifyAction(label: string) {
+  if (shouldToggleAccountMenu(label)) {
+    toggleAccountMenu();
+    return;
+  }
   showToast(`${label}入口为演示状态。`);
 }
+function getRailItemOrder(key: PrimaryNavKey) {
+  if (key === "messages") {
+    return 1;
+  }
+
+  if (key === "system") {
+    return 2;
+  }
+
+  return 0;
+}
+
+function toggleAccountMenu() {
+  isAccountMenuOpen.value = !isAccountMenuOpen.value;
+}
+
+function handleAccountMenuSelect(action: "profile" | "password" | "logout") {
+  if (action === "profile") {
+    openPage("system/account-settings");
+    return;
+  }
+
+  if (action === "password") {
+    openPage("system/reset-password");
+    return;
+  }
+
+  openPage("auth/login");
+}
+
+function handleDocumentClick(event: MouseEvent) {
+  const target = event.target;
+  if (target instanceof Element && (target.closest(".account") || target.closest(".account-menu__panel"))) {
+    return;
+  }
+
+  if (!(target instanceof Node)) {
+    return;
+  }
+
+  if (!accountMenuRef.value?.contains(target)) {
+    isAccountMenuOpen.value = false;
+  }
+}
+
 onMounted(() => {
-  if (config.mode === "page") {
-    return;
-  }
+  document.addEventListener("click", handleDocumentClick);
+});
 
-  const preload = () => preloadPageComponents();
-
-  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    (window as Window & { requestIdleCallback: (callback: IdleRequestCallback) => number }).requestIdleCallback(() => preload());
-    return;
-  }
-
-  globalThis.setTimeout(preload, 0);
+onBeforeUnmount(() => {
+  document.removeEventListener("click", handleDocumentClick);
 });
 </script>
 
@@ -316,7 +383,7 @@ onMounted(() => {
 
     <template v-else>
       <aside v-if="config.mode === 'app'" class="rail">
-        <button class="rail__logo" type="button" aria-label="返回首页" @click="openPage('dashboard/overview')">
+        <button class="rail__logo" type="button" aria-label="杩斿洖棣栭〉" @click="openPage('dashboard/overview')">
           <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
             <path
               d="M24 39.5 10.7 26.4c-3.3-3.3-5.3-6.4-5.3-10.7 0-5.7 4.5-10.2 10.1-10.2 3.4 0 6.1 1.6 8.5 4.8 2.4-3.2 5.1-4.8 8.5-4.8 5.6 0 10.1 4.5 10.1 10.2 0 4.3-2 7.4-5.3 10.7L24 39.5Z"
@@ -339,6 +406,7 @@ onMounted(() => {
             :class="{ 'rail__item--active': item.key === activePrimaryNavKey }"
             type="button"
             :aria-label="item.label"
+            :style="{ order: getRailItemOrder(item.key) }"
             @click="openPage(item.pageId)"
           >
             <span class="rail__item-icon">
@@ -354,7 +422,7 @@ onMounted(() => {
           <strong>{{ currentGroupTitle }}</strong>
         </header>
 
-        <nav class="subnav__list" aria-label="二级导航">
+        <nav class="subnav__list" aria-label="浜岀骇瀵艰埅">
           <template v-for="item in secondaryNavItems" :key="item.key">
             <div v-if="item.kind === 'section'" class="subnav__section">
               {{ item.label }}
@@ -375,28 +443,28 @@ onMounted(() => {
       <section class="main">
         <header class="topbar">
           <div class="topbar__search">
-            <button class="topbar__search-icon" type="button" aria-label="搜索" @click="submitSearch">
+            <button class="topbar__search-icon" type="button" aria-label="鎼滅储" @click="submitSearch">
               <Search theme="outline" :size="24" :stroke-width="3" />
             </button>
-            <input v-model="searchKeyword" type="text" placeholder="请输入关键字" @keydown.enter="submitSearch" />
+            <input v-model="searchKeyword" type="text" placeholder="请输入关键词" @keydown.enter="submitSearch" />
           </div>
 
           <div class="topbar__actions">
-            <button class="topbar__icon" type="button" aria-label="客服" @click="notifyAction('客服')">
+            <button class="topbar__icon" type="button" aria-label="瀹㈡湇" @click="notifyAction('瀹㈡湇')">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M5 12a7 7 0 1 1 14 0v4a2 2 0 0 1-2 2h-2v-6h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 <path d="M5 18H3a2 2 0 0 1-2-2v-4h4v6Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
               </svg>
             </button>
 
-            <button class="topbar__icon topbar__icon--badge" type="button" aria-label="消息" @click="notifyAction('消息')">
+            <button class="topbar__icon topbar__icon--badge" type="button" aria-label="娑堟伅" @click="notifyAction('娑堟伅')">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M12 4a5 5 0 0 1 5 5v2.7c0 .8.2 1.6.7 2.3l1 1.5H5.3l1-1.5c.5-.7.7-1.5.7-2.3V9a5 5 0 0 1 5-5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
                 <path d="M9.5 18a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
               </svg>
             </button>
 
-            <button class="account" type="button" @click="notifyAction('账号菜单')">
+            <button class="account" type="button" @click="notifyAction('璐﹀彿鑿滃崟')">
               <span class="account__avatar">
                 <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
                   <circle cx="24" cy="24" r="24" fill="currentColor" />
@@ -411,6 +479,17 @@ onMounted(() => {
               <span class="account__name">Daisy</span>
               <span class="account__caret">▼</span>
             </button>
+            <div v-if="isAccountMenuOpen" ref="accountMenuRef" class="account-menu__panel" role="menu">
+              <button class="account-menu__item" type="button" role="menuitem" @click="handleAccountMenuSelect('profile')">
+                个人资料
+              </button>
+              <button class="account-menu__item" type="button" role="menuitem" @click="handleAccountMenuSelect('password')">
+                修改密码
+              </button>
+              <button class="account-menu__item" type="button" role="menuitem" @click="handleAccountMenuSelect('logout')">
+                退出系统
+              </button>
+            </div>
           </div>
         </header>
 
@@ -455,9 +534,10 @@ onMounted(() => {
   --rail-muted: rgba(219, 229, 255, 0.62);
   --rail-accent: #45d1ac;
   --rail-accent-strong: #2ec8a1;
-  grid-template-columns: 220px 176px minmax(0, 1fr);
+  grid-template-columns: 180px 184px minmax(0, 1fr);
   background: #f0fdf9;
-  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -479,57 +559,57 @@ onMounted(() => {
   display: grid;
   grid-template-rows: auto auto 1fr;
   align-content: start;
-  gap: 18px;
-  padding: 20px 16px 18px;
+  gap: 12px;
+  padding: 16px 12px 16px;
   background: linear-gradient(180deg, var(--rail-bg) 0%, var(--rail-bg-end) 100%);
 }
 
 .rail__logo {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--rail-surface);
   color: #8eeab6;
 }
 
 .rail__logo svg {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   fill: currentColor;
 }
 
 .rail__brand {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  padding: 0 4px;
+  padding: 0 2px;
   color: #ffffff;
   text-align: left;
 }
 
 .rail__brand-mark {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: 0.04em;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
 }
 
 .rail__brand small {
   color: var(--rail-muted);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .rail__nav {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 6px;
   padding-top: 2px;
   width: 100%;
 }
@@ -537,12 +617,12 @@ onMounted(() => {
 .rail__item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 52px;
-  padding: 0 14px;
+  min-height: 42px;
+  padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: 12px;
   background: transparent;
   color: var(--rail-text);
   text-align: left;
@@ -562,20 +642,20 @@ onMounted(() => {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   background: var(--rail-surface);
 }
 
 .rail__item-icon :deep(svg) {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .rail__item-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
   letter-spacing: 0.01em;
 }
 
@@ -595,32 +675,33 @@ onMounted(() => {
   align-content: start;
   background: #ffffff;
   border-right: 1px solid #edf3ef;
+  overflow-y: auto;
 }
 
 .subnav__header {
   display: flex;
   align-items: center;
-  min-height: 58px;
+  min-height: 50px;
   padding: 0 18px;
   border-bottom: 1px solid #edf3ef;
   color: #2f3946;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
 .subnav__list {
   display: grid;
-  gap: 2px;
-  padding: 12px 14px 18px;
+  gap: 4px;
+  padding: 14px 12px 20px;
 }
 
 .subnav__section {
-  margin-top: 10px;
-  padding: 8px 2px 10px;
+  margin-top: 12px;
+  padding: 8px 6px 10px;
   color: #2f3946;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -630,23 +711,33 @@ onMounted(() => {
 
 .subnav__item {
   width: 100%;
-  min-height: 48px;
-  padding: 12px 14px;
+  min-height: 42px;
+  padding: 11px 14px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  color: #9ca7b4;
-  font-size: 13px;
+  color: #97a1ad;
+  font-size: 12px;
   font-weight: 400;
-  line-height: 1.25;
+  line-height: 1.3;
   letter-spacing: 0.01em;
   text-align: left;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.subnav__item:hover {
+  background: #f3fbf8;
+  color: #54616d;
 }
 
 .subnav__item--active {
-  background: #42d1a6;
+  background: linear-gradient(135deg, #41d1a7 0%, #34c59a 100%);
   color: #ffffff;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 0 10px 22px rgba(60, 201, 159, 0.18);
 }
 
 .main {
@@ -706,6 +797,7 @@ onMounted(() => {
 }
 
 .topbar__actions {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -748,6 +840,7 @@ onMounted(() => {
   border: 0;
   background: transparent;
   color: #253443;
+  cursor: pointer;
 }
 
 .account__avatar {
@@ -774,39 +867,33 @@ onMounted(() => {
   font-size: 11px;
 }
 
-.workspace-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  padding: 18px 28px 0;
-  background: #f0fdf9;
-}
-
-.workspace-metrics article {
-  display: grid;
-  gap: 8px;
-  padding: 16px 18px;
-  border: 1px solid #e3f3ec;
+.account-menu__panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  min-width: 180px;
+  padding: 10px 0;
+  border: 1px solid #e9efea;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(17, 20, 50, 0.04);
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(31, 46, 61, 0.14);
+  z-index: 20;
 }
 
-.workspace-metrics span {
-  color: #7b8794;
-  font-size: 12px;
+.account-menu__item {
+  display: block;
+  width: 100%;
+  padding: 14px 22px;
+  border: 0;
+  background: transparent;
+  color: #2f3946;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
 }
 
-.workspace-metrics strong {
-  color: #233242;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.admin-content {
-  min-width: 0;
-  padding: 18px 28px 16px;
-  background: #f0fdf9;
+.account-menu__item:hover {
+  background: #f5fbf8;
 }
 
 .content {
@@ -824,7 +911,7 @@ onMounted(() => {
 
 @media (max-width: 1280px) {
   .admin-shell--app {
-    grid-template-columns: 196px 164px minmax(0, 1fr);
+    grid-template-columns: 170px 170px minmax(0, 1fr);
   }
 
   .workspace-metrics,
@@ -877,3 +964,5 @@ onMounted(() => {
   }
 }
 </style>
+
+

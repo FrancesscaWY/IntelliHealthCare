@@ -200,7 +200,8 @@ function triggerAction(label: string, title?: string) {
       </header>
 
       <div class="table-wrap">
-        <div class="table-head">
+        <div class="table-scroll">
+          <div class="table-head">
           <span>商品信息</span>
           <span>商品编码</span>
           <span>{{ categoryColumnLabel }}</span>
@@ -211,7 +212,7 @@ function triggerAction(label: string, title?: string) {
           <span>操作</span>
         </div>
 
-        <div class="table-list">
+          <div class="table-list">
           <article v-for="row in filteredRows" :key="row.id" class="table-row">
             <div class="cell cell--product">
               <img :src="row.image" :alt="row.title" />
@@ -241,6 +242,7 @@ function triggerAction(label: string, title?: string) {
               <button type="button" class="table-link table-link--red" @click="triggerAction('删除', row.title)">删除</button>
             </div>
           </article>
+          </div>
         </div>
       </div>
     </article>
@@ -473,10 +475,16 @@ function triggerAction(label: string, title?: string) {
   border-radius: 10px;
 }
 
+.table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: 1.95fr 1fr 0.9fr 0.85fr 0.9fr 1.1fr 1.3fr 0.9fr;
+  grid-template-columns: 360px 150px 160px 118px 118px 140px 180px 220px;
+  min-width: 1446px;
 }
 
 .table-head {
@@ -515,6 +523,7 @@ function triggerAction(label: string, title?: string) {
 
 .cell--product {
   gap: 14px;
+  min-width: max-content;
 }
 
 .cell--product img {
@@ -527,9 +536,11 @@ function triggerAction(label: string, title?: string) {
 
 .cell--product strong {
   display: block;
+  flex: none;
   color: #30404d;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .tag-stack {
@@ -577,12 +588,14 @@ function triggerAction(label: string, title?: string) {
 
 .cell--actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px 18px;
   align-content: center;
+  min-width: max-content;
 }
 
 .table-link {
+  flex: none;
   padding: 0;
   border: 0;
   background: transparent;
@@ -600,7 +613,7 @@ function triggerAction(label: string, title?: string) {
 @media (max-width: 1540px) {
   .table-head,
   .table-row {
-    grid-template-columns: 1.7fr 0.9fr 0.85fr 0.75fr 0.8fr 1fr 1.1fr 0.85fr;
+    grid-template-columns: 360px 150px 160px 118px 118px 140px 180px 220px;
   }
 }
 
