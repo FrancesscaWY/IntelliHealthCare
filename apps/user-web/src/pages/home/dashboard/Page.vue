@@ -166,6 +166,28 @@ function applyTag(tag: string) {
 function showAction(label: string) {
   props.showToast(`${label}功能待接入`);
 }
+
+function toggleLike(articleId: string) {
+  const targetArticle = articles.value.find((item) => item.id === articleId);
+
+  if (!targetArticle) {
+    return;
+  }
+
+  targetArticle.isLiked = !targetArticle.isLiked;
+  targetArticle.likes += targetArticle.isLiked ? 1 : -1;
+}
+
+function toggleStar(articleId: string) {
+  const targetArticle = articles.value.find((item) => item.id === articleId);
+
+  if (!targetArticle) {
+    return;
+  }
+
+  targetArticle.isStarred = !targetArticle.isStarred;
+  targetArticle.stars += targetArticle.isStarred ? 1 : -1;
+}
 </script>
 
 <template>
@@ -273,7 +295,7 @@ function showAction(label: string) {
         </div>
 
         <div class="article-list">
-          <article v-for="item in mock.articles" :key="item.title" class="article-card">
+          <article v-for="item in articles" :key="item.id" class="article-card">
             <section class="article-copy">
               <h3>{{ item.title }}</h3>
               <p>{{ item.desc }}</p>
@@ -295,13 +317,23 @@ function showAction(label: string) {
                   <path d="M8.45 13.15 15.55 17.7" />
                 </svg>
               </button>
-              <button class="article-action article-action--like" type="button" @click="showAction('点赞')">
+              <button
+                class="article-action article-action--like"
+                :class="{ 'article-action--active-like': item.isLiked }"
+                type="button"
+                @click="toggleLike(item.id)"
+              >
                 <svg class="article-icon article-icon--heart" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
                 </svg>
                 {{ item.likes }}
               </button>
-              <button class="article-action article-action--star" type="button" @click="showAction('收藏')">
+              <button
+                class="article-action article-action--star"
+                :class="{ 'article-action--active-star': item.isStarred }"
+                type="button"
+                @click="toggleStar(item.id)"
+              >
                 <svg class="article-icon article-icon--star" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
                 </svg>
@@ -977,6 +1009,14 @@ function showAction(label: string) {
   justify-self: start;
 }
 
+.article-action--active-like {
+  color: #f05b72;
+}
+
+.article-action--active-star {
+  color: #d8972a;
+}
+
 .article-icon {
   display: block;
   width: 24px;
@@ -998,6 +1038,21 @@ function showAction(label: string) {
 .article-icon--comment {
   width: 25px;
   height: 25px;
+}
+
+.article-icon--heart path,
+.article-icon--star path {
+  transition:
+    fill 160ms ease,
+    stroke 160ms ease;
+}
+
+.article-action--active-like .article-icon--heart path {
+  fill: currentColor;
+}
+
+.article-action--active-star .article-icon--star path {
+  fill: currentColor;
 }
 
 .home-tabbar {

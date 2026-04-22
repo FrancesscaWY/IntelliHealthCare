@@ -1,175 +1,144 @@
 # IntelliHealthCare
 
-IntelliHealthCare 是一个面向老年用户与家属的康养服务网页端项目，当前主应用已迁移到 `Vue 3 + TypeScript + Vite`，并保留小程序原型代码作为业务与视觉参考。
+IntelliHealthCare 当前采用 Monorepo 结构，统一维护两个前端工作区：
 
-## 项目状态
+- `apps/user-web`：面向长者与家属的 APP 端网页工作区
+- `apps/admin-web`：面向运营、护理和机构管理团队的后台端网页工作区
 
-- 当前主应用：`apps/user-web`
-- 技术栈：`Vue 3`、`TypeScript`、`Vite`
+两个工作区保持一致的技术栈与开发范式：
 
-当前已接入页面：
+- `Vue 3`
+- `TypeScript`
+- `Vite`
+- 页面清单驱动的整站/单页预览模式
 
-- `onboarding/intro`
-- `auth/login`
-- `home/dashboard`
-- `community/circle`
-- `community/publish`
-
-## 快速开始
-
-建议环境：
+## 环境要求
 
 - `Node.js >= 20`
 - `npm >= 10`
 
-安装依赖并启动整站：
+安装依赖：
 
 ```bash
 npm install
-npm run dev:user
 ```
 
-默认会启动网页端调试服务，建议在浏览器开发者工具中切换到移动端设备模式，按 `390 x 844` 进行预览。
+## 运行与调试
 
-只调试单个页面：
-
-```bash
-npm run dev:page -- --page auth/login
-```
-
-## 常用命令
+APP 端整站预览：
 
 ```bash
 npm run dev:user
 ```
 
-- 启动整站预览
+APP 端单页预览：
 
 ```bash
 npm run dev:page -- --page home/dashboard
 ```
 
-- 启动单页预览
+后台端整站预览：
+
+```bash
+npm run dev:admin
+```
+
+默认进入后台登录页 `auth/login`。
+
+后台端单页预览：
+
+```bash
+npm run dev:admin:page -- --page auth/login
+```
+
+## 常用命令
+
+校验整个工作区：
 
 ```bash
 npm run check
 ```
 
-- 校验页面目录约定并执行 TypeScript 类型检查
+分别校验：
+
+```bash
+npm run check:user
+npm run check:admin
+```
+
+构建全部前端：
 
 ```bash
 npm run build
 ```
 
-- 构建生产包，输出到 `dist/user-web`
+分别构建：
 
 ```bash
-npm run create:page -- --group health --page blood-pressure --title "血压监测" --owner "成员A"
+npm run build:user
+npm run build:admin
 ```
 
-- 创建新页面脚手架
+创建新页面骨架：
+
+```bash
+npm run create:page -- --group health --page health-data --title "健康数据" --owner "成员A"
+npm run create:admin-page -- --group elder --page member-list --title "长者档案" --owner "后台组"
+```
+
+生成页面开发提示：
 
 ```bash
 npm run prompt:page -- --page health/health-data
+npm run prompt:admin-page -- --page dashboard/overview
 ```
-
-- 生成适合交给 Codex 的页面开发提示词
 
 ## 目录结构
 
 ```text
 apps/
-  user-web/                 Vue 3 + TypeScript 网页应用
+  user-web/                 APP 端网页工作区
+  admin-web/                后台端网页工作区
 packages/
-  page-core/                页面类型、状态元数据、运行时工具
-legacy/
-  miniprogram-user/         历史小程序原型代码
+  page-core/                页面类型与运行时工具
 scripts/
-  dev-user.mjs              整站开发入口
-  dev-page.mjs              单页开发入口
-  create-page.mjs           页面脚手架
-  build-user-web.mjs        构建脚本
-  validate-workspace.mjs    工作区校验脚本
+  *.mjs                     开发、构建、校验、脚手架脚本
 docs/
   architecture.md
-  codex-workflow.md
   member-development-manual.md
+  admin-development-manual.md
+  codex-workflow.md
 ```
 
-## 页面开发约定
+## 页面目录约定
 
-每个页面固定放在：
+两个前端工作区都遵循同样的页面目录结构：
 
 ```text
-apps/user-web/src/pages/<domain>/<page>/
+apps/<app>/src/pages/<domain>/<page>/
   Page.vue
   mock.ts
   README.md
 ```
 
-约定说明：
+说明：
 
-- `Page.vue`：页面结构、状态与交互
+- `Page.vue`：页面结构、交互与局部状态
 - `mock.ts`：单页调试数据
-- `README.md`：页面职责、边界与协作说明
+- `README.md`：页面职责、边界和协作说明
 
-页面总清单位于：
+页面清单位于：
 
 ```text
 apps/user-web/src/app/pages.manifest.json
+apps/admin-web/src/app/pages.manifest.json
 ```
 
-## 构建与校验
+## 参考资料
 
-本项目已经接入：
-
-- `vue-tsc` 类型检查
-- `Vite` 生产构建
-- 页面目录与清单校验
-
-推荐提交前至少执行：
-
-```bash
-npm run check
-npm run build
-```
-
-## npm install 失败排查
-
-如果你在本机执行 `npm install` 失败，优先检查是否配置了失效的本地代理。
-
-例如用户级配置文件：
-
-```text
-C:\Users\<你的用户名>\.npmrc
-```
-
-如果里面存在类似配置，而本地代理并没有启动，就会导致 `ECONNREFUSED`：
-
-```ini
-proxy=http://127.0.0.1:10809
-https-proxy=http://127.0.0.1:10809
-registry=https://registry.npmmirror.com
-```
-
-可执行：
-
-```bash
-npm config delete proxy
-npm config delete https-proxy
-npm config set registry https://registry.npmmirror.com
-```
-
-然后重新安装：
-
-```bash
-npm install
-```
-
-## 协作文档
-
-开始开发前建议先阅读：
-
-- [docs/architecture.md](./docs/architecture.md)
-- [docs/member-development-manual.md](./docs/member-development-manual.md)
-- [docs/codex-workflow.md](./docs/codex-workflow.md)
+- [架构说明](./docs/architecture.md)
+- [后端架构说明](./docs/backend-architecture.md)
+- [Hermes 多智能体框架实施路径](./docs/hermes-multi-agent-implementation.md)
+- [成员开发手册](./docs/member-development-manual.md)
+- [后台端开发手册](./docs/admin-development-manual.md)
+- [Codex 协作说明](./docs/codex-workflow.md)

@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ihc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ihc_backend
+      POSTGRES_USER: ihc
+      POSTGRES_PASSWORD: ihc123456
+    ports:
+      - "5432:5432"
+    volumes:
+      - ihc-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ihc -d ihc_backend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ihc-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ihc-redis-data:/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: ihc-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ihc-minio-data:/data
+
+volumes:
+  ihc-postgres-data:
+  ihc-redis-data:
+  ihc-minio-data:

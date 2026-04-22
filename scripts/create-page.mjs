@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { resolveAppTarget } from "./app-targets.mjs";
 import { buildPageEntry, loadManifest, normalizePageId, parseArgs, resolvePageFolder, saveManifest } from "./utils.mjs";
 
 const args = parseArgs(process.argv.slice(2));
+const appTarget = resolveAppTarget(args.app || "user");
 const group = args.group || args.module;
 const pageName = args.page;
 const title = args.title || "未命名页面";
@@ -15,7 +17,7 @@ if (!group || !pageName) {
 }
 
 const pageId = normalizePageId(`${group}/${pageName}`);
-const pageFolder = resolvePageFolder(pageId);
+const pageFolder = resolvePageFolder(appTarget.key, pageId);
 
 if (fs.existsSync(pageFolder)) {
   console.error(`页面目录已存在：${pageFolder}`);
@@ -31,6 +33,7 @@ fs.writeFileSync(
     `  title: ${JSON.stringify(title)},`,
     `  summary: ${JSON.stringify(summary)},`,
     "  sections: [],",
+    "  actions: [],",
     "};",
     "",
     "export default mock;",
@@ -43,27 +46,44 @@ fs.writeFileSync(
   path.join(pageFolder, "Page.vue"),
   [
     "<script setup lang=\"ts\">",
-    'import PagePlaceholder from "@/components/PagePlaceholder.vue";',
+    'import type { PageComponentProps } from "@ihc/page-core/types";',
     'import mock from "./mock";',
     "",
-    "const pageEntry = {",
-    `  id: ${JSON.stringify(pageId)},`,
-    `  title: ${JSON.stringify(title)},`,
-    `  group: ${JSON.stringify(group)},`,
-    `  route: ${JSON.stringify(`/${pageId}`)},`,
-    `  owner: ${JSON.stringify(owner)},`,
-    '  status: "planned",',
-    "  summary: mock.summary,",
-    `  folderPath: ${JSON.stringify(`/apps/user-web/src/pages/${pageId}`)},`,
-    `  modulePath: ${JSON.stringify(`/apps/user-web/src/pages/${pageId}/Page.vue`)},`,
-    `  mockPath: ${JSON.stringify(`/apps/user-web/src/pages/${pageId}/mock.ts`)},`,
-    "  legacySources: [],",
-    "};",
+    "const props = defineProps<PageComponentProps>();",
     "</script>",
     "",
     "<template>",
-    "  <PagePlaceholder :page-entry=\"pageEntry\" />",
+    '  <section class="page-shell">',
+    "    <header>",
+    "      <p>{{ props.pageEntry.group }}</p>",
+    "      <h1>{{ mock.title }}</h1>",
+    "      <span>{{ props.pageEntry.status }}</span>",
+    "    </header>",
+    "    <p>{{ mock.summary }}</p>",
+    "  </section>",
     "</template>",
+    "",
+    "<style scoped>",
+    ".page-shell {",
+    "  display: grid;",
+    "  gap: 12px;",
+    "  padding: 20px;",
+    "  border-radius: 20px;",
+    "  background: rgba(255, 255, 255, 0.96);",
+    "  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);",
+    "}",
+    "",
+    ".page-shell header {",
+    "  display: grid;",
+    "  gap: 4px;",
+    "}",
+    "",
+    ".page-shell p {",
+    "  margin: 0;",
+    "  color: var(--muted);",
+    "  line-height: 1.7;",
+    "}",
+    "</style>",
     "",
   ].join("\n"),
   "utf8",
@@ -75,7 +95,7 @@ fs.writeFileSync(
     `# ${title}`,
     "",
     `- 页面 id：\`${pageId}\``,
-    `- 页面目录：\`apps/user-web/src/pages/${pageId}\``,
+    `- 页面目录：\`apps/${appTarget.dirName}/src/pages/${pageId}\``,
     `- 负责人：${owner}`,
     "",
     "开发约定：",
@@ -87,9 +107,10 @@ fs.writeFileSync(
   "utf8",
 );
 
-const manifest = loadManifest();
+const manifest = loadManifest(appTarget.key);
 manifest.push(
   buildPageEntry({
+    app: appTarget.key,
     id: pageId,
     title,
     group,
@@ -97,6 +118,6 @@ manifest.push(
     owner,
   }),
 );
-saveManifest(manifest);
+saveManifest(appTarget.key, manifest);
 
 console.log(`已创建页面：${pageFolder}`);

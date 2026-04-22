@@ -133,7 +133,15 @@ function goBack() {
           </article>
         </div>
       </section>
-    </main>
+
+      <article class="next-steps-card" v-if="false && mock.nextSteps && mock.nextSteps.length">
+        <p class="page-eyebrow">Roadmap</p>
+        <strong>后续计划</strong>
+        <ol>
+          <li v-for="item in mock.nextSteps" :key="item">{{ item }}</li>
+        </ol>
+      </article>
+    </template>
 
     <div v-else class="error-card">
       <strong>数据加载失败</strong>
@@ -455,5 +463,31 @@ function goBack() {
   display: block;
   margin-bottom: 8px;
   font-size: 20px;
+}
+.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2, .metric-table th, .metric-table td, .steps-table th, .steps-table td) {
+  white-space: nowrap;
+}
+
+.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.health-data-page :is(.table-wrapper) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.health-data-page :is(.metric-table, .steps-table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.health-data-page :is(.metric-table th, .metric-table td, .steps-table th, .steps-table td) {
+  padding-right: 6px;
+  padding-left: 6px;
+  font-size: 12px;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 </style>
