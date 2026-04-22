@@ -9,6 +9,14 @@
       <input v-model="keyword" type="text" placeholder="搜索" />
     </div>
 
+    <button class="smart-recommend-entry" type="button" @click="openSmartRecommend">
+      <span class="smart-assistant" aria-hidden="true">
+        <canvas ref="assistantCanvasRef" width="110" height="110"></canvas>
+      </span>
+      <span class="smart-entry-text">试试豆沙包帮你推荐～</span>
+      <span class="smart-entry-action">进入</span>
+    </button>
+
     <view class="service-grid">
       <view
           v-for="item in serviceList"
@@ -86,6 +94,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
+import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
+import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
 
 import {
   Home,
@@ -101,6 +111,7 @@ import mock, { type ServiceItem, type CareItem } from './mock'
 
 const props = defineProps<PageComponentProps>()
 const keyword = ref('')
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
 
 const serviceList = ref<ServiceItem[]>(mock.serviceList)
 const recommendList = ref<CareItem[]>(mock.recommendList)
@@ -143,6 +154,8 @@ let totalSeconds =
     Number(countdown.seconds)
 
 let timer: number | null = null
+let assistantRive: Rive | null = null
+let assistantResizeObserver: ResizeObserver | null = null
 
 const formatTime = (value: number): string => {
   return value < 10 ? `0${value}` : `${value}`
@@ -186,6 +199,14 @@ const goBack = () => {
   props.navigation.reLaunch('home/dashboard')
 }
 
+const openSmartRecommend = () => {
+  props.navigation.navigateTo('service/home-care-recommend-waiting')
+}
+
+const resizeAssistant = () => {
+  assistantRive?.resizeDrawingSurfaceToCanvas()
+}
+
 const handleServiceClick = (item: ServiceItem) => {
   if (item.type === 'clean') {
     props.navigation.navigateTo('service/daily-clean')
@@ -205,6 +226,23 @@ const goDetail = (item: CareItem) => {
 
 onMounted(() => {
   startCountdown()
+
+  if (!assistantCanvasRef.value) return
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: 'State Machine 1',
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    onLoad: resizeAssistant,
+  })
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistant)
+  assistantResizeObserver.observe(assistantCanvasRef.value)
 })
 
 onBeforeUnmount(() => {
@@ -212,6 +250,10 @@ onBeforeUnmount(() => {
     clearInterval(timer)
     timer = null
   }
+  assistantResizeObserver?.disconnect()
+  assistantResizeObserver = null
+  assistantRive?.cleanup()
+  assistantRive = null
 })
 </script>
 <style scoped>
@@ -261,8 +303,11 @@ onBeforeUnmount(() => {
 }
 
 .search-box {
-  height: 52px;
-  background: #fff;
+  height: 40px;
+  border: 2px solid transparent;
+  background:
+      linear-gradient(#ffffff, #ffffff) padding-box,
+      linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
   border-radius: 18px;
   display: flex;
   align-items: center;
@@ -290,6 +335,82 @@ onBeforeUnmount(() => {
 
 .search-box input::placeholder {
   color: #c7c7c7;
+}
+
+.smart-recommend-entry {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  display: grid;
+  grid-template-columns: 74px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 10px 13px 12px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  background:
+      radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.92), transparent 34%),
+      linear-gradient(105deg, rgba(117, 214, 223, 0.98) 0%, rgba(45, 144, 240, 0.72) 52%, rgba(123, 226, 142, 0.88) 100%);
+  box-shadow: 0 14px 30px rgba(45, 144, 240, 0.14);
+  color: #0a0e17;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.86;
+}
+
+.smart-recommend-entry::after {
+  position: absolute;
+  right: -38px;
+  bottom: -48px;
+  width: 124px;
+  height: 124px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.smart-assistant {
+  position: relative;
+  z-index: 1;
+  width: 74px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  transform: translateX(-10px) translateY(-18px);
+}
+
+.smart-assistant canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 8px 10px rgba(31, 42, 68, 0.13));
+}
+
+.smart-entry-text {
+  position: relative;
+  z-index: 1;
+  color: #131b2e;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.smart-entry-action {
+  position: relative;
+  z-index: 1;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2a44;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(31, 42, 68, 0.08);
 }
 
 .service-grid {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
+import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
+import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
@@ -8,6 +10,10 @@ const props = defineProps<PageComponentProps>()
 type FilterKey = 'popular' | 'sales' | 'price'
 
 const activeFilter = ref<FilterKey>('popular')
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
+
+let assistantRive: Rive | null = null
+let assistantResizeObserver: ResizeObserver | null = null
 
 const productList = computed(() => {
   if (activeFilter.value === 'price') {
@@ -30,6 +36,40 @@ const goBack = () => {
 const openProduct = () => {
   props.navigation.navigateTo('service/rehab-therapy-detail')
 }
+
+const openSmartRecommend = () => {
+  props.navigation.navigateTo('service/rehab-recommend-waiting')
+}
+
+const resizeAssistant = () => {
+  assistantRive?.resizeDrawingSurfaceToCanvas()
+}
+
+onMounted(() => {
+  if (!assistantCanvasRef.value) return
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: 'State Machine 1',
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    onLoad: resizeAssistant,
+  })
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistant)
+  assistantResizeObserver.observe(assistantCanvasRef.value)
+})
+
+onBeforeUnmount(() => {
+  assistantResizeObserver?.disconnect()
+  assistantResizeObserver = null
+  assistantRive?.cleanup()
+  assistantRive = null
+})
 </script>
 
 <template>
@@ -57,6 +97,14 @@ const openProduct = () => {
         </span>
       </button>
     </div>
+
+    <button class="smart-recommend-entry" type="button" @click="openSmartRecommend">
+      <span class="smart-assistant" aria-hidden="true">
+        <canvas ref="assistantCanvasRef" width="110" height="110"></canvas>
+      </span>
+      <span class="smart-entry-text">试试豆沙包为您推荐～</span>
+      <span class="smart-entry-action">进入</span>
+    </button>
 
     <section class="product-grid" aria-label="康复理疗项目">
       <article v-for="item in productList" :key="item.id" class="product-card" @click="openProduct">
@@ -121,7 +169,7 @@ const openProduct = () => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin: 10px 0 30px;
+  margin: 10px 0 18px;
 }
 
 .filter-button {
@@ -167,6 +215,82 @@ const openProduct = () => {
 
 .price-arrows i:last-child {
   border-top: 5px solid #d2d4d8;
+}
+
+.smart-recommend-entry {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  display: grid;
+  grid-template-columns: 74px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 10px 13px 12px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  background:
+      radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.92), transparent 34%),
+      linear-gradient(105deg, rgba(117, 214, 223, 0.98) 0%, rgba(45, 144, 240, 0.72) 52%, rgba(123, 226, 142, 0.88) 100%);
+  box-shadow: 0 14px 30px rgba(45, 144, 240, 0.14);
+  color: #0a0e17;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.86;
+}
+
+.smart-recommend-entry::after {
+  position: absolute;
+  right: -38px;
+  bottom: -48px;
+  width: 124px;
+  height: 124px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.smart-assistant {
+  position: relative;
+  z-index: 1;
+  width: 74px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  transform: translateX(-10px) translateY(-18px);
+}
+
+.smart-assistant canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 8px 10px rgba(31, 42, 68, 0.13));
+}
+
+.smart-entry-text {
+  position: relative;
+  z-index: 1;
+  color: #050303;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.smart-entry-action {
+  position: relative;
+  z-index: 1;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2a44;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(31, 42, 68, 0.08);
 }
 
 .product-grid {

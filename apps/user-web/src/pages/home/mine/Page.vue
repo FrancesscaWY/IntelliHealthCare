@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
 import {
   Comment,
   Coupon,
@@ -10,9 +12,14 @@ import {
   Setting,
   Star,
 } from "@icon-park/vue-next";
+import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+let assistantRive: Rive | null = null;
+let assistantResizeObserver: ResizeObserver | null = null;
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -66,6 +73,40 @@ function openSubPage(pageId: string, label: string) {
 
   props.navigation.navigateTo(pageId);
 }
+
+function openCheckupHistory() {
+  props.navigation.navigateTo("orders/checkup-history");
+}
+
+function resizeAssistant() {
+  assistantRive?.resizeDrawingSurfaceToCanvas();
+}
+
+onMounted(() => {
+  if (!assistantCanvasRef.value) return;
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: "State Machine 1",
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    onLoad: resizeAssistant,
+  });
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistant);
+  assistantResizeObserver.observe(assistantCanvasRef.value);
+});
+
+onBeforeUnmount(() => {
+  assistantResizeObserver?.disconnect();
+  assistantResizeObserver = null;
+  assistantRive?.cleanup();
+  assistantRive = null;
+});
 </script>
 
 <template>
@@ -73,7 +114,7 @@ function openSubPage(pageId: string, label: string) {
     <main class="mine-scroll">
       <header class="profile-header">
         <button class="support-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
-          <Headset theme="outline" size="22" fill="#34383f" />
+          <Headset theme="outline" size="22" fill="#1aaeba" />
         </button>
         <div class="profile-main">
           <img class="avatar" :src="mock.profile.avatar" :alt="mock.profile.name" />
@@ -96,23 +137,12 @@ function openSubPage(pageId: string, label: string) {
         </div>
       </header>
 
-      <section class="health-section" aria-label="健康数据">
-        <div class="section-heading">
-          <h2>健康数据</h2>
-          <span>•••</span>
+      <section class="health-analyse" aria-label="报告分析">
+        <div class="assistant-entry-avatar" aria-hidden="true">
+          <canvas ref="assistantCanvasRef" width="92" height="92"></canvas>
         </div>
-        <div class="health-card-list">
-          <article v-for="item in mock.profile.healthCards" :key="item.key" class="health-card" :class="`health-card--${item.tone}`">
-            <div class="health-card-top">
-              <span>{{ item.label }}</span>
-              <i aria-hidden="true"></i>
-            </div>
-            <strong>{{ item.value }} <em>{{ item.unit }}</em></strong>
-            <div class="health-visual" :class="`health-visual--${item.key}`" aria-hidden="true">
-              <span v-for="bar in 7" :key="bar"></span>
-            </div>
-          </article>
-        </div>
+        <span>AI评估报告入口</span>
+        <button type="button" @click="openCheckupHistory">立即体验</button>
       </section>
 
       <button class="order-entry-card" type="button" @click="openPage(mock.orderEntry.pageId, mock.orderEntry.label)">
@@ -185,7 +215,10 @@ function openSubPage(pageId: string, label: string) {
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
-  background: #f5f6f7;
+  background:
+    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
   color: #252939;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -222,7 +255,8 @@ function openSubPage(pageId: string, label: string) {
   place-items: center;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(117, 214, 223, 0.18) 0%, rgba(123, 226, 142, 0.16) 100%);
   cursor: pointer;
 }
 
@@ -348,6 +382,74 @@ function openSubPage(pageId: string, label: string) {
 
 .health-section {
   margin-bottom: 16px;
+}
+
+.health-analyse {
+  position: relative;
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: 74px 1fr 86px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 13px 10px 8px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.92), transparent 34%),
+    linear-gradient(105deg, rgba(117, 214, 223, 0.98) 0%, rgba(45, 144, 240, 0.72) 52%, rgba(123, 226, 142, 0.88) 100%);
+  box-shadow: 0 14px 30px rgba(45, 144, 240, 0.14);
+}
+
+.health-analyse::after {
+  position: absolute;
+  right: -38px;
+  bottom: -48px;
+  width: 124px;
+  height: 124px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.assistant-entry-avatar {
+  position: relative;
+  transform: translateX(-10px) translateY(-18px);
+  z-index: 1;
+  width: 74px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+}
+
+.assistant-entry-avatar canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 8px 10px rgba(31, 42, 68, 0.13));
+}
+
+.health-analyse span {
+  position: relative;
+  z-index: 1;
+  color: #1f2a44;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.health-analyse button {
+  position: relative;
+  z-index: 1;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #0b0b0f 0%, #2a2111 42%, #d8a844 100%);
+  color: #fff6d5;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 9px 18px rgba(43, 31, 10, 0.24), inset 0 1px 0 rgba(255, 238, 178, 0.34);
 }
 
 .health-card-list {
@@ -546,8 +648,9 @@ function openSubPage(pageId: string, label: string) {
   display: grid;
   place-items: center;
   border-radius: 13px;
-  background: #eceaff;
-  color: #6872f0;
+  background: linear-gradient(135deg, rgba(117, 214, 223, 0.22) 0%, rgba(45, 144, 240, 0.14) 100%);
+  color: #1aaeba;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 16px rgba(45, 144, 240, 0.08);
 }
 
 .order-entry-copy {
@@ -575,7 +678,7 @@ function openSubPage(pageId: string, label: string) {
   width: 100%;
   height: 58px;
   display: grid;
-  grid-template-columns: 26px 1fr 18px;
+  grid-template-columns: 36px 1fr 18px;
   gap: 10px;
   align-items: center;
   padding: 0 18px;
@@ -593,9 +696,14 @@ function openSubPage(pageId: string, label: string) {
 }
 
 .menu-icon {
-  color: #6872f0;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(117, 214, 223, 0.2) 0%, rgba(123, 226, 142, 0.14) 100%);
+  color: #1aaeba;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .chevron {

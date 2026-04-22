@@ -55,6 +55,16 @@ function handleAction(actionKey: string) {
     return
   }
 
+  if (actionKey === 'coupon') {
+    props.navigation.navigateTo('orders/checkup-voucher')
+    return
+  }
+
+  if (actionKey === 'checkup-report') {
+    props.navigation.navigateTo('orders/checkup-report')
+    return
+  }
+
   if (actionKey === 'again') {
     const detailMap: Record<ServiceKey, string> = {
       homeCare: 'service/home-care-detail',
@@ -68,7 +78,6 @@ function handleAction(actionKey: string) {
 
   const labelMap: Record<string, string> = {
     cancel: '取消订单',
-    coupon: '服务券码',
     report: '评估报告',
     review: '评价',
   }
@@ -224,9 +233,9 @@ button {
 }
 
 .service-tab.active {
-  background: #6b6ff0;
-  color: #fff;
-  box-shadow: 0 10px 20px rgba(107, 111, 240, 0.18);
+  background: #75d6df;
+  color: #1f2a44;
+  box-shadow: 0 10px 20px rgba(117, 214, 223, 0.22);
 }
 
 .order-tabs {
@@ -259,7 +268,7 @@ button {
   width: 22px;
   height: 4px;
   border-radius: 999px;
-  background: #34383f;
+  background: #75d6df;
   transform: translateX(-50%);
 }
 
@@ -298,7 +307,7 @@ button {
 }
 
 .order-card-top strong {
-  color: #6b6ff0;
+  color: #2d90f0;
   font-size: 14px;
   font-weight: 900;
 }
@@ -351,10 +360,10 @@ button {
   align-items: center;
   justify-content: center;
   padding: 0 8px;
-  border: 1px solid #eef0f4;
+  border: 1px solid rgba(117, 214, 223, 0.45);
   border-radius: 18px;
   background: #fff;
-  color: #555a64;
+  color: #2b9fa9;
   font-size: 13px;
   font-weight: 900;
   white-space: nowrap;
@@ -363,9 +372,9 @@ button {
 
 .action-button.primary {
   border-color: transparent;
-  background: #6b6ff0;
-  color: #fff;
-  box-shadow: 0 10px 18px rgba(107, 111, 240, 0.18);
+  background: #75d6df;
+  color: #1f2a44;
+  box-shadow: 0 10px 18px rgba(117, 214, 223, 0.22);
 }
 
 .empty-text {

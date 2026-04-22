@@ -4,6 +4,7 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import locationIcon from "@/assets/home/topbar/定位.png";
 import scanIcon from "@/assets/home/topbar/二维码.png";
 import sectionImage from "@/assets/home/sections/img.png";
+import FloatingAssistant from "./FloatingAssistant.vue";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -166,6 +167,10 @@ function applyTag(tag: string) {
 
 function showAction(label: string) {
   props.showToast(`${label}功能待接入`);
+}
+
+function openAssistantPanel() {
+  props.navigation.navigateTo("home/assistant-chat");
 }
 
 function toggleLike(articleId: string) {
@@ -386,6 +391,8 @@ function toggleStar(articleId: string) {
         <span v-if="item.label" class="tab-label">{{ item.label }}</span>
       </button>
     </nav>
+
+    <FloatingAssistant @open="openAssistantPanel" />
   </section>
 </template>
 
@@ -399,7 +406,10 @@ function toggleStar(articleId: string) {
   max-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
-  background: #ffffff;
+  background:
+    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;

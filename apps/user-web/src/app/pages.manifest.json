@@ -624,6 +624,19 @@
     "legacySources": []
   },
   {
+    "id": "home/assistant-chat",
+    "title": "AI助手",
+    "group": "home",
+    "route": "/home/assistant-chat",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "首页悬浮 AI 助手进入的健康咨询对话页。",
+    "folderPath": "/apps/user-web/src/pages/home/assistant-chat",
+    "modulePath": "/apps/user-web/src/pages/home/assistant-chat/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/assistant-chat/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/MyJ/myfoot",
     "title": "我的足迹",
     "group": "home",
@@ -819,6 +832,84 @@
     "legacySources": []
   },
   {
+    "id": "orders/checkup-voucher",
+    "title": "服务券码",
+    "group": "orders",
+    "route": "/orders/checkup-voucher",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "上门体检订单服务券码，展示二维码、核销码与服务信息。",
+    "folderPath": "/apps/user-web/src/pages/orders/checkup-voucher",
+    "modulePath": "/apps/user-web/src/pages/orders/checkup-voucher/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/checkup-voucher/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/checkup-report",
+    "title": "查看报告",
+    "group": "orders",
+    "route": "/orders/checkup-report",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "上门体检订单的体检报告详情页。",
+    "folderPath": "/apps/user-web/src/pages/orders/checkup-report",
+    "modulePath": "/apps/user-web/src/pages/orders/checkup-report/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/checkup-report/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/checkup-history",
+    "title": "历史报告",
+    "group": "orders",
+    "route": "/orders/checkup-history",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "上门体检订单历史报告列表页。",
+    "folderPath": "/apps/user-web/src/pages/orders/checkup-history",
+    "modulePath": "/apps/user-web/src/pages/orders/checkup-history/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/checkup-history/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/checkup-upload",
+    "title": "添加报告",
+    "group": "orders",
+    "route": "/orders/checkup-upload",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "上门体检订单添加报告页面，提供上传、扫描和文档提交入口。",
+    "folderPath": "/apps/user-web/src/pages/orders/checkup-upload",
+    "modulePath": "/apps/user-web/src/pages/orders/checkup-upload/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/checkup-upload/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/checkup-ai-waiting",
+    "title": "AI评估",
+    "group": "orders",
+    "route": "/orders/checkup-ai-waiting",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "AI 评估等待页，展示助手动画与分析进度。",
+    "folderPath": "/apps/user-web/src/pages/orders/checkup-ai-waiting",
+    "modulePath": "/apps/user-web/src/pages/orders/checkup-ai-waiting/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/checkup-ai-waiting/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "orders/checkup-ai-analysis",
+    "title": "报告分析",
+    "group": "orders",
+    "route": "/orders/checkup-ai-analysis",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "AI 评估完成后的报告分析结果页入口。",
+    "folderPath": "/apps/user-web/src/pages/orders/checkup-ai-analysis",
+    "modulePath": "/apps/user-web/src/pages/orders/checkup-ai-analysis/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/orders/checkup-ai-analysis/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "orders/willservice/assessment-report",
     "title": "评估报告",
     "group": "orders",
@@ -868,6 +959,32 @@
     "folderPath": "/apps/user-web/src/pages/service/home-care",
     "modulePath": "/apps/user-web/src/pages/service/home-care/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/home-care/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/home-care-recommend-waiting",
+    "title": "家政智能推荐等待",
+    "group": "service",
+    "route": "/service/home-care-recommend-waiting",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "豆沙包为用户推荐家政服务项目前的等待进度页。",
+    "folderPath": "/apps/user-web/src/pages/service/home-care-recommend-waiting",
+    "modulePath": "/apps/user-web/src/pages/service/home-care-recommend-waiting/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-care-recommend-waiting/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/home-care-recommend",
+    "title": "家政项目推荐",
+    "group": "service",
+    "route": "/service/home-care-recommend",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "豆沙包家政服务项目推荐结果页入口。",
+    "folderPath": "/apps/user-web/src/pages/service/home-care-recommend",
+    "modulePath": "/apps/user-web/src/pages/service/home-care-recommend/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/home-care-recommend/mock.ts",
     "legacySources": []
   },
   {
@@ -1050,6 +1167,32 @@
     "folderPath": "/apps/user-web/src/pages/service/rehab-therapy",
     "modulePath": "/apps/user-web/src/pages/service/rehab-therapy/Page.vue",
     "mockPath": "/apps/user-web/src/pages/service/rehab-therapy/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/rehab-recommend-waiting",
+    "title": "康复智能推荐等待",
+    "group": "service",
+    "route": "/service/rehab-recommend-waiting",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "豆沙包为用户推荐康复理疗项目前的等待进度页。",
+    "folderPath": "/apps/user-web/src/pages/service/rehab-recommend-waiting",
+    "modulePath": "/apps/user-web/src/pages/service/rehab-recommend-waiting/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/rehab-recommend-waiting/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "service/rehab-recommend",
+    "title": "康复项目推荐",
+    "group": "service",
+    "route": "/service/rehab-recommend",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "豆沙包康复理疗项目推荐结果页入口。",
+    "folderPath": "/apps/user-web/src/pages/service/rehab-recommend",
+    "modulePath": "/apps/user-web/src/pages/service/rehab-recommend/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/service/rehab-recommend/mock.ts",
     "legacySources": []
   },
   {
