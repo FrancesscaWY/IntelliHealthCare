@@ -92,6 +92,11 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
     shortTitle: "工作台",
     summary: "查看订单筛选、状态分组和订单操作信息。",
   },
+  "dashboard/order-detail": {
+    title: "订单详情",
+    shortTitle: "工作台",
+    summary: "按订单状态查看用户信息、预约信息、商品明细与处理动作。",
+  },
   "dashboard/work-order": {
     title: "工单管理",
     shortTitle: "工作台",
@@ -111,6 +116,16 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
     title: "售后管理",
     shortTitle: "工作台",
     summary: "查看退款金额、售后状态和售后处理信息。",
+  },
+  "dashboard/after-sale-detail": {
+    title: "售后详情",
+    shortTitle: "工作台",
+    summary: "查看售后详情、退款申请信息与关联订单处理状态。",
+  },
+  "dashboard/comment-management": {
+    title: "评价管理",
+    shortTitle: "工作台",
+    summary: "查看评价筛选、评分分布、显示状态与置顶处理信息。",
   },
   "device/device-monitor": {
     title: "设备监控",
@@ -163,6 +178,10 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   "system/reset-password": {
     title: "重置密码",
     summary: "修改旧密码并设置新的登录密码。",
+  },
+  "system/role-management": {
+    title: "角色管理",
+    summary: "查看角色列表、员工人数、启停状态与批量操作。",
   },
 };
 

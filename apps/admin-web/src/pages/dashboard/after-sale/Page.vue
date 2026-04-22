@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onActivated, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import mock, { type AfterSaleRow } from "./mock";
+import { afterSaleDetailStorageKey } from "../after-sale-detail/mock";
+import { orderDetailStorageKey } from "../order-list/mock";
 
 const props = defineProps<PageComponentProps>();
 
@@ -11,8 +13,17 @@ const startDate = ref("2023-03-01");
 const endDate = ref("2023-03-31");
 const keyword = ref("");
 const activeStatus = ref("全部");
+const listRefreshTick = ref(0);
+
+function refreshRows() {
+  listRefreshTick.value += 1;
+}
+
+onMounted(refreshRows);
+onActivated(refreshRows);
 
 const filteredRows = computed(() =>
+  (listRefreshTick.value,
   mock.rows.filter((row) => {
     const matchesStatus = activeStatus.value === "全部" || row.status === activeStatus.value;
     const matchesKeyword =
@@ -20,7 +31,7 @@ const filteredRows = computed(() =>
     const matchesMin = !minRefund.value || Number(row.refundAmount) >= Number(minRefund.value);
     const matchesMax = !maxRefund.value || Number(row.refundAmount) <= Number(maxRefund.value);
     return matchesStatus && matchesKeyword && matchesMin && matchesMax;
-  }),
+  })),
 );
 
 function searchRows() {
@@ -37,8 +48,38 @@ function resetFilters() {
   props.showToast("筛选条件已重置");
 }
 
-function triggerAction(label: string, id?: string) {
-  props.showToast(id ? `${label}：${id}` : `${label}功能为演示状态`);
+function navigateWithStorage(pageId: string, storageKey: string, value: string) {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(storageKey, value);
+  }
+
+  props.navigation.navigateTo(pageId);
+
+  const nextStack = props.navigation.getStack();
+  const activePageId = nextStack[nextStack.length - 1] || "";
+
+  if (activePageId !== pageId) {
+    props.navigation.reLaunch(pageId);
+  }
+}
+
+function triggerAction(label: string, row?: AfterSaleRow) {
+  if (!row) {
+    props.showToast(`${label}功能为演示状态`);
+    return;
+  }
+
+  if (label === "售后详情") {
+    navigateWithStorage("dashboard/after-sale-detail", afterSaleDetailStorageKey, row.afterSaleNo);
+    return;
+  }
+
+  if (label === "订单详情") {
+    navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, row.orderNo);
+    return;
+  }
+
+  props.showToast(`${label}：${row.afterSaleNo}`);
 }
 </script>
 
@@ -150,15 +191,15 @@ function triggerAction(label: string, id?: string) {
             <div class="after-card__status">{{ row.status }}</div>
             <div class="after-card__time">{{ row.appliedAt }}</div>
             <div class="after-card__actions">
-              <button type="button" class="action-link" @click="triggerAction('售后详情', row.afterSaleNo)">售后详情</button>
-              <button type="button" class="action-link" @click="triggerAction('订单详情', row.orderNo)">订单详情</button>
+              <button type="button" class="action-link" @click="triggerAction('售后详情', row)">售后详情</button>
+              <button type="button" class="action-link" @click="triggerAction('订单详情', row)">订单详情</button>
             </div>
           </div>
         </article>
       </div>
 
       <footer class="pagination">
-        <span>共7条</span>
+        <span>共{{ filteredRows.length }}条</span>
         <button type="button" class="pagination__ghost">每页10条</button>
         <button type="button" class="pagination__ghost">&lt;&lt;</button>
         <button type="button" class="pagination__ghost">&lt;</button>
