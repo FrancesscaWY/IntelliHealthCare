@@ -1,4 +1,5 @@
 const STORAGE_KEY = "ihc_miniprogram_profile_posts";
+let cachedPosts = null;
 
 function normalizePost(post = {}) {
   if (!post || typeof post !== "object") {
@@ -29,23 +30,31 @@ function normalizePost(post = {}) {
 }
 
 function loadProfilePosts() {
+  if (cachedPosts) {
+    return cachedPosts.slice();
+  }
+
   try {
     const storedValue = wx.getStorageSync(STORAGE_KEY);
 
     if (!Array.isArray(storedValue)) {
+      cachedPosts = [];
       return [];
     }
 
-    return storedValue.map((item) => normalizePost(item)).filter(Boolean);
+    cachedPosts = storedValue.map((item) => normalizePost(item)).filter(Boolean);
+    return cachedPosts.slice();
   } catch (error) {
+    cachedPosts = [];
     return [];
   }
 }
 
 function saveProfilePosts(posts) {
   const normalizedPosts = Array.isArray(posts) ? posts.map((item) => normalizePost(item)).filter(Boolean) : [];
+  cachedPosts = normalizedPosts;
   wx.setStorageSync(STORAGE_KEY, normalizedPosts);
-  return normalizedPosts;
+  return normalizedPosts.slice();
 }
 
 function prependProfilePost(post) {
@@ -55,7 +64,8 @@ function prependProfilePost(post) {
     return loadProfilePosts();
   }
 
-  return saveProfilePosts([nextPost, ...loadProfilePosts()]);
+  const storedPosts = loadProfilePosts().filter((item) => item.id !== nextPost.id);
+  return saveProfilePosts([nextPost, ...storedPosts]);
 }
 
 module.exports = {

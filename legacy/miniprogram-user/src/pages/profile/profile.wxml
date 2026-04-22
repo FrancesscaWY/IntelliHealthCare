@@ -4,8 +4,8 @@
 
     <view class="hero-card">
       <view class="hero-topbar">
-        <view class="hero-title">个人主页</view>
-        <view class="hero-more" data-label="更多" bindtap="handlePendingAction">•••</view>
+        <view class="hero-title">Profile</view>
+        <view class="hero-more" data-label="More" bindtap="handlePendingAction">...</view>
       </view>
 
       <view class="profile-main">
@@ -30,13 +30,13 @@
       </view>
 
       <view class="hero-actions">
-        <view class="ghost-button" data-label="私信" bindtap="handlePendingAction">私信</view>
-        <view class="follow-button" data-label="关注" bindtap="handlePendingAction">+ 关注</view>
+        <view class="ghost-button" data-label="Message" bindtap="handlePendingAction">Message</view>
+        <view class="follow-button" data-label="Follow" bindtap="handlePendingAction">+ Follow</view>
       </view>
     </view>
 
     <view class="feed-panel">
-      <view class="feed-heading">动态 {{feedCount}}</view>
+      <view class="feed-heading">Posts {{feedCount}}</view>
 
       <block wx:for="{{posts}}" wx:key="id">
         <view class="post-card">
@@ -58,16 +58,16 @@
           </view>
 
           <view class="post-actions">
-            <view class="post-action" data-label="点赞" bindtap="handlePendingAction">
-              <text>赞</text>
+            <view class="post-action" data-label="Like" bindtap="handlePendingAction">
+              <text>Like</text>
               <text>{{item.likes}}</text>
             </view>
-            <view class="post-action" data-label="评论" bindtap="handlePendingAction">
-              <text>评</text>
+            <view class="post-action" data-label="Comment" bindtap="handlePendingAction">
+              <text>Comment</text>
               <text>{{item.comments}}</text>
             </view>
-            <view class="post-action" data-label="分享" bindtap="handlePendingAction">
-              <text>分享</text>
+            <view class="post-action" data-label="Share" bindtap="handlePendingAction">
+              <text>Share</text>
             </view>
           </view>
         </view>

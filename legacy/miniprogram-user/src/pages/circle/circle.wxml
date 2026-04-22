@@ -1,0 +1,143 @@
+<view class="circle-page">
+  <scroll-view class="circle-scroll" scroll-y enable-flex>
+    <view class="safe-space" style="height: {{statusBarHeight}}px;"></view>
+
+    <view class="topbar">
+      <view class="page-title">生活圈</view>
+      <view class="headphone-btn" bindtap="handleHeadphoneTap">
+        <view class="head-band"></view>
+        <view class="ear left"></view>
+        <view class="ear right"></view>
+      </view>
+    </view>
+
+    <swiper
+      class="banner-swiper"
+      current="{{currentBanner}}"
+      bindchange="handleBannerChange"
+      circular
+      autoplay
+      interval="3200"
+      duration="320"
+    >
+      <block wx:for="{{banners}}" wx:key="key">
+        <swiper-item>
+          <view class="banner-card {{item.key}}">
+            <view class="banner-overlay"></view>
+            <view class="banner-subtitle">{{item.subtitle}}</view>
+            <view class="banner-title-top">{{item.titleTop}}</view>
+            <view class="banner-center">
+              <text class="banner-dot"></text>
+              <text>{{item.centerText}}</text>
+              <text class="banner-dot"></text>
+            </view>
+            <view class="banner-title-bottom">{{item.titleBottom}}</view>
+          </view>
+        </swiper-item>
+      </block>
+    </swiper>
+
+    <view class="banner-dots">
+      <block wx:for="{{banners}}" wx:key="key">
+        <view class="banner-dot-item {{index === currentBanner ? 'banner-dot-active' : ''}}"></view>
+      </block>
+    </view>
+
+    <view class="section-header">
+      <view class="section-title">热门活动</view>
+      <view class="section-more" bindtap="handleMoreActivities">
+        <text>更多活动</text>
+        <view class="more-arrow"></view>
+      </view>
+    </view>
+
+    <scroll-view class="activity-scroll" scroll-x enable-flex show-scrollbar="{{false}}">
+      <view class="activity-list">
+        <block wx:for="{{hotActivities}}" wx:key="key">
+          <view class="activity-card" data-title="{{item.title}}" bindtap="handleActivityTap">
+            <view class="activity-cover {{item.className}}"></view>
+            <view class="activity-title">{{item.title}}</view>
+            <view class="activity-count">{{item.count}}</view>
+          </view>
+        </block>
+      </view>
+    </scroll-view>
+
+    <view class="feed-tabs">
+      <view
+        class="feed-tab {{activeFeedTab === 'hot' ? 'feed-tab-active' : ''}}"
+        data-tab="hot"
+        bindtap="handleFeedTabTap"
+      >
+        热门
+      </view>
+      <view
+        class="feed-tab {{activeFeedTab === 'follow' ? 'feed-tab-active' : ''}}"
+        data-tab="follow"
+        bindtap="handleFeedTabTap"
+      >
+        关注
+      </view>
+    </view>
+
+    <view class="post-list">
+      <block wx:for="{{posts}}" wx:key="key">
+        <view class="post-card">
+          <view class="post-header">
+            <view class="avatar-wrap">
+              <view class="post-avatar"></view>
+            </view>
+            <view class="post-meta">
+              <view class="post-author">{{item.author}}</view>
+              <view class="post-date">{{item.date}}</view>
+            </view>
+          </view>
+
+          <view class="post-content">{{item.content}}</view>
+
+          <view wx:if="{{item.images.length}}" class="post-images post-images-{{item.images.length}}">
+            <block wx:for="{{item.images}}" wx:key="*this">
+              <view class="post-image {{item}}"></view>
+            </block>
+          </view>
+
+          <view class="post-actions">
+            <view class="post-action" data-action="点赞" bindtap="handlePostAction">
+              <view class="post-icon heart-icon"></view>
+              <text>{{item.likes}}</text>
+            </view>
+            <view class="post-action" data-action="评论" bindtap="handlePostAction">
+              <view class="post-icon bubble-icon"></view>
+              <text>{{item.comments}}</text>
+            </view>
+            <view class="post-action" data-action="分享" bindtap="handlePostAction">
+              <view class="post-icon share-icon"></view>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view class="bottom-space"></view>
+  </scroll-view>
+
+  <view class="tabbar">
+    <block wx:for="{{tabItems}}" wx:key="key">
+      <view
+        class="tab-item {{item.key === 'publish' ? 'tab-item-center' : ''}}"
+        data-key="{{item.key}}"
+        data-label="{{item.label}}"
+        bindtap="handleTabTap"
+      >
+        <view
+          class="tab-icon {{activeTab === item.key ? 'tab-icon-active' : ''}} {{item.key === 'publish' ? 'tab-icon-publish' : ''}}"
+        >
+          <text class="tab-icon-text">{{item.iconText}}</text>
+        </view>
+        <view wx:if="{{item.label}}" class="tab-label {{activeTab === item.key ? 'tab-label-active' : ''}}">
+          {{item.label}}
+        </view>
+      </view>
+    </block>
+  </view>
+</view>
