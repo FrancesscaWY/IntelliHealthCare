@@ -3,13 +3,10 @@ import { ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import locationIcon from "@/assets/home/topbar/定位.png";
 import scanIcon from "@/assets/home/topbar/二维码.png";
-import sectionImage from "@/assets/home/sections/img.png";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const searchValue = ref("");
-const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
-const activeFeaturePage = ref(0);
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -37,10 +34,45 @@ function getNavGradientId(key: string) {
   return `tab-gradient-${key}`;
 }
 
-function syncFeaturePage(event: Event) {
-  const target = event.currentTarget as HTMLElement;
-  const pageIndex = Math.round(target.scrollLeft / target.clientWidth);
-  activeFeaturePage.value = Math.min(featurePages.length - 1, Math.max(0, pageIndex));
+const serviceIconColors: Record<string, readonly [string, string]> = {
+  care: ["#6a74f1", "#f08093"],
+  rehab: ["#6f78ee", "#8fd8c8"],
+  exam: ["#7e80ee", "#f28a9b"],
+};
+
+const serviceIconMarkup: Record<string, string> = {
+  care: `
+    <path d="M8.5 21.7 24 9.2l15.5 12.5v17.1a2.6 2.6 0 0 1-2.6 2.6H11.1a2.6 2.6 0 0 1-2.6-2.6V21.7Z" />
+    <path d="M18.4 31.4c-2.6-2.3-4.35-4.1-4.35-6.5 0-2.15 1.6-3.75 3.7-3.75 1.25 0 2.3.6 3.25 1.72.95-1.12 2-1.72 3.25-1.72 2.1 0 3.7 1.6 3.7 3.75 0 2.4-1.75 4.2-4.35 6.5L21 33.8l-2.6-2.4Z" fill="#fff" opacity=".9" />
+    <path d="M27.5 19.2h5.2v5.2h-5.2z" fill="#fff" opacity=".45" />
+  `,
+  rehab: `
+    <circle cx="24" cy="12.8" r="5.1" />
+    <path d="M14.2 23.2c1.8-4 5.1-6.2 9.8-6.2s8 2.2 9.8 6.2l-5.6 2.05c-.75-1.55-2.15-2.45-4.2-2.45s-3.45.9-4.2 2.45l-5.6-2.05Z" opacity=".92" />
+    <path d="M12.2 33.5c3.45-3.3 7.35-5 11.8-5s8.35 1.7 11.8 5v6.9H12.2v-6.9Z" />
+    <path d="M16.2 31.3c3.3 1.95 6.3 2.15 9 .6 1.9-1.1 3.6-1.15 5.05-.1 1.05.76 1.88 1.7 2.5 2.8" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="3.1" opacity=".82" />
+  `,
+  exam: `
+    <path d="M15.4 8.6h17.2v12.2c0 4.75-3.85 8.6-8.6 8.6s-8.6-3.85-8.6-8.6V8.6Z" />
+    <path d="M17.8 8.6v9.8a6.2 6.2 0 0 0 12.4 0V8.6" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="3" opacity=".85" />
+    <path d="M13.2 9.1h5.4" stroke="#fff" stroke-linecap="round" stroke-width="3" opacity=".7" />
+    <path d="M29.4 9.1h5.4" stroke="#fff" stroke-linecap="round" stroke-width="3" opacity=".7" />
+    <path d="M24 29.4v2.2c0 3.75 3.05 6.8 6.8 6.8 2.8 0 5.1-2.25 5.1-5.05" fill="none" stroke="url(#service-gradient-exam)" stroke-linecap="round" stroke-width="4" />
+    <circle cx="35.9" cy="33.3" r="4.1" fill="#fff" opacity=".9" />
+    <circle cx="35.9" cy="33.3" r="2" />
+  `,
+};
+
+function getServiceIconColors(key: string) {
+  return serviceIconColors[key] || serviceIconColors.care;
+}
+
+function getServiceGradientId(key: string) {
+  return `service-gradient-${key}`;
+}
+
+function getServiceIconMarkup(key: string) {
+  return serviceIconMarkup[key] || serviceIconMarkup.care;
 }
 
 const featureIconColors: Record<string, readonly [string, string]> = {
@@ -166,28 +198,6 @@ function applyTag(tag: string) {
 function showAction(label: string) {
   props.showToast(`${label}功能待接入`);
 }
-
-function toggleLike(articleId: string) {
-  const targetArticle = articles.value.find((item) => item.id === articleId);
-
-  if (!targetArticle) {
-    return;
-  }
-
-  targetArticle.isLiked = !targetArticle.isLiked;
-  targetArticle.likes += targetArticle.isLiked ? 1 : -1;
-}
-
-function toggleStar(articleId: string) {
-  const targetArticle = articles.value.find((item) => item.id === articleId);
-
-  if (!targetArticle) {
-    return;
-  }
-
-  targetArticle.isStarred = !targetArticle.isStarred;
-  targetArticle.stars += targetArticle.isStarred ? 1 : -1;
-}
 </script>
 
 <template>
@@ -200,62 +210,55 @@ function toggleStar(articleId: string) {
           <span class="location-caret" aria-hidden="true"></span>
         </button>
 
+        <button class="scan-btn" type="button" aria-label="扫一扫" @click="showAction('扫一扫')">
+          <img :src="scanIcon" alt="扫一扫" draggable="false" />
+        </button>
       </header>
 
       <section class="search-wrap">
-        <div class="search-box">
-          <button class="search-scan-btn" type="button" aria-label="扫一扫" @click="showAction('扫一扫')">
-            <img :src="scanIcon" alt="扫一扫" draggable="false" />
-          </button>
-          <button class="search-field" type="button" @click="openPage('home/search', '搜索')">
-            <span class="search-placeholder">搜索服务 / 疾病 / 资讯等</span>
-          </button>
-          <button class="search-submit" type="button" @click="openPage('home/search', '搜索')">搜索</button>
-        </div>
+        <button class="search-box" type="button" @click="openPage('home/search', '搜索')">
+          <span class="search-icon" aria-hidden="true"></span>
+          <span class="search-placeholder">搜索</span>
+        </button>
 
         <div class="search-tags">
           <button v-for="tag in mock.searchTags" :key="tag" type="button" @click="applyTag(tag)">{{ tag }}</button>
         </div>
-
-        <div class="section-image-box">
-          <img :src="sectionImage" alt="" draggable="false" />
-        </div>
-
       </section>
-
 
       <section class="service-grid" aria-label="上门服务">
         <button v-for="item in mock.services" :key="item.key" class="service-card" type="button" @click="openPage(item.pageId, item.title)">
           <span class="service-icon" :class="`service-icon--${item.key}`" aria-hidden="true">
-            <img :src="item.icon" :alt="item.title" draggable="false" />
+            <svg class="service-svg" viewBox="0 0 48 48" focusable="false">
+              <defs>
+                <linearGradient :id="getServiceGradientId(item.key)" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" :stop-color="getServiceIconColors(item.key)[0]" />
+                  <stop offset="100%" :stop-color="getServiceIconColors(item.key)[1]" />
+                </linearGradient>
+              </defs>
+              <g :fill="`url(#${getServiceGradientId(item.key)})`" v-html="getServiceIconMarkup(item.key)"></g>
+            </svg>
           </span>
           <strong>{{ item.title }}</strong>
           <small>{{ item.desc }}</small>
         </button>
       </section>
 
-      <section
-        class="feature-panel"
-        :class="{ 'feature-panel--expanded': activeFeaturePage === 1 }"
-        aria-label="功能导航"
-        @scroll="syncFeaturePage"
-      >
-        <div v-for="(page, pageIndex) in featurePages" :key="pageIndex" class="feature-page" :class="{ 'feature-page--single': pageIndex === 0 }">
-          <button v-for="item in page" :key="item.title" class="feature-item" type="button" @click="openPage(item.pageId, item.title)">
-            <span class="feature-icon" aria-hidden="true">
-              <svg class="feature-svg" viewBox="0 0 32 32" focusable="false">
-                <defs>
-                  <linearGradient :id="getFeatureGradientId(item.icon)" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" :stop-color="getFeatureIconColors(item.icon)[0]" />
-                    <stop offset="100%" :stop-color="getFeatureIconColors(item.icon)[1]" />
-                  </linearGradient>
-                </defs>
-                <g :fill="`url(#${getFeatureGradientId(item.icon)})`" v-html="getFeatureIconMarkup(item.icon)"></g>
-              </svg>
-            </span>
-            <strong>{{ item.title }}</strong>
-          </button>
-        </div>
+      <section class="feature-panel" aria-label="功能导航">
+        <button v-for="item in mock.features" :key="item.title" class="feature-item" type="button" @click="openPage(item.pageId, item.title)">
+          <span class="feature-icon" aria-hidden="true">
+            <svg class="feature-svg" viewBox="0 0 32 32" focusable="false">
+              <defs>
+                <linearGradient :id="getFeatureGradientId(item.icon)" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" :stop-color="getFeatureIconColors(item.icon)[0]" />
+                  <stop offset="100%" :stop-color="getFeatureIconColors(item.icon)[1]" />
+                </linearGradient>
+              </defs>
+              <g :fill="`url(#${getFeatureGradientId(item.icon)})`" v-html="getFeatureIconMarkup(item.icon)"></g>
+            </svg>
+          </span>
+          <strong>{{ item.title }}</strong>
+        </button>
       </section>
 
       <section
@@ -295,7 +298,7 @@ function toggleStar(articleId: string) {
         </div>
 
         <div class="article-list">
-          <article v-for="item in articles" :key="item.id" class="article-card">
+          <article v-for="item in mock.articles" :key="item.title" class="article-card">
             <section class="article-copy">
               <h3>{{ item.title }}</h3>
               <p>{{ item.desc }}</p>
@@ -317,23 +320,13 @@ function toggleStar(articleId: string) {
                   <path d="M8.45 13.15 15.55 17.7" />
                 </svg>
               </button>
-              <button
-                class="article-action article-action--like"
-                :class="{ 'article-action--active-like': item.isLiked }"
-                type="button"
-                @click="toggleLike(item.id)"
-              >
+              <button class="article-action article-action--like" type="button" @click="showAction('点赞')">
                 <svg class="article-icon article-icon--heart" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
                 </svg>
                 {{ item.likes }}
               </button>
-              <button
-                class="article-action article-action--star"
-                :class="{ 'article-action--active-star': item.isStarred }"
-                type="button"
-                @click="toggleStar(item.id)"
-              >
+              <button class="article-action article-action--star" type="button" @click="showAction('收藏')">
                 <svg class="article-icon article-icon--star" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
                 </svg>
@@ -368,8 +361,8 @@ function toggleStar(articleId: string) {
           <svg class="tab-svg" viewBox="0 0 48 48" focusable="false">
             <defs>
               <linearGradient :id="getNavGradientId(item.key)" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#75d6df" />
-                <stop offset="100%" stop-color="#7be28e" />
+                <stop offset="0%" stop-color="#6a74f1" />
+                <stop offset="100%" stop-color="#ef6f8e" />
               </linearGradient>
             </defs>
             <g
@@ -398,9 +391,12 @@ function toggleStar(articleId: string) {
   max-height: 874px;
   margin: -18px 0;
   transform: translateX(-50%);
-  background: #ffffff;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background:
+    linear-gradient(180deg, rgba(255, 242, 246, 0) 0%, rgba(255, 235, 241, 0.2) 7%, rgba(255, 217, 229, 0.26) 18%, rgba(255, 238, 243, 0.18) 31%, rgba(255, 246, 249, 0) 44%),
+    linear-gradient(180deg, #cce6ff 0%, #edf4ff 32%, #f0f8fb 100%);
+  color: #252939;
+  font-family: var(--ihc-font-family);
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
@@ -424,10 +420,8 @@ function toggleStar(articleId: string) {
 }
 
 .location-btn,
+.scan-btn,
 .search-box,
-.search-scan-btn,
-.search-field,
-.search-submit,
 .search-tags button,
 .service-card,
 .feature-item,
@@ -444,8 +438,8 @@ function toggleStar(articleId: string) {
   gap: 6px;
   padding: 0;
   color: #222733;
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 400;
 }
 
 .location-icon {
@@ -465,6 +459,26 @@ function toggleStar(articleId: string) {
   transform: rotate(45deg);
 }
 
+.scan-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 10px 24px rgba(80, 111, 156, 0.08);
+  transform: translateX(-8px);
+}
+
+.scan-btn img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  transform: translateX(-6px);
+  user-select: none;
+}
+
 .search-wrap {
   margin-top: 24px;
 }
@@ -473,65 +487,41 @@ function toggleStar(articleId: string) {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0;
   width: 100%;
   height: 40px;
-  padding: 3px 4px 3px 12px;
-  border: 2px solid transparent;
-  border-radius: 999px;
+  padding: 0 28px;
+  border: 3px solid transparent;
+  border-radius: 19px;
   background:
     linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
-  box-shadow: 0 13px 28px rgba(68, 144, 162, 0.08);
+    linear-gradient(90deg, #6b72f1 0%, #ff6d68 100%) border-box;
+  box-shadow: 0 12px 30px rgba(121, 124, 196, 0.08);
 }
 
-.search-scan-btn {
-  display: grid;
-  flex: 0 0 38px;
-  place-items: center;
-  width: 38px;
-  height: 30px;
-  border-right: 1px solid rgba(205, 207, 215, 0.72);
+.search-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border: 2px solid #c9c9c9;
+  border-radius: 50%;
 }
 
-.search-scan-btn img {
-  display: block;
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
-  transform: translateX(-3px);
-  user-select: none;
-}
-
-.search-field {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 100%;
-  padding: 0 11px;
-  text-align: left;
+.search-icon::after {
+  position: absolute;
+  right: -7px;
+  bottom: -3px;
+  width: 8px;
+  height: 2px;
+  content: "";
+  border-radius: 999px;
+  background: #c9c9c9;
+  transform: rotate(45deg);
 }
 
 .search-placeholder {
-  display: block;
-  overflow: hidden;
-  color: #9a9da6;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.search-submit {
-  flex: 0 0 72px;
-  height: 30px;
-  border-radius: 999px;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
-  box-shadow: 0 8px 16px rgba(89, 200, 162, 0.18);
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 0;
+  color: #a7a9b0;
+  font-size: 16px;
 }
 
 .search-tags {
@@ -548,172 +538,71 @@ function toggleStar(articleId: string) {
   background: rgba(255, 255, 255, 0.84);
   box-shadow: 0 8px 18px rgba(107, 126, 160, 0.06);
   color: #8f95a2;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.section-image-box {
-  margin-top: 16px;
-  overflow: hidden;
-  border-radius: 14px;
-}
-
-.section-image-box img {
-  display: block;
-  width: 100%;
-  height: auto;
-  user-select: none;
+  font-size: 13px;
 }
 
 .service-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 10px;
-  padding-top: 28px;
-  perspective: 900px;
+  margin-top: 46px;
 }
 
 .service-card {
-  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   align-items: center;
-  min-height: 112px;
-  padding: 56px 8px 16px;
+  min-height: 122px;
+  padding: 18px 8px 15px;
   border: 1px solid rgba(255, 255, 255, 0.68);
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
-  isolation: isolate;
-  overflow: visible;
-  transform-style: preserve-3d;
-}
-
-.service-card::before {
-  position: absolute;
-  top: 12px;
-  left: 13px;
-  right: 13px;
-  height: 46px;
-  content: "";
-  border-radius: 999px;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.46) 46%, rgba(255, 255, 255, 0) 72%);
-  z-index: -1;
-}
-
-.service-card::after {
-  position: absolute;
-  top: 39px;
-  left: 50%;
-  width: 58px;
-  height: 14px;
-  content: "";
-  border-radius: 50%;
-  background: rgba(72, 91, 124, 0.14);
-  filter: blur(5px);
-  transform: translateX(-50%) scaleX(0.88);
-  z-index: -1;
 }
 
 .service-icon {
-  position: absolute;
-  top: -45px;
-  left: 50%;
   display: grid;
   place-items: center;
-  width: 86px;
-  height: 86px;
-  transform: translateX(-50%) translateZ(26px) rotateX(8deg);
-  z-index: 2;
-  pointer-events: none;
+  width: 55px;
+  height: 55px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(234, 234, 255, 0.92) 0%, rgba(247, 248, 255, 0.74) 100%);
 }
 
-.service-icon img {
+.service-svg {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  overflow: visible;
-  filter: drop-shadow(0 14px 11px rgba(208, 211, 213, 0.18));
-  user-select: none;
-}
-
-.service-icon--care {
-  top: -11px;
-  width: 66px;
-  height: 66px;
-}
-
-.service-icon--rehab {
-  top: -18px;
-  width: 70px;
-  height: 76px;
-}
-
-.service-icon--exam {
-  top: -11px;
-  width: 53px;
+  width: 44px;
   height: 44px;
+  overflow: visible;
+  filter: drop-shadow(0 7px 9px rgba(92, 102, 164, 0.13));
 }
 
 .service-card strong {
-  margin-top: 0;
+  margin-top: 13px;
   color: #252939;
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
 .service-card small {
   margin-top: 6px;
   color: #90949f;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
   white-space: nowrap;
 }
 
 .feature-panel {
-  display: flex;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-padding: 0;
-  box-sizing: border-box;
-  height: 105px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  row-gap: 24px;
   margin-top: 16px;
-  padding: 24px 0 25px;
+  padding: 24px 16px 25px;
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 15px 34px rgba(82, 105, 148, 0.065);
-  transition: height 0.22s ease;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.feature-panel--expanded {
-  height: 165px;
-}
-
-.feature-panel::-webkit-scrollbar {
-  display: none;
-}
-
-.feature-page {
-  flex: 0 0 100%;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  row-gap: 24px;
-  align-content: start;
-  padding: 0 16px;
-  scroll-snap-align: start;
-}
-
-.feature-page--single {
-  align-content: center;
 }
 
 .feature-item {
@@ -725,9 +614,9 @@ function toggleStar(articleId: string) {
 
 .feature-item strong {
   color: #202534;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.015em;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -764,18 +653,18 @@ function toggleStar(articleId: string) {
   display: grid;
   gap: 2px;
   min-width: 52px;
-  color: #ba0303;
-  font-size: 22px;
-  font-weight: 999;
+  color: #35d19c;
+  font-size: 19px;
+  font-weight: 500;
   line-height: 1.18;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
 .reminder-divider {
-  width: 2px;
-  height: 44px;
-  background: #131313;
+  width: 1px;
+  height: 38px;
+  background: #c9c9c9;
 }
 
 .reminder-content {
@@ -786,9 +675,9 @@ function toggleStar(articleId: string) {
   display: flex;
   align-items: center;
   gap: 11px;
-  color: #000000;
-  font-size: 15px;
-  font-weight: 800;
+  color: #252939;
+  font-size: 16px;
+  font-weight: 500;
 }
 
 .bell-icon {
@@ -796,7 +685,7 @@ function toggleStar(articleId: string) {
   width: 15px;
   height: 17px;
   border-radius: 10px 10px 5px 5px;
-  background: #ed0505;
+  background: #35d19c;
 }
 
 .bell-icon::after {
@@ -807,14 +696,13 @@ function toggleStar(articleId: string) {
   height: 4px;
   content: "";
   border-radius: 0 0 999px 999px;
-  background: #ed0505;
+  background: #35d19c;
 }
 
 .reminder-content p {
   margin: 8px 0 0;
-  color: #000000;
-  font-size: 13px;
-  font-weight: 700;
+  color: #9ca0aa;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -832,8 +720,8 @@ function toggleStar(articleId: string) {
   margin: 0;
   color: #202534;
   font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .section-header button {
@@ -842,8 +730,8 @@ function toggleStar(articleId: string) {
   gap: 8px;
   padding: 0;
   color: #8f96a3;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .section-header button span {
@@ -870,9 +758,9 @@ function toggleStar(articleId: string) {
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 9px 20px rgba(82, 105, 148, 0.045);
   color: #202534;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
 
@@ -893,17 +781,17 @@ function toggleStar(articleId: string) {
 .article-copy h3 {
   margin: 0;
   color: #202534;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.45;
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
 .article-copy p {
   margin: 15px 0 0;
   color: #828b99;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.75;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.85;
 }
 
 .article-photos {
@@ -1001,20 +889,12 @@ function toggleStar(articleId: string) {
   border: 0;
   background: transparent;
   color: #202534;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 18px;
+  font-weight: 400;
 }
 
 .article-action--share {
   justify-self: start;
-}
-
-.article-action--active-like {
-  color: #f05b72;
-}
-
-.article-action--active-star {
-  color: #d8972a;
 }
 
 .article-icon {
@@ -1038,21 +918,6 @@ function toggleStar(articleId: string) {
 .article-icon--comment {
   width: 25px;
   height: 25px;
-}
-
-.article-icon--heart path,
-.article-icon--star path {
-  transition:
-    fill 160ms ease,
-    stroke 160ms ease;
-}
-
-.article-action--active-like .article-icon--heart path {
-  fill: currentColor;
-}
-
-.article-action--active-star .article-icon--star path {
-  fill: currentColor;
 }
 
 .home-tabbar {
@@ -1093,12 +958,11 @@ function toggleStar(articleId: string) {
   padding: 0;
   color: #252939;
   font-size: 12px;
-  font-weight: 700;
   transform: translateY(-6px);
 }
 
 .tab-item--active {
-  color: #66cfa7;
+  color: #6872f0;
 }
 
 .tab-image {
@@ -1132,8 +996,8 @@ function toggleStar(articleId: string) {
   height: 42px;
   margin-top: -29px;
   border-radius: 50%;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
-  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
+  background: linear-gradient(135deg, #6872f0 0%, #ed6d88 100%);
+  box-shadow: 0 15px 25px rgba(102, 112, 240, 0.26);
 }
 
 .tab-icon--publish::before,
@@ -1171,12 +1035,12 @@ function toggleStar(articleId: string) {
   }
 
   .service-card strong {
-    font-size: 15px;
+    font-size: 20px;
   }
 
   .service-card small,
   .reminder-content p {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   .feature-panel {
@@ -1185,7 +1049,7 @@ function toggleStar(articleId: string) {
   }
 
   .feature-item strong {
-    font-size: 14px;
+    font-size: 16px;
   }
 }
 </style>

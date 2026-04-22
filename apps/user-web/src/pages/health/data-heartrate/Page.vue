@@ -293,14 +293,8 @@ function goToAddData() {
                 <text :x="column.centerX" :y="heartHeroChart.labelY" text-anchor="middle" class="hero-time">
                   {{ column.item.label }}
                 </text>
-              </g>
-              <line
-                :x1="rangeChart.padding"
-                :y1="rangeChart.baselineY"
-                :x2="rangeChart.width - rangeChart.padding"
-                :y2="rangeChart.baselineY"
-                class="x-axis-line"
-              />
+              </template>
+            </g>
             </svg>
           </div>
           <div class="chart-card__labels">
@@ -363,6 +357,7 @@ function goToAddData() {
             <li v-for="item in mock.nextSteps" :key="item">{{ item }}</li>
           </ol>
         </article>
+        <section class="summary-grid" aria-label="心率概览">
         <article class="summary-card">
           <span>最低心率</span>
           <strong>{{ formatNumber(minHeartRate) }}</strong>

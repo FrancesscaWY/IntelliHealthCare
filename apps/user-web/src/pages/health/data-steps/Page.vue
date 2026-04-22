@@ -141,7 +141,7 @@ function goBack() {
           <li v-for="item in mock.nextSteps" :key="item">{{ item }}</li>
         </ol>
       </article>
-    </template>
+    </main>
 
     <div v-else class="error-card">
       <strong>数据加载失败</strong>
