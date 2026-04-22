@@ -7,6 +7,9 @@ import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const searchValue = ref("");
+const articles = ref(mock.articles.map((item) => ({ ...item, isLiked: false, isStarred: false })));
+const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
+const activeFeaturePage = ref(0);
 
 const navIconMarkup: Record<string, string> = {
   home: `
