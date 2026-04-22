@@ -1,4 +1,4 @@
-export type PageStatus = "implemented" | "in-progress" | "planned";
+export type PageStatus = "implemented";
 export type AppMode = "app" | "page";
 
 export interface PageEntry {

@@ -7,7 +7,6 @@ export const APP_TARGETS = {
     distDirName: "user-web",
     defaultPort: 5173,
     defaultHomePageId: "onboarding/intro",
-    referenceMode: "legacy",
   },
   admin: {
     key: "admin",
@@ -17,7 +16,6 @@ export const APP_TARGETS = {
     distDirName: "admin-web",
     defaultPort: 5174,
     defaultHomePageId: "dashboard/overview",
-    referenceMode: "prototype",
   },
 };
 

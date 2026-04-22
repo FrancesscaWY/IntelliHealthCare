@@ -46,14 +46,32 @@ function editMedication() {
 
 <template>
   <section class="medication-page">
-    <header class="medication-nav">
-      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
-        <span class="back-arrow" aria-hidden="true"></span>
-      </button>
+    <header class="page-header">
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
       <h1>{{ mock.title }}</h1>
+      <span></span>
     </header>
 
     <main class="medication-scroll">
+      <section class="overview-card">
+        <small>{{ mock.overview.eyebrow }}</small>
+        <h2>{{ mock.overview.title }}</h2>
+        <div class="overview-metrics">
+          <article>
+            <span>今日总计</span>
+            <strong>{{ mock.overview.total }}</strong>
+          </article>
+          <article>
+            <span>下一次</span>
+            <strong>{{ mock.overview.next }}</strong>
+          </article>
+          <article>
+            <span>已完成</span>
+            <strong>{{ mock.overview.completed }}</strong>
+          </article>
+        </div>
+      </section>
+
       <article v-for="meal in mock.meals" :key="meal.key" class="meal-card">
         <header class="meal-header">
           <span class="meal-icon" aria-hidden="true">
@@ -61,18 +79,28 @@ function editMedication() {
               <g v-html="getMealIconMarkup(meal.key)"></g>
             </svg>
           </span>
-          <h2>{{ meal.title }}</h2>
-          <p>{{ meal.timeRange }}</p>
+          <div class="meal-copy">
+            <small>{{ meal.timeRange }}</small>
+            <h2>{{ meal.title }}</h2>
+          </div>
         </header>
 
         <section class="medicine-list">
-          <button v-for="item in meal.medicines" :key="`${meal.key}-${item.name}-${item.time}`" class="medicine-row" type="button" @click="editMedication">
+          <button
+            v-for="item in meal.medicines"
+            :key="`${meal.key}-${item.name}-${item.time}`"
+            class="medicine-row"
+            type="button"
+            @click="editMedication"
+          >
             <span class="medicine-name">
-              <span aria-hidden="true"></span>
-              {{ item.name }}
+              <i aria-hidden="true"></i>
+              <span>
+                <strong>{{ item.name }}</strong>
+                <small>{{ item.time }}</small>
+              </span>
             </span>
             <span class="medicine-dose" :class="`medicine-dose--${item.tone}`">{{ item.dose }}</span>
-            <span class="medicine-time">{{ item.time }}</span>
           </button>
         </section>
       </article>
@@ -90,62 +118,59 @@ function editMedication() {
 .medication-page {
   position: relative;
   left: 50%;
-  width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  width: min(402px, 100vw);
+  height: min(874px, calc(100vh - 36px));
+  min-height: min(874px, calc(100vh - 36px));
+  max-height: 874px;
   margin: -18px 0;
+  padding: 16px 18px 28px;
+  box-sizing: border-box;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
-    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  background: #f5f6f7;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
 
-.medication-nav {
-  display: flex;
-  align-items: center;
-  height: 74px;
-  padding: 0 29px;
-}
-
-.back-btn,
-.add-btn {
+button {
   border: 0;
   background: transparent;
   color: inherit;
+  font: inherit;
 }
 
-.back-btn {
+.page-header {
+  height: 52px;
   display: grid;
-  place-items: center;
-  width: 30px;
-  height: 44px;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+}
+
+.back-button {
+  width: 32px;
+  height: 38px;
   padding: 0;
+  color: #34383f;
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 30px;
 }
 
-.back-arrow {
-  width: 14px;
-  height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
-  transform: rotate(45deg);
-}
-
-.medication-nav h1 {
-  margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+.page-header h1 {
+  margin: 0;
+  overflow: hidden;
+  color: #34383f;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .medication-scroll {
-  height: calc(100% - 74px);
-  padding: 20px 31px 104px;
+  height: calc(100% - 52px);
+  padding: 16px 0 104px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -154,13 +179,61 @@ function editMedication() {
   display: none;
 }
 
+.overview-card {
+  padding: 22px;
+  margin-bottom: 16px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(31, 40, 58, 0.05);
+}
+
+.overview-card small {
+  color: #6872f0;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.overview-card h2 {
+  margin: 10px 0 18px;
+  color: #252939;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-metrics article {
+  padding: 12px;
+  border-radius: 16px;
+  background: #f5f6f7;
+}
+
+.overview-metrics span {
+  display: block;
+  color: #9a9fa8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.overview-metrics strong {
+  display: block;
+  margin-top: 8px;
+  color: #34383f;
+  font-size: 18px;
+  font-weight: 900;
+}
+
 .meal-card {
-  overflow: hidden;
-  margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.06);
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
 }
 
 .meal-card:first-child {
@@ -169,101 +242,115 @@ function editMedication() {
 
 .meal-header {
   display: grid;
-  grid-template-columns: 32px auto minmax(0, 1fr);
-  gap: 8px;
-  height: 47px;
-  padding: 0 20px;
-  background: linear-gradient(90deg, rgba(247, 249, 255, 0.9) 0%, rgba(255, 255, 255, 0) 100%);
+  grid-template-columns: 72px 1fr;
+  gap: 14px;
+  align-items: center;
 }
 
 .meal-icon {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  border-radius: 50%;
-  background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
-  box-shadow: 0 8px 18px rgba(54, 67, 92, 0.06);
-  transform: translateY(4px);
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: #f3f4ff;
 }
 
 .meal-icon svg {
   display: block;
-  width: 19px;
-  height: 19px;
+  width: 30px;
+  height: 30px;
   fill: none;
-  stroke: #30343f;
+  stroke: #6872f0;
   stroke-width: 2.15;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.meal-header h2 {
-  margin: 12px 0 0;
-  color: #30343f;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
+.meal-copy {
+  min-width: 0;
 }
 
-.meal-header p {
-  margin: 14px 0 0;
-  color: #b7b7bb;
+.meal-copy small {
+  color: #6872f0;
   font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
+  font-weight: 900;
+}
+
+.meal-copy h2 {
+  margin: 6px 0 0;
+  color: #34383f;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
 }
 
 .medicine-list {
-  padding: 0 20px 4px;
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .medicine-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px 42px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   width: 100%;
-  height: 37px;
-  padding: 0;
-  border-top: 1px solid #eeeeee;
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
-  background: transparent;
+  min-height: 68px;
+  padding: 0 16px;
+  border-radius: 16px;
+  background: #f8f9fb;
   text-align: left;
 }
 
 .medicine-name {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  gap: 10px;
+}
+
+.medicine-name i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6872f0;
 }
 
 .medicine-name span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #c8d1df;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.medicine-name strong {
+  overflow: hidden;
+  color: #34383f;
+  font-size: 16px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medicine-name small {
+  color: #9a9fa8;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .medicine-dose {
-  justify-self: end;
-  min-width: 46px;
-  height: 22px;
+  min-width: 52px;
+  height: 26px;
+  padding: 0 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
-  line-height: 22px;
+  font-weight: 900;
+  line-height: 26px;
   text-align: center;
 }
 
 .medicine-dose--green {
-  background: #d7f5eb;
+  background: #dcf8ed;
   color: #31c79b;
 }
 
@@ -277,18 +364,11 @@ function editMedication() {
   color: #6872f0;
 }
 
-.medicine-time {
-  justify-self: end;
-  color: #8e8f94;
-  font-size: 14px;
-  font-weight: 400;
-}
-
 .no-more {
-  margin: 49px 0 0;
-  color: #c9c9c9;
-  font-size: 17px;
-  font-weight: 500;
+  margin: 28px 0 0;
+  color: #c2c6cd;
+  font-size: 15px;
+  font-weight: 800;
   text-align: center;
 }
 
@@ -301,37 +381,38 @@ function editMedication() {
 
 .add-btn {
   width: 100%;
-  height: 54px;
-  border-radius: 11px;
+  height: 50px;
+  border-radius: 16px;
   background: #6670f0;
   box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
   color: #ffffff;
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 @media (min-width: 561px) {
   .medication-page {
-    height: 844px;
-    min-height: 844px;
+    height: 874px;
+    min-height: 874px;
   }
 }
 
 @media (max-width: 389px) {
   .medication-scroll {
-    padding-right: 26px;
-    padding-left: 26px;
+    padding-bottom: 110px;
+  }
+
+  .overview-metrics {
+    grid-template-columns: 1fr;
   }
 
   .meal-header {
-    padding-right: 26px;
-    padding-left: 26px;
+    grid-template-columns: 62px 1fr;
   }
 
-  .medicine-list {
-    padding-right: 26px;
-    padding-left: 26px;
+  .meal-icon {
+    width: 62px;
+    height: 62px;
   }
 }
 </style>

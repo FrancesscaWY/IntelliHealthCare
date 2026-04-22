@@ -19,6 +19,10 @@ function clearHistory() {
 function selectHistory(value: string) {
   keyword.value = value;
 }
+
+function submitSearch() {
+  props.showToast(`${keyword.value || "搜索"}功能待接入`);
+}
 </script>
 
 <template>
@@ -27,13 +31,24 @@ function selectHistory(value: string) {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <label class="search-input-wrap">
-        <span class="search-icon" aria-hidden="true"></span>
+      <div class="search-input-wrap">
         <input v-model="keyword" type="search" :placeholder="mock.placeholder" autofocus />
-      </label>
+        <button class="search-submit" type="button" @click="submitSearch">搜索</button>
+      </div>
     </header>
 
     <main class="search-content">
+      <section class="hot-section">
+        <h1>{{ mock.hotTitle }}</h1>
+        <div class="hot-list">
+          <button v-for="(item, index) in mock.hotSearches" :key="item.keyword" type="button" @click="selectHistory(item.keyword)">
+            <span class="hot-rank">{{ index + 1 }}</span>
+            <strong>{{ item.keyword }}</strong>
+            <em>{{ item.heat }}</em>
+          </button>
+        </div>
+      </section>
+
       <section class="history-section">
         <header class="history-header">
           <h1>{{ mock.historyTitle }}</h1>
@@ -79,9 +94,9 @@ function selectHistory(value: string) {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   height: 78px;
-  padding: 14px 22px 0;
+  padding: 14px 18px 0;
 }
 
 .back-btn {
@@ -106,34 +121,14 @@ function selectHistory(value: string) {
 .search-input-wrap {
   display: flex;
   align-items: center;
-  height: 44px;
-  padding: 0 16px;
-  border: 1px solid #eeeeee;
-  border-radius: 10px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(54, 67, 92, 0.03);
-}
-
-.search-icon {
-  position: relative;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  margin-right: 12px;
-  border: 2px solid #c8c8c8;
-  border-radius: 50%;
-}
-
-.search-icon::after {
-  position: absolute;
-  right: -7px;
-  bottom: -4px;
-  width: 10px;
-  height: 2px;
-  content: "";
+  height: 40px;
+  padding: 3px 4px 3px 14px;
+  border: 2px solid transparent;
   border-radius: 999px;
-  background: #c8c8c8;
-  transform: rotate(45deg);
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
+  box-shadow: 0 13px 28px rgba(68, 144, 162, 0.08);
 }
 
 .search-input-wrap input {
@@ -143,8 +138,8 @@ function selectHistory(value: string) {
   outline: 0;
   background: transparent;
   color: #30343f;
-  font-size: 17px;
-  font-weight: 400;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .search-input-wrap input::placeholder {
@@ -152,29 +147,102 @@ function selectHistory(value: string) {
   opacity: 1;
 }
 
+.search-submit {
+  flex: 0 0 72px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 8px 16px rgba(89, 200, 162, 0.18);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .history-header button,
-.history-tags button {
+.history-tags button,
+.hot-list button {
   border: 0;
   background: transparent;
   color: inherit;
 }
 
 .search-content {
-  padding: 42px 34px 0;
+  padding: 28px 24px 0;
+}
+
+.hot-section {
+  margin-bottom: 32px;
+}
+
+.hot-section h1,
+.history-header h1 {
+  margin: 0;
+  color: #202534;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.hot-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 17px;
+}
+
+.hot-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 24px rgba(82, 105, 148, 0.06);
+  color: #202534;
+  text-align: left;
+}
+
+.hot-rank {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(117, 214, 223, 0.18);
+  color: #202534;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hot-list button:nth-child(-n + 3) .hot-rank {
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  color: #ffffff;
+}
+
+.hot-list strong {
+  overflow: hidden;
+  color: #202534;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hot-list em {
+  color: #202534;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .history-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.history-header h1 {
-  margin: 0;
-  color: #30343f;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
 }
 
 .history-header button {
@@ -210,10 +278,10 @@ function selectHistory(value: string) {
   padding: 0 12px;
   border: 1px solid #e6e8f6;
   border-radius: 8px;
-  background: #f6f7ff;
-  color: #7f8498;
+  background: rgba(117, 214, 223, 0.1);
+  color: #202534;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 800;
   letter-spacing: 0;
   white-space: nowrap;
   box-shadow: 0 6px 14px rgba(107, 126, 160, 0.055);

@@ -150,7 +150,7 @@ const buyNow = () => {
   padding-bottom: 82px;
   box-sizing: border-box;
   transform: translateX(-50%);
-  background: #f3f4f6;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -250,7 +250,7 @@ const buyNow = () => {
 }
 
 .price {
-  color: #f2736d;
+  color: #006DFF;
   font-size: 24px;
   font-weight: 800;
 }
@@ -260,9 +260,9 @@ const buyNow = () => {
   display: inline-flex;
   align-items: center;
   padding: 0 8px;
-  border: 1px solid #f2736d;
+  border: 1px solid #75d6df;
   border-radius: 5px;
-  color: #f2736d;
+  color: #2d90f0;
   font-size: 13px;
   font-weight: 700;
 }
@@ -417,7 +417,7 @@ const buyNow = () => {
   justify-content: center;
   margin: -9px auto 8px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #f67874 0%, #f3c866 100%);
+  background: #75d6df;
   color: #fff;
   font-size: 11px;
   font-weight: 800;
@@ -544,7 +544,7 @@ const buyNow = () => {
   margin: 0 auto;
   border: 0;
   border-radius: 8px;
-  background: #6a72f4;
+  background: #75d6df;
   color: #fff;
   font-size: 19px;
   font-weight: 800;

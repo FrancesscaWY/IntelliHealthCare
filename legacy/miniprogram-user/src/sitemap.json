@@ -1,4 +1,9 @@
 {
-  "desc": "site map",
-  "rules": []
+  "desc": "IntelliHealthCare mini program sitemap",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
 }
