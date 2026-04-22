@@ -90,7 +90,7 @@ User Web / Admin Web / Internal Jobs
 | 后台核心 | 已完成 | 概览统计、长者详情、工单列表、后台订单查询、后台报告审核 |
 | Hermes MVP | 已完成 | `AgentTask` 入库、BullMQ 队列、任务状态流转、`intent-router`、`report-summary-agent`、`service-recommendation-agent` |
 | Agent 工具层 | 已完成 | 报告、档案、健康指标、服务目录四类受控工具 |
-| LLM 网关 | 已完成 | 支持 OpenAI-compatible 接口；未配置外部 LLM 时自动降级为确定性输出 |
+| LLM 网关 | 已完成 | 支持 DeepSeek 官方直连与 OpenAI-compatible 接口；未配置外部 LLM 时自动降级为确定性输出 |
 
 ### 部分完成
 
@@ -99,7 +99,7 @@ User Web / Admin Web / Internal Jobs
 - `admin`：当前只覆盖概览、长者详情、订单/工单、报告审核，还不是完整后台业务面。
 - `family`：业务能力已经通过 `users` 模块提供，但独立 `FamilyModule` 还是空壳。
 - `content` / `community`：Prisma 模型、seed 数据以及首页/搜索聚合里已经使用 `Article`、`Activity` 等数据，但独立控制器和服务尚未建设。
-- `agents`：当前可执行形态是 `intent-router -> specialist` 的受控路由，不是蓝图里的完整多 Agent 协作网络。
+- `agents`：已经支持受控多 Agent 协作，但仍缺完整评测、人工复核工作台和更多业务写回工具；当前重点链路是健康理解补风险研判、风险任务补健康背景、后台 Copilot 多域汇总。
 - `对象存储`：`StorageService` 已配置完成，但文件上传/下载/签名 URL 等业务 API 尚未落地。
 
 ### 待完成
@@ -108,15 +108,9 @@ User Web / Admin Web / Internal Jobs
 
 - 补齐 `community`、`content`、`messaging`、独立 `family` 模块的控制器/服务/API。
 - 补齐用户端文档里规划的更多业务接口，例如积分、消息中心、活动管理、内容互动、医生咨询等。
-- 把 Hermes 从 MVP 升级到统一蓝图里的完整体系，包括：
-  - `AssistantConversationAgent`
-  - `OperationsCopilotAgent`
-  - `RiskOperationsAgent`
-  - `DeviceOperationsAgent`
-  - `ContentActivityOpsAgent`
-  - `SafetyReviewAgent`
+- 继续把 Hermes 从受控多 Agent 运行时补齐成完整生产体系，包括统一助手闭环、更多后台域 Agent 和写回工具。
 - 补齐真正的高风险治理链路：人工复核、审核门禁、评测与审计策略。
-- 为 `/internal/agents/*` 增加正式鉴权与内网/服务级访问控制。当前该入口未加 JWT Guard，只适合本地或内网测试。
+- 进一步收紧 `/internal/agents/*` 的治理链路，例如补独立服务账号、审计字段与更细粒度的权限分层。
 - 补齐对象存储文件接口、消息通知、WebSocket 会话、RAG 知识层。
 - 建立自动化测试体系。当前 `package.json` 没有 `test` 脚本，仓库也没有成体系的后端单测/集成测试。
 
@@ -370,8 +364,9 @@ curl -s "$BASE_URL/admin/reports?page=1&pageSize=5" \
 
 注意：
 
-- `/internal/agents/*` 当前没有挂 JWT Guard。
-- 这组接口现在应视为“内部测试接口”，只建议本地或内网使用。
+- `/internal/agents/*` 现在要求后台 `JWT`，且调用方来源 IP 需要命中 `INTERNAL_API_ALLOWED_CIDRS`。
+- 如果配置了 `INTERNAL_API_SHARED_SECRET`，还需要额外携带 `X-Internal-Token` 请求头。
+- 如果部署在 Nginx / LB 后面，需要显式开启 `INTERNAL_API_TRUST_PROXY_HEADERS=true`，并确保代理会覆盖转发头。
 - Agent 任务依赖 Redis 和 BullMQ Worker。
 
 #### 3.1 先看当前蓝图和真实注册定义

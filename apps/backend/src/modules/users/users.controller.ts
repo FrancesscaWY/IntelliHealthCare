@@ -3,18 +3,15 @@ import {
   Controller,
   Delete,
   Get,
-  Param,
   Post,
   Put,
   Query,
   UseGuards
 } from "@nestjs/common";
-import { Type } from "class-transformer";
 import {
   IsBoolean,
   IsIn,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -56,52 +53,6 @@ class SubmitRealNameDto {
 
   @Matches(/^\d{17}[\dXx]$/)
   idCard!: string;
-}
-
-class SaveAddressDto {
-  @IsOptional()
-  @IsString()
-  label?: string;
-
-  @IsOptional()
-  @IsString()
-  elderId?: string;
-
-  @IsString()
-  receiverName!: string;
-
-  @Matches(/^1\d{10}$/)
-  receiverPhone!: string;
-
-  @IsString()
-  province!: string;
-
-  @IsString()
-  city!: string;
-
-  @IsString()
-  district!: string;
-
-  @IsOptional()
-  @IsString()
-  street?: string;
-
-  @IsString()
-  detailAddress!: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  longitude?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  latitude?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  isDefault?: boolean;
 }
 
 class SearchHistoryDto {
@@ -256,45 +207,6 @@ export class AppUsersController {
     @Body() body: SubmitRealNameDto
   ) {
     return this.usersService.submitRealName(userId, body);
-  }
-}
-
-@Controller("app/family")
-@UseGuards(JwtAuthGuard)
-@ApiTags("家庭与地址")
-@ApiBearerAuth()
-export class AppFamilyController {
-  constructor(private readonly usersService: UsersService) {}
-
-  @Get("bindings")
-  @ApiOperation({ summary: "获取家属绑定关系" })
-  getFamilyBindings(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.getFamilyBindings(user);
-  }
-
-  @Get("addresses")
-  @ApiOperation({ summary: "获取地址列表" })
-  getAddresses(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.getAddresses(user);
-  }
-
-  @Post("addresses")
-  @ApiOperation({ summary: "新增地址" })
-  createAddress(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() body: SaveAddressDto
-  ) {
-    return this.usersService.createAddress(user, body);
-  }
-
-  @Put("addresses/:addressId")
-  @ApiOperation({ summary: "更新地址" })
-  updateAddress(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("addressId") addressId: string,
-    @Body() body: SaveAddressDto
-  ) {
-    return this.usersService.updateAddress(user, addressId, body);
   }
 }
 

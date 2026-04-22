@@ -30,6 +30,12 @@ export const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().min(1).default("2h"),
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_REFRESH_TTL: z.string().min(1).default("30d"),
+  INTERNAL_API_ALLOWED_CIDRS: z
+    .string()
+    .min(1)
+    .default("127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"),
+  INTERNAL_API_TRUST_PROXY_HEADERS: booleanString,
+  INTERNAL_API_SHARED_SECRET: z.string().default(""),
   MINIO_ENDPOINT: z.string().min(1).default("localhost"),
   MINIO_PORT: z.coerce.number().int().positive().default(9000),
   MINIO_USE_SSL: booleanString,
@@ -38,19 +44,19 @@ export const envSchema = z.object({
   MINIO_BUCKET: z.string().min(1).default("ihc-files"),
   AGENT_RAG_COLLECTION: z.string().min(1).default("ihc-rag"),
   AGENT_LLM_PROVIDER: z
-    .enum(["mock", "openrouter", "openai-compatible"])
-    .default("openrouter"),
-  AGENT_LLM_BASE_URL: z.string().default("https://openrouter.ai/api/v1"),
+    .enum(["mock", "deepseek", "openrouter", "openai-compatible"])
+    .default("deepseek"),
+  AGENT_LLM_BASE_URL: z.string().default("https://api.deepseek.com"),
   AGENT_LLM_API_KEY: z.string().default(""),
-  AGENT_LLM_MODEL: z.string().min(1).default("deepseek/deepseek-v3.2"),
+  AGENT_LLM_MODEL: z.string().min(1).default("deepseek-chat"),
   AGENT_LLM_LIGHT_MODEL: z
     .string()
     .min(1)
-    .default("qwen/qwen3-30b-a3b-instruct-2507"),
+    .default("deepseek-chat"),
   AGENT_LLM_FALLBACK_MODEL: z
     .string()
     .min(1)
-    .default("qwen/qwen3-30b-a3b-instruct-2507"),
+    .default("deepseek-chat"),
   AGENT_EMBEDDING_MODEL: z
     .string()
     .min(1)
@@ -73,5 +79,20 @@ export const envSchema = z.object({
 export type EnvironmentVariables = z.infer<typeof envSchema>;
 
 export function validateEnv(config: Record<string, unknown>) {
-  return envSchema.parse(config);
+  const normalized = { ...config };
+
+  const agentApiKey =
+    typeof normalized.AGENT_LLM_API_KEY === "string"
+      ? normalized.AGENT_LLM_API_KEY.trim()
+      : "";
+  const deepseekApiKey =
+    typeof normalized.DEEPSEEK_API_KEY === "string"
+      ? normalized.DEEPSEEK_API_KEY.trim()
+      : "";
+
+  if (!agentApiKey && deepseekApiKey) {
+    normalized.AGENT_LLM_API_KEY = deepseekApiKey;
+  }
+
+  return envSchema.parse(normalized);
 }

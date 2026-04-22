@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -6,18 +7,34 @@ import {
   Query,
   UseGuards
 } from "@nestjs/common";
-import { IsOptional, IsString } from "class-validator";
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from "class-validator";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
-import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import { PaginationQueryDto } from "../../common/dto/pagination-query.dto";
 import { AppContentService } from "./content.service";
+
+class ContentListQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsIn(["latest", "hot", "LATEST", "HOT"])
+  sort?: "latest" | "hot" | "LATEST" | "HOT";
+}
 
 class DiseaseListQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   departmentId?: string;
+}
+
+class CreateContentCommentDto {
+  @IsOptional()
+  @IsString()
+  parentId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  content!: string;
 }
 
 @ApiTags("健康内容")
@@ -31,9 +48,9 @@ export class AppContentController {
   @ApiOperation({ summary: "获取健康资讯列表" })
   listNews(
     @CurrentUser("id") userId: string,
-    @Query() query: PaginationQueryDto
+    @Query() query: ContentListQueryDto
   ) {
-    return this.contentService.listNews(userId, query.page, query.pageSize);
+    return this.contentService.listNews(userId, query.page, query.pageSize, query.sort);
   }
 
   @Get("news/:newsId")
@@ -72,13 +89,39 @@ export class AppContentController {
     return this.contentService.reactNews(userId, newsId, "SHARE");
   }
 
+  @Get("news/:newsId/comments")
+  @ApiOperation({ summary: "获取资讯评论列表" })
+  listNewsComments(
+    @CurrentUser("id") userId: string,
+    @Param("newsId") newsId: string,
+    @Query() query: PaginationQueryDto
+  ) {
+    return this.contentService.listContentComments(
+      userId,
+      "ARTICLE",
+      newsId,
+      query.page,
+      query.pageSize
+    );
+  }
+
+  @Post("news/:newsId/comments")
+  @ApiOperation({ summary: "发表评论资讯评论" })
+  createNewsComment(
+    @CurrentUser("id") userId: string,
+    @Param("newsId") newsId: string,
+    @Body() body: CreateContentCommentDto
+  ) {
+    return this.contentService.createContentComment(userId, "ARTICLE", newsId, body);
+  }
+
   @Get("lectures")
   @ApiOperation({ summary: "获取健康讲堂列表" })
   listLectures(
     @CurrentUser("id") userId: string,
-    @Query() query: PaginationQueryDto
+    @Query() query: ContentListQueryDto
   ) {
-    return this.contentService.listLectures(userId, query.page, query.pageSize);
+    return this.contentService.listLectures(userId, query.page, query.pageSize, query.sort);
   }
 
   @Get("lectures/:lectureId")
@@ -106,6 +149,41 @@ export class AppContentController {
     @Param("lectureId") lectureId: string
   ) {
     return this.contentService.reactLecture(userId, lectureId, "FAVORITE");
+  }
+
+  @Post("lectures/:lectureId/share")
+  @ApiOperation({ summary: "记录讲堂分享" })
+  shareLecture(
+    @CurrentUser("id") userId: string,
+    @Param("lectureId") lectureId: string
+  ) {
+    return this.contentService.reactLecture(userId, lectureId, "SHARE");
+  }
+
+  @Get("lectures/:lectureId/comments")
+  @ApiOperation({ summary: "获取讲堂评论列表" })
+  listLectureComments(
+    @CurrentUser("id") userId: string,
+    @Param("lectureId") lectureId: string,
+    @Query() query: PaginationQueryDto
+  ) {
+    return this.contentService.listContentComments(
+      userId,
+      "LECTURE",
+      lectureId,
+      query.page,
+      query.pageSize
+    );
+  }
+
+  @Post("lectures/:lectureId/comments")
+  @ApiOperation({ summary: "发表评论讲堂评论" })
+  createLectureComment(
+    @CurrentUser("id") userId: string,
+    @Param("lectureId") lectureId: string,
+    @Body() body: CreateContentCommentDto
+  ) {
+    return this.contentService.createContentComment(userId, "LECTURE", lectureId, body);
   }
 
   @Get("diseases/departments")

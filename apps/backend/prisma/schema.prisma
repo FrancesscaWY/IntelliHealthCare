@@ -166,6 +166,42 @@ enum AgentTaskStatus {
   FAILED
 }
 
+enum RagKnowledgeType {
+  SERVICE_CATALOG
+  HEALTH_KNOWLEDGE
+  PLATFORM_RULE
+  INSTITUTION_RESOURCE
+  USER_PRIVATE_ARCHIVE
+}
+
+enum RagVisibilityScope {
+  PUBLIC
+  INSTITUTION
+  USER_PRIVATE
+}
+
+enum RagDocumentStatus {
+  ACTIVE
+  ARCHIVED
+  ERROR
+}
+
+enum RagIngestionStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum RagSourceType {
+  WEB_CRAWL
+  API_IMPORT
+  INTERNAL_TABLE
+  SYSTEM_RULE
+  USER_ARCHIVE
+  SEEDED_SAMPLE
+}
+
 enum NotificationType {
   SYSTEM
   HEALTH_ALERT
@@ -379,6 +415,9 @@ model User {
   communityPosts         CommunityPost[]
   communityComments      CommunityComment[]
   communityReactions     CommunityPostReaction[]
+  activityComments       ActivityComment[]
+  activityInteractions   ActivityInteraction[]
+  contentComments        ContentComment[]
   activityRegistrations  ActivityRegistration[]
   reviews                OrderReview[]
   afterSaleRequests      AfterSaleRequest[]
@@ -391,6 +430,9 @@ model User {
   following              UserFollow[]              @relation("FollowFollower")
   followers              UserFollow[]              @relation("FollowFollowee")
   contentInteractions    ContentInteraction[]
+  ownedRagKnowledgeBases RagKnowledgeBase[]        @relation("RagKnowledgeBaseOwner")
+  ownedRagDocuments      RagDocument[]             @relation("RagDocumentOwner")
+  ownedRagChunks         RagChunk[]                @relation("RagChunkOwner")
 }
 
 model Role {
@@ -669,6 +711,9 @@ model Institution {
   workOrders    WorkOrder[]
   devices       Device[]
   activities    Activity[]        @relation("ActivityOrganizer")
+  ragKnowledgeBases RagKnowledgeBase[] @relation("RagKnowledgeBaseInstitution")
+  ragDocuments      RagDocument[]      @relation("RagDocumentInstitution")
+  ragChunks         RagChunk[]         @relation("RagChunkInstitution")
 }
 
 model Staff {
@@ -1116,6 +1161,8 @@ model Activity {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   organizerInstitution   Institution?           @relation("ActivityOrganizer", fields: [organizerInstitutionId], references: [id])
+  comments               ActivityComment[]
+  interactions           ActivityInteraction[]
   registrations          ActivityRegistration[]
 }
 
@@ -1131,6 +1178,33 @@ model ActivityRegistration {
   user               User               @relation(fields: [userId], references: [id])
 
   @@unique([activityId, userId])
+}
+
+model ActivityComment {
+  id        String           @id @default(cuid())
+  activityId String
+  userId    String
+  parentId  String?
+  content   String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  activity  Activity         @relation(fields: [activityId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  parent    ActivityComment? @relation("ActivityCommentReplies", fields: [parentId], references: [id])
+  replies   ActivityComment[] @relation("ActivityCommentReplies")
+
+  @@index([activityId, createdAt])
+}
+
+model ActivityInteraction {
+  activityId    String
+  userId        String
+  reactionType  ReactionType
+  createdAt     DateTime @default(now())
+  activity      Activity @relation(fields: [activityId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@id([activityId, userId, reactionType])
 }
 
 model SearchHistory {
@@ -1238,6 +1312,22 @@ model ContentInteraction {
   @@index([userId, targetType, targetId])
 }
 
+model ContentComment {
+  id         String            @id @default(cuid())
+  userId     String
+  targetType ContentTargetType
+  targetId   String
+  parentId   String?
+  content    String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  user       User              @relation(fields: [userId], references: [id])
+  parent     ContentComment?   @relation("ContentCommentReplies", fields: [parentId], references: [id])
+  replies    ContentComment[]  @relation("ContentCommentReplies")
+
+  @@index([targetType, targetId, createdAt])
+}
+
 model AgentTask {
   id            String          @id @default(cuid())
   ownerId       String?
@@ -1250,4 +1340,110 @@ model AgentTask {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   owner         User?           @relation("TaskOwner", fields: [ownerId], references: [id])
+}
+
+model RagKnowledgeBase {
+  id             String             @id @default(cuid())
+  code           String             @unique
+  name           String
+  knowledgeType  RagKnowledgeType
+  visibility     RagVisibilityScope
+  description    String?
+  sourceConfig   Json?
+  refreshPolicy  Json?
+  chunkConfig    Json?
+  metadata       Json?
+  ownerUserId    String?
+  institutionId  String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  ownerUser      User?              @relation("RagKnowledgeBaseOwner", fields: [ownerUserId], references: [id])
+  institution    Institution?       @relation("RagKnowledgeBaseInstitution", fields: [institutionId], references: [id])
+  documents      RagDocument[]
+  chunks         RagChunk[]
+  ingestionRuns  RagIngestionRun[]
+
+  @@index([knowledgeType, visibility])
+  @@index([ownerUserId, visibility])
+  @@index([institutionId, visibility])
+}
+
+model RagDocument {
+  id              String            @id @default(cuid())
+  knowledgeBaseId String
+  sourceType      RagSourceType
+  sourceUri       String?
+  externalId      String?
+  title           String
+  summary         String?
+  contentText     String
+  language        String            @default("zh-CN")
+  tags            Json?
+  metadata        Json?
+  accessPolicy    Json?
+  contentHash     String
+  status          RagDocumentStatus @default(ACTIVE)
+  ownerUserId     String?
+  institutionId   String?
+  retrievedAt     DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  knowledgeBase   RagKnowledgeBase  @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  ownerUser       User?             @relation("RagDocumentOwner", fields: [ownerUserId], references: [id])
+  institution     Institution?      @relation("RagDocumentInstitution", fields: [institutionId], references: [id])
+  chunks          RagChunk[]
+
+  @@index([knowledgeBaseId, status])
+  @@index([ownerUserId, status])
+  @@index([institutionId, status])
+  @@index([knowledgeBaseId, contentHash])
+}
+
+model RagChunk {
+  id              String             @id @default(cuid())
+  knowledgeBaseId String
+  documentId      String
+  chunkIndex      Int
+  title           String?
+  content         String
+  contentHash     String
+  tokenCount      Int?
+  charCount       Int
+  headings        Json?
+  keywords        Json?
+  metadata        Json?
+  embedding       Json?
+  embeddingModel  String?
+  visibility      RagVisibilityScope
+  ownerUserId     String?
+  institutionId   String?
+  createdAt       DateTime           @default(now())
+  knowledgeBase   RagKnowledgeBase   @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  document        RagDocument        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  ownerUser       User?              @relation("RagChunkOwner", fields: [ownerUserId], references: [id])
+  institution     Institution?       @relation("RagChunkInstitution", fields: [institutionId], references: [id])
+
+  @@unique([documentId, chunkIndex])
+  @@index([knowledgeBaseId, visibility])
+  @@index([ownerUserId, visibility])
+  @@index([institutionId, visibility])
+  @@index([documentId, contentHash])
+}
+
+model RagIngestionRun {
+  id              String             @id @default(cuid())
+  knowledgeBaseId String
+  triggerSource   String
+  status          RagIngestionStatus @default(RUNNING)
+  documentCount   Int                @default(0)
+  chunkCount      Int                @default(0)
+  metadata        Json?
+  errorMessage    String?
+  startedAt       DateTime           @default(now())
+  completedAt     DateTime?
+  knowledgeBase   RagKnowledgeBase   @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId, startedAt])
+  @@index([status, startedAt])
 }

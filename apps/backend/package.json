@@ -14,6 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "rag:build": "tsx scripts/build-rag-db.ts",
     "prisma:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

@@ -15,6 +15,7 @@ import {
 } from "../agents.constants";
 import { AgentRegistry } from "../domain/agent-registry";
 import type {
+  AgentCoordinationStepTrace,
   AgentDefinition,
   AgentExecutionEnvelope,
   AgentExecutionTrace,
@@ -22,8 +23,10 @@ import type {
   AgentToolName,
   ArchiveContext,
   AssistantConversationInput,
+  CareCoordinationCardInput,
   ContentActivityOpsInput,
   DeviceOperationsInput,
+  HealthManagementCardInput,
   MetricRecordContext,
   OperationsCopilotInput,
   ReportContext,
@@ -74,6 +77,11 @@ interface AgentExecutionData {
   trace: {
     llm: AgentExecutionTrace["llm"];
   };
+}
+
+interface CoordinatedExecutionResult {
+  execution: AgentExecutionData;
+  coordinationSteps: AgentCoordinationStepTrace[];
 }
 
 @Injectable()
@@ -128,18 +136,33 @@ export class AgentOrchestratorService {
               task,
               route,
               resolved,
-              taskType
+              taskType,
+              payload: task.payload
             })
           : undefined;
 
-      const execution = await this.executeResolvedTask({
-        task: {
-          ...task,
-          taskType
-        },
-        resolved,
-        toolCalls
-      });
+      const coordinatedExecution =
+        requested.name === TASK_ORCHESTRATOR_AGENT
+          ? await this.executeWithCoordination({
+              task: {
+                ...task,
+                taskType
+              },
+              resolved,
+              toolCalls
+            })
+          : {
+              execution: await this.executeResolvedTask({
+                task: {
+                  ...task,
+                  taskType
+                },
+                resolved,
+                toolCalls
+              }),
+              coordinationSteps: []
+            };
+      const { execution, coordinationSteps } = coordinatedExecution;
 
       const safetyReview = await this.maybeRunSafetyReview(
         {
@@ -170,9 +193,10 @@ export class AgentOrchestratorService {
           llm: execution.trace.llm,
           promptVersion: resolved.promptVersion,
           coordination:
-            executionPlan || safetyReview
+            executionPlan || safetyReview || coordinationSteps.length > 0
               ? {
                   executionPlan,
+                  steps: coordinationSteps,
                   safetyReview
                 }
               : undefined,
@@ -247,6 +271,632 @@ export class AgentOrchestratorService {
         maxAttempts: 1
       }
     };
+  }
+
+  private async executeWithCoordination(input: {
+    task: SerializableAgentTask;
+    resolved: AgentDefinition;
+    toolCalls: ToolCallTrace[];
+  }): Promise<CoordinatedExecutionResult> {
+    switch (input.resolved.name) {
+      case HEALTH_MANAGEMENT_AGENT:
+        return this.executeHealthWorkflow(input.task, input.resolved, input.toolCalls);
+      case RISK_OPERATIONS_AGENT:
+        return this.executeRiskWorkflow(input.task, input.resolved, input.toolCalls);
+      case OPERATIONS_COPILOT_AGENT:
+        return this.executeOperationsWorkflow(input.task, input.resolved, input.toolCalls);
+      default:
+        return {
+          execution: await this.executeResolvedTask(input),
+          coordinationSteps: []
+        };
+    }
+  }
+
+  private async executeHealthWorkflow(
+    task: SerializableAgentTask,
+    definition: AgentDefinition,
+    toolCalls: ToolCallTrace[]
+  ): Promise<CoordinatedExecutionResult> {
+    const primary = await this.executeStepAgent({
+      task,
+      toolCalls,
+      step: "health-management",
+      agentName: definition.name,
+      taskType: task.taskType,
+      payload: task.payload,
+      reason: "健康理解主域先产出结构化摘要和重点发现。"
+    });
+
+    const riskFollowUpInput = this.buildRiskFollowUpInput(task, primary.execution.data);
+
+    if (!riskFollowUpInput) {
+      return {
+        execution: primary.execution,
+        coordinationSteps: [
+          primary.step,
+          this.buildSkippedStepTrace({
+            step: "risk-enrichment",
+            agentName: RISK_OPERATIONS_AGENT,
+            taskType: "risk-screening",
+            reason: "当前健康输出未命中补充风险研判条件，跳过二次分工。"
+          })
+        ]
+      };
+    }
+
+    const riskStep = await this.executeStepAgent({
+      task,
+      toolCalls,
+      step: "risk-enrichment",
+      agentName: RISK_OPERATIONS_AGENT,
+      taskType: "risk-screening",
+      payload: riskFollowUpInput,
+      reason: "命中健康风险信号后补充风险分级与后续动作。"
+    });
+
+    return {
+      execution: {
+        data: this.mergeHealthWorkflowOutput(primary.execution.data, riskStep.execution.data),
+        trace: primary.execution.trace
+      },
+      coordinationSteps: [primary.step, riskStep.step]
+    };
+  }
+
+  private async executeRiskWorkflow(
+    task: SerializableAgentTask,
+    definition: AgentDefinition,
+    toolCalls: ToolCallTrace[]
+  ): Promise<CoordinatedExecutionResult> {
+    const primary = await this.executeStepAgent({
+      task,
+      toolCalls,
+      step: "risk-operations",
+      agentName: definition.name,
+      taskType: task.taskType,
+      payload: task.payload,
+      reason: "风险主域先完成分级、证据整理和处置建议。"
+    });
+
+    const healthFollowUp = this.buildHealthFollowUpInput(task.payload);
+
+    if (!healthFollowUp) {
+      return {
+        execution: primary.execution,
+        coordinationSteps: [
+          primary.step,
+          this.buildSkippedStepTrace({
+            step: "health-context",
+            agentName: HEALTH_MANAGEMENT_AGENT,
+            taskType: "health-summary",
+            reason: "当前风险任务缺少可复用的用户或报告上下文，跳过健康背景补充。"
+          })
+        ]
+      };
+    }
+
+    const healthStep = await this.executeStepAgent({
+      task,
+      toolCalls,
+      step: "health-context",
+      agentName: HEALTH_MANAGEMENT_AGENT,
+      taskType: healthFollowUp.viewMode,
+      payload: healthFollowUp,
+      reason: "风险处置前补充健康背景，避免只看异常事件做决策。"
+    });
+
+    return {
+      execution: {
+        data: this.mergeRiskWorkflowOutput(primary.execution.data, healthStep.execution.data),
+        trace: primary.execution.trace
+      },
+      coordinationSteps: [primary.step, healthStep.step]
+    };
+  }
+
+  private async executeOperationsWorkflow(
+    task: SerializableAgentTask,
+    definition: AgentDefinition,
+    toolCalls: ToolCallTrace[]
+  ): Promise<CoordinatedExecutionResult> {
+    const parsed = operationsCopilotInputSchema.parse(task.payload);
+    const coordinationSteps: AgentCoordinationStepTrace[] = [];
+    let payload: OperationsCopilotInput = {
+      ...parsed,
+      healthBriefs: [...(parsed.healthBriefs ?? [])],
+      careBriefs: [...(parsed.careBriefs ?? [])],
+      riskBriefs: [...(parsed.riskBriefs ?? [])],
+      deviceBriefs: [...(parsed.deviceBriefs ?? [])],
+      contentBriefs: [...(parsed.contentBriefs ?? [])]
+    };
+
+    if (parsed.domainRequests?.health) {
+      const healthStep = await this.executeStepAgent({
+        task,
+        toolCalls,
+        step: "collect-health-brief",
+        agentName: HEALTH_MANAGEMENT_AGENT,
+        taskType: parsed.domainRequests.health.viewMode,
+        payload: parsed.domainRequests.health,
+        reason: "后台摘要先拉取健康主域简报。"
+      });
+      coordinationSteps.push(healthStep.step);
+      payload = {
+        ...payload,
+        healthBriefs: [
+          ...(payload.healthBriefs ?? []),
+          this.toHealthDomainBrief(healthStep.execution.data)
+        ]
+      };
+    }
+
+    if (parsed.domainRequests?.care) {
+      const careStep = await this.executeStepAgent({
+        task,
+        toolCalls,
+        step: "collect-care-brief",
+        agentName: CARE_COORDINATION_AGENT,
+        taskType: parsed.domainRequests.care.requestMode,
+        payload: parsed.domainRequests.care,
+        reason: "后台摘要汇总服务协同主域的推荐或派单信号。"
+      });
+      coordinationSteps.push(careStep.step);
+      payload = {
+        ...payload,
+        careBriefs: [
+          ...(payload.careBriefs ?? []),
+          this.toCareDomainBrief(careStep.execution.data)
+        ]
+      };
+    }
+
+    if (parsed.domainRequests?.risk) {
+      const riskTaskType = this.resolveOperationsRiskTaskType(task.taskType);
+      const riskStep = await this.executeStepAgent({
+        task,
+        toolCalls,
+        step: "collect-risk-brief",
+        agentName: RISK_OPERATIONS_AGENT,
+        taskType: riskTaskType,
+        payload: parsed.domainRequests.risk,
+        reason: "后台摘要需要先纳入风险分级和待办信号。"
+      });
+      coordinationSteps.push(riskStep.step);
+      payload = {
+        ...payload,
+        riskBriefs: [
+          ...(payload.riskBriefs ?? []),
+          this.toRiskDomainBrief(riskStep.execution.data)
+        ]
+      };
+    }
+
+    if (parsed.domainRequests?.device) {
+      const deviceStep = await this.executeStepAgent({
+        task,
+        toolCalls,
+        step: "collect-device-brief",
+        agentName: DEVICE_OPERATIONS_AGENT,
+        taskType: "device-inspection",
+        payload: parsed.domainRequests.device,
+        reason: "后台摘要接入设备运维侧异常和巡检优先级。"
+      });
+      coordinationSteps.push(deviceStep.step);
+      payload = {
+        ...payload,
+        deviceBriefs: [
+          ...(payload.deviceBriefs ?? []),
+          this.toDeviceDomainBrief(deviceStep.execution.data)
+        ]
+      };
+    }
+
+    if (parsed.domainRequests?.content) {
+      const contentStep = await this.executeStepAgent({
+        task,
+        toolCalls,
+        step: "collect-content-brief",
+        agentName: CONTENT_ACTIVITY_OPS_AGENT,
+        taskType: parsed.domainRequests.content.analysisMode,
+        payload: parsed.domainRequests.content,
+        reason: "后台摘要纳入内容和活动运营侧信号。"
+      });
+      coordinationSteps.push(contentStep.step);
+      payload = {
+        ...payload,
+        contentBriefs: [
+          ...(payload.contentBriefs ?? []),
+          this.toContentDomainBrief(contentStep.execution.data)
+        ]
+      };
+    }
+
+    const opsStep = await this.executeStepAgent({
+      task,
+      toolCalls,
+      step: "operations-copilot",
+      agentName: definition.name,
+      taskType: task.taskType,
+      payload,
+      reason: "OperationsCopilotAgent 汇总多域简报，生成后台工作台摘要。"
+    });
+
+    return {
+      execution: opsStep.execution,
+      coordinationSteps: [...coordinationSteps, opsStep.step]
+    };
+  }
+
+  private async executeStepAgent(input: {
+    task: SerializableAgentTask;
+    toolCalls: ToolCallTrace[];
+    step: string;
+    agentName: string;
+    taskType: string;
+    payload: unknown;
+    reason: string;
+  }) {
+    const resolved = this.agentRegistry.resolve(input.agentName, input.taskType).resolved;
+    const startToolIndex = input.toolCalls.length;
+    const execution = await this.executeResolvedTask({
+      task: {
+        ...input.task,
+        agentName: input.agentName,
+        taskType: input.taskType,
+        payload: input.payload
+      },
+      resolved,
+      toolCalls: input.toolCalls
+    });
+
+    return {
+      execution,
+      step: {
+        step: input.step,
+        agentName: resolved.name,
+        taskType: input.taskType,
+        status: "succeeded" as const,
+        reason: input.reason,
+        outputSummary: this.summarizeCoordinationOutput(execution.data),
+        llm: execution.trace.llm,
+        toolCalls: input.toolCalls.slice(startToolIndex)
+      }
+    };
+  }
+
+  private buildSkippedStepTrace(input: {
+    step: string;
+    agentName: string;
+    taskType: string;
+    reason: string;
+  }): AgentCoordinationStepTrace {
+    return {
+      step: input.step,
+      agentName: input.agentName,
+      taskType: input.taskType,
+      status: "skipped",
+      reason: input.reason
+    };
+  }
+
+  private buildRiskFollowUpInput(task: SerializableAgentTask, output: unknown) {
+    const taskType = this.agentRegistry.normalizeTaskType(task.taskType);
+    const record = this.toRecord(output);
+    const riskSignals = this.readStringArray(record.riskSignals);
+    const requiresHumanReview =
+      this.readBoolean(record.requiresHumanReview) ||
+      this.readBoolean(record.humanReviewRequired);
+    const shouldCoordinate =
+      taskType === "report-interpretation" ||
+      taskType === "health-summary" ||
+      taskType === "focus-elder-brief" ||
+      riskSignals.length > 0 ||
+      requiresHumanReview;
+
+    if (!shouldCoordinate) {
+      return null;
+    }
+
+    const reportInput = reportSummaryInputSchema.safeParse(task.payload);
+    const healthInput = healthManagementCardInputSchema.safeParse(task.payload);
+    const userId = reportInput.success
+      ? reportInput.data.userId
+      : healthInput.success
+        ? healthInput.data.userId
+        : undefined;
+    const summaryRef =
+      this.readString(record.conclusion) ?? this.readString(record.healthSummary);
+
+    return {
+      eventId: task.id,
+      userId,
+      metricHistoryWindow: riskSignals.map((signal) => ({
+        signal,
+        abnormal: true
+      })),
+      reportSummaryRef: summaryRef ?? null,
+      openAlerts: [],
+      interventionPlaybookVersion: "health-follow-up.v1"
+    } satisfies RiskOperationsInput;
+  }
+
+  private buildHealthFollowUpInput(payload: unknown): HealthManagementCardInput | null {
+    const parsed = riskOperationsInputSchema.safeParse(payload);
+
+    if (!parsed.success || !parsed.data.userId) {
+      return null;
+    }
+
+    const metricTypes = this.inferMetricTypesFromRiskInput(parsed.data);
+
+    return {
+      userId: parsed.data.userId,
+      viewMode: "health-summary",
+      authorizedScope: [],
+      ...(metricTypes.length > 0 ? { metricTypes } : {})
+    };
+  }
+
+  private mergeHealthWorkflowOutput(output: unknown, riskOutput: unknown) {
+    const nextOutput = this.toRecord(output);
+    const risk = riskOperationsOutputSchema.parse(riskOutput);
+
+    nextOutput.riskSignals = this.mergeStringLists(nextOutput.riskSignals, risk.riskSignals, 8);
+
+    if ("followUpActions" in nextOutput) {
+      nextOutput.followUpActions = this.mergeStringLists(
+        nextOutput.followUpActions,
+        risk.recommendedActions,
+        8
+      );
+    }
+
+    if ("followUpSuggestions" in nextOutput) {
+      nextOutput.followUpSuggestions = this.mergeStringLists(
+        nextOutput.followUpSuggestions,
+        risk.recommendedActions,
+        8
+      );
+    }
+
+    if ("uncertainties" in nextOutput && risk.triageQueueHint) {
+      nextOutput.uncertainties = this.appendUniqueString(
+        nextOutput.uncertainties,
+        `风险分诊建议进入 ${risk.triageQueueHint}。`
+      );
+    }
+
+    if ("evidence" in nextOutput && Array.isArray(nextOutput.evidence)) {
+      nextOutput.evidence = [
+        ...nextOutput.evidence,
+        {
+          source: "risk-operations",
+          summary: `RiskOperationsAgent 判定风险等级为 ${risk.riskLevel}。`,
+          data: {
+            riskLevel: risk.riskLevel,
+            riskSignals: risk.riskSignals.slice(0, 4)
+          }
+        }
+      ].slice(0, 8);
+    }
+
+    if ("requiresHumanReview" in nextOutput) {
+      nextOutput.requiresHumanReview =
+        this.readBoolean(nextOutput.requiresHumanReview) || risk.humanEscalationRequired;
+    }
+
+    if ("humanReviewRequired" in nextOutput) {
+      nextOutput.humanReviewRequired =
+        this.readBoolean(nextOutput.humanReviewRequired) || risk.humanEscalationRequired;
+    }
+
+    return nextOutput;
+  }
+
+  private mergeRiskWorkflowOutput(output: unknown, healthOutput: unknown) {
+    const nextOutput = this.toRecord(output);
+    const health = healthManagementOutputSchema.parse(healthOutput);
+
+    nextOutput.riskSignals = this.mergeStringLists(
+      nextOutput.riskSignals,
+      health.riskSignals ?? health.keyFindings,
+      10
+    );
+    nextOutput.recommendedActions = this.mergeStringLists(
+      nextOutput.recommendedActions,
+      health.followUpSuggestions ?? [],
+      10
+    );
+
+    if ("evidence" in nextOutput && Array.isArray(nextOutput.evidence)) {
+      nextOutput.evidence = [
+        ...nextOutput.evidence,
+        {
+          source: "health-management",
+          summary: health.healthSummary,
+          data: {
+            keyFindings: health.keyFindings.slice(0, 4)
+          }
+        }
+      ].slice(0, 8);
+    }
+
+    nextOutput.humanEscalationRequired =
+      this.readBoolean(nextOutput.humanEscalationRequired) ||
+      health.humanReviewRequired;
+
+    return nextOutput;
+  }
+
+  private toHealthDomainBrief(
+    output: unknown
+  ): NonNullable<OperationsCopilotInput["healthBriefs"]>[number] {
+    const record = this.toRecord(output);
+    const summary =
+      this.readString(record.healthSummary) ?? this.readString(record.conclusion) ?? "已生成健康简报。";
+    const keyFindings = this.readStringArray(record.keyFindings);
+    const riskSignals = this.readStringArray(record.riskSignals);
+
+    return {
+      domain: "health-management",
+      title: "健康理解简报",
+      summary,
+      priority:
+        this.readBoolean(record.humanReviewRequired) || this.readBoolean(record.requiresHumanReview)
+          ? "high"
+          : riskSignals.length > 0
+            ? "medium"
+            : "low",
+      data: {
+        keyFindings: keyFindings.slice(0, 4),
+        riskSignals: riskSignals.slice(0, 4)
+      }
+    };
+  }
+
+  private toCareDomainBrief(
+    output: unknown
+  ): NonNullable<OperationsCopilotInput["careBriefs"]>[number] {
+    const record = this.toRecord(output);
+    const services = Array.isArray(record.recommendedServices)
+      ? record.recommendedServices
+      : Array.isArray(record.recommendations)
+        ? record.recommendations
+        : [];
+    const dispatchCandidates = Array.isArray(record.dispatchCandidates)
+      ? record.dispatchCandidates
+      : [];
+    const summary =
+      this.readString(record.conclusion) ??
+      (dispatchCandidates.length > 0
+        ? `已生成 ${dispatchCandidates.length} 个派单候选。`
+        : `已生成 ${services.length} 条服务协同建议。`);
+
+    return {
+      domain: "care-coordination",
+      title: "服务协同简报",
+      summary,
+      priority:
+        this.readBoolean(record.humanReviewRequired) || dispatchCandidates.length > 0
+          ? "medium"
+          : "low",
+      data: {
+        recommendationCount: services.length,
+        dispatchCandidateCount: dispatchCandidates.length
+      }
+    };
+  }
+
+  private toRiskDomainBrief(
+    output: unknown
+  ): NonNullable<OperationsCopilotInput["riskBriefs"]>[number] {
+    const risk = riskOperationsOutputSchema.parse(output);
+
+    return {
+      domain: "risk-operations",
+      title: "风险运营简报",
+      summary: `${risk.riskLevel.toUpperCase()} 风险，重点信号：${risk.riskSignals[0] ?? "暂无"}`,
+      priority: risk.riskLevel,
+      data: {
+        triageQueueHint: risk.triageQueueHint,
+        riskSignals: risk.riskSignals.slice(0, 4)
+      }
+    };
+  }
+
+  private toDeviceDomainBrief(
+    output: unknown
+  ): NonNullable<OperationsCopilotInput["deviceBriefs"]>[number] {
+    const device = deviceOperationsOutputSchema.parse(output);
+
+    return {
+      domain: "device-operations",
+      title: "设备运维简报",
+      summary: device.deviceDiagnosis,
+      priority: device.inspectionPriority,
+      data: {
+        suggestedActions: device.suggestedActions.slice(0, 4),
+        suggestedWorkOrder: device.suggestedWorkOrder ?? null
+      }
+    };
+  }
+
+  private toContentDomainBrief(
+    output: unknown
+  ): NonNullable<OperationsCopilotInput["contentBriefs"]>[number] {
+    const content = contentActivityOpsOutputSchema.parse(output);
+    const summary =
+      content.activityAnalysis ??
+      content.contentBrief ??
+      content.campaignSuggestion?.[0] ??
+      "已生成内容运营简报。";
+
+    return {
+      domain: "content-activity-ops",
+      title: "内容活动简报",
+      summary,
+      priority:
+        (content.campaignSuggestion?.length ?? 0) > 0 || Boolean(content.activityAnalysis)
+          ? "medium"
+          : "low",
+      data: {
+        tags: content.tags ?? [],
+        campaignSuggestion: content.campaignSuggestion ?? []
+      }
+    };
+  }
+
+  private summarizeCoordinationOutput(output: unknown) {
+    const record = this.toRecord(output);
+    const summary: Record<string, unknown> = {};
+
+    for (const key of [
+      "conclusion",
+      "healthSummary",
+      "assistantReply",
+      "dashboardDigest",
+      "deviceDiagnosis",
+      "reviewDecision",
+      "riskLevel"
+    ]) {
+      if (typeof record[key] === "string") {
+        summary[key] = record[key];
+      }
+    }
+
+    for (const key of [
+      "riskSignals",
+      "keyFindings",
+      "followUpActions",
+      "followUpSuggestions",
+      "recommendedActions",
+      "rankingReasons"
+    ]) {
+      if (Array.isArray(record[key])) {
+        summary[key] = record[key].slice(0, 3);
+      }
+    }
+
+    if (Array.isArray(record.recommendations)) {
+      summary.recommendationCount = record.recommendations.length;
+    }
+
+    if (Array.isArray(record.dispatchCandidates)) {
+      summary.dispatchCandidateCount = record.dispatchCandidates.length;
+    }
+
+    if (Array.isArray(record.focusList)) {
+      summary.focusCount = record.focusList.length;
+    }
+
+    return Object.keys(summary).length > 0
+      ? summary
+      : Object.fromEntries(Object.entries(record).slice(0, 4));
+  }
+
+  private resolveOperationsRiskTaskType(taskType: string) {
+    return taskType === "morning-brief" ? "risk-reminder" : "alert-triage";
   }
 
   private async executeResolvedTask(input: {
@@ -980,12 +1630,14 @@ export class AgentOrchestratorService {
     route: AgentExecutionTrace["route"];
     resolved: AgentDefinition;
     taskType: string;
+    payload?: unknown;
   }) {
     const fallback = this.buildExecutionPlanFallback({
       taskType: input.taskType,
       triggerSource: input.task.triggerSource ?? "internal-api",
       resolved: input.resolved,
-      route: input.route
+      route: input.route,
+      payload: input.payload ?? input.task.payload
     });
     const llmResponse = await this.llmGateway.generateStructuredObject({
       agentName: TASK_ORCHESTRATOR_AGENT,
@@ -1011,7 +1663,10 @@ export class AgentOrchestratorService {
       fallbackFactory: () => fallback
     });
 
-    return taskOrchestratorOutputSchema.parse(llmResponse.output);
+    return this.reconcileExecutionPlan(
+      taskOrchestratorOutputSchema.parse(llmResponse.output),
+      fallback
+    );
   }
 
   private async maybeRunSafetyReview(
@@ -1176,45 +1831,185 @@ export class AgentOrchestratorService {
     triggerSource: string;
     resolved: AgentDefinition;
     route: AgentExecutionTrace["route"];
+    payload?: unknown;
   }): TaskOrchestratorOutput {
+    const steps = [
+      {
+        step: "route",
+        agent: TASK_ORCHESTRATOR_AGENT,
+        reason:
+          input.route?.reason ?? `taskType ${input.taskType} matched ${input.resolved.name}`
+      },
+      ...this.buildPlannedExecutionSteps({
+        taskType: input.taskType,
+        resolved: input.resolved,
+        payload: input.payload
+      })
+    ];
+    const needsSafetyReview =
+      this.shouldSeriallyReview(input.resolved) && input.resolved.name !== SAFETY_REVIEW_AGENT;
     const workflowRoute =
       input.triggerSource === "event" || input.triggerSource === "schedule"
         ? "event-driven"
-        : this.shouldSeriallyReview(input.resolved)
+        : steps.length > 2 || needsSafetyReview
           ? "serial"
           : "single-agent";
+    const targetAgentList = Array.from(
+      new Set(
+        steps
+          .filter((step) => step.agent !== TASK_ORCHESTRATOR_AGENT)
+          .map((step) => step.agent)
+      )
+    );
 
-    const steps: TaskOrchestratorOutput["executionPlan"]["steps"] = [
-      {
-        step: "route",
-        agent: input.resolved.name,
-        reason: input.route?.reason ?? `taskType ${input.taskType} matched ${input.resolved.name}`
-      }
-    ];
-
-    if (workflowRoute === "serial" && input.resolved.name !== SAFETY_REVIEW_AGENT) {
+    if (needsSafetyReview) {
       steps.push({
         step: "safety-review",
         agent: SAFETY_REVIEW_AGENT,
         reason: "中高风险或声明需要人工复核的任务执行后进入统一安全门禁。"
       });
+      targetAgentList.push(SAFETY_REVIEW_AGENT);
     }
 
     return {
       executionPlan: {
-        summary: `任务 ${input.taskType} 将由 ${input.resolved.name} 执行。`,
+        summary: `任务 ${input.taskType} 将由 ${targetAgentList.join(" -> ")} 协同处理。`,
         steps
       },
-      targetAgentList:
-        workflowRoute === "serial" && input.resolved.name !== SAFETY_REVIEW_AGENT
-          ? [input.resolved.name, SAFETY_REVIEW_AGENT]
-          : [input.resolved.name],
+      targetAgentList,
       workflowRoute,
-      requiredContext: input.resolved.allowedTools.slice(0, 6),
-      humanReviewHint: this.shouldSeriallyReview(input.resolved)
+      requiredContext: this.collectRequiredContext(targetAgentList),
+      humanReviewHint: needsSafetyReview
         ? "该任务执行后需要进入 SafetyReviewAgent 或人工复核队列。"
+        : targetAgentList.length > 1
+          ? "该任务会按受控步骤在多个 Agent 间顺序交接。"
         : null
     };
+  }
+
+  private reconcileExecutionPlan(
+    candidate: TaskOrchestratorOutput,
+    fallback: TaskOrchestratorOutput
+  ): TaskOrchestratorOutput {
+    return {
+      ...candidate,
+      executionPlan: {
+        summary: candidate.executionPlan.summary,
+        steps: fallback.executionPlan.steps
+      },
+      targetAgentList: fallback.targetAgentList,
+      workflowRoute: fallback.workflowRoute,
+      requiredContext: fallback.requiredContext,
+      humanReviewHint: candidate.humanReviewHint ?? fallback.humanReviewHint
+    };
+  }
+
+  private buildPlannedExecutionSteps(input: {
+    taskType: string;
+    resolved: AgentDefinition;
+    payload?: unknown;
+  }): TaskOrchestratorOutput["executionPlan"]["steps"] {
+    if (input.resolved.name === HEALTH_MANAGEMENT_AGENT) {
+      return [
+        {
+          step: "health-management",
+          agent: HEALTH_MANAGEMENT_AGENT,
+          reason: "HealthManagementAgent 先产出健康理解结果。"
+        },
+        {
+          step: "risk-enrichment",
+          agent: RISK_OPERATIONS_AGENT,
+          reason: "命中风险信号时，再由 RiskOperationsAgent 补充分级和动作建议。"
+        }
+      ];
+    }
+
+    if (input.resolved.name === RISK_OPERATIONS_AGENT) {
+      return [
+        {
+          step: "risk-operations",
+          agent: RISK_OPERATIONS_AGENT,
+          reason: "RiskOperationsAgent 先输出风险等级、证据和处置建议。"
+        },
+        {
+          step: "health-context",
+          agent: HEALTH_MANAGEMENT_AGENT,
+          reason: "如存在用户上下文，则补充健康主域背景，避免只看异常事件。"
+        }
+      ];
+    }
+
+    if (input.resolved.name === OPERATIONS_COPILOT_AGENT) {
+      const parsed = operationsCopilotInputSchema.safeParse(input.payload);
+      const domainRequests = parsed.success ? parsed.data.domainRequests : undefined;
+      const steps: TaskOrchestratorOutput["executionPlan"]["steps"] = [];
+
+      if (domainRequests?.health) {
+        steps.push({
+          step: "collect-health-brief",
+          agent: HEALTH_MANAGEMENT_AGENT,
+          reason: "先拉取健康主域简报。"
+        });
+      }
+
+      if (domainRequests?.care) {
+        steps.push({
+          step: "collect-care-brief",
+          agent: CARE_COORDINATION_AGENT,
+          reason: "补充服务协同主域的推荐或派单信号。"
+        });
+      }
+
+      if (domainRequests?.risk) {
+        steps.push({
+          step: "collect-risk-brief",
+          agent: RISK_OPERATIONS_AGENT,
+          reason: "纳入风险运营的优先级和处置建议。"
+        });
+      }
+
+      if (domainRequests?.device) {
+        steps.push({
+          step: "collect-device-brief",
+          agent: DEVICE_OPERATIONS_AGENT,
+          reason: "纳入设备异常与巡检优先级。"
+        });
+      }
+
+      if (domainRequests?.content) {
+        steps.push({
+          step: "collect-content-brief",
+          agent: CONTENT_ACTIVITY_OPS_AGENT,
+          reason: "纳入内容和活动运营侧摘要。"
+        });
+      }
+
+      steps.push({
+        step: "operations-copilot",
+        agent: OPERATIONS_COPILOT_AGENT,
+        reason: "OperationsCopilotAgent 汇总多域简报并生成工作台摘要。"
+      });
+
+      return steps;
+    }
+
+    return [
+      {
+        step: "execute-primary",
+        agent: input.resolved.name,
+        reason: `${input.resolved.name} 承担当前任务的主执行职责。`
+      }
+    ];
+  }
+
+  private collectRequiredContext(agentNames: string[]) {
+    return Array.from(
+      new Set(
+        agentNames.flatMap((agentName) =>
+          this.agentRegistry.getDefinition(agentName).allowedTools
+        )
+      )
+    ).slice(0, 8);
   }
 
   private buildHealthManagementFallback(
@@ -1631,6 +2426,48 @@ export class AgentOrchestratorService {
     };
   }
 
+  private inferMetricTypesFromRiskInput(input: RiskOperationsInput) {
+    const metricTypes = (input.metricHistoryWindow ?? [])
+      .map((record) => record.metricType)
+      .filter((metricType): metricType is string => typeof metricType === "string");
+
+    return this.toMetricTypes(metricTypes).map((metricType) => metricType as string);
+  }
+
+  private mergeStringLists(current: unknown, next: string[], limit: number) {
+    const merged = Array.isArray(current)
+      ? current.filter((value): value is string => typeof value === "string")
+      : [];
+
+    for (const value of next) {
+      if (!merged.includes(value)) {
+        merged.push(value);
+      }
+
+      if (merged.length >= limit) {
+        break;
+      }
+    }
+
+    return merged.slice(0, limit);
+  }
+
+  private readString(value: unknown) {
+    return typeof value === "string" && value.trim().length > 0 ? value : null;
+  }
+
+  private readBoolean(value: unknown) {
+    return value === true;
+  }
+
+  private readStringArray(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
   private async useTool<T>(
     definition: AgentDefinition,
     toolCalls: ToolCallTrace[],
@@ -1697,7 +2534,16 @@ export class AgentOrchestratorService {
 
     return {
       ...trace,
-      toolCalls: []
+      toolCalls: [],
+      coordination: trace.coordination
+        ? {
+            ...trace.coordination,
+            steps: trace.coordination.steps?.map((step) => ({
+              ...step,
+              toolCalls: undefined
+            }))
+          }
+        : trace.coordination
     };
   }
 

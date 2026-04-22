@@ -3000,6 +3000,64 @@ async function main() {
     ],
   });
 
+  await prisma.activityInteraction.createMany({
+    data: [
+      {
+        activityId: ids.activities.photography,
+        userId: ids.users.qingzhi,
+        reactionType: ReactionType.LIKE,
+      },
+      {
+        activityId: ids.activities.photography,
+        userId: ids.users.wanglan,
+        reactionType: ReactionType.FAVORITE,
+      },
+      {
+        activityId: ids.activities.seasideWalk,
+        userId: ids.users.joy,
+        reactionType: ReactionType.LIKE,
+      },
+      {
+        activityId: ids.activities.salon,
+        userId: ids.users.wanfeng,
+        reactionType: ReactionType.FAVORITE,
+      },
+    ],
+  });
+
+  await prisma.activityComment.createMany({
+    data: [
+      {
+        id: "activity_comment_1",
+        activityId: ids.activities.photography,
+        userId: ids.users.qingzhi,
+        content: "已经准备好两组作品了，期待现场交流。",
+        createdAt: dt("2026-04-20T07:12:00Z"),
+      },
+      {
+        id: "activity_comment_2",
+        activityId: ids.activities.photography,
+        userId: ids.users.joy,
+        content: "奖项设置很丰富，想带邻居一起报名。",
+        createdAt: dt("2026-04-20T07:24:00Z"),
+      },
+      {
+        id: "activity_comment_3",
+        activityId: ids.activities.seasideWalk,
+        userId: ids.users.wanfeng,
+        content: "海边路线节奏很舒服，长辈参与压力不大。",
+        createdAt: dt("2026-04-20T07:36:00Z"),
+      },
+      {
+        id: "activity_comment_4",
+        activityId: ids.activities.salon,
+        userId: ids.users.wanglan,
+        content: "手机拍照教学很实用，已经帮妈妈报名了。",
+        createdAt: dt("2026-04-20T07:48:00Z"),
+      },
+    ],
+  });
+
   await prisma.searchHistory.createMany({
     data: [
       { id: "search_1", userId: ids.users.joy, keyword: "高血压", targetType: SearchTargetType.DISEASE, createdAt: dt("2026-04-20T06:20:00Z") },
@@ -3097,51 +3155,196 @@ async function main() {
     ],
   });
 
+  await prisma.contentComment.createMany({
+    data: [
+      {
+        id: "content_comment_1",
+        userId: ids.users.qingzhi,
+        targetType: ContentTargetType.ARTICLE,
+        targetId: ids.articles.salt,
+        content: "低盐调味这个建议很实用，家里已经开始改了。",
+        createdAt: dt("2026-04-20T07:08:00Z"),
+      },
+      {
+        id: "content_comment_2",
+        userId: ids.users.joy,
+        targetType: ContentTargetType.ARTICLE,
+        targetId: ids.articles.salt,
+        content: "看完后准备把酱油也换成减盐款。",
+        createdAt: dt("2026-04-20T07:18:00Z"),
+      },
+      {
+        id: "content_comment_3",
+        userId: ids.users.wanglan,
+        targetType: ContentTargetType.LECTURE,
+        targetId: ids.lectures.bp,
+        content: "讲家庭血压记录那段特别清楚，方便家属照着做。",
+        createdAt: dt("2026-04-20T07:28:00Z"),
+      },
+      {
+        id: "content_comment_4",
+        userId: ids.users.liyuan,
+        targetType: ContentTargetType.LECTURE,
+        targetId: ids.lectures.bp,
+        content: "如果能补一个测量前准备清单就更完整了。",
+        createdAt: dt("2026-04-20T07:38:00Z"),
+      },
+    ],
+  });
+
   await prisma.agentTask.createMany({
     data: [
       {
         id: ids.agentTasks.reportSummary,
         ownerId: ids.users.liyuan,
-        agentName: "report-summary-agent",
-        taskType: "report_interpretation",
+        agentName: "TaskOrchestratorAgent",
+        taskType: "report-interpretation",
         status: AgentTaskStatus.SUCCEEDED,
-        triggerSource: "report_upload",
-        payload: { reportId: ids.reports.checkup, userId: ids.users.zhou },
+        triggerSource: "assistant",
+        payload: {
+          reportId: ids.reports.checkup,
+          userId: ids.users.zhou,
+          includeArchive: true,
+          includeLatestMetrics: true,
+        },
         result: {
-          summary: "重点关注血糖和血脂异常，建议两周内完成复诊。",
-          followUp: ["复查糖化血红蛋白", "记录一周晨起血糖"],
+          status: "succeeded",
+          agent: {
+            requestedName: "TaskOrchestratorAgent",
+            resolvedName: "HealthManagementAgent",
+            taskType: "report-interpretation",
+            triggerSource: "assistant",
+            ownerId: ids.users.liyuan,
+          },
+          output: {
+            conclusion: "慢病随访体检报告重点为血糖和血脂异常，建议两周内复诊复核。",
+            reportHighlights: ["空腹血糖偏高", "糖化血红蛋白偏高", "LDL-C 偏高"],
+            riskSignals: ["慢病管理风险上升", "血糖控制需持续跟踪"],
+            followUpActions: ["复查糖化血红蛋白", "记录一周晨起血糖", "2周内复诊"],
+            requiresHumanReview: false,
+          },
         },
       },
       {
         id: ids.agentTasks.dispatchSuggest,
         ownerId: ids.users.admin,
-        agentName: "dispatch-agent",
-        taskType: "work_order_dispatch",
+        agentName: "TaskOrchestratorAgent",
+        taskType: "dispatch-suggestion",
         status: AgentTaskStatus.SUCCEEDED,
-        triggerSource: "order_created",
-        payload: { orderId: ids.orders.rehabAssess, candidates: [ids.staff.zhouming, ids.staff.wangyiming] },
-        result: { recommendedStaffId: ids.staff.zhouming, score: 0.88, reason: "膝关节康复经验匹配且时间可用" },
+        triggerSource: "event",
+        payload: {
+          requestMode: "dispatch-suggestion",
+          userId: ids.users.zhou,
+          orderId: ids.orders.rehabAssess,
+          serviceRequest: "膝关节功能恢复理疗套餐派单建议",
+          resourceConstraints: [
+            { key: "preferredStaffIds", value: ids.staff.zhouming },
+            { key: "backupStaffIds", value: ids.staff.wangyiming },
+          ],
+        },
+        result: {
+          status: "succeeded",
+          agent: {
+            requestedName: "TaskOrchestratorAgent",
+            resolvedName: "CareCoordinationAgent",
+            taskType: "dispatch-suggestion",
+            triggerSource: "event",
+            ownerId: ids.users.admin,
+          },
+          output: {
+            dispatchCandidates: [
+              {
+                candidateId: ids.staff.zhouming,
+                label: "周明治疗师",
+                score: 0.88,
+                reason: "膝关节康复经验匹配且时间可用",
+              },
+              {
+                candidateId: ids.staff.wangyiming,
+                label: "王奕铭医生",
+                score: 0.73,
+                reason: "临床经验充足，可作为备选",
+              },
+            ],
+            rankingReasons: ["优先考虑膝关节康复实操经验", "兼顾排班可用性与机构覆盖"],
+            humanReviewRequired: true,
+          },
+        },
       },
       {
         id: ids.agentTasks.riskScan,
         ownerId: ids.users.joy,
-        agentName: "risk-scan-agent",
-        taskType: "health_risk_scan",
+        agentName: "TaskOrchestratorAgent",
+        taskType: "risk-screening",
         status: AgentTaskStatus.RUNNING,
-        triggerSource: "nightly_scan",
-        payload: { userId: ids.users.joy, recentMetricsDays: 7 },
+        triggerSource: "schedule",
+        payload: {
+          eventId: "nightly-risk-scan-20260420",
+          userId: ids.users.joy,
+          reportSummaryRef: "nightly-risk-20260420",
+          openAlerts: [
+            { alertId: ids.alerts.joyBp, level: "HIGH" },
+            { alertId: ids.alerts.joyReport, level: "MEDIUM" },
+          ],
+          metricHistoryWindow: [
+            { metricType: "BLOOD_PRESSURE", abnormal: true, value: 146 },
+            { metricType: "BLOOD_GLUCOSE", abnormal: false, value: 5.7 },
+          ],
+        },
+        result: {
+          status: "running",
+          agent: {
+            requestedName: "TaskOrchestratorAgent",
+            resolvedName: "RiskOperationsAgent",
+            taskType: "risk-screening",
+            triggerSource: "schedule",
+            ownerId: ids.users.joy,
+          },
+          trace: {
+            startedAt: "2026-04-20T23:00:00.000Z",
+            attempt: 1,
+            maxAttempts: 1,
+          },
+        },
       },
       {
         id: ids.agentTasks.serviceRecommend,
         ownerId: ids.users.liyuan,
-        agentName: "service-recommend-agent",
-        taskType: "service_recommendation",
+        agentName: "TaskOrchestratorAgent",
+        taskType: "service-recommendation",
         status: AgentTaskStatus.SUCCEEDED,
-        triggerSource: "search_behavior",
-        payload: { userId: ids.users.liyuan, keywords: ["青松颐养中心", "医养结合"] },
+        triggerSource: "assistant",
+        payload: {
+          userId: ids.users.liyuan,
+          query: "青松颐养中心 医养结合",
+          city: "上海市",
+          limit: 3,
+        },
         result: {
-          serviceId: ids.services.elderlyQingsong,
-          explanation: "结合慢病管理需求和医养结合偏好，推荐先预约机构评估。",
+          status: "succeeded",
+          agent: {
+            requestedName: "TaskOrchestratorAgent",
+            resolvedName: "CareCoordinationAgent",
+            taskType: "service-recommendation",
+            triggerSource: "assistant",
+            ownerId: ids.users.liyuan,
+          },
+          output: {
+            conclusion: "结合慢病管理需求和医养结合偏好，优先推荐先预约机构评估。",
+            recommendations: [
+              {
+                serviceId: ids.services.elderlyQingsong,
+                title: "青松颐养中心 医养结合入住评估",
+                category: ServiceCategory.ELDERLY_CARE,
+                price: 9800,
+                regionScope: ["上海市-杨浦区", "上海市-虹口区"],
+                reason: "机构具备慢病管理能力，且支持医养结合服务。",
+              },
+            ],
+            matchingSignals: ["医养结合偏好", "机构养老需求", "慢病管理"],
+            followUpActions: ["联系机构完成入住评估", "准备近3个月体检与用药资料"],
+            requiresHumanReview: false,
+          },
         },
       },
     ],

@@ -21,6 +21,29 @@ class ReadNoticesDto {
   noticeIds?: string[];
 }
 
+class NoticeListQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsIn([
+    "SYSTEM",
+    "HEALTH_ALERT",
+    "ORDER",
+    "CONTENT",
+    "COMMUNITY",
+    "COMMENT",
+    "LIKE",
+    "FOLLOW"
+  ])
+  type?:
+    | "SYSTEM"
+    | "HEALTH_ALERT"
+    | "ORDER"
+    | "CONTENT"
+    | "COMMUNITY"
+    | "COMMENT"
+    | "LIKE"
+    | "FOLLOW";
+}
+
 class CreateDoctorConversationDto {
   @IsOptional()
   @IsString()
@@ -56,9 +79,9 @@ export class AppMessagingController {
   @ApiOperation({ summary: "获取通知列表" })
   listNotices(
     @CurrentUser("id") userId: string,
-    @Query() query: PaginationQueryDto
+    @Query() query: NoticeListQueryDto
   ) {
-    return this.messagingService.listNotices(userId, query.page, query.pageSize);
+    return this.messagingService.listNotices(userId, query.page, query.pageSize, query.type);
   }
 
   @Post("messages/notices/read")

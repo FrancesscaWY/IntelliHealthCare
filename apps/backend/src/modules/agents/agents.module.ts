@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
+import { AppAgentService } from "./application/app-agent.service";
 import { AgentDispatchService } from "./application/agent-dispatch.service";
 import { AgentOrchestratorService } from "./application/agent-orchestrator.service";
 import { AgentTaskService } from "./application/agent-task.service";
+import { AppAgentsController } from "./controllers/app-agents.controller";
 import { AgentsController } from "./controllers/agents.controller";
 import { AgentRegistry } from "./domain/agent-registry";
 import { EmbeddingGateway } from "./gateways/embedding.gateway";
@@ -13,10 +15,11 @@ import { ServiceCatalogTool } from "./tools/service-catalog.tool";
 import { AgentTaskProcessor } from "./workers/agent-task.processor";
 
 @Module({
-  controllers: [AgentsController],
+  controllers: [AgentsController, AppAgentsController],
   providers: [
     AgentRegistry,
     AgentTaskService,
+    AppAgentService,
     AgentDispatchService,
     AgentOrchestratorService,
     LlmGateway,

@@ -560,8 +560,14 @@ export class HealthMetricsService {
       throw new NotFoundException("Medication not found");
     }
 
-    await this.prismaService.medication.delete({
-      where: { id: medicationId }
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.medicationDoseLog.deleteMany({
+        where: { medicationId }
+      });
+
+      await tx.medication.delete({
+        where: { id: medicationId }
+      });
     });
 
     return {

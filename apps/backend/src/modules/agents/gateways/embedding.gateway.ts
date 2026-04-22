@@ -35,6 +35,22 @@ export class EmbeddingGateway {
     });
     const attemptedModels = Array.from(new Set([primaryModel, fallbackModel]));
 
+    if (provider === "deepseek") {
+      return {
+        vectors: await this.buildFallbackVectors(input),
+        trace: this.buildTrace({
+          provider: "deepseek-fallback",
+          model: fallbackModel,
+          fallbackMode: true,
+          modelTier: "fallback",
+          attemptedModels,
+          strictJson: false,
+          toolCalling: false,
+          error: "DeepSeek official direct mode does not use the current embeddings integration"
+        })
+      };
+    }
+
     if (provider === "mock" || !baseUrl || !apiKey) {
       return {
         vectors: await this.buildFallbackVectors(input),

@@ -172,9 +172,9 @@ export const taskOrchestratorInputSchema = z.object({
 export const taskOrchestratorOutputSchema = z.object({
   executionPlan: z.object({
     summary: z.string().min(1),
-    steps: z.array(executionPlanStepSchema).min(1).max(4)
+    steps: z.array(executionPlanStepSchema).min(1).max(8)
   }),
-  targetAgentList: z.array(z.string().min(1)).min(1).max(4),
+  targetAgentList: z.array(z.string().min(1)).min(1).max(8),
   workflowRoute: z.enum(["single-agent", "serial", "event-driven"]),
   requiredContext: z.array(z.string().min(1)).max(8).optional(),
   humanReviewHint: nullableStringSchema.optional()
@@ -305,8 +305,8 @@ export const careCoordinationCardInputSchema = z.object({
 });
 
 export const careCoordinationInputSchema = z.union([
-  serviceRecommendationInputSchema,
-  careCoordinationCardInputSchema
+  careCoordinationCardInputSchema,
+  serviceRecommendationInputSchema
 ]);
 
 export const serviceRecommendationItemSchema = z.object({
@@ -356,6 +356,8 @@ export type ServiceRecommendationOutput = z.infer<
 >;
 export type CareCoordinationInput = z.infer<typeof careCoordinationInputSchema>;
 export type CareCoordinationOutput = z.infer<typeof careCoordinationOutputSchema>;
+export type HealthManagementCardInput = z.infer<typeof healthManagementCardInputSchema>;
+export type CareCoordinationCardInput = z.infer<typeof careCoordinationCardInputSchema>;
 
 export const riskOperationsInputSchema = z.object({
   eventId: z.string().min(1).optional(),
@@ -446,7 +448,16 @@ export const operationsCopilotInputSchema = z.object({
   careBriefs: z.array(domainBriefSchema).max(20).optional(),
   riskBriefs: z.array(domainBriefSchema).max(20).optional(),
   deviceBriefs: z.array(domainBriefSchema).max(20).optional(),
-  contentBriefs: z.array(domainBriefSchema).max(20).optional()
+  contentBriefs: z.array(domainBriefSchema).max(20).optional(),
+  domainRequests: z
+    .object({
+      health: healthManagementCardInputSchema.optional(),
+      care: careCoordinationCardInputSchema.optional(),
+      risk: riskOperationsInputSchema.optional(),
+      device: deviceOperationsInputSchema.optional(),
+      content: contentActivityOpsInputSchema.optional()
+    })
+    .optional()
 });
 
 export const operationsCopilotOutputSchema = z.object({
@@ -482,8 +493,20 @@ export type SafetyReviewOutput = z.infer<typeof safetyReviewOutputSchema>;
 export const routerInputSchema = taskOrchestratorInputSchema;
 export const routerOutputSchema = taskOrchestratorOutputSchema;
 
+export interface AgentCoordinationStepTrace {
+  step: string;
+  agentName: string;
+  taskType: string;
+  status: "succeeded" | "skipped";
+  reason: string;
+  outputSummary?: Record<string, unknown>;
+  llm?: LlmTrace;
+  toolCalls?: ToolCallTrace[];
+}
+
 export interface AgentCoordinationTrace {
   executionPlan?: TaskOrchestratorOutput;
+  steps?: AgentCoordinationStepTrace[];
   safetyReview?: SafetyReviewOutput | null;
 }
 

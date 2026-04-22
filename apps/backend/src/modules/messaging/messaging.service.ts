@@ -7,10 +7,14 @@ import {
   ConversationScene,
   MessageContentType,
   NotificationType,
-  UserType
+  StaffRole
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
-import { paginate, toDateTimeString } from "../../common/utils/serializers";
+import {
+  ensureRecord,
+  paginate,
+  toDateTimeString
+} from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
 @Injectable()
@@ -31,7 +35,13 @@ export class AppMessagingService {
         }),
         this.prismaService.notificationRecipient.findMany({
           where: { userId },
-          include: { notification: true },
+          include: {
+            notification: {
+              include: {
+                sender: true
+              }
+            }
+          },
           orderBy: { notification: { createdAt: "desc" } },
           take: 5
         }),
@@ -45,29 +55,55 @@ export class AppMessagingService {
         })
       ]);
 
+    const latestConversationIds = latestConversations.map((item) => item.conversationId);
+    const [latestMessages, latestConversationParticipants] = await Promise.all([
+      this.prismaService.conversationMessage.findMany({
+        where: { conversationId: { in: latestConversationIds } },
+        orderBy: { createdAt: "desc" }
+      }),
+      this.prismaService.conversationParticipant.findMany({
+        where: { conversationId: { in: latestConversationIds } },
+        include: { user: true }
+      })
+    ]);
+
     return {
       unreadNoticeCount,
       unreadConversationCount,
-      latestNotices: latestNotices.map((item) => ({
-        noticeId: item.notificationId,
-        title: item.notification.title,
-        type: item.notification.type,
-        isRead: item.isRead,
-        createdAt: toDateTimeString(item.notification.createdAt)
-      })),
-      latestConversations: latestConversations.map((item) => ({
-        conversationId: item.conversationId,
-        scene: item.conversation.scene,
-        topic: item.conversation.topic,
-        unreadCount: item.unreadCount,
-        lastMessageAt: toDateTimeString(item.conversation.lastMessageAt)
-      }))
+      latestNotices: latestNotices.map((item) =>
+        this.mapNotice(item, item.notification.sender, item.isRead)
+      ),
+      latestConversations: latestConversations.map((item) => {
+        const lastMessage = latestMessages.find(
+          (row) => row.conversationId === item.conversationId
+        );
+        const peers = latestConversationParticipants
+          .filter((row) => row.conversationId === item.conversationId && row.userId !== userId)
+          .map((row) => ({
+            userId: row.userId,
+            name: row.user.realName ?? row.user.nickname ?? row.user.phone,
+            avatar: row.user.avatarUrl,
+            roleLabel: row.roleLabel
+          }));
+
+        return this.mapConversation(item, peers, lastMessage);
+      })
     };
   }
 
-  async listNotices(userId: string, page: number, pageSize: number) {
+  async listNotices(
+    userId: string,
+    page: number,
+    pageSize: number,
+    type?: NotificationType | string
+  ) {
     const rows = await this.prismaService.notificationRecipient.findMany({
-      where: { userId },
+      where: {
+        userId,
+        notification: {
+          type: (type as NotificationType | undefined) ?? undefined
+        }
+      },
       include: {
         notification: {
           include: {
@@ -79,25 +115,9 @@ export class AppMessagingService {
     });
 
     return paginate(
-      rows.map((item) => ({
-        noticeId: item.notificationId,
-        isRead: item.isRead,
-        readAt: toDateTimeString(item.readAt),
-        type: item.notification.type,
-        title: item.notification.title,
-        content: item.notification.content,
-        metadata: item.notification.metadata,
-        createdAt: toDateTimeString(item.notification.createdAt),
-        sender: item.notification.sender
-          ? {
-              userId: item.notification.sender.id,
-              name:
-                item.notification.sender.realName ??
-                item.notification.sender.nickname ??
-                item.notification.sender.phone
-            }
-          : null
-      })),
+      rows.map((item) =>
+        this.mapNotice(item, item.notification.sender, item.isRead)
+      ),
       page,
       pageSize
     );
@@ -155,23 +175,7 @@ export class AppMessagingService {
             roleLabel: row.roleLabel
           }));
 
-        return {
-          conversationId: item.conversationId,
-          scene: item.conversation.scene,
-          topic: item.conversation.topic,
-          metadata: item.conversation.metadata,
-          unreadCount: item.unreadCount,
-          lastMessageAt: toDateTimeString(item.conversation.lastMessageAt),
-          lastMessage: lastMessage
-            ? {
-                messageId: lastMessage.id,
-                contentType: lastMessage.contentType,
-                content: lastMessage.content,
-                createdAt: toDateTimeString(lastMessage.createdAt)
-              }
-            : null,
-          peers
-        };
+        return this.mapConversation(item, peers, lastMessage);
       }),
       page,
       pageSize
@@ -185,39 +189,49 @@ export class AppMessagingService {
       topic?: string;
     }
   ) {
-    const doctor = payload.doctorUserId
-      ? await this.prismaService.user.findUnique({
-          where: { id: payload.doctorUserId }
-        })
-      : await this.prismaService.user.findFirst({
-          where: {
-            OR: [
-              { type: UserType.STAFF },
-              {
-                roles: {
-                  some: {
-                    role: {
-                      code: "DOCTOR"
-                    }
-                  }
-                }
-              }
-            ]
-          },
-          orderBy: { createdAt: "asc" }
-        });
+    const doctor = await this.findDoctorUser(payload.doctorUserId);
 
-    if (!doctor) {
-      throw new NotFoundException("Doctor user not found");
+    const existingConversation = await this.prismaService.conversation.findFirst({
+      where: {
+        scene: ConversationScene.DOCTOR,
+        AND: [
+          {
+            participants: {
+              some: {
+                userId: user.id
+              }
+            }
+          },
+          {
+            participants: {
+              some: {
+                userId: doctor.id
+              }
+            }
+          }
+        ]
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+
+    if (existingConversation) {
+      return {
+        conversationId: existingConversation.id,
+        scene: existingConversation.scene,
+        topic: existingConversation.topic
+      };
     }
 
+    const doctorName = doctor.realName ?? doctor.nickname ?? doctor.phone;
     const conversation = await this.prismaService.$transaction(async (tx) => {
       const created = await tx.conversation.create({
         data: {
           scene: ConversationScene.DOCTOR,
-          topic: payload.topic ?? "医生咨询",
+          topic: payload.topic ?? `${doctorName}医生咨询`,
           metadata: {
-            doctorUserId: doctor.id
+            doctorUserId: doctor.id,
+            doctorName,
+            doctorTitle: doctor.staffProfile?.title ?? "医生"
           }
         }
       });
@@ -264,9 +278,12 @@ export class AppMessagingService {
     return paginate(
       messages.map((item) => ({
         messageId: item.id,
+        id: item.id,
         contentType: item.contentType,
-        content: item.content,
+        content: this.extractMessageContent(item.contentType, item.content),
         createdAt: toDateTimeString(item.createdAt),
+        time: this.formatMonthDayTime(item.createdAt),
+        from: item.senderId === userId ? "me" : "doctor",
         sender: item.sender
           ? {
               userId: item.sender.id,
@@ -296,9 +313,7 @@ export class AppMessagingService {
           conversationId,
           senderId: userId,
           contentType: payload.contentType as MessageContentType,
-          content: {
-            text: payload.content
-          }
+          content: this.buildMessagePayload(payload.contentType as MessageContentType, payload.content)
         }
       });
 
@@ -326,7 +341,7 @@ export class AppMessagingService {
       messageId: message.id,
       conversationId: message.conversationId,
       contentType: message.contentType,
-      content: message.content,
+      content: this.extractMessageContent(message.contentType, message.content),
       createdAt: toDateTimeString(message.createdAt)
     };
   }
@@ -349,6 +364,271 @@ export class AppMessagingService {
     return {
       read: true
     };
+  }
+
+  private mapNotice(
+    item: {
+      notificationId: string;
+      isRead: boolean;
+      readAt: Date | null;
+      notification: {
+        type: NotificationType;
+        title: string;
+        content: string;
+        metadata: unknown;
+        createdAt: Date;
+      };
+    },
+    sender:
+      | {
+          id: string;
+          realName: string | null;
+          nickname: string | null;
+          phone: string;
+        }
+      | null,
+    isRead: boolean
+  ) {
+    const metadata = ensureRecord(item.notification.metadata);
+
+    return {
+      noticeId: item.notificationId,
+      id: item.notificationId,
+      isRead,
+      readAt: toDateTimeString(item.readAt),
+      type: item.notification.type,
+      title: item.notification.title,
+      content: item.notification.content,
+      desc: item.notification.content,
+      metadata,
+      createdAt: toDateTimeString(item.notification.createdAt),
+      date: this.formatMonthDay(item.notification.createdAt),
+      count: isRead ? 0 : 1,
+      icon: this.getNoticeIcon(item.notification.type),
+      tone: this.getNoticeTone(item.notification.type),
+      sender: sender
+        ? {
+            userId: sender.id,
+            name: sender.realName ?? sender.nickname ?? sender.phone
+          }
+        : null
+    };
+  }
+
+  private mapConversation(
+    item: {
+      conversationId: string;
+      unreadCount: number;
+      conversation: {
+        scene: ConversationScene;
+        topic: string | null;
+        metadata: unknown;
+        lastMessageAt: Date | null;
+      };
+    },
+    peers: Array<{
+      userId: string;
+      name: string;
+      avatar: string | null;
+      roleLabel: string | null;
+    }>,
+    lastMessage:
+      | {
+          id: string;
+          contentType: MessageContentType;
+          content: unknown;
+          createdAt: Date;
+        }
+      | undefined
+  ) {
+    const previewText = lastMessage
+      ? this.extractMessageContent(lastMessage.contentType, lastMessage.content)
+      : "";
+    const title = peers[0]?.name ?? item.conversation.topic ?? "会话";
+
+    return {
+      conversationId: item.conversationId,
+      id: item.conversationId,
+      scene: item.conversation.scene,
+      topic: item.conversation.topic,
+      title,
+      metadata: item.conversation.metadata,
+      unreadCount: item.unreadCount,
+      count: item.unreadCount,
+      desc: previewText,
+      lastMessageAt: toDateTimeString(item.conversation.lastMessageAt),
+      date: item.conversation.lastMessageAt
+        ? this.formatMonthDay(item.conversation.lastMessageAt)
+        : null,
+      icon: this.getConversationIcon(item.conversation.scene),
+      tone: this.getConversationTone(item.conversation.scene),
+      lastMessage: lastMessage
+        ? {
+            messageId: lastMessage.id,
+            contentType: lastMessage.contentType,
+            content: previewText,
+            createdAt: toDateTimeString(lastMessage.createdAt)
+          }
+        : null,
+      peers
+    };
+  }
+
+  private buildMessagePayload(contentType: MessageContentType, content: string) {
+    if (contentType === MessageContentType.TEXT) {
+      return { text: content };
+    }
+
+    return { url: content };
+  }
+
+  private extractMessageContent(contentType: MessageContentType, value: unknown) {
+    if (typeof value === "string") {
+      return value;
+    }
+
+    const record = ensureRecord(value);
+
+    if (contentType === MessageContentType.TEXT) {
+      return String(record.text ?? record.content ?? "");
+    }
+
+    return String(record.url ?? record.fileUrl ?? record.text ?? record.content ?? "");
+  }
+
+  private getNoticeIcon(type: NotificationType) {
+    if (type === NotificationType.SYSTEM) {
+      return "system";
+    }
+    if (type === NotificationType.HEALTH_ALERT) {
+      return "health";
+    }
+    if (type === NotificationType.ORDER) {
+      return "order";
+    }
+    if (type === NotificationType.COMMENT) {
+      return "comment";
+    }
+    if (type === NotificationType.LIKE) {
+      return "like";
+    }
+    if (type === NotificationType.FOLLOW) {
+      return "user";
+    }
+    return "message";
+  }
+
+  private getNoticeTone(type: NotificationType) {
+    if (type === NotificationType.SYSTEM) {
+      return "purple";
+    }
+    if (type === NotificationType.HEALTH_ALERT) {
+      return "green";
+    }
+    if (type === NotificationType.ORDER) {
+      return "mint";
+    }
+    if (type === NotificationType.COMMENT) {
+      return "pink";
+    }
+    if (type === NotificationType.LIKE) {
+      return "violet";
+    }
+    if (type === NotificationType.FOLLOW) {
+      return "yellow";
+    }
+    return "blue";
+  }
+
+  private getConversationIcon(scene: ConversationScene) {
+    if (scene === ConversationScene.DOCTOR) {
+      return "doctor";
+    }
+    if (scene === ConversationScene.ASSISTANT) {
+      return "assistant";
+    }
+    if (scene === ConversationScene.AFTER_SALE) {
+      return "message";
+    }
+    return "mail";
+  }
+
+  private getConversationTone(scene: ConversationScene) {
+    if (scene === ConversationScene.DOCTOR) {
+      return "purple";
+    }
+    if (scene === ConversationScene.ASSISTANT) {
+      return "green";
+    }
+    if (scene === ConversationScene.AFTER_SALE) {
+      return "yellow";
+    }
+    return "blue";
+  }
+
+  private formatMonthDay(value: Date) {
+    return `${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  private formatMonthDayTime(value: Date) {
+    return `${this.formatMonthDay(value)} ${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
+  }
+
+  private async findDoctorUser(doctorUserId?: string) {
+    const doctor = await this.prismaService.user.findFirst({
+      where: doctorUserId
+        ? {
+            id: doctorUserId,
+            OR: [
+              {
+                staffProfile: {
+                  is: {
+                    role: StaffRole.DOCTOR
+                  }
+                }
+              },
+              {
+                roles: {
+                  some: {
+                    role: {
+                      code: "DOCTOR"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        : {
+            OR: [
+              {
+                staffProfile: {
+                  is: {
+                    role: StaffRole.DOCTOR
+                  }
+                }
+              },
+              {
+                roles: {
+                  some: {
+                    role: {
+                      code: "DOCTOR"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+      include: {
+        staffProfile: true
+      },
+      orderBy: { createdAt: "asc" }
+    });
+
+    if (!doctor) {
+      throw new NotFoundException("Doctor user not found");
+    }
+
+    return doctor;
   }
 
   private async assertConversationParticipant(userId: string, conversationId: string) {

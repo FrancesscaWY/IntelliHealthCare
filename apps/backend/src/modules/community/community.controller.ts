@@ -9,9 +9,9 @@ import {
   Query,
   UseGuards
 } from "@nestjs/common";
-import { Type } from "class-transformer";
 import {
   IsArray,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -28,6 +28,16 @@ class PostListQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   topicId?: string;
+
+  @IsOptional()
+  @IsIn(["following", "recommended", "latest", "FOLLOWING", "RECOMMENDED", "LATEST"])
+  feedType?:
+    | "following"
+    | "recommended"
+    | "latest"
+    | "FOLLOWING"
+    | "RECOMMENDED"
+    | "LATEST";
 }
 
 class CreatePostDto {
@@ -76,8 +86,12 @@ class CreateCommentDto {
 
 class ActivityListQueryDto extends PaginationQueryDto {
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsIn(["UPCOMING", "ONGOING", "ENDED", "CANCELLED"])
+  status?: "UPCOMING" | "ONGOING" | "ENDED" | "CANCELLED";
+
+  @IsOptional()
+  @IsIn(["hot", "latest", "HOT", "LATEST"])
+  sort?: "hot" | "latest" | "HOT" | "LATEST";
 }
 
 class ActivityRegisterDto {
@@ -111,7 +125,13 @@ export class AppCommunityController {
     @CurrentUser("id") userId: string,
     @Query() query: PostListQueryDto
   ) {
-    return this.communityService.listPosts(userId, query.page, query.pageSize, query.topicId);
+    return this.communityService.listPosts(
+      userId,
+      query.page,
+      query.pageSize,
+      query.topicId,
+      query.feedType
+    );
   }
 
   @Post("posts")
@@ -181,10 +201,11 @@ export class AppCommunityController {
   @Get("posts/:postId/comments")
   @ApiOperation({ summary: "获取评论列表" })
   listPostComments(
+    @CurrentUser("id") userId: string,
     @Param("postId") postId: string,
     @Query() query: PaginationQueryDto
   ) {
-    return this.communityService.listPostComments(postId, query.page, query.pageSize);
+    return this.communityService.listPostComments(userId, postId, query.page, query.pageSize);
   }
 
   @Post("posts/:postId/comments")
@@ -207,7 +228,8 @@ export class AppCommunityController {
       userId,
       query.page,
       query.pageSize,
-      query.status
+      query.status,
+      query.sort
     );
   }
 
@@ -227,6 +249,58 @@ export class AppCommunityController {
     @Param("activityId") activityId: string
   ) {
     return this.communityService.getActivityDetail(userId, activityId);
+  }
+
+  @Post("activities/:activityId/like")
+  @ApiOperation({ summary: "点赞活动" })
+  likeActivity(
+    @CurrentUser("id") userId: string,
+    @Param("activityId") activityId: string
+  ) {
+    return this.communityService.reactActivity(userId, activityId, "LIKE");
+  }
+
+  @Post("activities/:activityId/favorite")
+  @ApiOperation({ summary: "收藏活动" })
+  favoriteActivity(
+    @CurrentUser("id") userId: string,
+    @Param("activityId") activityId: string
+  ) {
+    return this.communityService.reactActivity(userId, activityId, "FAVORITE");
+  }
+
+  @Post("activities/:activityId/share")
+  @ApiOperation({ summary: "记录活动分享" })
+  shareActivity(
+    @CurrentUser("id") userId: string,
+    @Param("activityId") activityId: string
+  ) {
+    return this.communityService.reactActivity(userId, activityId, "SHARE");
+  }
+
+  @Get("activities/:activityId/comments")
+  @ApiOperation({ summary: "获取活动评论列表" })
+  listActivityComments(
+    @CurrentUser("id") userId: string,
+    @Param("activityId") activityId: string,
+    @Query() query: PaginationQueryDto
+  ) {
+    return this.communityService.listActivityComments(
+      userId,
+      activityId,
+      query.page,
+      query.pageSize
+    );
+  }
+
+  @Post("activities/:activityId/comments")
+  @ApiOperation({ summary: "发表评论活动评论" })
+  createActivityComment(
+    @CurrentUser("id") userId: string,
+    @Param("activityId") activityId: string,
+    @Body() body: CreateCommentDto
+  ) {
+    return this.communityService.createActivityComment(userId, activityId, body);
   }
 
   @Post("activities/:activityId/register")

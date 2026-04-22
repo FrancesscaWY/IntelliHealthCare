@@ -27,9 +27,10 @@ Hermes 不应被理解成：
 - 任务状态流转：`PENDING -> RUNNING -> SUCCEEDED | FAILED`
 - 声明式注册：当前已注册 `9` 个核心 Agent，并兼容 `intent-router`、`report-summary-agent`、`service-recommendation-agent` 旧别名
 - 受控工具层：报告、档案、健康指标、服务目录
-- `LLM Gateway`：支持 `OpenRouter / openai-compatible` 网关，内置主模型、轻量模型、严格 `JSON Schema` 和 tool-calling 接口
+- `LLM Gateway`：支持 `DeepSeek 官方直连 / OpenRouter / openai-compatible` 网关，内置主模型、轻量模型、结构化输出和 tool-calling 接口
 - `Embedding Gateway`：统一承接向量模型调用，未配置时回退到确定性占位向量，供后续检索链路继续兜底
-- `Agent Orchestrator`：当前已具备控制层执行计划、领域 Agent 执行和 `SafetyReviewAgent` 安全复核的受控串行链路
+- `Agent Orchestrator`：默认入口已从“只路由到单 Specialist”升级为受控多 Agent 分工，支持健康理解补风险研判、风险任务补健康背景、后台 Copilot 汇总多域摘要
+- 多 Agent trace：`AgentTask.result.trace.coordination.steps` 会记录每一步 handoff 的 Agent、任务类型、输出摘要、模型信息和该步工具调用
 - 审计结果：路由、工具调用、模型信息、失败原因全部写回 `AgentTask.result`
 
 当前可执行任务：
@@ -56,7 +57,12 @@ Hermes 不应被理解成：
 - `morning-brief`
 - `safety-review`
 
-默认入口 Agent 为 `TaskOrchestratorAgent`，仍兼容 `intent-router` 旧入口，会按 `taskType` 路由到对应 Agent，并在需要时串行进入 `SafetyReviewAgent`。
+默认入口 Agent 为 `TaskOrchestratorAgent`，仍兼容 `intent-router` 旧入口，并按 `taskType` 进入以下受控协作链路：
+
+- 健康理解：`TaskOrchestratorAgent -> HealthManagementAgent -> RiskOperationsAgent(按需) -> SafetyReviewAgent`
+- 风险运营：`TaskOrchestratorAgent -> RiskOperationsAgent -> HealthManagementAgent(补背景) -> SafetyReviewAgent`
+- 后台 Copilot：按 `domainRequests` 先收集 `health / care / risk / device / content` 域简报，再进入 `OperationsCopilotAgent -> SafetyReviewAgent`
+- 直接 Specialist 调用仍保持兼容，不强制附加多 Agent handoff
 
 ## 当前实现与目标蓝图的映射
 
@@ -107,6 +113,30 @@ Hermes 不应被理解成：
 - `GET /api/v1/internal/agents/tasks/:taskId`
 - `POST /api/v1/internal/agents/tasks/:taskId/retry`
 
+## App 层 AI 接口
+
+用户端 AI 路由统一挂载在 `app` 作用域下：
+
+- `POST /api/v1/app/ai/assistant/conversations`
+- `GET /api/v1/app/ai/assistant/conversations/:conversationId`
+- `GET /api/v1/app/ai/assistant/conversations/:conversationId/messages`
+- `POST /api/v1/app/ai/assistant/conversations/:conversationId/messages`
+- `POST /api/v1/app/ai/service-recommendations`
+- `POST /api/v1/app/ai/order-prefill`
+- `GET /api/v1/app/ai/health-summary`
+- `GET /api/v1/app/ai/health-metric-explanations`
+- `GET /api/v1/app/ai/reports/:reportId/interpretation`
+- `GET /api/v1/app/ai/reports/:reportId/followup-suggestions`
+- `GET /api/v1/app/ai/risk-alerts`
+- `GET /api/v1/app/ai/risk-alerts/:alertId`
+
+内部接口访问控制：
+
+- 必须携带后台 `JWT`（`admin` scope）
+- 调用来源 IP 需要命中 `INTERNAL_API_ALLOWED_CIDRS`
+- 如果配置了 `INTERNAL_API_SHARED_SECRET`，还需要额外携带 `X-Internal-Token`
+- 如果部署在反向代理后面，需要开启 `INTERNAL_API_TRUST_PROXY_HEADERS=true`，并确保代理会覆盖转发头
+
 接口语义：
 
 - `blueprint` 返回统一多智能体蓝图，包括定位、原则、能力、Agent、工作流、治理规则、Hermes 规划和实施路线图
@@ -152,9 +182,13 @@ Hermes 不应被理解成：
 
 默认 backbone 已对齐当前方案：
 
-- provider：`OpenRouter`
-- 主模型：`deepseek/deepseek-v3.2`
-- 轻量 / 降级模型：`qwen/qwen3-30b-a3b-instruct-2507`
-- embedding：`qwen/qwen3-embedding-8b`
+- provider：`DeepSeek`
+- 主模型：`deepseek-chat`
+- 轻量 / 降级模型：`deepseek-chat`
+- embedding：当前直连模式下继续走确定性向量兜底；如需真实 embedding，请单独接入兼容网关
+
+DeepSeek 官方直连模式下，网关会自动把 `deepseek/deepseek-chat` 归一化为 `deepseek-chat`，并将严格 `JSON Schema` 请求降级为 `json_object` 兼容模式，最终仍由服务端 `zod` schema 做结构校验。
+
+如果不希望把 Key 写入项目内 `.env`，可以直接通过系统环境变量提供 `DEEPSEEK_API_KEY`；当 `AGENT_LLM_API_KEY` 为空时，后端会自动回退读取该变量。
 
 若未配置 `AGENT_LLM_API_KEY`，运行时仍可启动，但 `LLM Gateway` 会回退到确定性结构化输出，`Embedding Gateway` 会回退到确定性占位向量；真正的检索链路仍应继续降级到词法检索或人工兜底。

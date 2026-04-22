@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import { ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { InternalAccessGuard } from "../../../common/auth/internal-access.guard";
+import { JwtAuthGuard } from "../../../common/auth/jwt-auth.guard";
+import { Roles } from "../../../common/auth/roles.decorator";
+import { RolesGuard } from "../../../common/auth/roles.guard";
 import { AgentDispatchService } from "../application/agent-dispatch.service";
 import { AgentOrchestratorService } from "../application/agent-orchestrator.service";
 import { AgentTaskService } from "../application/agent-task.service";
@@ -11,7 +15,10 @@ import {
 } from "../dto/create-agent-task.dto";
 
 @ApiTags("agents")
+@ApiBearerAuth()
 @Controller("internal/agents")
+@UseGuards(JwtAuthGuard, InternalAccessGuard, RolesGuard)
+@Roles("PLATFORM_ADMIN", "ORG_MANAGER", "DOCTOR", "CAREGIVER", "THERAPIST", "CUSTOMER_SERVICE")
 export class AgentsController {
   constructor(
     private readonly agentRegistry: AgentRegistry,

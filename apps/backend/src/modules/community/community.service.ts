@@ -6,12 +6,15 @@ import {
 import {
   ActivityStatus,
   CommunityPostStatus,
+  NotificationType,
   ReactionType,
   RegistrationStatus,
   UserType
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import {
+  ensureArray,
+  ensureRecord,
   paginate,
   toDateTimeString,
   toNumber,
@@ -20,6 +23,9 @@ import {
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
 type PostReactionAction = "LIKE" | "FAVORITE" | "SHARE";
+type ActivityReactionAction = "LIKE" | "FAVORITE" | "SHARE";
+type PostFeedType = "FOLLOWING" | "RECOMMENDED" | "LATEST";
+type ActivitySort = "HOT" | "LATEST";
 
 @Injectable()
 export class AppCommunityService {
@@ -32,6 +38,7 @@ export class AppCommunityService {
 
     return topics.map((item) => ({
       topicId: item.id,
+      id: item.id,
       title: item.title,
       coverUrl: item.coverUrl,
       participantCount: item.participantCount,
@@ -39,12 +46,30 @@ export class AppCommunityService {
     }));
   }
 
-  async listPosts(userId: string, page: number, pageSize: number, topicId?: string) {
+  async listPosts(
+    userId: string,
+    page: number,
+    pageSize: number,
+    topicId?: string,
+    feedType?: string
+  ) {
+    const feedConfig = await this.normalizePostFeedType(userId, feedType);
+    const where =
+      feedConfig.feedType === "FOLLOWING"
+        ? {
+            status: CommunityPostStatus.PUBLISHED,
+            topicId: topicId ?? undefined,
+            authorId: {
+              in: feedConfig.followedUserIds
+            }
+          }
+        : {
+            status: CommunityPostStatus.PUBLISHED,
+            topicId: topicId ?? undefined
+          };
+
     const posts = await this.prismaService.communityPost.findMany({
-      where: {
-        status: CommunityPostStatus.PUBLISHED,
-        topicId: topicId ?? undefined
-      },
+      where,
       include: {
         author: true,
         topic: true
@@ -70,34 +95,11 @@ export class AppCommunityService {
         .map((item) => item.postId)
     );
 
-    return paginate(
-      posts.map((item) => ({
-        postId: item.id,
-        content: item.content,
-        images: item.images,
-        tagLabel: item.tagLabel,
-        likesCount: item.likesCount,
-        favoritesCount: item.favoritesCount,
-        commentsCount: item.commentsCount,
-        sharesCount: item.sharesCount,
-        createdAt: toDateTimeString(item.createdAt),
-        author: {
-          userId: item.author.id,
-          name: item.author.realName ?? item.author.nickname ?? item.author.phone,
-          avatar: item.author.avatarUrl
-        },
-        topic: item.topic
-          ? {
-              topicId: item.topic.id,
-              title: item.topic.title
-            }
-          : null,
-        liked: likedPostIds.has(item.id),
-        favorited: favoritedPostIds.has(item.id)
-      })),
-      page,
-      pageSize
+    const list = posts.map((item) =>
+      this.mapPost(item, likedPostIds.has(item.id), favoritedPostIds.has(item.id), userId)
     );
+
+    return paginate(this.sortPosts(list, feedConfig.feedType), page, pageSize);
   }
 
   async createPost(
@@ -158,30 +160,12 @@ export class AppCommunityService {
       }
     });
 
-    return {
-      postId: post.id,
-      content: post.content,
-      images: post.images,
-      tagLabel: post.tagLabel,
-      likesCount: post.likesCount,
-      favoritesCount: post.favoritesCount,
-      commentsCount: post.commentsCount,
-      sharesCount: post.sharesCount,
-      createdAt: toDateTimeString(post.createdAt),
-      author: {
-        userId: post.author.id,
-        name: post.author.realName ?? post.author.nickname ?? post.author.phone,
-        avatar: post.author.avatarUrl
-      },
-      topic: post.topic
-        ? {
-            topicId: post.topic.id,
-            title: post.topic.title
-          }
-        : null,
-      liked: reactions.some((item) => item.reactionType === ReactionType.LIKE),
-      favorited: reactions.some((item) => item.reactionType === ReactionType.FAVORITE)
-    };
+    return this.mapPost(
+      post,
+      reactions.some((item) => item.reactionType === ReactionType.LIKE),
+      reactions.some((item) => item.reactionType === ReactionType.FAVORITE),
+      userId
+    );
   }
 
   async updatePost(
@@ -246,6 +230,12 @@ export class AppCommunityService {
       where: {
         id: postId,
         status: CommunityPostStatus.PUBLISHED
+      },
+      select: {
+        id: true,
+        authorId: true,
+        content: true,
+        images: true
       }
     });
     if (!post) {
@@ -264,19 +254,38 @@ export class AppCommunityService {
     });
 
     if (!existing) {
-      await this.prismaService.$transaction([
-        this.prismaService.communityPostReaction.create({
+      await this.prismaService.$transaction(async (tx) => {
+        await tx.communityPostReaction.create({
           data: {
             postId,
             userId,
             reactionType
           }
-        }),
-        this.prismaService.communityPost.update({
+        });
+        await tx.communityPost.update({
           where: { id: postId },
           data: this.getReactionCounterIncrement(action)
-        })
-      ]);
+        });
+
+        if (post.authorId !== userId && action !== "SHARE") {
+          await this.createPostNotice(tx, {
+            recipientUserId: post.authorId,
+            actorUserId: userId,
+            type: NotificationType.LIKE,
+            title: "赞和收藏",
+            content:
+              action === "FAVORITE"
+                ? "有人收藏了你的帖子"
+                : "有人点赞了你的帖子",
+            metadata: {
+              postId,
+              postContent: this.getTextSnippet(post.content),
+              postImage: ensureArray<string>(post.images)[0] ?? null,
+              action: action === "FAVORITE" ? "favorite" : "like"
+            }
+          });
+        }
+      });
     }
 
     return {
@@ -286,7 +295,12 @@ export class AppCommunityService {
     };
   }
 
-  async listPostComments(postId: string, page: number, pageSize: number) {
+  async listPostComments(
+    userId: string | undefined,
+    postId: string,
+    page: number,
+    pageSize: number
+  ) {
     await this.assertPostExists(postId);
 
     const comments = await this.prismaService.communityComment.findMany({
@@ -294,13 +308,27 @@ export class AppCommunityService {
       include: { user: true },
       orderBy: { createdAt: "asc" }
     });
+    const commentUserNameMap = new Map(
+      comments.map((item) => [
+        item.id,
+        item.user.realName ?? item.user.nickname ?? item.user.phone
+      ])
+    );
 
     return paginate(
       comments.map((item) => ({
         commentId: item.id,
+        id: item.id,
         parentId: item.parentId,
         content: item.content,
         createdAt: toDateTimeString(item.createdAt),
+        author: item.user.realName ?? item.user.nickname ?? item.user.phone,
+        avatarUrl: item.user.avatarUrl,
+        city: item.user.city,
+        replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
+        likes: 0,
+        liked: false,
+        isMine: item.userId === userId,
         user: {
           userId: item.user.id,
           name: item.user.realName ?? item.user.nickname ?? item.user.phone,
@@ -320,7 +348,7 @@ export class AppCommunityService {
       content: string;
     }
   ) {
-    await this.assertPostExists(postId);
+    const post = await this.getPublishedPost(postId);
 
     if (payload.parentId) {
       const parent = await this.prismaService.communityComment.findUnique({
@@ -349,6 +377,22 @@ export class AppCommunityService {
         }
       });
 
+      if (post.authorId !== userId) {
+        await this.createPostNotice(tx, {
+          recipientUserId: post.authorId,
+          actorUserId: userId,
+          type: NotificationType.COMMENT,
+          title: "评论&回复",
+          content: "有人评论了你的帖子",
+          metadata: {
+            postId,
+            postContent: this.getTextSnippet(post.content),
+            postImage: ensureArray<string>(post.images)[0] ?? null,
+            replyExcerpt: payload.content
+          }
+        });
+      }
+
       return comment;
     });
 
@@ -358,44 +402,58 @@ export class AppCommunityService {
     };
   }
 
-  async listActivities(userId: string, page: number, pageSize: number, status?: string) {
+  async listActivities(
+    userId: string,
+    page: number,
+    pageSize: number,
+    status?: ActivityStatus | string,
+    sort?: string
+  ) {
     const activities = await this.prismaService.activity.findMany({
       where: {
-        status: status ? (status as ActivityStatus) : undefined
+        status: (status as ActivityStatus | undefined) ?? undefined
       },
-      orderBy: [{ startAt: "asc" }, { createdAt: "desc" }]
+      orderBy: [{ startAt: "desc" }, { createdAt: "desc" }]
     });
 
-    const registrations = await this.prismaService.activityRegistration.findMany({
-      where: {
-        userId,
-        activityId: { in: activities.map((item) => item.id) },
-        status: { in: [RegistrationStatus.REGISTERED, RegistrationStatus.CHECKED_IN] }
-      }
-    });
+    const [registrations, interactions] = await Promise.all([
+      this.prismaService.activityRegistration.findMany({
+        where: {
+          userId,
+          activityId: { in: activities.map((item) => item.id) },
+          status: { in: [RegistrationStatus.REGISTERED, RegistrationStatus.CHECKED_IN] }
+        }
+      }),
+      this.prismaService.activityInteraction.findMany({
+        where: {
+          userId,
+          activityId: { in: activities.map((item) => item.id) }
+        }
+      })
+    ]);
+
     const registeredIds = new Set(registrations.map((item) => item.activityId));
-
-    return paginate(
-      activities.map((item) => ({
-        activityId: item.id,
-        title: item.title,
-        category: item.category,
-        status: item.status,
-        fee: toNumber(item.fee),
-        location: item.location,
-        coverUrl: item.coverUrl,
-        startAt: toDateTimeString(item.startAt),
-        endAt: toDateTimeString(item.endAt),
-        signupDeadline: toDateTimeString(item.signupDeadline),
-        maxParticipants: item.maxParticipants,
-        likesCount: item.likesCount,
-        favoritesCount: item.favoritesCount,
-        commentsCount: item.commentsCount,
-        registered: registeredIds.has(item.id)
-      })),
-      page,
-      pageSize
+    const likedIds = new Set(
+      interactions
+        .filter((item) => item.reactionType === ReactionType.LIKE)
+        .map((item) => item.activityId)
     );
+    const favoritedIds = new Set(
+      interactions
+        .filter((item) => item.reactionType === ReactionType.FAVORITE)
+        .map((item) => item.activityId)
+    );
+
+    const list = activities.map((item) =>
+      this.mapActivity(
+        item,
+        registeredIds.has(item.id),
+        likedIds.has(item.id),
+        favoritedIds.has(item.id)
+      )
+    );
+
+    return paginate(this.sortActivities(list, sort), page, pageSize);
   }
 
   async getActivityDetail(userId: string, activityId: string) {
@@ -407,31 +465,42 @@ export class AppCommunityService {
       throw new NotFoundException("Activity not found");
     }
 
-    const registration = await this.prismaService.activityRegistration.findUnique({
-      where: {
-        activityId_userId: {
-          activityId,
-          userId
+    const [registration, interactions, comments] = await Promise.all([
+      this.prismaService.activityRegistration.findUnique({
+        where: {
+          activityId_userId: {
+            activityId,
+            userId
+          }
         }
-      }
-    });
+      }),
+      this.prismaService.activityInteraction.findMany({
+        where: { activityId, userId }
+      }),
+      this.listActivityComments(userId, activityId, 1, 20)
+    ]);
+
+    const content = ensureRecord(activity.detailContent);
+    const sections = ensureArray<Record<string, unknown>>(content.sections).map((item) => ({
+      title: String(item.title ?? ""),
+      paragraphs: ensureArray<string>(item.paragraphs)
+    }));
 
     return {
-      activityId: activity.id,
-      title: activity.title,
-      category: activity.category,
-      status: activity.status,
-      fee: toNumber(activity.fee),
-      location: activity.location,
-      coverUrl: activity.coverUrl,
-      startAt: toDateTimeString(activity.startAt),
-      endAt: toDateTimeString(activity.endAt),
-      signupDeadline: toDateTimeString(activity.signupDeadline),
-      maxParticipants: activity.maxParticipants,
+      ...this.mapActivity(
+        activity,
+        Boolean(
+          registration &&
+            ([RegistrationStatus.REGISTERED, RegistrationStatus.CHECKED_IN] as RegistrationStatus[]).includes(
+              registration.status
+            )
+        ),
+        interactions.some((item) => item.reactionType === ReactionType.LIKE),
+        interactions.some((item) => item.reactionType === ReactionType.FAVORITE)
+      ),
       detailContent: activity.detailContent,
-      likesCount: activity.likesCount,
-      favoritesCount: activity.favoritesCount,
-      commentsCount: activity.commentsCount,
+      sections,
+      comments: comments.list,
       registration: registration
         ? {
             registrationId: registration.id,
@@ -441,6 +510,155 @@ export class AppCommunityService {
             cancellationReason: registration.cancellationReason
           }
         : null
+    };
+  }
+
+  async reactActivity(
+    userId: string,
+    activityId: string,
+    action: ActivityReactionAction
+  ) {
+    const activity = await this.prismaService.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true }
+    });
+
+    if (!activity) {
+      throw new NotFoundException("Activity not found");
+    }
+
+    const reactionType = action as ReactionType;
+    const existing = await this.prismaService.activityInteraction.findUnique({
+      where: {
+        activityId_userId_reactionType: {
+          activityId,
+          userId,
+          reactionType
+        }
+      }
+    });
+
+    if (!existing) {
+      if (action === "SHARE") {
+        await this.prismaService.activityInteraction.create({
+          data: {
+            activityId,
+            userId,
+            reactionType
+          }
+        });
+      } else {
+        await this.prismaService.$transaction([
+          this.prismaService.activityInteraction.create({
+            data: {
+              activityId,
+              userId,
+              reactionType
+            }
+          }),
+          this.prismaService.activity.update({
+            where: { id: activityId },
+            data: this.getActivityReactionCounterIncrement(action)
+          })
+        ]);
+      }
+    }
+
+    return {
+      activityId,
+      action,
+      recorded: true
+    };
+  }
+
+  async listActivityComments(
+    userId: string | undefined,
+    activityId: string,
+    page: number,
+    pageSize: number
+  ) {
+    await this.assertActivityExists(activityId);
+
+    const comments = await this.prismaService.activityComment.findMany({
+      where: { activityId },
+      include: { user: true },
+      orderBy: { createdAt: "asc" }
+    });
+    const commentUserNameMap = new Map(
+      comments.map((item) => [
+        item.id,
+        item.user.realName ?? item.user.nickname ?? item.user.phone
+      ])
+    );
+
+    return paginate(
+      comments.map((item) => ({
+        commentId: item.id,
+        id: item.id,
+        parentId: item.parentId,
+        content: item.content,
+        createdAt: toDateTimeString(item.createdAt),
+        author: item.user.realName ?? item.user.nickname ?? item.user.phone,
+        avatarUrl: item.user.avatarUrl,
+        city: item.user.city,
+        replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
+        likes: 0,
+        liked: false,
+        isMine: item.userId === userId,
+        user: {
+          userId: item.user.id,
+          name: item.user.realName ?? item.user.nickname ?? item.user.phone,
+          avatar: item.user.avatarUrl
+        }
+      })),
+      page,
+      pageSize
+    );
+  }
+
+  async createActivityComment(
+    userId: string,
+    activityId: string,
+    payload: {
+      parentId?: string;
+      content: string;
+    }
+  ) {
+    await this.assertActivityExists(activityId);
+
+    if (payload.parentId) {
+      const parent = await this.prismaService.activityComment.findUnique({
+        where: { id: payload.parentId },
+        select: { activityId: true }
+      });
+      if (!parent || parent.activityId !== activityId) {
+        throw new NotFoundException("Parent comment not found");
+      }
+    }
+
+    const comment = await this.prismaService.$transaction(async (tx) => {
+      const created = await tx.activityComment.create({
+        data: {
+          activityId,
+          userId,
+          parentId: payload.parentId,
+          content: payload.content
+        }
+      });
+
+      await tx.activity.update({
+        where: { id: activityId },
+        data: {
+          commentsCount: { increment: 1 }
+        }
+      });
+
+      return created;
+    });
+
+    return {
+      commentId: comment.id,
+      createdAt: toDateTimeString(comment.createdAt)
     };
   }
 
@@ -469,14 +687,15 @@ export class AppCommunityService {
         activityId,
         userId,
         status: RegistrationStatus.REGISTERED,
-        cancellationReason: remark ?? null
+        cancellationReason: null
       }
     });
 
     return {
       registrationId: registration.id,
       status: registration.status,
-      registeredAt: toDateTimeString(registration.registeredAt)
+      registeredAt: toDateTimeString(registration.registeredAt),
+      remarkAccepted: Boolean(remark?.trim())
     };
   }
 
@@ -537,6 +756,239 @@ export class AppCommunityService {
     );
   }
 
+  private mapPost(
+    item: {
+      id: string;
+      authorId: string;
+      content: string;
+      images: unknown;
+      tagLabel: string | null;
+      likesCount: number;
+      favoritesCount: number;
+      commentsCount: number;
+      sharesCount: number;
+      createdAt: Date;
+      author: {
+        id: string;
+        realName: string | null;
+        nickname: string | null;
+        phone: string;
+        avatarUrl: string | null;
+      };
+      topic: {
+        id: string;
+        title: string;
+      } | null;
+    },
+    liked: boolean,
+    favorited: boolean,
+    currentUserId?: string
+  ) {
+    const authorName = item.author.realName ?? item.author.nickname ?? item.author.phone;
+
+    return {
+      postId: item.id,
+      id: item.id,
+      content: item.content,
+      images: ensureArray<string>(item.images),
+      tagLabel: item.tagLabel,
+      likesCount: item.likesCount,
+      favoritesCount: item.favoritesCount,
+      commentsCount: item.commentsCount,
+      sharesCount: item.sharesCount,
+      createdAt: toDateTimeString(item.createdAt),
+      time: this.formatRelativeTime(item.createdAt),
+      author: {
+        userId: item.author.id,
+        name: authorName,
+        avatar: item.author.avatarUrl
+      },
+      authorName,
+      avatar: item.author.avatarUrl,
+      badge: item.topic?.title?.replace(/^#/, "") ?? "社区成员",
+      topic: item.topic
+        ? {
+            topicId: item.topic.id,
+            title: item.topic.title
+          }
+        : null,
+      tag: item.tagLabel ?? item.topic?.title ?? "",
+      liked,
+      favorited,
+      isMine: item.authorId === currentUserId,
+      likes: item.likesCount,
+      stars: item.favoritesCount,
+      comments: item.commentsCount,
+      shares: item.sharesCount
+    };
+  }
+
+  private mapActivity(
+    item: {
+      id: string;
+      title: string;
+      category: string;
+      status: ActivityStatus;
+      fee: unknown;
+      location: string;
+      coverUrl: string | null;
+      startAt: Date;
+      endAt: Date;
+      signupDeadline: Date;
+      maxParticipants: number | null;
+      likesCount: number;
+      favoritesCount: number;
+      commentsCount: number;
+      createdAt: Date;
+    },
+    registered: boolean,
+    liked: boolean,
+    favorited: boolean
+  ) {
+    const fee = toNumber(item.fee);
+
+    return {
+      activityId: item.id,
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      type: item.category,
+      status: item.status,
+      fee,
+      price: fee && fee > 0 ? `${fee}元` : "免费",
+      location: item.location,
+      coverUrl: item.coverUrl,
+      image: item.coverUrl,
+      startAt: toDateTimeString(item.startAt),
+      endAt: toDateTimeString(item.endAt),
+      signupDeadline: toDateTimeString(item.signupDeadline),
+      signupDeadlineText: toDateTimeString(item.signupDeadline)?.slice(0, 10) ?? null,
+      maxParticipants: item.maxParticipants,
+      likesCount: item.likesCount,
+      favoritesCount: item.favoritesCount,
+      commentsCount: item.commentsCount,
+      registered,
+      liked,
+      favorited,
+      publishDate: toDateTimeString(item.createdAt)?.slice(0, 10) ?? null,
+      dateRange: `${toDateTimeString(item.startAt)?.slice(0, 10) ?? ""}-${toDateTimeString(item.endAt)?.slice(0, 10) ?? ""}`,
+      time: `${toDateTimeString(item.startAt)?.slice(0, 10) ?? ""}~${toDateTimeString(item.endAt)?.slice(0, 10) ?? ""}`,
+      stats: {
+        likes: item.likesCount,
+        stars: item.favoritesCount,
+        comments: item.commentsCount
+      }
+    };
+  }
+
+  private sortPosts<T extends {
+    likesCount: number;
+    favoritesCount: number;
+    commentsCount: number;
+    sharesCount: number;
+    createdAt: string | null;
+  }>(posts: T[], feedType: PostFeedType) {
+    if (feedType === "LATEST" || feedType === "FOLLOWING") {
+      return posts;
+    }
+
+    return [...posts].sort((left, right) => {
+      const scoreDiff = this.getPostHotScore(right) - this.getPostHotScore(left);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
+    });
+  }
+
+  private sortActivities<T extends {
+    likesCount: number;
+    favoritesCount: number;
+    commentsCount: number;
+    startAt: string | null;
+  }>(activities: T[], sort?: string) {
+    if (this.normalizeActivitySort(sort) !== "HOT") {
+      return activities;
+    }
+
+    return [...activities].sort((left, right) => {
+      const scoreDiff = this.getActivityHotScore(right) - this.getActivityHotScore(left);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      return (right.startAt ?? "").localeCompare(left.startAt ?? "");
+    });
+  }
+
+  private getPostHotScore(item: {
+    likesCount: number;
+    favoritesCount: number;
+    commentsCount: number;
+    sharesCount: number;
+  }) {
+    return (
+      item.likesCount * 4 +
+      item.favoritesCount * 3 +
+      item.commentsCount * 5 +
+      item.sharesCount * 2
+    );
+  }
+
+  private getActivityHotScore(item: {
+    likesCount: number;
+    favoritesCount: number;
+    commentsCount: number;
+  }) {
+    return item.likesCount * 4 + item.favoritesCount * 3 + item.commentsCount * 5;
+  }
+
+  private normalizeActivitySort(sort?: string): ActivitySort {
+    return sort?.toUpperCase() === "HOT" ? "HOT" : "LATEST";
+  }
+
+  private async normalizePostFeedType(
+    userId: string,
+    feedType?: string
+  ): Promise<{ feedType: PostFeedType; followedUserIds: string[] }> {
+    const normalizedFeedType = (feedType ?? "recommended").toUpperCase() as PostFeedType;
+
+    if (normalizedFeedType !== "FOLLOWING") {
+      return {
+        feedType:
+          normalizedFeedType === "LATEST" ? "LATEST" : "RECOMMENDED",
+        followedUserIds: [] as string[]
+      };
+    }
+
+    const followedRows = await this.prismaService.userFollow.findMany({
+      where: { followerId: userId },
+      select: { followeeId: true }
+    });
+
+    return {
+      feedType: "FOLLOWING" as const,
+      followedUserIds: followedRows.map((item) => item.followeeId)
+    };
+  }
+
+  private formatRelativeTime(value: Date) {
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - value.getTime()) / 1000));
+
+    if (diffSeconds < 60) {
+      return `${Math.max(diffSeconds, 1)}秒前`;
+    }
+    if (diffSeconds < 3600) {
+      return `${Math.floor(diffSeconds / 60)}分钟前`;
+    }
+    if (diffSeconds < 86400) {
+      return `${Math.floor(diffSeconds / 3600)}小时前`;
+    }
+
+    return `${Math.floor(diffSeconds / 86400)}天前`;
+  }
+
   private getReactionCounterIncrement(action: PostReactionAction) {
     if (action === "LIKE") {
       return { likesCount: { increment: 1 } };
@@ -545,6 +997,13 @@ export class AppCommunityService {
       return { favoritesCount: { increment: 1 } };
     }
     return { sharesCount: { increment: 1 } };
+  }
+  private getActivityReactionCounterIncrement(action: Exclude<ActivityReactionAction, "SHARE">) {
+    if (action === "LIKE") {
+      return { likesCount: { increment: 1 } };
+    }
+
+    return { favoritesCount: { increment: 1 } };
   }
 
   private assertPostEditPermission(user: AuthenticatedUser, postAuthorId: string) {
@@ -564,13 +1023,88 @@ export class AppCommunityService {
   }
 
   private async assertPostExists(postId: string) {
+    await this.getPublishedPost(postId);
+  }
+
+  private async assertActivityExists(activityId: string) {
+    const activity = await this.prismaService.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true }
+    });
+
+    if (!activity) {
+      throw new NotFoundException("Activity not found");
+    }
+  }
+
+  private async getPublishedPost(postId: string) {
     const post = await this.prismaService.communityPost.findFirst({
       where: { id: postId, status: CommunityPostStatus.PUBLISHED },
-      select: { id: true }
+      select: {
+        id: true,
+        authorId: true,
+        content: true,
+        images: true
+      }
     });
 
     if (!post) {
       throw new NotFoundException("Post not found");
     }
+
+    return post;
+  }
+
+  private getTextSnippet(value: string | null | undefined) {
+    return (value ?? "").slice(0, 80);
+  }
+
+  private async createPostNotice(
+    tx: Pick<PrismaService, "user" | "notification" | "notificationRecipient">,
+    input: {
+      recipientUserId: string;
+      actorUserId: string;
+      type: NotificationType;
+      title: string;
+      content: string;
+      metadata: Record<string, unknown>;
+    }
+  ) {
+    const actor = await tx.user.findUnique({
+      where: { id: input.actorUserId },
+      select: {
+        id: true,
+        realName: true,
+        nickname: true,
+        phone: true,
+        avatarUrl: true
+      }
+    });
+
+    const actorName = actor
+      ? actor.realName ?? actor.nickname ?? actor.phone
+      : "社区用户";
+
+    const notification = await tx.notification.create({
+      data: {
+        senderId: input.actorUserId,
+        type: input.type,
+        title: input.title,
+        content: input.content,
+        metadata: {
+          ...input.metadata,
+          actorUserId: input.actorUserId,
+          actorName,
+          actorAvatar: actor?.avatarUrl ?? null
+        }
+      }
+    });
+
+    await tx.notificationRecipient.create({
+      data: {
+        notificationId: notification.id,
+        userId: input.recipientUserId
+      }
+    });
   }
 }

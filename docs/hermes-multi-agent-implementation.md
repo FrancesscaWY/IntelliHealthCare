@@ -108,10 +108,10 @@ API / Domain Modules
 
 当前仓库落地后的 backbone 建议固定为：
 
-- `provider`：`OpenRouter`
-- `planner / main model`：`deepseek/deepseek-v3.2`
-- `worker / light model`：`qwen/qwen3-30b-a3b-instruct-2507`
-- `embedding model`：`qwen/qwen3-embedding-8b`
+- `provider`：`DeepSeek 官方直连`
+- `planner / main model`：`deepseek-chat`
+- `worker / light model`：`deepseek-chat`
+- `embedding model`：后续单独接兼容 embedding 网关；当前先保留确定性向量兜底
 - `embedding fallback model`：`baai/bge-m3`
 
 落地时不建议只保留“一个 `AGENT_LLM_MODEL` 配置跑所有任务”，而应至少把下面这些配置项显式建模：
@@ -140,11 +140,11 @@ API / Domain Modules
 - 结构化任务默认要求严格 `JSON Schema` 输出，不再只依赖 `json_object`
 - 主链路上下文预算按 `>= 128K` 设计，超长材料仍优先走 `RAG + 摘要压缩`
 - 默认单次任务预算上限建议控制在 `US$0.05`
-- 开发环境可以直连 OpenRouter，生产环境建议经由私有 `llm-gateway` 或内网转发层统一出站
+- 开发环境可以直连 DeepSeek 官方 API，生产环境建议经由私有 `llm-gateway` 或内网转发层统一出站
 
 当前仓库中的 gateway 层应承担的职责建议明确为：
 
-- `llm.gateway.ts`：负责主模型 / 轻量模型 / fallback model 路由、严格结构化输出、tool-calling 请求以及 OpenRouter provider 参数透传
+- `llm.gateway.ts`：负责主模型 / 轻量模型 / fallback model 路由、结构化输出、tool-calling 请求以及 DeepSeek / OpenAI-compatible provider 适配
 - `embedding.gateway.ts`：负责 embedding model / fallback embedding model 调用与向量降级
 - 当主模型失败时，先降级到轻量 / fallback 模型
 - 当 embedding 失败时，先降级到 fallback embedding；再由上层检索链路继续降级到词法检索或人工兜底

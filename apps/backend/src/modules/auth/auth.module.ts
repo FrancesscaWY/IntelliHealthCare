@@ -2,6 +2,7 @@ import { Global, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import type { EnvironmentVariables } from "../../common/config/env.schema";
+import { InternalAccessGuard } from "../../common/auth/internal-access.guard";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { RolesGuard } from "../../common/auth/roles.guard";
 import {
@@ -26,7 +27,13 @@ import { AuthService } from "./auth.service";
     AdminAuthController,
     PublicDocumentController
   ],
-  providers: [AuthService, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, JwtModule, JwtAuthGuard, RolesGuard]
+  providers: [AuthService, JwtAuthGuard, InternalAccessGuard, RolesGuard],
+  exports: [
+    AuthService,
+    JwtModule,
+    JwtAuthGuard,
+    InternalAccessGuard,
+    RolesGuard
+  ]
 })
 export class AuthModule {}

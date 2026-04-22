@@ -74,6 +74,7 @@ export class LlmGateway {
     input: GenerateStructuredObjectInput<TOutput>
   ): Promise<LlmStructuredResponse<TOutput>> {
     const clientConfig = this.getClientConfig();
+    const effectiveStrictJson = this.usesJsonSchemaResponseFormat(clientConfig);
 
     if (this.shouldUseDeterministicFallback(clientConfig)) {
       const output = input.outputSchema.parse(await input.fallbackFactory());
@@ -86,7 +87,7 @@ export class LlmGateway {
           fallbackMode: true,
           modelTier: input.modelTier ?? "primary",
           attemptedModels: [this.resolveChatModel(input.modelTier ?? "primary")],
-          strictJson: clientConfig.strictJson,
+          strictJson: effectiveStrictJson,
           toolCalling: false
         })
       };
@@ -115,7 +116,7 @@ export class LlmGateway {
               fallbackMode: index > 0,
               modelTier,
               attemptedModels,
-              strictJson: clientConfig.strictJson,
+              strictJson: effectiveStrictJson,
               toolCalling: false
             })
           };
@@ -148,7 +149,7 @@ export class LlmGateway {
           fallbackMode: true,
           modelTier,
           attemptedModels,
-          strictJson: clientConfig.strictJson,
+          strictJson: effectiveStrictJson,
           toolCalling: false,
           error: message
         })
@@ -249,12 +250,14 @@ export class LlmGateway {
     userPrompt: string;
     outputSchema: z.ZodType<TOutput>;
   }) {
+    const useJsonSchema = this.usesJsonSchemaResponseFormat(input.clientConfig);
+
     const payload = await this.requestChatCompletion({
       clientConfig: input.clientConfig,
-      model: input.model,
+      model: this.resolveProviderModel(input.clientConfig.provider, input.model),
       body: {
         temperature: 0.2,
-        response_format: input.clientConfig.strictJson
+        response_format: useJsonSchema
           ? {
               type: "json_schema",
               json_schema: {
@@ -300,7 +303,7 @@ export class LlmGateway {
   }) {
     const payload = await this.requestChatCompletion({
       clientConfig: input.clientConfig,
-      model: input.model,
+      model: this.resolveProviderModel(input.clientConfig.provider, input.model),
       body: {
         temperature: 0,
         messages: [
@@ -465,6 +468,19 @@ export class LlmGateway {
       default:
         return this.configService.get("AGENT_LLM_MODEL", { infer: true });
     }
+  }
+
+  private usesJsonSchemaResponseFormat(clientConfig: ClientConfig) {
+    // DeepSeek official API currently documents `json_object`, not `json_schema`.
+    return clientConfig.strictJson && clientConfig.provider !== "deepseek";
+  }
+
+  private resolveProviderModel(provider: ClientConfig["provider"], model: string) {
+    if (provider !== "deepseek") {
+      return model;
+    }
+
+    return model.replace(/^deepseek\//i, "").trim() || "deepseek-chat";
   }
 
   private resolveToolChoice(
