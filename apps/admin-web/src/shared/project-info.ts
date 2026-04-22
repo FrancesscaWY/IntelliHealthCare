@@ -1,5 +1,5 @@
 ﻿export const projectInfo = {
-  name: "黛西健康",
+  name: "智诊康养—后台端",
   summary: "面向健康服务、护理调度与机构运营的后台管理工作台。",
   delivery: "后台工作区基于 Vue 3、TypeScript 与 Vite 构建。",
   homePageId: "auth/login",
@@ -108,14 +108,6 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   "auth/login": {
     title: "登录页",
     summary: "角色选择登录与后台工作台入口。",
-  },
-  "community/activity-management": {
-    title: "活动管理",
-    summary: "管理社区活动、报名审核和互动数据。",
-  },
-  "content/content-management": {
-    title: "内容管理",
-    summary: "维护首页内容、消息和运营位。",
   },
   "content/mass-message": {
     title: "消息群发",
