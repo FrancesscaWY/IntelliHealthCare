@@ -88,11 +88,7 @@ function clearSessionState() {
 function navigateBackToSource() {
   const targetPath = returnPath.value || "health/health-data";
   clearSessionState();
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo(targetPath);
-  } else {
-    window.location.href = targetPath;
-  }
+  props.navigation.navigateTo(targetPath);
 }
 
 function goBack() {

@@ -293,17 +293,75 @@ function goToAddData() {
                 <text :x="column.centerX" :y="heartHeroChart.labelY" text-anchor="middle" class="hero-time">
                   {{ column.item.label }}
                 </text>
-              </template>
-            </g>
-          </svg>
-        </div>
-      </section>
+              </g>
+              <line
+                :x1="rangeChart.padding"
+                :y1="rangeChart.baselineY"
+                :x2="rangeChart.width - rangeChart.padding"
+                :y2="rangeChart.baselineY"
+                class="x-axis-line"
+              />
+            </svg>
+          </div>
+          <div class="chart-card__labels">
+            <span v-for="item in chartItems" :key="item.label">{{ item.label }}</span>
+          </div>
+        </section>
 
-      <section class="summary-grid" aria-label="心率概览">
-        <article class="summary-card">
-          <span>最高心率</span>
-          <strong>{{ formatNumber(maxHeartRate) }}</strong>
-          <small>{{ maxDate }}</small>
+        <section class="metric-blocks-card metric-blocks-card--heart">
+          <div class="metric-blocks-grid">
+            <article class="metric-block">
+              <span>最高心率</span>
+              <strong>{{ formatNumber(maxHeartRate) }}</strong>
+              <small>{{ maxDate }}</small>
+            </article>
+            <article class="metric-block">
+              <span>最低心率</span>
+              <strong>{{ formatNumber(minHeartRate) }}</strong>
+              <small>{{ minDate }}</small>
+            </article>
+            <article class="metric-block">
+              <span>平均心率</span>
+              <strong>{{ formatNumber(averageHeartRate) }}</strong>
+              <small>bpm</small>
+            </article>
+          </div>
+        </section>
+
+        <section class="detail-table-card">
+          <div class="detail-card__header">
+            <div>
+              <h2>每日心率明细</h2>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="metric-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>平均心率</th>
+                  <th>最低/最高</th>
+                  <th>较前一日变化</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(item, idx) in heartRateData" :key="item.date">
+                  <td>{{ item.date }}</td>
+                  <td>{{ formatNumber(item.heartRate) }} bpm</td>
+                  <td>{{ formatNumber(item.lowHeartRate) }} / {{ formatNumber(item.highHeartRate) }}</td>
+                  <td :class="getChangeClass(idx)">{{ formatChange(idx) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <article v-if="false && mock.nextSteps && mock.nextSteps.length" class="next-steps-card">
+          <p class="page-eyebrow">Roadmap</p>
+          <strong>后续计划</strong>
+          <ol>
+            <li v-for="item in mock.nextSteps" :key="item">{{ item }}</li>
+          </ol>
         </article>
         <article class="summary-card">
           <span>最低心率</span>
@@ -780,5 +838,31 @@ function goToAddData() {
     grid-template-columns: 1fr;
     gap: 5px;
   }
+}
+.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2, .metric-table th, .metric-table td, .steps-table th, .steps-table td) {
+  white-space: nowrap;
+}
+
+.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.health-data-page :is(.table-wrapper) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.health-data-page :is(.metric-table, .steps-table) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.health-data-page :is(.metric-table th, .metric-table td, .steps-table th, .steps-table td) {
+  padding-right: 6px;
+  padding-left: 6px;
+  font-size: 12px;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 </style>

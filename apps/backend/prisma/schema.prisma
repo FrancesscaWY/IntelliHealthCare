@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  ELDER
+  FAMILY
+  ADMIN
+  STAFF
+  ORG_MANAGER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  PENDING
+}
+
+enum DeviceType {
+  BLOOD_PRESSURE_METER
+  GLUCOSE_METER
+  WATCH
+  THERMOMETER
+  OXIMETER
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  UNBOUND
+}
+
+enum ServiceCategory {
+  HOME_CARE
+  REHAB_THERAPY
+  HOME_EXAM
+  ELDERLY_CARE
+}
+
+enum OrderStatus {
+  PENDING_CONFIRMATION
+  DISPATCHING
+  SCHEDULED
+  IN_SERVICE
+  COMPLETED
+  AFTER_SALE
+  CANCELLED
+}
+
+enum WorkOrderStatus {
+  PENDING
+  ASSIGNED
+  ACCEPTED
+  SERVING
+  COMPLETED
+  EXCEPTION
+  CLOSED
+}
+
+enum ReportType {
+  CHECKUP
+  SERVICE
+  REHAB
+  ASSESSMENT
+}
+
+enum ConversationScene {
+  DOCTOR
+  ASSISTANT
+  CUSTOMER_SERVICE
+  AFTER_SALE
+}
+
+enum AgentTaskStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model User {
+  id               String                    @id @default(cuid())
+  phone            String                    @unique
+  nickname         String?
+  passwordHash     String?
+  type             UserType
+  status           UserStatus                @default(ACTIVE)
+  realName         String?
+  avatarUrl        String?
+  lastLoginAt      DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  roles            UserRole[]
+  ownedOrders      Order[]                   @relation("OrderOwner")
+  familyBindings   FamilyBinding[]           @relation("FamilyMember")
+  elderBindings    FamilyBinding[]           @relation("ElderMember")
+  archive          HealthArchive?
+  devices          Device[]
+  participants     ConversationParticipant[]
+  sentMessages     ConversationMessage[]     @relation("MessageSender")
+  agentTasks       AgentTask[]               @relation("TaskOwner")
+}
+
+model Role {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  scope     Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+}
+
+model FamilyBinding {
+  id             String   @id @default(cuid())
+  familyMemberId String
+  elderMemberId  String
+  relationLabel  String
+  authScope      Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  familyMember   User     @relation("FamilyMember", fields: [familyMemberId], references: [id])
+  elderMember    User     @relation("ElderMember", fields: [elderMemberId], references: [id])
+
+  @@unique([familyMemberId, elderMemberId])
+}
+
+model HealthArchive {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  baseProfile    Json
+  medicalHistory Json
+  riskTags       Json
+  longTermMemory Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+  reports        Report[]
+}
+
+model Device {
+  id            String       @id @default(cuid())
+  serialNo      String       @unique
+  ownerId       String
+  type          DeviceType
+  status        DeviceStatus @default(OFFLINE)
+  nickname      String?
+  latestPayload Json?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  owner         User         @relation(fields: [ownerId], references: [id])
+}
+
+model ServiceItem {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  category    ServiceCategory
+  title       String
+  summary     String?
+  price       Decimal         @db.Decimal(10, 2)
+  marketPrice Decimal?        @db.Decimal(10, 2)
+  regionScope Json?
+  ragSnippet  Json?
+  enabled     Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  orders      Order[]
+}
+
+model Order {
+  id                    String      @id @default(cuid())
+  orderNo               String      @unique
+  ownerId               String
+  serviceId             String
+  status                OrderStatus @default(PENDING_CONFIRMATION)
+  source                String      @default("app")
+  bookingDate           DateTime?
+  bookingTimeSlot       String?
+  urgencyLevel          Int         @default(0)
+  addressSnapshot       Json
+  contactSnapshot       Json
+  healthSummarySnapshot Json?
+  aiSummary             Json?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  owner                 User        @relation("OrderOwner", fields: [ownerId], references: [id])
+  service               ServiceItem @relation(fields: [serviceId], references: [id])
+  workOrders            WorkOrder[]
+  reports               Report[]
+}
+
+model WorkOrder {
+  id                     String          @id @default(cuid())
+  orderId                String
+  status                 WorkOrderStatus @default(PENDING)
+  institutionName        String?
+  assigneeName           String?
+  scheduleAt             DateTime?
+  agentDispatchSuggestion Json?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  order                  Order           @relation(fields: [orderId], references: [id])
+}
+
+model Report {
+  id         String     @id @default(cuid())
+  orderId    String?
+  archiveId  String?
+  type       ReportType
+  title      String
+  summary    Json
+  attachment Json?
+  reviewedAt DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  order      Order?     @relation(fields: [orderId], references: [id])
+  archive    HealthArchive? @relation(fields: [archiveId], references: [id])
+}
+
+model Conversation {
+  id            String                    @id @default(cuid())
+  scene         ConversationScene
+  topic         String?
+  metadata      Json?
+  lastMessageAt DateTime?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  participants  ConversationParticipant[]
+  messages      ConversationMessage[]
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String
+  roleLabel      String?
+  unreadCount    Int          @default(0)
+  joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@id([conversationId, userId])
+}
+
+model ConversationMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String?
+  contentType    String
+  content        Json
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User?        @relation("MessageSender", fields: [senderId], references: [id])
+}
+
+model AgentTask {
+  id            String          @id @default(cuid())
+  ownerId       String?
+  agentName     String
+  taskType      String
+  status        AgentTaskStatus @default(PENDING)
+  triggerSource String?
+  payload       Json
+  result        Json?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  owner         User?           @relation("TaskOwner", fields: [ownerId], references: [id])
+}

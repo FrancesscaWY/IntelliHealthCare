@@ -1,1 +1,5 @@
-App({});
+App({
+  globalData: {
+    latestProfilePost: null
+  }
+});

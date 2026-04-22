@@ -1,11 +1,13 @@
 import os from "node:os";
 import { spawn } from "node:child_process";
+import { resolveAppTarget } from "./app-targets.mjs";
 import { validateWorkspace } from "./validate-workspace.mjs";
 import { loadManifest, normalizePageId, parseArgs } from "./utils.mjs";
 
 const args = parseArgs(process.argv.slice(2));
-const manifest = loadManifest();
-const port = Number(args.port || 5173);
+const appTarget = resolveAppTarget(args.app || "user");
+const manifest = loadManifest(appTarget.key);
+const port = Number(args.port || appTarget.defaultPort);
 const requestedPageId = normalizePageId(args.page);
 const mode = requestedPageId || args.mode === "page" ? "page" : "app";
 const enablePublicTunnel = args.public === "true";
@@ -45,7 +47,7 @@ if (requestedPageId && !manifest.some((entry) => entry.id === requestedPageId)) 
   process.exit(1);
 }
 
-const workspaceErrors = validateWorkspace();
+const workspaceErrors = validateWorkspace(appTarget.key);
 if (workspaceErrors.length > 0) {
   console.error("Preflight validation failed:");
   for (const error of workspaceErrors) {
@@ -54,7 +56,7 @@ if (workspaceErrors.length > 0) {
   process.exit(1);
 }
 
-const extraArgs = ["run", "dev", "--workspace", "@ihc/user-web", "--", "--host", bindHost, "--port", String(port)];
+const extraArgs = ["run", "dev", "--workspace", appTarget.packageName, "--", "--host", bindHost, "--port", String(port), "--strictPort"];
 const localPreviewHost = bindHost === "0.0.0.0" ? "127.0.0.1" : bindHost;
 const lanIpv4Address = getLanIpv4Address();
 const previewUrl = requestedPageId
@@ -66,7 +68,7 @@ const lanUrl = lanIpv4Address
     : `http://${lanIpv4Address}:${port}/`
   : null;
 
-console.log(`Starting user web dev server: ${previewUrl}`);
+console.log(`Starting ${appTarget.dirName} dev server: ${previewUrl}`);
 if (mode === "page") {
   console.log(`Preview page: ${requestedPageId}`);
 } else {
@@ -87,6 +89,7 @@ const child =
           ...process.env,
           VITE_IHC_MODE: mode,
           VITE_IHC_PAGE_ID: requestedPageId,
+          VITE_IHC_APP_KEY: appTarget.key,
         },
       })
     : spawn("npm", extraArgs, {
@@ -95,6 +98,7 @@ const child =
           ...process.env,
           VITE_IHC_MODE: mode,
           VITE_IHC_PAGE_ID: requestedPageId,
+          VITE_IHC_APP_KEY: appTarget.key,
         },
       });
 

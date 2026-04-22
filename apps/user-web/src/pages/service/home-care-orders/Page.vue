@@ -247,7 +247,7 @@ function getAmountText(order: HomeCareOrder) {
   grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 4px 0 10px;
+  padding: 16px 0 10px;
 }
 
 .page-title h1 {

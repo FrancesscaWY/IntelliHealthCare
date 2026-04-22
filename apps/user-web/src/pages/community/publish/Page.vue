@@ -2,7 +2,6 @@
 import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { AddPic, AtSign, Close, LocalTwo, Pound } from "@icon-park/vue-next";
-import blossomImage from "@/assets/community/publish/blossom.jpg";
 import { savePublishedProfilePost } from "@/pages/home/profile/published-post";
 import mock from "./mock";
 
@@ -13,6 +12,7 @@ type UploadImage = {
 
 type VisibilityOption = (typeof mock.visibilityOptions)[number];
 
+const MAX_UPLOAD_IMAGES = 6;
 const props = defineProps<PageComponentProps>();
 const fileInput = ref<HTMLInputElement | null>(null);
 const title = ref("");
@@ -21,13 +21,9 @@ const visibility = ref<VisibilityOption>(mock.visibilityOptions[0]);
 const showVisibilityPanel = ref(false);
 const uploadedImages = ref<UploadImage[]>([]);
 
-const displayImages = computed<UploadImage[]>(() => [
-  {
-    id: "sample",
-    src: blossomImage,
-  },
-  ...uploadedImages.value,
-]);
+const displayImages = computed<UploadImage[]>(() => uploadedImages.value);
+const remainingImageSlots = computed(() => Math.max(MAX_UPLOAD_IMAGES - uploadedImages.value.length, 0));
+const canAddMoreImages = computed(() => remainingImageSlots.value > 0);
 
 const canSubmit = computed(() => title.value.trim().length > 0 && content.value.trim().length > 0);
 
@@ -52,14 +48,39 @@ function readFileAsDataUrl(file: File) {
 
 async function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement;
-  const selectedFiles = Array.from(target.files || []).slice(0, 5);
+  const rawFiles = Array.from(target.files || []);
+  const selectedFiles = rawFiles.slice(0, remainingImageSlots.value);
 
-  uploadedImages.value = await Promise.all(
+  if (selectedFiles.length === 0) {
+    target.value = "";
+    if (!canAddMoreImages.value) {
+      props.showToast(`最多可添加 ${MAX_UPLOAD_IMAGES} 张图片`);
+    }
+    return;
+  }
+
+  const nextImages = await Promise.all(
     selectedFiles.map(async (file, index) => ({
-      id: `${file.name}-${index}`,
+      id: `${file.name}-${file.lastModified}-${uploadedImages.value.length + index}`,
       src: await readFileAsDataUrl(file),
     })),
   );
+
+  uploadedImages.value = [...uploadedImages.value, ...nextImages].slice(0, MAX_UPLOAD_IMAGES);
+  target.value = "";
+
+  if (rawFiles.length > selectedFiles.length) {
+    props.showToast(`最多可添加 ${MAX_UPLOAD_IMAGES} 张图片`);
+    return;
+  }
+
+  if (uploadedImages.value.length >= MAX_UPLOAD_IMAGES) {
+    props.showToast(`已添加 ${MAX_UPLOAD_IMAGES} 张图片`);
+  }
+}
+
+function removeImage(imageId: string) {
+  uploadedImages.value = uploadedImages.value.filter((item) => item.id !== imageId);
 }
 
 function handleVisibilitySelect(option: VisibilityOption) {
@@ -130,10 +151,21 @@ function submitPost() {
         v-for="image in displayImages"
         :key="image.id"
         class="publish-gallery__item publish-gallery__item--image"
-        :style="{ backgroundImage: `url(${image.src})` }"
-      ></div>
-      <button class="publish-gallery__item publish-gallery__item--adder" type="button" @click.stop="triggerUpload">
+      >
+        <div class="publish-gallery__image" :style="{ backgroundImage: `url(${image.src})` }"></div>
+        <button class="publish-gallery__remove" type="button" aria-label="删除图片" @click.stop="removeImage(image.id)">
+          <Close theme="outline" size="14" fill="#ffffff" />
+        </button>
+      </div>
+      <button
+        v-if="canAddMoreImages"
+        class="publish-gallery__item publish-gallery__item--adder"
+        type="button"
+        @click.stop="triggerUpload"
+      >
         <AddPic theme="outline" size="30" fill="#a8abb0" />
+        <span class="publish-gallery__adder-text">添加图片</span>
+        <small>{{ uploadedImages.length }}/{{ MAX_UPLOAD_IMAGES }}</small>
       </button>
       <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="handleFileChange" />
     </section>
@@ -181,21 +213,35 @@ function submitPost() {
 
 <style scoped>
 .publish-page {
-  min-height: calc(100vh - 36px);
+  height: calc(100vh - 36px);
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   gap: 18px;
   margin: -18px;
   padding: 16px 22px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: #ffffff;
   color: #2e3135;
   font-family: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  scrollbar-width: none;
+}
+
+.publish-page::-webkit-scrollbar {
+  display: none;
 }
 
 .publish-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin: -16px -22px 0;
+  padding: 16px 22px 10px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
 }
 
 .icon-button {
@@ -230,9 +276,19 @@ function submitPost() {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+  min-width: 0;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.publish-gallery::-webkit-scrollbar {
+  display: none;
 }
 
 .publish-gallery__item {
+  position: relative;
   width: 156px;
   height: 128px;
   border-radius: 20px;
@@ -241,17 +297,75 @@ function submitPost() {
 }
 
 .publish-gallery__item--image {
+  box-shadow: 0 14px 30px rgba(37, 51, 84, 0.12);
+}
+
+.publish-gallery__image {
+  width: 100%;
+  height: 100%;
   background-color: #eef1f4;
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
 }
 
 .publish-gallery__item--adder {
   display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
   place-items: center;
   border: 0;
-  background: linear-gradient(180deg, #f3f3f3 0%, #ececec 100%);
+  background: linear-gradient(180deg, #f6f7f9 0%, #eceff3 100%);
+  color: #8f96a0;
+}
+
+.publish-gallery__adder-text {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.publish-gallery__item--adder small {
+  font-size: 10px;
+}
+
+.publish-gallery__remove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(32, 38, 49, 0.72);
+  box-shadow: 0 8px 18px rgba(15, 19, 28, 0.18);
+  opacity: 0;
+  transform: translateY(-4px) scale(0.94);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.publish-gallery__item--image:hover .publish-gallery__remove {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.publish-gallery__item--image:hover .publish-gallery__image {
+  transform: scale(1.03);
+  filter: brightness(0.92);
+}
+
+.publish-gallery__remove:hover {
+  background: rgba(232, 76, 92, 0.92);
 }
 
 .publish-editor {
@@ -376,6 +490,13 @@ function submitPost() {
 
 @media (max-width: 389px) {
   .publish-page {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .publish-topbar {
+    margin-right: -18px;
+    margin-left: -18px;
     padding-right: 18px;
     padding-left: 18px;
   }

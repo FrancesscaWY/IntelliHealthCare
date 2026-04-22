@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { loadManifest, resolvePageFolder, rootDir } from "./utils.mjs";
+import { listAppTargets, resolveAppTarget } from "./app-targets.mjs";
+import { loadManifest, resolvePageFolder } from "./utils.mjs";
 
-export function validateWorkspace() {
-  const manifest = loadManifest();
+function validateAppWorkspace(appTarget) {
+  const manifest = loadManifest(appTarget.key);
   const errors = [];
   const seenIds = new Set();
 
@@ -15,7 +16,7 @@ export function validateWorkspace() {
     }
     seenIds.add(entry.id);
 
-    const folderPath = resolvePageFolder(entry.id);
+    const folderPath = resolvePageFolder(appTarget.key, entry.id);
     if (!fs.existsSync(folderPath)) {
       errors.push(`页面目录不存在：${entry.id} -> ${folderPath}`);
       continue;
@@ -38,18 +39,25 @@ export function validateWorkspace() {
     }
   }
 
-  const legacyPath = path.join(rootDir, "legacy", "miniprogram-user");
-  if (!fs.existsSync(legacyPath)) {
-    errors.push("缺少 legacy/miniprogram-user，无法保留现有小程序实现。");
+  return errors;
+}
+
+export function validateWorkspace(appArg) {
+  if (appArg) {
+    return validateAppWorkspace(resolveAppTarget(appArg));
   }
 
-  return errors;
+  return listAppTargets().flatMap((target) =>
+    validateAppWorkspace(target).map((error) => `[${target.key}] ${error}`),
+  );
 }
 
 const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
-  const errors = validateWorkspace();
+  const appIndex = process.argv.findIndex((token) => token === "--app");
+  const appArg = appIndex >= 0 ? process.argv[appIndex + 1] : undefined;
+  const errors = validateWorkspace(appArg);
 
   if (errors.length > 0) {
     console.error("工作区校验失败：");

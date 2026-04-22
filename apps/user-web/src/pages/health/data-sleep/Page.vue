@@ -446,4 +446,9 @@ function goToAddData() {
 .add-area{position:absolute;right:29px;bottom:26px;left:29px}.add-btn{width:100%;height:66px;border:0;border-radius:13px;background:#6670f0;box-shadow:0 14px 28px rgba(102,112,240,.18);color:#fff;font-size:24px;font-weight:500;letter-spacing:.04em}
 @media (max-width:720px){.chart-card__labels span{font-size:10px}.stage-legend{gap:12px;font-size:14px}}
 @media (max-width:389px){.latest-card-main{grid-template-columns:1fr}.sleep-stage-card{padding:16px}.sleep-stage-card__label{font-size:16px}.sleep-stage-card__value-row strong{font-size:20px}}
+.health-data-page :is(.medication-nav h1,.chart-switch button,.small-card-label,.small-card-date,.latest-small-card strong,.latest-card-summary span,.latest-card-summary p,.metric-block span,.metric-block strong,.metric-block small,.detail-card__header h2,.metric-table th,.metric-table td,.steps-table th,.steps-table td){white-space:nowrap}
+.health-data-page :is(.medication-nav h1,.chart-switch button,.small-card-label,.small-card-date,.latest-small-card strong,.latest-card-summary span,.latest-card-summary p,.metric-block span,.metric-block strong,.metric-block small,.detail-card__header h2){overflow:hidden;text-overflow:ellipsis}
+.health-data-page :is(.table-wrapper){overflow-x:auto;-webkit-overflow-scrolling:touch}
+.health-data-page :is(.metric-table,.steps-table){width:max-content;min-width:100%}
+.health-data-page :is(.metric-table th,.metric-table td,.steps-table th,.steps-table td){padding-right:6px;padding-left:6px;font-size:12px;word-break:keep-all;overflow-wrap:normal}
 </style>

@@ -1,3 +1,22 @@
+const { prependProfilePost } = require("../../utils/profile-post");
+
+function navigateToProfile() {
+  wx.reLaunch({
+    url: "/pages/profile/profile",
+    fail: () => {
+      wx.navigateTo({
+        url: "/pages/profile/profile",
+        fail: () => {
+          wx.showToast({
+            title: "跳转失败",
+            icon: "none"
+          });
+        }
+      });
+    }
+  });
+}
+
 Page({
   data: {
     statusBarHeight: 20,
@@ -57,7 +76,7 @@ Page({
   },
 
   handlePublish() {
-    const { title, content } = this.data;
+    const { title, content, images } = this.data;
 
     if (!title.trim()) {
       wx.showToast({
@@ -75,15 +94,37 @@ Page({
       return;
     }
 
+    const now = new Date();
+    const nextPost = {
+      id: `published-${Date.now()}`,
+      author: "笑看人生",
+      date: `${now.getMonth() + 1}月${now.getDate()}日`,
+      title: title.trim(),
+      content: content.trim(),
+      images,
+      likes: 0,
+      comments: 0
+    };
+
+    try {
+      const app = getApp();
+
+      if (app && app.globalData) {
+        app.globalData.latestProfilePost = nextPost;
+      }
+
+      prependProfilePost(nextPost);
+    } catch (error) {
+      console.error("save profile post failed", error);
+    }
+
     wx.showToast({
       title: "发布成功",
       icon: "success"
     });
 
     setTimeout(() => {
-      wx.redirectTo({
-        url: "/pages/circle/circle"
-      });
-    }, 500);
+      navigateToProfile();
+    }, 300);
   }
 });
