@@ -13,6 +13,7 @@ import { JwtAuthGuard } from "../../../common/auth/jwt-auth.guard";
 import type { AuthenticatedUser } from "../../../common/auth/auth.types";
 import { PaginationQueryDto } from "../../../common/dto/pagination-query.dto";
 import { AppAgentService } from "../application/app-agent.service";
+import { RagKnowledgeService } from "../application/rag-knowledge.service";
 import {
   AiHealthSummaryQueryDto,
   AiRiskAlertsQueryDto,
@@ -21,13 +22,17 @@ import {
   SendAssistantMessageDto,
   ServiceRecommendationDto
 } from "../dto/app-agent.dto";
+import { AppRagSearchQueryDto } from "../dto/rag-search.dto";
 
 @ApiTags("app-ai")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller("app/ai")
 export class AppAgentsController {
-  constructor(private readonly appAgentService: AppAgentService) {}
+  constructor(
+    private readonly appAgentService: AppAgentService,
+    private readonly ragKnowledgeService: RagKnowledgeService
+  ) {}
 
   @Post("assistant/conversations")
   @ApiOperation({ summary: "创建智能助手会话" })
@@ -139,5 +144,14 @@ export class AppAgentsController {
     @Param("alertId") alertId: string
   ) {
     return this.appAgentService.getRiskAlertDetail(user, alertId);
+  }
+
+  @Get("knowledge/search")
+  @ApiOperation({ summary: "检索 AI 知识库上下文" })
+  searchKnowledge(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: AppRagSearchQueryDto
+  ) {
+    return this.ragKnowledgeService.searchForAppUser(user, query);
   }
 }

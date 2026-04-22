@@ -8,6 +8,7 @@
 
 - 为 5 类知识库建立独立 RAG 数据模型，而不是继续复用业务表里的零散 `ragSnippet`
 - 新增可重复执行的 RAG 构建脚本：`apps/backend/scripts/build-rag-db.ts`
+- 已完成检索服务与 API 层正式接入，支持 App、内部管理面和 Agent 工具三条调用链路
 - 已完成一轮实际构建，当前库内共有：
   - `9` 个知识库
   - `40` 篇文档
@@ -398,7 +399,7 @@ npm run db:build-rag:backend
 
 - 当前多智能体 backbone 已确认走 `deepseek-chat`
 - 但仓库现阶段尚未把 DeepSeek 官方直连模式接到正式 embedding 接口
-- 因此本次先落库 deterministic embedding，保证 RAG 表结构、导入链路、检索扩展位全部就绪
+- 因此当前采用“落库 deterministic embedding + 查询侧 fallback embedding”的折中方案，保证 RAG 表结构、导入链路、检索 API、Agent 检索扩展位全部就绪
 
 后续若接入正式 embedding 服务，只需替换构建脚本中的向量生成逻辑，不需要改表结构。
 
@@ -452,7 +453,69 @@ npm run db:build-rag:backend
 
 ---
 
-## 8. 已落地文件
+## 8. 检索服务与 API 层
+
+当前检索能力已经在后端正式接入，统一收口于：
+
+- `apps/backend/src/modules/agents/application/rag-knowledge.service.ts`
+
+### 8.1 App 检索 API
+
+路由：
+
+- `GET /api/v1/app/ai/knowledge/search`
+
+当前能力：
+
+- 默认检索 `PUBLIC` 知识
+- 允许显式传入 `includePrivate=true` 后联查 `USER_PRIVATE`
+- 若家属传入 `elderId`，会结合 `FamilyBinding` 做授权校验
+- 不开放 `INSTITUTION_RESOURCE` 给用户端直接查询
+
+### 8.2 内部检索 API
+
+路由：
+
+- `GET /api/v1/internal/agents/rag/knowledge-bases`
+- `POST /api/v1/internal/agents/rag/search`
+
+当前能力：
+
+- 支持按 `knowledgeTypes`、`visibilityScopes`、`ownerUserId`、`institutionId` 过滤
+- 支持统一查看已建知识库清单、最近导入批次和文档/chunk 数量
+- 继续受后台 `JWT(admin scope) + 来源 IP + 可选共享密钥` 约束
+
+### 8.3 Agent 工具层接入
+
+当前工具：
+
+- `searchKnowledgeBase`
+
+已接入的 Agent：
+
+- `HealthManagementAgent`
+- `CareCoordinationAgent`
+
+当前行为：
+
+- 检索结果会压缩后注入 prompt
+- 同时把 citation 回填到 evidence，便于前后端联调时核对来源
+
+### 8.4 当前检索实现
+
+当前不是向量数据库方案，而是首版可用实现：
+
+1. 先按 `RagChunk.title/content contains` 做词法候选召回
+2. 再用 query embedding 与 chunk embedding 做余弦相似度重排
+3. 最终返回 chunk excerpt、knowledge base 信息、document 信息和 citation
+
+截至 2026-04-22（UTC）已做过一次运行时 smoke check，验证结果包括：
+
+- App 公共检索可命中 `rag-health-knowledge-public`
+- App 私有检索可在授权后命中 `rag-user-private-user_elder_joy`
+- 内部检索可同时命中 `PUBLIC + INSTITUTION` 范围知识
+
+## 9. 已落地文件
 
 - Prisma schema：
   - `apps/backend/prisma/schema.prisma`
@@ -466,12 +529,12 @@ npm run db:build-rag:backend
 
 ---
 
-## 9. 后续建议
+## 10. 后续建议
 
-当前已经完成的是“RAG 数据底座 + 首批数据 + 构建文档”。下一步建议按下面顺序推进：
+当前已经完成的是“RAG 数据底座 + 首批数据 + 检索服务/API 正式接入”。下一步建议按下面顺序推进：
 
-1. 在 `agents` 模块内补一层受控检索服务，支持按 `knowledgeType / visibility / ownerUserId / institutionId` 检索
-2. 为用户私有知识接入统一授权校验，避免控制器和 Agent 工具各写一份权限逻辑
-3. 接入正式 embedding 服务，替换当前 deterministic 向量
-4. 增加增量重建任务，而不是每次全量重建某个知识库
-5. 在 Agent 输出里强制带 citation，形成前后端联调可验证闭环
+1. 接入正式 embedding 服务，替换当前 deterministic 向量与查询侧 fallback 向量
+2. 增加增量重建任务，而不是每次全量重建某个知识库
+3. 为检索链路补评测集、召回率指标和错误样本回放
+4. 视规模引入更强的索引能力，例如 `pg_trgm`、全文检索或专用向量索引
+5. 继续把 citation 输出前端化，形成“答案 - 证据 - 来源”可核验闭环

@@ -22,6 +22,7 @@ export type AgentToolName =
   | "getDietContext"
   | "getSelfTestContext"
   | "searchServiceCatalog"
+  | "searchKnowledgeBase"
   | "getAddressBook"
   | "getOrderContext"
   | "getStaffRoster"

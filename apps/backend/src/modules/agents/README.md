@@ -26,7 +26,7 @@ Hermes 不应被理解成：
 - 统一任务入口：`AgentTask` 入库后通过 `BullMQ` 异步执行
 - 任务状态流转：`PENDING -> RUNNING -> SUCCEEDED | FAILED`
 - 声明式注册：当前已注册 `9` 个核心 Agent，并兼容 `intent-router`、`report-summary-agent`、`service-recommendation-agent` 旧别名
-- 受控工具层：报告、档案、健康指标、服务目录
+- 受控工具层：报告、档案、健康指标、服务目录、RAG 检索
 - `LLM Gateway`：支持 `DeepSeek 官方直连 / OpenRouter / openai-compatible` 网关，内置主模型、轻量模型、结构化输出和 tool-calling 接口
 - `Embedding Gateway`：统一承接向量模型调用，未配置时回退到确定性占位向量，供后续检索链路继续兜底
 - `Agent Orchestrator`：默认入口已从“只路由到单 Specialist”升级为受控多 Agent 分工，支持健康理解补风险研判、风险任务补健康背景、后台 Copilot 汇总多域摘要
@@ -112,6 +112,8 @@ Hermes 不应被理解成：
 - `GET /api/v1/internal/agents/tasks`
 - `GET /api/v1/internal/agents/tasks/:taskId`
 - `POST /api/v1/internal/agents/tasks/:taskId/retry`
+- `GET /api/v1/internal/agents/rag/knowledge-bases`
+- `POST /api/v1/internal/agents/rag/search`
 
 ## App 层 AI 接口
 
@@ -129,6 +131,7 @@ Hermes 不应被理解成：
 - `GET /api/v1/app/ai/reports/:reportId/followup-suggestions`
 - `GET /api/v1/app/ai/risk-alerts`
 - `GET /api/v1/app/ai/risk-alerts/:alertId`
+- `GET /api/v1/app/ai/knowledge/search`
 
 内部接口访问控制：
 
@@ -141,6 +144,27 @@ Hermes 不应被理解成：
 
 - `blueprint` 返回统一多智能体蓝图，包括定位、原则、能力、Agent、工作流、治理规则、Hermes 规划和实施路线图
 - `definitions` 返回当前代码里真正已注册、可执行的 Agent 定义
+
+## RAG 检索接入
+
+当前检索服务已正式接入 `agents` 模块，入口分三层：
+
+- App 层：`GET /api/v1/app/ai/knowledge/search`
+- 内部管理层：`GET /api/v1/internal/agents/rag/knowledge-bases`、`POST /api/v1/internal/agents/rag/search`
+- Agent 工具层：`searchKnowledgeBase`
+
+当前边界约束如下：
+
+- App 层默认只检索 `PUBLIC` 知识；显式传入 `includePrivate=true` 后，才会在家属绑定/本人权限校验通过时联查 `USER_PRIVATE`
+- App 层不开放 `INSTITUTION_RESOURCE`，避免把机构侧资源知识直接暴露给用户端
+- 内部检索支持按 `knowledgeTypes / visibilityScopes / ownerUserId / institutionId` 过滤，并继续受后台 `JWT + 来源 IP + 可选共享密钥` 约束
+- `HealthManagementAgent` 和 `CareCoordinationAgent` 已接入 `searchKnowledgeBase`，会把检索结果压缩进 prompt，并在输出 evidence 中附带 citation
+
+当前检索策略是首版可用实现：
+
+- 候选召回：`RagChunk.title/content contains`
+- 排序：词法分 + query embedding 与 chunk embedding 的余弦相似度重排
+- DeepSeek 官方直连模式下，query embedding 继续走确定性兜底向量；后续如接入独立 embedding 网关，可直接替换，不需要改 API 契约
 
 创建任务示例：
 

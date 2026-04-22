@@ -48,7 +48,7 @@ User Web / Admin Web / Internal Jobs
 | 用户端 | `/api/v1/app` | 老人/家属登录、档案、指标、服务、订单、支付、报告 |
 | 后台端 | `/api/v1/admin` | 后台概览、长者详情、订单/工单、报告审核 |
 | 系统面 | `/api/v1/system` | 健康检查、架构信息 |
-| 内部协同面 | `/api/v1/internal/agents` | Agent 蓝图、定义、任务创建、任务查询、重试 |
+| 内部协同面 | `/api/v1/internal/agents` | Agent 蓝图、定义、任务创建、任务查询、重试、RAG 检索 |
 
 ### 3. 领域边界
 
@@ -89,8 +89,9 @@ User Web / Admin Web / Internal Jobs
 | 报告 | 已完成 | 体检报告列表/新增/详情/删除、报告解读、后台审核 |
 | 后台核心 | 已完成 | 概览统计、长者详情、工单列表、后台订单查询、后台报告审核 |
 | Hermes MVP | 已完成 | `AgentTask` 入库、BullMQ 队列、任务状态流转、`intent-router`、`report-summary-agent`、`service-recommendation-agent` |
-| Agent 工具层 | 已完成 | 报告、档案、健康指标、服务目录四类受控工具 |
+| Agent 工具层 | 已完成 | 报告、档案、健康指标、服务目录、RAG 检索五类受控工具 |
 | LLM 网关 | 已完成 | 支持 DeepSeek 官方直连与 OpenAI-compatible 接口；未配置外部 LLM 时自动降级为确定性输出 |
+| RAG 知识层 | 已完成首版 | 已落地 5 类知识库、构建脚本、公开/机构/私有数据入库、App 检索 API、内部检索 API、Agent `searchKnowledgeBase` 工具接入 |
 
 ### 部分完成
 
@@ -100,6 +101,7 @@ User Web / Admin Web / Internal Jobs
 - `family`：业务能力已经通过 `users` 模块提供，但独立 `FamilyModule` 还是空壳。
 - `content` / `community`：Prisma 模型、seed 数据以及首页/搜索聚合里已经使用 `Article`、`Activity` 等数据，但独立控制器和服务尚未建设。
 - `agents`：已经支持受控多 Agent 协作，但仍缺完整评测、人工复核工作台和更多业务写回工具；当前重点链路是健康理解补风险研判、风险任务补健康背景、后台 Copilot 多域汇总。
+- `RAG`：数据库、检索服务和 API 已接入，但当前仍是首版可用方案，主要依赖词法候选 + 向量重排，尚未建设增量同步、检索评测、向量索引和独立 embedding 服务。
 - `对象存储`：`StorageService` 已配置完成，但文件上传/下载/签名 URL 等业务 API 尚未落地。
 
 ### 待完成
@@ -111,7 +113,8 @@ User Web / Admin Web / Internal Jobs
 - 继续把 Hermes 从受控多 Agent 运行时补齐成完整生产体系，包括统一助手闭环、更多后台域 Agent 和写回工具。
 - 补齐真正的高风险治理链路：人工复核、审核门禁、评测与审计策略。
 - 进一步收紧 `/internal/agents/*` 的治理链路，例如补独立服务账号、审计字段与更细粒度的权限分层。
-- 补齐对象存储文件接口、消息通知、WebSocket 会话、RAG 知识层。
+- 补齐对象存储文件接口、消息通知、WebSocket 会话。
+- 继续完善 RAG 的增量重建、检索评测、真实 embedding 接入与更强排序能力。
 - 建立自动化测试体系。当前 `package.json` 没有 `test` 脚本，仓库也没有成体系的后端单测/集成测试。
 
 ## 当前状态结论
@@ -358,6 +361,28 @@ curl -s "$BASE_URL/admin/orders?page=1&pageSize=5" \
 
 curl -s "$BASE_URL/admin/reports?page=1&pageSize=5" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+#### 2.7 AI 检索与 RAG
+
+```bash
+curl -s "$BASE_URL/app/ai/knowledge/search?query=%E9%AB%98%E8%A1%80%E5%8E%8B%20%E8%A1%80%E5%8E%8B%E7%AE%A1%E7%90%86&limit=3" \
+  -H "Authorization: Bearer $APP_TOKEN"
+
+curl -s "$BASE_URL/app/ai/knowledge/search?query=%E8%A1%80%E5%8E%8B%20%E8%B6%8B%E5%8A%BF%20%E6%8A%A5%E5%91%8A&includePrivate=true&elderId=user_elder_joy&limit=3" \
+  -H "Authorization: Bearer $APP_TOKEN"
+
+curl -s "$BASE_URL/internal/agents/rag/knowledge-bases" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+curl -s "$BASE_URL/internal/agents/rag/search" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "上门护理 康复 服务",
+    "visibilityScopes": ["PUBLIC", "INSTITUTION"],
+    "limit": 5
+  }'
 ```
 
 ### 3. Agent CLI

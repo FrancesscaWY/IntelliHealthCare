@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { MetricType, ServiceCategory } from "@prisma/client";
+import { MetricType, RagKnowledgeType, ServiceCategory } from "@prisma/client";
 import type { EnvironmentVariables } from "../../../common/config/env.schema";
 import {
   ASSISTANT_CONVERSATION_AGENT,
@@ -69,8 +69,13 @@ import {
 import { LlmGateway } from "../gateways/llm.gateway";
 import { HealthArchiveTool } from "../tools/health-archive.tool";
 import { HealthMetricsTool } from "../tools/health-metrics.tool";
+import { RagRetrievalTool } from "../tools/rag-retrieval.tool";
 import { ReportsTool } from "../tools/reports.tool";
 import { ServiceCatalogTool } from "../tools/service-catalog.tool";
+import type {
+  RagSearchHit,
+  RagSearchResponse
+} from "./rag-knowledge.service";
 
 interface AgentExecutionData {
   data: unknown;
@@ -92,6 +97,7 @@ export class AgentOrchestratorService {
     private readonly reportsTool: ReportsTool,
     private readonly healthArchiveTool: HealthArchiveTool,
     private readonly healthMetricsTool: HealthMetricsTool,
+    private readonly ragRetrievalTool: RagRetrievalTool,
     private readonly serviceCatalogTool: ServiceCatalogTool,
     private readonly configService: ConfigService<EnvironmentVariables, true>
   ) {}
@@ -1113,6 +1119,17 @@ export class AgentOrchestratorService {
             })
           ).catch(() => [])
         : [];
+    const knowledgeHits = await this.searchKnowledgeBase(definition, toolCalls, {
+      query: this.buildHealthKnowledgeQuery({
+        report,
+        archive,
+        metrics
+      }),
+      knowledgeTypes: [RagKnowledgeType.HEALTH_KNOWLEDGE],
+      actorUserId: task.ownerId,
+      targetUserId: archive?.userId ?? input.userId ?? null,
+      limit: 3
+    });
 
     const fallback = this.buildHealthManagementFallback(
       input.viewMode,
@@ -1133,6 +1150,7 @@ export class AgentOrchestratorService {
           report,
           archive,
           metrics,
+          knowledgeHits: this.compactKnowledgeHits(knowledgeHits),
           authorizedScope: input.authorizedScope
         },
         null,
@@ -1229,24 +1247,39 @@ export class AgentOrchestratorService {
             })
           )
         : [];
+    const knowledgeHits = await this.searchKnowledgeBase(definition, toolCalls, {
+      query: this.buildHealthKnowledgeQuery({
+        report,
+        archive,
+        metrics
+      }),
+      knowledgeTypes: [RagKnowledgeType.HEALTH_KNOWLEDGE],
+      actorUserId: task.ownerId,
+      targetUserId: archive?.userId ?? input.userId ?? null,
+      limit: 3
+    });
 
-    const deterministicOutput = this.buildReportSummaryFallback(
-      report,
-      archive,
-      metrics,
-      definition.humanReviewRequired
+    const deterministicOutput = this.enrichEvidenceWithKnowledge(
+      this.buildReportSummaryFallback(
+        report,
+        archive,
+        metrics,
+        definition.humanReviewRequired
+      ),
+      knowledgeHits
     );
     const llmResponse = await this.llmGateway.generateStructuredObject({
       agentName: definition.name,
       modelTier: "primary",
       systemPrompt:
-        "你是 IntelliHealthCare 的报告摘要 Specialist Agent。只能输出 JSON，不要输出 Markdown。结论必须简洁，证据必须引用报告、档案或指标。",
+        "你是 IntelliHealthCare 的报告摘要 Specialist Agent。只能输出 JSON，不要输出 Markdown。结论必须简洁，证据必须引用报告、档案、指标或检索到的知识片段；若使用检索结果，请把 citation 写入 evidence.data.citations。",
       userPrompt: JSON.stringify(
         {
           taskType: task.taskType,
           report,
           archive,
           metrics,
+          knowledgeHits: this.compactKnowledgeHits(knowledgeHits),
           outputKeys: [
             "conclusion",
             "evidence",
@@ -1411,19 +1444,33 @@ export class AgentOrchestratorService {
         ids: value.map((item) => item.id)
       })
     );
+    const knowledgeHits = await this.searchKnowledgeBase(definition, toolCalls, {
+      query: [query, ...(archive?.riskTags ?? [])].filter(Boolean).join(" "),
+      knowledgeTypes: [
+        RagKnowledgeType.SERVICE_CATALOG,
+        RagKnowledgeType.PLATFORM_RULE,
+        RagKnowledgeType.HEALTH_KNOWLEDGE
+      ],
+      actorUserId: task.ownerId,
+      targetUserId: input.userId ?? null,
+      limit: 4
+    });
 
-    const deterministicOutput = this.buildServiceRecommendationFallback(
-      input,
-      category,
-      archive,
-      metrics,
-      services
+    const deterministicOutput = this.enrichEvidenceWithKnowledge(
+      this.buildServiceRecommendationFallback(
+        input,
+        category,
+        archive,
+        metrics,
+        services
+      ),
+      knowledgeHits
     );
     const llmResponse = await this.llmGateway.generateStructuredObject({
       agentName: definition.name,
       modelTier: "primary",
       systemPrompt:
-        "你是 IntelliHealthCare 的服务推荐 Specialist Agent。只能输出 JSON，不要给出诊断结论，推荐理由必须对应服务目录或用户上下文。",
+        "你是 IntelliHealthCare 的服务推荐 Specialist Agent。只能输出 JSON，不要给出诊断结论，推荐理由必须对应服务目录、平台规则或用户上下文；若使用检索结果，请把 citation 写入 evidence.data.citations。",
       userPrompt: JSON.stringify(
         {
           taskType: task.taskType,
@@ -1435,6 +1482,7 @@ export class AgentOrchestratorService {
           archive,
           metrics,
           services,
+          knowledgeHits: this.compactKnowledgeHits(knowledgeHits),
           outputKeys: [
             "conclusion",
             "evidence",
@@ -2468,6 +2516,110 @@ export class AgentOrchestratorService {
     return value.filter((item): item is string => typeof item === "string");
   }
 
+  private async searchKnowledgeBase(
+    definition: AgentDefinition,
+    toolCalls: ToolCallTrace[],
+    input: {
+      query: string;
+      knowledgeTypes: RagKnowledgeType[];
+      actorUserId?: string | null;
+      targetUserId?: string | null;
+      institutionId?: string | null;
+      limit: number;
+    }
+  ) {
+    if (!input.query.trim()) {
+      return null;
+    }
+
+    return this.useTool(
+      definition,
+      toolCalls,
+      "searchKnowledgeBase",
+      {
+        query: input.query,
+        knowledgeTypes: input.knowledgeTypes,
+        actorUserId: input.actorUserId ?? null,
+        targetUserId: input.targetUserId ?? null,
+        institutionId: input.institutionId ?? null,
+        limit: input.limit
+      },
+      () =>
+        this.ragRetrievalTool.searchKnowledge({
+          query: input.query,
+          knowledgeTypes: input.knowledgeTypes,
+          actorUserId: input.actorUserId,
+          targetUserId: input.targetUserId,
+          institutionId: input.institutionId,
+          limit: input.limit
+        }),
+      (value) => ({
+        total: value.total,
+        knowledgeBaseCodes: value.results
+          .slice(0, 3)
+          .map((item) => item.knowledgeBase.code),
+        topTitle: value.results[0]?.document.title ?? null
+      })
+    ).catch(() => null);
+  }
+
+  private compactKnowledgeHits(result: RagSearchResponse | null) {
+    return (
+      result?.results.slice(0, 4).map((item) => ({
+        title: item.document.title,
+        excerpt: item.excerpt,
+        knowledgeType: item.knowledgeBase.knowledgeType,
+        sourceUri: item.citation.sourceUri,
+        citation: {
+          documentId: item.citation.documentId,
+          chunkId: item.citation.chunkId,
+          chunkIndex: item.citation.chunkIndex
+        }
+      })) ?? []
+    );
+  }
+
+  private enrichEvidenceWithKnowledge<
+    T extends {
+      evidence: Array<{
+        source: string;
+        summary: string;
+        data?: Record<string, unknown>;
+      }>;
+    }
+  >(output: T, knowledgeHits: RagSearchResponse | null) {
+    const evidence = this.buildKnowledgeEvidence(knowledgeHits?.results ?? []);
+
+    if (evidence.length === 0) {
+      return output;
+    }
+
+    return {
+      ...output,
+      evidence: [...output.evidence, ...evidence].slice(0, 8)
+    };
+  }
+
+  private buildKnowledgeEvidence(results: RagSearchHit[]) {
+    return results.slice(0, 2).map((item) => ({
+      source: "rag",
+      summary: `检索命中 ${item.document.title}，来自 ${item.knowledgeBase.name}。`,
+      data: {
+        citations: [
+          {
+            knowledgeBaseCode: item.citation.knowledgeBaseCode,
+            documentId: item.citation.documentId,
+            chunkId: item.citation.chunkId,
+            sourceUri: item.citation.sourceUri,
+            chunkIndex: item.citation.chunkIndex
+          }
+        ],
+        knowledgeType: item.knowledgeBase.knowledgeType,
+        excerpt: item.excerpt
+      }
+    }));
+  }
+
   private async useTool<T>(
     definition: AgentDefinition,
     toolCalls: ToolCallTrace[],
@@ -2738,6 +2890,25 @@ export class AgentOrchestratorService {
     }
 
     return ServiceCategory.HOME_CARE;
+  }
+
+  private buildHealthKnowledgeQuery(input: {
+    report: ReportContext | null;
+    archive: ArchiveContext | null;
+    metrics: MetricRecordContext[];
+  }) {
+    const segments = [
+      ...(input.report ? [input.report.title, ...this.pickHighlights(input.report.summary).slice(0, 2)] : []),
+      ...(input.archive?.riskTags.slice(0, 3) ?? []),
+      ...input.metrics
+        .filter((item) => item.abnormal)
+        .slice(0, 2)
+        .map((item) => this.metricLabel(item.metricType))
+    ]
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(segments)).join(" ");
   }
 
   private buildRecommendationQuery(

@@ -149,6 +149,7 @@ export class AgentRegistry {
           "getReportContext",
           "getHealthArchive",
           "getLatestHealthMetrics",
+          "searchKnowledgeBase",
           "getMetricHistory",
           "getMedicationContext",
           "getDietContext",
@@ -183,6 +184,7 @@ export class AgentRegistry {
         outputSchema: careCoordinationExecutionOutputSchema,
         allowedTools: [
           "searchServiceCatalog",
+          "searchKnowledgeBase",
           "getHealthArchive",
           "getLatestHealthMetrics",
           "getAddressBook",
