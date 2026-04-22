@@ -293,87 +293,11 @@ function goToAddData() {
                 <text :x="column.centerX" :y="heartHeroChart.labelY" text-anchor="middle" class="hero-time">
                   {{ column.item.label }}
                 </text>
-              </g>
-              <line
-                :x1="rangeChart.padding"
-                :y1="rangeChart.baselineY"
-                :x2="rangeChart.width - rangeChart.padding"
-                :y2="rangeChart.baselineY"
-                class="x-axis-line"
-              />
+              </template>
+            </g>
             </svg>
           </div>
-          <div class="chart-card__labels">
-            <span v-for="item in chartItems" :key="item.label">{{ item.label }}</span>
-          </div>
         </section>
-
-        <section class="metric-blocks-card metric-blocks-card--heart">
-          <div class="metric-blocks-grid">
-            <article class="metric-block">
-              <span>最高心率</span>
-              <strong>{{ formatNumber(maxHeartRate) }}</strong>
-              <small>{{ maxDate }}</small>
-            </article>
-            <article class="metric-block">
-              <span>最低心率</span>
-              <strong>{{ formatNumber(minHeartRate) }}</strong>
-              <small>{{ minDate }}</small>
-            </article>
-            <article class="metric-block">
-              <span>平均心率</span>
-              <strong>{{ formatNumber(averageHeartRate) }}</strong>
-              <small>bpm</small>
-            </article>
-          </div>
-        </section>
-
-        <section class="detail-table-card">
-          <div class="detail-card__header">
-            <div>
-              <h2>每日心率明细</h2>
-            </div>
-          </div>
-          <div class="table-wrapper">
-            <table class="metric-table">
-              <thead>
-                <tr>
-                  <th>日期</th>
-                  <th>平均心率</th>
-                  <th>最低/最高</th>
-                  <th>较前一日变化</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(item, idx) in heartRateData" :key="item.date">
-                  <td>{{ item.date }}</td>
-                  <td>{{ formatNumber(item.heartRate) }} bpm</td>
-                  <td>{{ formatNumber(item.lowHeartRate) }} / {{ formatNumber(item.highHeartRate) }}</td>
-                  <td :class="getChangeClass(idx)">{{ formatChange(idx) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <article v-if="false && mock.nextSteps && mock.nextSteps.length" class="next-steps-card">
-          <p class="page-eyebrow">Roadmap</p>
-          <strong>后续计划</strong>
-          <ol>
-            <li v-for="item in mock.nextSteps" :key="item">{{ item }}</li>
-          </ol>
-        </article>
-        <article class="summary-card">
-          <span>最低心率</span>
-          <strong>{{ formatNumber(minHeartRate) }}</strong>
-          <small>{{ minDate }}</small>
-        </article>
-        <article class="summary-card">
-          <span>平均心率</span>
-          <strong>{{ formatNumber(averageHeartRate) }}</strong>
-          <small>bpm</small>
-        </article>
-      </section>
 
       <section class="latest-summary">
         <span>当日区间</span>
@@ -441,42 +365,40 @@ function goToAddData() {
 .page-header {
   display: flex;
   align-items: center;
-  gap: 18px;
-  height: 76px;
-  padding: 0 8px;
+  height: 74px;
+  padding: 0 9px;
 }
 
 .back-btn {
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 30px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 21px;
   background: transparent;
 }
 
 .back-btn span {
-  width: 16px;
-  height: 16px;
-  border-bottom: 3px solid #2d3b31;
-  border-left: 3px solid #2d3b31;
-  transform: rotate(45deg) translate(3px, -3px);
+  width: 14px;
+  height: 14px;
+  border-bottom: 4px solid #333333;
+  border-left: 4px solid #333333;
+  transform: rotate(45deg);
 }
 
 .page-header h1 {
-  margin: 0;
-  color: #2d3b31;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0;
+  margin: 0 0 0 9px;
+  color: #30343f;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
 }
 
 .heart-scroll {
   box-sizing: border-box;
   height: 100%;
-  padding: 20px 20px 32px;
+  padding: 0 20px 32px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -633,46 +555,6 @@ function goToAddData() {
   background: #2d3b31;
   color: #ffffff;
   box-shadow: none;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
-  margin-top: 18px;
-}
-
-.summary-card {
-  display: grid;
-  min-width: 0;
-  min-height: 78px;
-  align-content: center;
-  gap: 6px;
-  padding: 12px 10px;
-  border-radius: 16px;
-  background: #f7f7f7;
-}
-
-.summary-card span {
-  color: rgba(45, 59, 49, 0.58);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.summary-card strong {
-  color: #2d3b31;
-  font-size: 23px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.summary-card small {
-  overflow: hidden;
-  color: rgba(45, 59, 49, 0.45);
-  font-size: 11px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .latest-summary {
@@ -838,31 +720,5 @@ function goToAddData() {
     grid-template-columns: 1fr;
     gap: 5px;
   }
-}
-.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2, .metric-table th, .metric-table td, .steps-table th, .steps-table td) {
-  white-space: nowrap;
-}
-
-.health-data-page :is(.medication-nav h1, .chart-switch button, .small-card-label, .small-card-date, .latest-small-card strong, .latest-card-summary span, .latest-card-summary p, .metric-block span, .metric-block strong, .metric-block small, .detail-card__header h2) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.health-data-page :is(.table-wrapper) {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.health-data-page :is(.metric-table, .steps-table) {
-  width: max-content;
-  min-width: 100%;
-}
-
-.health-data-page :is(.metric-table th, .metric-table td, .steps-table th, .steps-table td) {
-  padding-right: 6px;
-  padding-left: 6px;
-  font-size: 12px;
-  word-break: keep-all;
-  overflow-wrap: normal;
 }
 </style>

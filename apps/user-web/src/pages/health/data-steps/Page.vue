@@ -141,7 +141,7 @@ function goBack() {
           <li v-for="item in mock.nextSteps" :key="item">{{ item }}</li>
         </ol>
       </article>
-    </template>
+    </main>
 
     <div v-else class="error-card">
       <strong>数据加载失败</strong>
@@ -170,15 +170,14 @@ function goBack() {
 .page-header {
   display: flex;
   align-items: center;
-  gap: 17px;
-  height: 98px;
-  padding: 0 30px;
+  height: 74px;
+  padding: 0 29px;
 }
 
 .back-btn {
   display: grid;
   place-items: center;
-  width: 36px;
+  width: 30px;
   height: 44px;
   padding: 0;
   border: 0;
@@ -186,23 +185,23 @@ function goBack() {
 }
 
 .back-btn span {
-  width: 17px;
-  height: 17px;
-  border-bottom: 3px solid #283528;
-  border-left: 3px solid #283528;
-  transform: rotate(45deg) translate(3px, -3px);
+  width: 14px;
+  height: 14px;
+  border-bottom: 4px solid #333333;
+  border-left: 4px solid #333333;
+  transform: rotate(45deg);
 }
 
 .page-header h1 {
-  margin: 0;
-  color: #283528;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
+  margin: 0 0 0 9px;
+  color: #30343f;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
 }
 
 .steps-scroll {
-  height: calc(100% - 98px);
+  height: calc(100% - 74px);
   overflow-y: auto;
   scrollbar-width: none;
 }

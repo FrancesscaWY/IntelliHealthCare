@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { SetOff } from "@icon-park/vue-next";
 import mock from "./mock";
+import { takeHealthDataBackTarget } from "./source";
 
 const props = defineProps<PageComponentProps>();
 
