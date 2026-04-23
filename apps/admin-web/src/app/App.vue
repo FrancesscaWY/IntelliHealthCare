@@ -36,7 +36,47 @@ const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
 const searchKeyword = ref("");
 const isAccountMenuOpen = ref(false);
+const isNotificationOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
+const notificationPanelRef = ref<HTMLElement | null>(null);
+
+const notificationItems = [
+  {
+    id: "notice-1",
+    title: "订单通知",
+    summary: "您有一条新的订单，订单金额：4509元……",
+    date: "2021-03-30",
+    unread: true,
+  },
+  {
+    id: "notice-2",
+    title: "订单通知",
+    summary: "您有一条新的订单，订单金额：4509元……",
+    date: "2021-03-30",
+    unread: true,
+  },
+  {
+    id: "notice-3",
+    title: "订单通知",
+    summary: "您有一条新的订单，订单金额：4509元……",
+    date: "2021-03-30",
+    unread: true,
+  },
+  {
+    id: "notice-4",
+    title: "订单通知",
+    summary: "您有一条新的订单，订单金额：4509元……",
+    date: "2021-03-30",
+    unread: true,
+  },
+  {
+    id: "notice-5",
+    title: "订单通知",
+    summary: "您有一条新的订单，订单金额：4509元……",
+    date: "2021-03-30",
+    unread: true,
+  },
+];
 
 type PrimaryNavKey = "home" | "users" | "services" | "transactions" | "analytics" | "system" | "messages";
 type SecondaryNavItem = {
@@ -96,8 +136,11 @@ function resolvePrimaryNavKey(pageEntry?: PageEntry | null): PrimaryNavKey {
     [
       "service/order-dispatch",
       "dashboard/order-list",
+      "dashboard/order-detail",
       "dashboard/work-order",
       "dashboard/after-sale",
+      "dashboard/after-sale-detail",
+      "dashboard/comment-management",
     ].includes(pageId)
   ) {
     return "transactions";
@@ -139,8 +182,6 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
       { key: "users-section", label: "用户中心", kind: "section" },
       { key: "member-list", label: "用户列表", active: isPageActive("elder/member-list"), pageId: "elder/member-list", kind: "item" },
       { key: "report-management", label: "报告管理", active: isPageActive("elder/report-management"), pageId: "elder/report-management", kind: "item" },
-      { key: "tags", label: "标签管理", toast: "标签管理原型页暂未接入。", kind: "item" },
-      { key: "levels", label: "等级管理", toast: "等级管理原型页暂未接入。", kind: "item" },
     ];
   }
 
@@ -170,9 +211,28 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
     return [
       { key: "transaction-section", label: "交易中心", kind: "section" },
       { key: "dispatch", label: "订单调度", active: isPageActive("service/order-dispatch"), pageId: "service/order-dispatch", kind: "item" },
-      { key: "order-list", label: "全部订单", active: isPageActive("dashboard/order-list"), pageId: "dashboard/order-list", kind: "item" },
+      {
+        key: "order-list",
+        label: "全部订单",
+        active: isPageActive("dashboard/order-list", "dashboard/order-detail"),
+        pageId: "dashboard/order-list",
+        kind: "item",
+      },
       { key: "work-order", label: "工单管理", active: isPageActive("dashboard/work-order"), pageId: "dashboard/work-order", kind: "item" },
-      { key: "after-sale", label: "售后管理", active: isPageActive("dashboard/after-sale"), pageId: "dashboard/after-sale", kind: "item" },
+      {
+        key: "after-sale",
+        label: "售后管理",
+        active: isPageActive("dashboard/after-sale", "dashboard/after-sale-detail"),
+        pageId: "dashboard/after-sale",
+        kind: "item",
+      },
+      {
+        key: "comment-management",
+        label: "评价管理",
+        active: isPageActive("dashboard/comment-management"),
+        pageId: "dashboard/comment-management",
+        kind: "item",
+      },
     ];
   }
 
@@ -199,7 +259,8 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
       { key: "system-section", label: "系统配置", kind: "section" },
       { key: "account-settings", label: "账号设置", active: isPageActive("system/account-settings"), pageId: "system/account-settings", kind: "item" },
       { key: "reset-password", label: "重置密码", active: isPageActive("system/reset-password"), pageId: "system/reset-password", kind: "item" },
-      { key: "role", label: "角色管理", toast: "角色管理原型页暂未接入。", kind: "item" },
+      { key: "institution", label: "机构管理", active: isPageActive("system/institution-management"), pageId: "system/institution-management", kind: "item" },
+      { key: "role", label: "角色管理", active: isPageActive("system/role-management"), pageId: "system/role-management", kind: "item" },
       { key: "log", label: "操作日志", toast: "操作日志原型页暂未接入。", kind: "item" },
     ];
   }
@@ -207,8 +268,6 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
   return [
     { key: "message-section", label: "消息中心", kind: "section" },
     { key: "session", label: "会话中心", active: isPageActive("dashboard/session"), pageId: "dashboard/session", kind: "item" },
-    { key: "content-management", label: "内容管理", active: isPageActive("content/content-management"), pageId: "content/content-management", kind: "item" },
-    { key: "activity-management", label: "活动管理", active: isPageActive("community/activity-management"), pageId: "community/activity-management", kind: "item" },
     {
       key: "mass-message",
       label: "群发消息",
@@ -287,6 +346,7 @@ function openPage(pageId: string) {
   }
 
   isAccountMenuOpen.value = false;
+  isNotificationOpen.value = false;
   navigation.reLaunch(pageId);
 }
 
@@ -307,7 +367,7 @@ function submitSearch() {
 }
 
 function shouldToggleAccountMenu(label: string) {
-  return label === "璐﹀彿鑿滃崟";
+  return label === "账号菜单";
 }
 
 function notifyAction(label: string) {
@@ -315,6 +375,17 @@ function notifyAction(label: string) {
     toggleAccountMenu();
     return;
   }
+
+  if (label === "消息") {
+    toggleNotificationPanel();
+    return;
+  }
+
+  if (label === "客服") {
+    openPage("dashboard/session");
+    return;
+  }
+
   showToast(`${label}入口为演示状态。`);
 }
 function getRailItemOrder(key: PrimaryNavKey) {
@@ -330,7 +401,17 @@ function getRailItemOrder(key: PrimaryNavKey) {
 }
 
 function toggleAccountMenu() {
+  isNotificationOpen.value = false;
   isAccountMenuOpen.value = !isAccountMenuOpen.value;
+}
+
+function toggleNotificationPanel() {
+  isAccountMenuOpen.value = false;
+  isNotificationOpen.value = !isNotificationOpen.value;
+}
+
+function closeNotificationPanel() {
+  isNotificationOpen.value = false;
 }
 
 function handleAccountMenuSelect(action: "profile" | "password" | "logout") {
@@ -349,7 +430,13 @@ function handleAccountMenuSelect(action: "profile" | "password" | "logout") {
 
 function handleDocumentClick(event: MouseEvent) {
   const target = event.target;
-  if (target instanceof Element && (target.closest(".account") || target.closest(".account-menu__panel"))) {
+  if (
+    target instanceof Element &&
+    (target.closest(".account") ||
+      target.closest(".account-menu__panel") ||
+      target.closest(".topbar__icon--notice") ||
+      target.closest(".notification-panel"))
+  ) {
     return;
   }
 
@@ -359,6 +446,10 @@ function handleDocumentClick(event: MouseEvent) {
 
   if (!accountMenuRef.value?.contains(target)) {
     isAccountMenuOpen.value = false;
+  }
+
+  if (!notificationPanelRef.value?.contains(target)) {
+    isNotificationOpen.value = false;
   }
 }
 
@@ -383,7 +474,7 @@ onBeforeUnmount(() => {
 
     <template v-else>
       <aside v-if="config.mode === 'app'" class="rail">
-        <button class="rail__logo" type="button" aria-label="杩斿洖棣栭〉" @click="openPage('dashboard/overview')">
+        <button class="rail__logo" type="button" aria-label="返回首页" @click="openPage('dashboard/overview')">
           <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
             <path
               d="M24 39.5 10.7 26.4c-3.3-3.3-5.3-6.4-5.3-10.7 0-5.7 4.5-10.2 10.1-10.2 3.4 0 6.1 1.6 8.5 4.8 2.4-3.2 5.1-4.8 8.5-4.8 5.6 0 10.1 4.5 10.1 10.2 0 4.3-2 7.4-5.3 10.7L24 39.5Z"
@@ -394,8 +485,8 @@ onBeforeUnmount(() => {
         </button>
 
         <div class="rail__brand">
-          <span class="rail__brand-mark">黛西健康</span>
-          <small>Admin Console</small>
+          <span class="rail__brand-mark">智诊康养—后台端</span>
+          <small>IntelliHealthCare</small>
         </div>
 
         <nav class="rail__nav" aria-label="主导航">
@@ -422,7 +513,7 @@ onBeforeUnmount(() => {
           <strong>{{ currentGroupTitle }}</strong>
         </header>
 
-        <nav class="subnav__list" aria-label="浜岀骇瀵艰埅">
+        <nav class="subnav__list" aria-label="二级导航">
           <template v-for="item in secondaryNavItems" :key="item.key">
             <div v-if="item.kind === 'section'" class="subnav__section">
               {{ item.label }}
@@ -443,28 +534,28 @@ onBeforeUnmount(() => {
       <section class="main">
         <header class="topbar">
           <div class="topbar__search">
-            <button class="topbar__search-icon" type="button" aria-label="鎼滅储" @click="submitSearch">
+            <button class="topbar__search-icon" type="button" aria-label="搜索" @click="submitSearch">
               <Search theme="outline" :size="24" :stroke-width="3" />
             </button>
             <input v-model="searchKeyword" type="text" placeholder="请输入关键词" @keydown.enter="submitSearch" />
           </div>
 
           <div class="topbar__actions">
-            <button class="topbar__icon" type="button" aria-label="瀹㈡湇" @click="notifyAction('瀹㈡湇')">
+            <button class="topbar__icon" type="button" aria-label="客服" @click="notifyAction('客服')">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M5 12a7 7 0 1 1 14 0v4a2 2 0 0 1-2 2h-2v-6h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 <path d="M5 18H3a2 2 0 0 1-2-2v-4h4v6Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
               </svg>
             </button>
 
-            <button class="topbar__icon topbar__icon--badge" type="button" aria-label="娑堟伅" @click="notifyAction('娑堟伅')">
+            <button class="topbar__icon topbar__icon--badge topbar__icon--notice" type="button" aria-label="消息" @click="notifyAction('消息')">
               <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M12 4a5 5 0 0 1 5 5v2.7c0 .8.2 1.6.7 2.3l1 1.5H5.3l1-1.5c.5-.7.7-1.5.7-2.3V9a5 5 0 0 1 5-5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
                 <path d="M9.5 18a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
               </svg>
             </button>
 
-            <button class="account" type="button" @click="notifyAction('璐﹀彿鑿滃崟')">
+            <button class="account" type="button" @click="notifyAction('账号菜单')">
               <span class="account__avatar">
                 <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
                   <circle cx="24" cy="24" r="24" fill="currentColor" />
@@ -514,6 +605,35 @@ onBeforeUnmount(() => {
           <section v-else class="empty-state">当前没有可加载的页面，请检查页面清单配置。</section>
         </section>
       </section>
+
+      <div v-if="isNotificationOpen" class="notification-mask" @click="closeNotificationPanel">
+        <aside ref="notificationPanelRef" class="notification-panel" @click.stop>
+          <header class="notification-panel__header">
+            <strong>消息通知</strong>
+            <button class="notification-panel__close" type="button" aria-label="关闭消息通知" @click="closeNotificationPanel">×</button>
+          </header>
+
+          <div class="notification-panel__list">
+            <article v-for="item in notificationItems" :key="item.id" class="notification-card">
+              <div class="notification-card__icon">
+                <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
+                  <circle cx="24" cy="24" r="24" fill="currentColor" fill-opacity="0.16" />
+                  <path d="M18 15.5h12a2.5 2.5 0 0 1 2.5 2.5v12A2.5 2.5 0 0 1 30 32.5H18a2.5 2.5 0 0 1-2.5-2.5V18a2.5 2.5 0 0 1 2.5-2.5Z" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path d="M20.5 21h7M20.5 25h7M20.5 29h4.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" />
+                </svg>
+              </div>
+              <div class="notification-card__body">
+                <div class="notification-card__meta">
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.date }}</span>
+                </div>
+                <p>{{ item.summary }}</p>
+              </div>
+              <span v-if="item.unread" class="notification-card__dot"></span>
+            </article>
+          </div>
+        </aside>
+      </div>
     </template>
 
     <ToastViewport :items="toastItems" />
@@ -896,6 +1016,123 @@ onBeforeUnmount(() => {
   background: #f5fbf8;
 }
 
+.notification-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(22, 29, 48, 0.26);
+}
+
+.notification-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(620px, 38vw);
+  min-width: 400px;
+  height: 100vh;
+  background: #ffffff;
+  box-shadow: -18px 0 48px rgba(26, 37, 48, 0.16);
+}
+
+.notification-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid #eef2ef;
+}
+
+.notification-panel__header strong {
+  color: #2f3946;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.notification-panel__close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #c3cad1;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.notification-panel__list {
+  overflow-y: auto;
+  padding: 0 22px 8px;
+}
+
+.notification-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 12px;
+  gap: 14px;
+  align-items: center;
+  min-height: 92px;
+  border-bottom: 1px solid #eef2ef;
+}
+
+.notification-card__icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: #45d1ac;
+  background: #dff8f0;
+}
+
+.notification-card__icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.notification-card__body {
+  min-width: 0;
+}
+
+.notification-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.notification-card__meta strong {
+  color: #2f3946;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.notification-card__meta span {
+  flex-shrink: 0;
+  color: #a5adb6;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.notification-card__body p {
+  margin: 0;
+  color: #9aa3ad;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.notification-card__dot {
+  justify-self: end;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff7b75;
+}
+
 .content {
   min-width: 0;
   padding: 26px 28px 16px;
@@ -961,6 +1198,11 @@ onBeforeUnmount(() => {
 
   .content {
     padding: 16px;
+  }
+
+  .notification-panel {
+    width: min(100vw, 420px);
+    min-width: 0;
   }
 }
 </style>

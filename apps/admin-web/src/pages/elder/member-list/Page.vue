@@ -1832,32 +1832,34 @@ onBeforeUnmount(() => {
 }
 
 .member-table {
+  --member-table-columns:
+    minmax(0, 1.52fr)
+    minmax(0, 0.9fr)
+    minmax(0, 0.82fr)
+    minmax(0, 1.22fr)
+    minmax(0, 1.04fr)
+    minmax(0, 1.34fr);
+  --member-table-columns-batch:
+    42px
+    minmax(0, 1.52fr)
+    minmax(0, 0.9fr)
+    minmax(0, 0.82fr)
+    minmax(0, 1.22fr)
+    minmax(0, 1.04fr)
+    minmax(0, 1.34fr);
   min-width: 980px;
 }
 
 .member-table__head,
 .member-row {
   display: grid;
-  grid-template-columns:
-    minmax(188px, 1.46fr)
-    minmax(120px, 0.86fr)
-    minmax(90px, 0.76fr)
-    minmax(184px, 1.18fr)
-    minmax(162px, 1.02fr)
-    minmax(224px, 1.28fr);
+  grid-template-columns: var(--member-table-columns);
   align-items: center;
 }
 
 .member-table__head--batch,
 .member-row--batch {
-  grid-template-columns:
-    42px
-    minmax(188px, 1.46fr)
-    minmax(120px, 0.86fr)
-    minmax(90px, 0.76fr)
-    minmax(184px, 1.18fr)
-    minmax(162px, 1.02fr)
-    minmax(224px, 1.28fr);
+  grid-template-columns: var(--member-table-columns-batch);
 }
 
 .member-table__head {
@@ -1868,6 +1870,8 @@ onBeforeUnmount(() => {
 }
 
 .member-table__cell {
+  display: flex;
+  align-items: center;
   min-width: 0;
   padding: 0 6px;
   color: #55626e;
@@ -1909,6 +1913,7 @@ onBeforeUnmount(() => {
   padding: 10px 6px;
   color: #405463;
   font-size: 11.5px;
+  overflow: hidden;
 }
 
 .member-row__cell--user {
@@ -1977,7 +1982,7 @@ onBeforeUnmount(() => {
 
 .member-row__cell--actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
