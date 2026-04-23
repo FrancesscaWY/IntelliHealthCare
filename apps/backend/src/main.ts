@@ -83,6 +83,7 @@ const swaggerOperationsSorter = new Function(
   `
 ) as SwaggerUiOperationSorter;
 
+
 const swaggerCopyApiButtonScript = String.raw`
   (() => {
     const BUTTON_CLASS = "ihc-copy-api-button";
