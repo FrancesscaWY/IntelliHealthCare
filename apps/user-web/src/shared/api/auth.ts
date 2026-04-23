@@ -49,6 +49,23 @@ export interface PrivacyAgreementResponse {
   content: string;
 }
 
+export interface SendSmsCodeResponse {
+  phone: string;
+  purpose: string;
+  sent: boolean;
+  expiresInSeconds: number;
+  debugCode?: string;
+}
+
+export interface VerifyResetCodeRequest {
+  phone: string;
+  code: string;
+}
+
+export interface ResetPasswordRequest extends VerifyResetCodeRequest {
+  newPassword: string;
+}
+
 export function loginWithPassword(payload: LoginRequest) {
   return request<LoginResponse>("/app/auth/login/password", {
     method: "POST",
@@ -71,12 +88,26 @@ export function loginWithThirdParty(payload: ThirdPartyLoginRequest) {
 }
 
 export function sendSmsCode(phone: string, purpose = "login") {
-  return request<{ sent: boolean; debugCode?: string }>("/app/auth/sms/send", {
+  return request<SendSmsCodeResponse>("/app/auth/sms/send", {
     method: "POST",
     body: {
       phone,
       purpose
     }
+  });
+}
+
+export function verifyResetCode(payload: VerifyResetCodeRequest) {
+  return request<{ verified: boolean }>("/app/auth/password/verify-code", {
+    method: "POST",
+    body: payload
+  });
+}
+
+export function resetPassword(payload: ResetPasswordRequest) {
+  return request<{ reset: boolean }>("/app/auth/password/reset", {
+    method: "POST",
+    body: payload
   });
 }
 

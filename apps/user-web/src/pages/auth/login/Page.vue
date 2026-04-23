@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { AuthVerificationBanner } from "@/shared/components";
 import {
   getPrivacyAgreement,
   loginWithPassword,
@@ -27,6 +28,8 @@ const state = reactive({
   submitting: false,
   sendingCode: false,
   codeCountdown: 0,
+  smsDebugCode: "",
+  smsDebugPhone: "",
 });
 
 const submitButtonText = computed(() => (state.submitting ? "登录中..." : "登录"));
@@ -94,6 +97,19 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "请求失败，请稍后重试";
 }
 
+function handleDebugCode(result: { debugCode?: string }, phone: string) {
+  state.smsDebugCode = result.debugCode?.trim() || "";
+  state.smsDebugPhone = state.smsDebugCode ? phone : "";
+}
+
+function handleCodeCopied() {
+  props.showToast("验证码已复制");
+}
+
+function handleCodeCopyFailed() {
+  props.showToast("复制失败，请手动输入验证码");
+}
+
 async function sendCode() {
   if (state.sendingCode || state.codeCountdown > 0) {
     return;
@@ -103,8 +119,11 @@ async function sendCode() {
     const phone = validatePhone();
     state.sendingCode = true;
     const result = await sendSmsCode(phone);
+    handleDebugCode(result, phone);
     startCodeCountdown();
-    props.showToast(result.debugCode ? `验证码已发送：${result.debugCode}` : "验证码已发送");
+    props.showToast(
+      result.debugCode ? "验证码已发送，可在页面顶部直接复制" : "验证码已发送"
+    );
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -209,6 +228,14 @@ onBeforeUnmount(() => {
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
     </header>
+
+    <AuthVerificationBanner
+      v-if="state.smsDebugCode"
+      :code="state.smsDebugCode"
+      :phone="state.smsDebugPhone"
+      @copied="handleCodeCopied"
+      @copy-failed="handleCodeCopyFailed"
+    />
 
     <section class="brand-block">
       <div class="brand-logo" aria-hidden="true">

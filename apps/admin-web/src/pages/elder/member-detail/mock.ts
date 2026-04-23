@@ -1,4 +1,9 @@
-import memberListMock, { type MemberItem, type MemberTag, type MemberTagTone } from "../member-list/mock";
+import memberListMock, {
+  getMemberSource,
+  type MemberItem,
+  type MemberTag,
+  type MemberTagTone
+} from "../member-list/mock";
 import homeCareOrderImage from "../../../../../user-web/src/assets/service/daily-clean/cleaning-card.png";
 import rehabOrderImage from "../../../../../user-web/src/assets/service/home-care/img.png";
 import examOrderImage from "../../../../../user-web/src/assets/service/home-care/img_2.png";
@@ -13,7 +18,6 @@ export const memberDetailStorageKey = "admin:elder:selected-member-id";
 const deletedMemberIdsStorageKey = "admin:elder:deleted-member-ids";
 const memberTagOverridesStorageKey = "admin:elder:member-tag-overrides";
 const addedMembersStorageKey = "admin:elder:added-members";
-const mockMemberIds = new Set(memberListMock.members.map((member) => member.id));
 const tagToneSequence: MemberTagTone[] = ["mint", "peach", "lavender", "gold"];
 
 export type MemberDetailTone = "brand" | "accent" | "danger" | "neutral";
@@ -1556,7 +1560,7 @@ function readAddedMembers() {
 
     return parsed
       .filter((item): item is MemberItem => Boolean(item && typeof item === "object" && typeof item.id === "string"))
-      .filter((item) => !mockMemberIds.has(item.id))
+      .filter((item) => !new Set(getMemberSource().map((member) => member.id)).has(item.id))
       .map((item) => ({
         ...item,
         nickname: String(item.nickname || "").trim(),

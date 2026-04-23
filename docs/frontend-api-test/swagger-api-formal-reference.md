@@ -2257,16 +2257,22 @@
     <tr><th>API名称</th><th>含义</th><th>请求方法</th><th>请求路径</th><th>请求参数</th><th>响应示例</th></tr>
   </thead>
   <tbody>
-    <tr><td>后台密码登录</td><td>用于校验后台账号密码并返回后台访问令牌。</td><td><code>POST</code></td><td><code>/api/v1/admin/auth/login/password</code></td><td><strong>Body</strong><br>phone: string<br>password: string<br>agreePrivacy: boolean<br>deviceId: string</td><td><pre><code>{
+    <tr><td>后台密码登录</td><td>用于校验后台账号密码并返回后台访问令牌。</td><td><code>POST</code></td><td><code>/api/v1/admin/auth/login/password</code></td><td><strong>Body</strong><br>phone: string<br>password: string<br>agreePrivacy?: boolean<br>deviceId?: string</td><td><pre><code>{
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;accessToken&quot;: &quot;ACCESS_TOKEN&quot;,
     &quot;refreshToken&quot;: &quot;REFRESH_TOKEN&quot;,
-    &quot;expiresIn&quot;: 7200,
+    &quot;tokenType&quot;: &quot;Bearer&quot;,
+    &quot;expiresIn&quot;: &quot;2h&quot;,
     &quot;user&quot;: {
-      &quot;id&quot;: &quot;user_001&quot;,
-      &quot;role&quot;: &quot;PLATFORM_ADMIN&quot;
+      &quot;userId&quot;: &quot;admin_001&quot;,
+      &quot;phone&quot;: &quot;13600136000&quot;,
+      &quot;type&quot;: &quot;ADMIN&quot;,
+      &quot;roles&quot;: [
+        &quot;PLATFORM_ADMIN&quot;
+      ],
+      &quot;realName&quot;: &quot;平台管理员&quot;
     }
   }
 }</code></pre></td></tr>
@@ -2284,10 +2290,13 @@
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;id&quot;: &quot;admin_001&quot;,
-    &quot;name&quot;: &quot;平台管理员&quot;,
+    &quot;phone&quot;: &quot;13600136000&quot;,
+    &quot;type&quot;: &quot;ADMIN&quot;,
     &quot;roles&quot;: [
       &quot;PLATFORM_ADMIN&quot;
-    ]
+    ],
+    &quot;scope&quot;: &quot;admin&quot;,
+    &quot;realName&quot;: &quot;平台管理员&quot;
   }
 }</code></pre></td></tr>
   </tbody>
@@ -2306,52 +2315,85 @@
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
-    &quot;cards&quot;: [
+    &quot;elderCount&quot;: 12,
+    &quot;orderCount&quot;: 28,
+    &quot;workOrderCount&quot;: 16,
+    &quot;reportCount&quot;: 9,
+    &quot;openAlertCount&quot;: 3
+  }
+}</code></pre></td></tr>
+    <tr><td>获取长者列表</td><td>后台用户列表页接口，支持关键字、风险标签和分页筛选。</td><td><code>GET</code></td><td><code>/api/v1/admin/elders</code></td><td><strong>Query</strong><br>page?: number<br>pageSize?: number<br>keyword?: string<br>tag?: string</td><td><pre><code>{
+  &quot;code&quot;: 0,
+  &quot;message&quot;: &quot;ok&quot;,
+  &quot;data&quot;: {
+    &quot;list&quot;: [
       {
-        &quot;code&quot;: &quot;pendingOrders&quot;,
-        &quot;value&quot;: 12
-      },
-      {
-        &quot;code&quot;: &quot;pendingReports&quot;,
-        &quot;value&quot;: 4
+        &quot;elderId&quot;: &quot;user_elder_joy&quot;,
+        &quot;displayName&quot;: &quot;王建国&quot;,
+        &quot;phone&quot;: &quot;13800138000&quot;,
+        &quot;createdAt&quot;: &quot;2026-04-23T08:00:00.000Z&quot;,
+        &quot;tags&quot;: [
+          &quot;高血压&quot;,
+          &quot;重点关注&quot;
+        ]
       }
     ],
-    &quot;todoList&quot;: [
-      {
-        &quot;id&quot;: &quot;todo_001&quot;,
-        &quot;title&quot;: &quot;待审核体检报告&quot;
-      }
-    ]
+    &quot;page&quot;: 1,
+    &quot;pageSize&quot;: 20,
+    &quot;total&quot;: 1,
+    &quot;hasMore&quot;: false
   }
 }</code></pre></td></tr>
     <tr><td>获取长者详情</td><td>后台长者详情页接口。elderId 通常来自后台列表、工单或订单关联数据。</td><td><code>GET</code></td><td><code>/api/v1/admin/elders/:elderId</code></td><td><strong>Path</strong><br>elderId: string</td><td><pre><code>{
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
-    &quot;elderId&quot;: &quot;elder_001&quot;,
+    &quot;elderId&quot;: &quot;user_elder_joy&quot;,
     &quot;name&quot;: &quot;王建国&quot;,
+    &quot;phone&quot;: &quot;13800138000&quot;,
     &quot;age&quot;: 78,
-    &quot;recentOrderCount&quot;: 3,
-    &quot;riskTags&quot;: [
-      &quot;高血压&quot;
+    &quot;archiveSummary&quot;: {
+      &quot;riskTags&quot;: [
+        &quot;高血压&quot;,
+        &quot;重点关注&quot;
+      ]
+    },
+    &quot;recentOrders&quot;: [
+      {
+        &quot;orderId&quot;: &quot;order_001&quot;,
+        &quot;orderNo&quot;: &quot;IHC2400123456&quot;,
+        &quot;title&quot;: &quot;脑卒中康复理疗&quot;
+      }
+    ],
+    &quot;devices&quot;: [
+      {
+        &quot;deviceId&quot;: &quot;device_001&quot;,
+        &quot;type&quot;: &quot;WATCH&quot;,
+        &quot;status&quot;: &quot;ONLINE&quot;
+      }
     ]
   }
 }</code></pre></td></tr>
-    <tr><td>获取工单列表</td><td>后台工单列表页接口，支持分页。workOrderId 需要从该列表返回中获取。</td><td><code>GET</code></td><td><code>/api/v1/admin/work-orders</code></td><td><strong>Query</strong><br>page?: number<br>pageSize?: number</td><td><pre><code>{
+    <tr><td>获取工单列表</td><td>后台工单列表页接口，支持状态、服务分类和关键字筛选。</td><td><code>GET</code></td><td><code>/api/v1/admin/work-orders</code></td><td><strong>Query</strong><br>page?: number<br>pageSize?: number<br>status?: WorkOrderStatus<br>serviceCategory?: ServiceCategory<br>keyword?: string</td><td><pre><code>{
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;list&quot;: [
       {
         &quot;workOrderId&quot;: &quot;wo_001&quot;,
-        &quot;orderId&quot;: &quot;order_001&quot;,
-        &quot;assignee&quot;: &quot;张护理员&quot;,
-        &quot;status&quot;: &quot;ASSIGNED&quot;
+        &quot;orderNo&quot;: &quot;IHC2400123456&quot;,
+        &quot;status&quot;: &quot;ASSIGNED&quot;,
+        &quot;statusText&quot;: &quot;待服务&quot;,
+        &quot;serviceCategoryText&quot;: &quot;康复理疗&quot;,
+        &quot;serviceTitle&quot;: &quot;脑卒中康复理疗&quot;,
+        &quot;customerName&quot;: &quot;王兰&quot;,
+        &quot;customerPhone&quot;: &quot;13900139000&quot;
       }
     ],
     &quot;page&quot;: 1,
     &quot;pageSize&quot;: 20,
-    &quot;total&quot;: 1
+    &quot;total&quot;: 1,
+    &quot;hasMore&quot;: false
   }
 }</code></pre></td></tr>
   </tbody>
@@ -2366,21 +2408,28 @@
     <tr><th>API名称</th><th>含义</th><th>请求方法</th><th>请求路径</th><th>请求参数</th><th>响应示例</th></tr>
   </thead>
   <tbody>
-    <tr><td>后台获取订单列表</td><td>后台订单管理页接口，可按状态筛选。</td><td><code>GET</code></td><td><code>/api/v1/admin/orders</code></td><td><strong>Query</strong><br>status?: OrderStatus<br>page?: number<br>pageSize?: number</td><td><pre><code>{
+    <tr><td>后台获取订单列表</td><td>后台订单管理页接口，支持状态、服务分类、支付渠道和关键字筛选。</td><td><code>GET</code></td><td><code>/api/v1/admin/orders</code></td><td><strong>Query</strong><br>status?: OrderStatus<br>serviceCategory?: ServiceCategory<br>paymentChannel?: PaymentChannel<br>keyword?: string<br>page?: number<br>pageSize?: number</td><td><pre><code>{
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;list&quot;: [
       {
         &quot;orderId&quot;: &quot;order_001&quot;,
-        &quot;userName&quot;: &quot;王兰&quot;,
-        &quot;serviceName&quot;: &quot;脑卒中康复理疗&quot;,
-        &quot;status&quot;: &quot;BOOKED&quot;
+        &quot;orderNo&quot;: &quot;IHC2400123456&quot;,
+        &quot;ownerName&quot;: &quot;王兰&quot;,
+        &quot;ownerPhone&quot;: &quot;13900139000&quot;,
+        &quot;title&quot;: &quot;脑卒中康复理疗&quot;,
+        &quot;status&quot;: &quot;DISPATCHING&quot;,
+        &quot;statusText&quot;: &quot;待接单&quot;,
+        &quot;serviceCategoryText&quot;: &quot;康复理疗&quot;,
+        &quot;paymentChannelText&quot;: &quot;支付宝&quot;,
+        &quot;actualAmount&quot;: 299
       }
     ],
     &quot;page&quot;: 1,
     &quot;pageSize&quot;: 20,
-    &quot;total&quot;: 1
+    &quot;total&quot;: 1,
+    &quot;hasMore&quot;: false
   }
 }</code></pre></td></tr>
     <tr><td>后台获取订单详情</td><td>后台订单详情页接口。</td><td><code>GET</code></td><td><code>/api/v1/admin/orders/:orderId</code></td><td><strong>Path</strong><br>orderId: string</td><td><pre><code>{
@@ -2388,18 +2437,35 @@
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;orderId&quot;: &quot;order_001&quot;,
-    &quot;serviceName&quot;: &quot;脑卒中康复理疗&quot;,
-    &quot;status&quot;: &quot;BOOKED&quot;,
-    &quot;assignee&quot;: &quot;张护理员&quot;
+    &quot;orderNo&quot;: &quot;IHC2400123456&quot;,
+    &quot;status&quot;: &quot;DISPATCHING&quot;,
+    &quot;owner&quot;: {
+      &quot;userId&quot;: &quot;user_family_joy&quot;,
+      &quot;name&quot;: &quot;王兰&quot;,
+      &quot;phone&quot;: &quot;13900139000&quot;
+    },
+    &quot;payments&quot;: [
+      {
+        &quot;paymentNo&quot;: &quot;pay_001&quot;,
+        &quot;channelText&quot;: &quot;支付宝&quot;,
+        &quot;amount&quot;: 299
+      }
+    ],
+    &quot;workOrders&quot;: [
+      {
+        &quot;workOrderId&quot;: &quot;wo_001&quot;,
+        &quot;status&quot;: &quot;ASSIGNED&quot;,
+        &quot;assigneeName&quot;: &quot;刘康复师&quot;
+      }
+    ]
   }
 }</code></pre></td></tr>
     <tr><td>后台派单</td><td>后台分派服务机构、员工或排班时调用。</td><td><code>POST</code></td><td><code>/api/v1/admin/orders/:orderId/dispatch</code></td><td><strong>Path</strong><br>orderId: string<hr><strong>Body</strong><br>institutionId?: string<br>assigneeStaffId?: string<br>scheduleId?: string<br>dispatchNote?: string</td><td><pre><code>{
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
-    &quot;orderId&quot;: &quot;order_001&quot;,
     &quot;workOrderId&quot;: &quot;wo_001&quot;,
-    &quot;dispatched&quot;: true
+    &quot;status&quot;: &quot;ASSIGNED&quot;
   }
 }</code></pre></td></tr>
     <tr><td>更新工单状态</td><td>后台工单执行过程中的状态流转接口。</td><td><code>PUT</code></td><td><code>/api/v1/admin/work-orders/:workOrderId/status</code></td><td><strong>Path</strong><br>workOrderId: string<hr><strong>Body</strong><br>status: WorkOrderStatus</td><td><pre><code>{
@@ -2407,8 +2473,7 @@
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;workOrderId&quot;: &quot;wo_001&quot;,
-    &quot;status&quot;: &quot;IN_SERVICE&quot;,
-    &quot;updated&quot;: true
+    &quot;status&quot;: &quot;SERVING&quot;
   }
 }</code></pre></td></tr>
   </tbody>
@@ -2423,20 +2488,26 @@
     <tr><th>API名称</th><th>含义</th><th>请求方法</th><th>请求路径</th><th>请求参数</th><th>响应示例</th></tr>
   </thead>
   <tbody>
-    <tr><td>后台获取报告列表</td><td>后台报告管理页接口，可按审核状态筛选。</td><td><code>GET</code></td><td><code>/api/v1/admin/reports</code></td><td><strong>Query</strong><br>status?: ReportStatus<br>page?: number<br>pageSize?: number</td><td><pre><code>{
+    <tr><td>后台获取报告列表</td><td>后台报告管理页接口，可按审核状态、报告类型和关键字筛选。</td><td><code>GET</code></td><td><code>/api/v1/admin/reports</code></td><td><strong>Query</strong><br>status?: ReportStatus<br>type?: ReportType<br>keyword?: string<br>page?: number<br>pageSize?: number</td><td><pre><code>{
   &quot;code&quot;: 0,
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;list&quot;: [
       {
         &quot;reportId&quot;: &quot;report_001&quot;,
+        &quot;title&quot;: &quot;2026 年 4 月体检报告&quot;,
         &quot;elderName&quot;: &quot;王建国&quot;,
+        &quot;typeText&quot;: &quot;体检报告&quot;,
+        &quot;source&quot;: &quot;用户上传&quot;,
+        &quot;uploader&quot;: &quot;系统&quot;,
+        &quot;orderNo&quot;: &quot;IHC2400123456&quot;,
         &quot;status&quot;: &quot;PENDING_REVIEW&quot;
       }
     ],
     &quot;page&quot;: 1,
     &quot;pageSize&quot;: 20,
-    &quot;total&quot;: 1
+    &quot;total&quot;: 1,
+    &quot;hasMore&quot;: false
   }
 }</code></pre></td></tr>
     <tr><td>后台审核报告</td><td>后台审核动作接口。reportId 来自后台报告列表。</td><td><code>PUT</code></td><td><code>/api/v1/admin/reports/:reportId/review</code></td><td><strong>Path</strong><br>reportId: string<hr><strong>Body</strong><br>status: ReportStatus</td><td><pre><code>{
@@ -2444,8 +2515,10 @@
   &quot;message&quot;: &quot;ok&quot;,
   &quot;data&quot;: {
     &quot;reportId&quot;: &quot;report_001&quot;,
-    &quot;status&quot;: &quot;APPROVED&quot;,
-    &quot;reviewedAt&quot;: &quot;2026-04-23T08:00:00Z&quot;
+    &quot;type&quot;: &quot;CHECKUP&quot;,
+    &quot;status&quot;: &quot;PUBLISHED&quot;,
+    &quot;title&quot;: &quot;2026 年 4 月体检报告&quot;,
+    &quot;publishedAt&quot;: &quot;2026-04-23T08:00:00.000Z&quot;
   }
 }</code></pre></td></tr>
   </tbody>
@@ -2656,4 +2729,3 @@
 }</code></pre></td></tr>
   </tbody>
 </table>
-

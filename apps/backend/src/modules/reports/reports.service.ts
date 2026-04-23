@@ -7,6 +7,7 @@ import { ReportStatus, ReportType, UserType } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import {
   paginate,
+  toDateString,
   toDateTimeString,
   toPrismaJson,
   toPrismaNullableJson
@@ -102,15 +103,64 @@ export class ReportsService {
     };
   }
 
-  async listAdminReports(page: number, pageSize: number, status?: ReportStatus) {
+  async listAdminReports(
+    page: number,
+    pageSize: number,
+    status?: ReportStatus,
+    type?: ReportType,
+    keyword?: string
+  ) {
+    const normalizedKeyword = keyword?.trim().toLowerCase();
     const reports = await this.prismaService.report.findMany({
       where: {
-        status: status ?? undefined
+        status: status ?? undefined,
+        type: type ?? undefined
+      },
+      include: {
+        archive: {
+          include: {
+            user: true
+          }
+        },
+        order: true,
+        author: true
       },
       orderBy: { createdAt: "desc" }
     });
 
-    return paginate(reports.map((item) => this.toReportCard(item)), page, pageSize);
+    const list = reports
+      .map((item) => ({
+        reportId: item.id,
+        title: item.title,
+        type: item.type,
+        typeText: this.getReportTypeText(item.type),
+        status: item.status,
+        createdAt: toDateTimeString(item.createdAt),
+        publishedAt: toDateTimeString(item.publishedAt),
+        elderId: item.archive?.userId ?? null,
+        elderName:
+          item.archive?.user.realName ??
+          item.archive?.user.nickname ??
+          item.archive?.user.phone ??
+          null,
+        elderPhone: item.archive?.user.phone ?? null,
+        source: item.author ? "后台上传" : item.orderId ? "订单关联" : "用户上传",
+        uploader: item.author?.name ?? "系统",
+        orderId: item.orderId,
+        orderNo: item.order?.orderNo ?? null,
+        reportDate: toDateString(item.publishedAt ?? item.createdAt)
+      }))
+      .filter((item) => {
+        if (!normalizedKeyword) {
+          return true;
+        }
+
+        return [item.title, item.elderName, item.uploader, item.orderNo]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedKeyword));
+      });
+
+    return paginate(list, page, pageSize);
   }
 
   async reviewReport(reportId: string, status: ReportStatus) {
@@ -231,5 +281,18 @@ export class ReportsService {
       createdAt: toDateTimeString(report.createdAt),
       publishedAt: toDateTimeString(report.publishedAt)
     };
+  }
+
+  private getReportTypeText(type: ReportType) {
+    switch (type) {
+      case ReportType.CHECKUP:
+        return "体检报告";
+      case ReportType.SERVICE:
+        return "服务报告";
+      case ReportType.REHAB:
+        return "康复报告";
+      case ReportType.ASSESSMENT:
+        return "评估报告";
+    }
   }
 }

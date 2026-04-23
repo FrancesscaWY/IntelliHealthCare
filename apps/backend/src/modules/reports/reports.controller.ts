@@ -17,7 +17,7 @@ import {
   ApiPropertyOptional,
   ApiTags
 } from "@nestjs/swagger";
-import { ReportStatus } from "@prisma/client";
+import { ReportStatus, ReportType } from "@prisma/client";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
@@ -84,6 +84,23 @@ class AdminReportsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(ReportStatus)
   status?: ReportStatus;
+
+  @ApiPropertyOptional({
+    description: "报告类型筛选。",
+    enum: ReportType,
+    example: ReportType.CHECKUP
+  })
+  @IsOptional()
+  @IsEnum(ReportType)
+  type?: ReportType;
+
+  @ApiPropertyOptional({
+    description: "关键字，可匹配报告标题、长者姓名、上传人或关联订单号。",
+    example: "体检"
+  })
+  @IsOptional()
+  @IsString()
+  keyword?: string;
 }
 
 class ReviewReportDto {
@@ -178,7 +195,13 @@ export class AdminReportsController {
     description: "后台报告管理页接口，可按审核状态筛选。"
   })
   listReports(@Query() query: AdminReportsQueryDto) {
-    return this.reportsService.listAdminReports(query.page, query.pageSize, query.status);
+    return this.reportsService.listAdminReports(
+      query.page,
+      query.pageSize,
+      query.status,
+      query.type,
+      query.keyword
+    );
   }
 
   @Put(":reportId/review")

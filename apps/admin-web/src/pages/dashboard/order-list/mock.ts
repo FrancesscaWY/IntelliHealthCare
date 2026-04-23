@@ -63,6 +63,7 @@ export interface AdminOrderRecord {
 
 export const orderDetailStorageKey = "admin:dashboard:selected-order-id";
 export const orderDetailPendingActionStorageKey = "admin:dashboard:selected-order-action";
+const remoteOrdersStorageKey = "admin:dashboard:api-orders";
 
 const cleaningImage =
   "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320";
@@ -77,7 +78,7 @@ function createFutureIso(secondsFromNow: number) {
   return new Date(Date.now() + secondsFromNow * 1000).toISOString();
 }
 
-const orders: AdminOrderRecord[] = [
+const fallbackOrders: AdminOrderRecord[] = [
   {
     id: "2400126670",
     orderTime: "2026-04-22 10:12:07",
@@ -409,16 +410,51 @@ const orders: AdminOrderRecord[] = [
   },
 ];
 
+export function readRemoteOrders() {
+  if (typeof window === "undefined") {
+    return [] as AdminOrderRecord[];
+  }
+
+  const rawValue = window.sessionStorage.getItem(remoteOrdersStorageKey);
+
+  if (!rawValue) {
+    return [] as AdminOrderRecord[];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? (parsed as AdminOrderRecord[]) : [];
+  } catch {
+    window.sessionStorage.removeItem(remoteOrdersStorageKey);
+    return [] as AdminOrderRecord[];
+  }
+}
+
+export function saveRemoteOrders(orders: AdminOrderRecord[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(remoteOrdersStorageKey, JSON.stringify(orders));
+}
+
+export function getOrderRecords() {
+  const remoteOrders = readRemoteOrders();
+  return remoteOrders.length > 0 ? remoteOrders : fallbackOrders;
+}
+
 const mock = {
   title: "全部订单",
   serviceTypes: ["全部类型", "家政护工", "康复理疗", "上门体检"],
   paymentOptions: ["全部方式", "支付宝", "微信支付", "银行卡"],
   statusTabs: ["全部", "待付款", "待接单", "待服务", "已完成", "退款售后", "已关闭"],
-  orders,
+  get orders() {
+    return getOrderRecords();
+  }
 };
 
 export function getOrderById(orderId: string) {
-  return orders.find((order) => order.id === orderId);
+  return getOrderRecords().find((order) => order.id === orderId);
 }
 
 export function updateOrderById(orderId: string, patch: Partial<AdminOrderRecord>) {
@@ -429,6 +465,7 @@ export function updateOrderById(orderId: string, patch: Partial<AdminOrderRecord
   }
 
   Object.assign(targetOrder, patch);
+  saveRemoteOrders(getOrderRecords());
   return targetOrder;
 }
 
