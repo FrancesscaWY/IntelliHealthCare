@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import heroIllustration from "@/assets/auth/medical-care-storyset.svg";
 import {
@@ -8,10 +8,9 @@ import {
   loginWithPassword
 } from "@/shared/api/auth";
 import {
-  clearAdminAuthSession,
-  hasAdminAuthSession,
   saveAdminAuthSession
 } from "@/shared/auth/session";
+import { resolvePostLoginPageId } from "@/shared/auth/navigation";
 import mock from "./mock";
 
 type LoginRole = (typeof mock.roles)[number];
@@ -39,8 +38,8 @@ const roleIconMarkup: Record<string, string> = {
 };
 
 const defaultRole = mock.roles[0]!;
-const account = ref(mock.phone);
-const password = ref(mock.password);
+const account = ref(defaultRole.demoPhone || mock.phone);
+const password = ref(defaultRole.demoPassword || mock.password);
 const remember = ref(mock.remember);
 const agreePolicy = ref(mock.agreePolicy);
 const selectedRole = ref<LoginRoleKey>(defaultRole.key);
@@ -49,6 +48,8 @@ const submitButtonText = computed(() => (submitting.value ? "登录中..." : "�
 const currentRole = computed(
   () => mock.roles.find((role) => role.key === selectedRole.value) ?? defaultRole
 );
+const showQuickEntries = computed(() => props.mode === "page");
+const currentRoleDemo = computed(() => `${currentRole.value.demoPhone} / ${currentRole.value.demoPassword}`);
 
 function getRoleIconMarkup(icon: string) {
   return roleIconMarkup[icon] ?? roleIconMarkup.shield;
@@ -56,6 +57,9 @@ function getRoleIconMarkup(icon: string) {
 
 function selectRole(roleKey: LoginRoleKey) {
   selectedRole.value = roleKey;
+  const role = mock.roles.find((item) => item.key === roleKey) ?? defaultRole;
+  account.value = role.demoPhone || "";
+  password.value = role.demoPassword || "";
 }
 
 function createDeviceId() {
@@ -65,12 +69,20 @@ function createDeviceId() {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "登录失败，请稍后重试";
+  if (!(error instanceof Error)) {
+    return "登录失败，请稍后重试";
+  }
+
+  if (/invalid credentials|invalid phone or password/i.test(error.message)) {
+    return `账号或密码错误，请确认当前角色使用 ${currentRoleDemo.value}`;
+  }
+
+  return error.message;
 }
 
-async function redirectToDashboard() {
+async function redirectAfterLogin() {
   await getCurrentAdmin();
-  props.navigation.reLaunch("dashboard/overview");
+  props.navigation.reLaunch(resolvePostLoginPageId());
 }
 
 async function openPolicy() {
@@ -83,6 +95,11 @@ async function openPolicy() {
 }
 
 function openPage(pageId: string, label: string) {
+  if (props.mode !== "page") {
+    props.showToast("请先完成登录后再进入后台");
+    return;
+  }
+
   props.showToast(`正在跳转到${label}`);
   props.navigation.reLaunch(pageId);
 }
@@ -116,7 +133,7 @@ async function submitLogin() {
     saveAdminAuthSession(session, {
       persist: remember.value
     });
-    await redirectToDashboard();
+    await redirectAfterLogin();
     props.showToast("后台登录成功");
   } catch (error) {
     props.showToast(getErrorMessage(error));
@@ -124,18 +141,6 @@ async function submitLogin() {
     submitting.value = false;
   }
 }
-
-onMounted(async () => {
-  if (!hasAdminAuthSession()) {
-    return;
-  }
-
-  try {
-    await redirectToDashboard();
-  } catch {
-    clearAdminAuthSession();
-  }
-});
 </script>
 
 <template>
@@ -200,6 +205,8 @@ onMounted(async () => {
         </button>
       </div>
 
+      <p class="login-card__tip">联调账号：{{ currentRoleDemo }}</p>
+
       <label class="field">
         <span>账号</span>
         <input
@@ -233,18 +240,21 @@ onMounted(async () => {
       </button>
 
       <footer class="login-card__foot">
-        <span>单页调试入口</span>
-        <div class="quick-links">
-          <button
-            v-for="item in mock.quickEntries"
-            :key="`${item.pageId}-${item.label}`"
-            type="button"
-            class="quick-link"
-            @click="openPage(item.pageId, item.label)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
+        <template v-if="showQuickEntries">
+          <span>单页调试入口</span>
+          <div class="quick-links">
+            <button
+              v-for="item in mock.quickEntries"
+              :key="`${item.pageId}-${item.label}`"
+              type="button"
+              class="quick-link"
+              @click="openPage(item.pageId, item.label)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </template>
+        <p v-else class="login-card__tip">请输入后台账号密码完成登录。</p>
         <p class="login-card__hint">{{ mock.forgotPasswordText }}</p>
       </footer>
     </section>

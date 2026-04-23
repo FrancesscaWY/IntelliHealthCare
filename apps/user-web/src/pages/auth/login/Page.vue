@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive } from "vue";
+import { computed, onBeforeUnmount, reactive } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import {
-  getCurrentUser,
   getPrivacyAgreement,
   loginWithPassword,
   loginWithSms,
@@ -10,8 +9,8 @@ import {
   sendSmsCode
 } from "@/shared/api/auth";
 import type { LoginResponse } from "@/shared/api/auth";
-import { saveUserAuthSession, clearUserAuthSession, hasUserAuthSession } from "@/shared/auth/session";
-import { resolvePostLoginPageId } from "@/shared/auth/navigation";
+import { REAL_NAME_PAGE_ID } from "@/shared/auth/navigation";
+import { saveUserAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
 
@@ -83,8 +82,7 @@ function createDeviceId(prefix: string) {
 }
 
 async function redirectAfterLogin() {
-  const currentUser = await getCurrentUser();
-  props.navigation.reLaunch(resolvePostLoginPageId(currentUser.realNameVerified));
+  props.navigation.reLaunch(REAL_NAME_PAGE_ID);
 }
 
 function storeSession(session: LoginResponse) {
@@ -198,18 +196,6 @@ async function showPolicy() {
     props.showToast(getErrorMessage(error));
   }
 }
-
-onMounted(async () => {
-  if (!hasUserAuthSession()) {
-    return;
-  }
-
-  try {
-    await redirectAfterLogin();
-  } catch {
-    clearUserAuthSession();
-  }
-});
 
 onBeforeUnmount(() => {
   window.clearInterval(codeTimer);

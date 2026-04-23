@@ -29,19 +29,25 @@ const mock = {
       key: "platform-admin",
       label: "平台管理员",
       description: "负责平台全局配置、权限分配与运营总览。",
-      icon: "shield"
+      icon: "shield",
+      demoPhone: "13600136000",
+      demoPassword: "123456"
     },
     {
       key: "customer-service",
       label: "客服人员",
       description: "处理咨询工单、服务回访与消息协同。",
-      icon: "headset"
+      icon: "headset",
+      demoPhone: "13700137003",
+      demoPassword: "123456"
     },
     {
       key: "institution-manager",
       label: "机构主管",
       description: "管理机构成员、排班任务与健康服务执行。",
-      icon: "building"
+      icon: "building",
+      demoPhone: "13600136001",
+      demoPassword: "123456"
     }
   ]
 };

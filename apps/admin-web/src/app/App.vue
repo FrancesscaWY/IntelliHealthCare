@@ -18,6 +18,12 @@ import { resolveConfig } from "./resolve-config";
 import { usePageNavigation } from "./usePageNavigation";
 import { useToastQueue } from "./useToastQueue";
 import { pageMeta, projectInfo } from "@/shared/project-info";
+import {
+  clearPostLoginPageId
+} from "@/shared/auth/navigation";
+import {
+  clearAdminAuthSession
+} from "@/shared/auth/session";
 import PagePlaceholder from "@/components/PagePlaceholder.vue";
 import ToastViewport from "@/components/ToastViewport.vue";
 
@@ -425,6 +431,8 @@ function handleAccountMenuSelect(action: "profile" | "password" | "logout") {
     return;
   }
 
+  clearAdminAuthSession();
+  clearPostLoginPageId();
   openPage("auth/login");
 }
 
@@ -1185,4 +1193,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-

@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { getCurrentUser, submitRealName, updateUserProfile } from "@/shared/api/auth";
-import { resolvePostLoginPageId } from "@/shared/auth/navigation";
+import { DEFAULT_AUTHENTICATED_PAGE_ID } from "@/shared/auth/navigation";
 import mock from "./mock";
 import { lastLoginPhone } from "../session";
 
@@ -52,6 +52,10 @@ function goBack() {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("auth/login");
   }
+}
+
+function skipRealName() {
+  props.navigation.reLaunch(DEFAULT_AUTHENTICATED_PAGE_ID);
 }
 
 function openGenderPicker() {
@@ -113,7 +117,7 @@ async function saveProfile() {
       birthday: form.birthday
     });
     props.showToast("实名认证已提交");
-    props.navigation.reLaunch(resolvePostLoginPageId(true));
+    props.navigation.reLaunch(DEFAULT_AUTHENTICATED_PAGE_ID);
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -144,6 +148,7 @@ onMounted(async () => {
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
       <h1>实名认证</h1>
+      <button class="skip-btn" type="button" @click="skipRealName">跳过</button>
     </header>
 
     <section class="verify-hero">
@@ -300,6 +305,16 @@ onMounted(async () => {
 
 .real-name-nav h1 {
   display: none;
+}
+
+.skip-btn {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 15px;
+  line-height: 1;
 }
 
 .verify-hero {

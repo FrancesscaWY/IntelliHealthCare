@@ -38,7 +38,8 @@
     "prompt:admin-page": "node ./scripts/codex-prompt.mjs --app admin"
   },
   "devDependencies": {
-    "localtunnel": "^2.0.2"
+    "localtunnel": "^2.0.2",
+    "muggle-string": "^0.4.1"
   },
   "dependencies": {
     "echarts": "^6.0.0"
