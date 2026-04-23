@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { logout as logoutRequest } from "@/shared/api/auth";
+import { clearUserAuthSession } from "@/shared/auth/session";
 import mock, { type SettingItem } from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -22,8 +24,16 @@ function openSetting(item: SettingItem) {
   props.navigation.navigateTo(item.pageId);
 }
 
-function logout() {
-  props.showToast("已退出账号");
+async function logout() {
+  try {
+    await logoutRequest();
+  } catch {
+    // 即使后端退出接口失败，也要清理本地登录态。
+  } finally {
+    clearUserAuthSession();
+    props.showToast("已退出账号");
+    props.navigation.reLaunch("auth/login");
+  }
 }
 </script>
 
