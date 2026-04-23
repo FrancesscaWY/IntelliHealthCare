@@ -853,8 +853,7 @@ onBeforeUnmount(() => {
   color: #25384c;
 }
 
-:global(body.member-create-shell-hidden .admin-topbar),
-:global(body.member-create-shell-hidden .workspace-metrics) {
+:global(body.member-create-shell-hidden .admin-topbar) {
   display: none;
 }
 

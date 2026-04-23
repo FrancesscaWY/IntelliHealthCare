@@ -58,7 +58,7 @@ const initialReports: HealthCheckReport[] = [
     hospital: "上海市某某医院",
     reportName: "血脂四项检查报告",
     patient: [
-      { label: "姓名", value: "JOY" },
+      { label: "姓名", value: "张爱清" },
       { label: "病历号", value: "" },
       { label: "样本号", value: "34" },
       { label: "性别", value: "女" },
@@ -115,7 +115,7 @@ const initialReports: HealthCheckReport[] = [
     hospital: "上海市某某医院",
     reportName: "血脂四项复查报告",
     patient: [
-      { label: "姓名", value: "JOY" },
+      { label: "姓名", value: "张爱清" },
       { label: "病历号", value: "" },
       { label: "样本号", value: "29" },
       { label: "性别", value: "女" },
@@ -268,7 +268,7 @@ export function useReportCenter() {
       hospital: "上海市某某医院",
       reportName: `${title}电子报告`,
       patient: [
-        { label: "姓名", value: "JOY" },
+        { label: "姓名", value: "张爱清" },
         { label: "病历号", value: "" },
         { label: "样本号", value: "附件" },
         { label: "性别", value: "女" },

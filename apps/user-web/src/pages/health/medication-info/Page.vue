@@ -151,7 +151,7 @@ button {
   width: 32px;
   height: 38px;
   padding: 0;
-  color: #34383f;
+  color: #252939;
   font-size: 38px;
   font-weight: 300;
   line-height: 30px;
@@ -160,7 +160,7 @@ button {
 .page-header h1 {
   margin: 0;
   overflow: hidden;
-  color: #34383f;
+  color: #222733;
   font-size: 20px;
   font-weight: 900;
   letter-spacing: 0;
@@ -182,20 +182,21 @@ button {
 .overview-card {
   padding: 22px;
   margin-bottom: 16px;
-  border-radius: 20px;
-  background: #ffffff;
-  box-shadow: 0 12px 30px rgba(31, 40, 58, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .overview-card small {
-  color: #6872f0;
-  font-size: 13px;
+  color: #66cfa7;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .overview-card h2 {
   margin: 10px 0 18px;
-  color: #252939;
+  color: #222733;
   font-size: 21px;
   font-weight: 900;
   line-height: 1.45;
@@ -209,13 +210,14 @@ button {
 
 .overview-metrics article {
   padding: 12px;
-  border-radius: 16px;
-  background: #f5f6f7;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.74);
 }
 
 .overview-metrics span {
   display: block;
-  color: #9a9fa8;
+  color: #8f95a2;
   font-size: 12px;
   font-weight: 800;
 }
@@ -223,7 +225,7 @@ button {
 .overview-metrics strong {
   display: block;
   margin-top: 8px;
-  color: #34383f;
+  color: #222733;
   font-size: 18px;
   font-weight: 900;
 }
@@ -231,9 +233,10 @@ button {
 .meal-card {
   margin-top: 14px;
   padding: 18px;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .meal-card:first-child {
@@ -252,8 +255,8 @@ button {
   place-items: center;
   width: 72px;
   height: 72px;
-  border-radius: 20px;
-  background: #f3f4ff;
+  border-radius: 15px;
+  background: rgba(105, 213, 209, 0.12);
 }
 
 .meal-icon svg {
@@ -261,7 +264,7 @@ button {
   width: 30px;
   height: 30px;
   fill: none;
-  stroke: #6872f0;
+  stroke: #48bfa3;
   stroke-width: 2.15;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -272,14 +275,14 @@ button {
 }
 
 .meal-copy small {
-  color: #6872f0;
+  color: #66cfa7;
   font-size: 12px;
   font-weight: 900;
 }
 
 .meal-copy h2 {
   margin: 6px 0 0;
-  color: #34383f;
+  color: #222733;
   font-size: 20px;
   font-weight: 900;
   line-height: 1.35;
@@ -298,8 +301,9 @@ button {
   width: 100%;
   min-height: 68px;
   padding: 0 16px;
-  border-radius: 16px;
-  background: #f8f9fb;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.74);
   text-align: left;
 }
 
@@ -314,7 +318,7 @@ button {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #6872f0;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
 }
 
 .medicine-name span {
@@ -325,7 +329,7 @@ button {
 
 .medicine-name strong {
   overflow: hidden;
-  color: #34383f;
+  color: #222733;
   font-size: 16px;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -333,7 +337,7 @@ button {
 }
 
 .medicine-name small {
-  color: #9a9fa8;
+  color: #8f95a2;
   font-size: 12px;
   font-weight: 800;
 }
@@ -350,8 +354,8 @@ button {
 }
 
 .medicine-dose--green {
-  background: #dcf8ed;
-  color: #31c79b;
+  background: rgba(102, 207, 167, 0.14);
+  color: #39a980;
 }
 
 .medicine-dose--red {
@@ -360,14 +364,14 @@ button {
 }
 
 .medicine-dose--blue {
-  background: #f0f0ff;
-  color: #6872f0;
+  background: rgba(105, 213, 209, 0.14);
+  color: #48bfa3;
 }
 
 .no-more {
   margin: 28px 0 0;
-  color: #c2c6cd;
-  font-size: 15px;
+  color: #8f95a2;
+  font-size: 12px;
   font-weight: 800;
   text-align: center;
 }
@@ -382,9 +386,9 @@ button {
 .add-btn {
   width: 100%;
   height: 50px;
-  border-radius: 16px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  border-radius: 999px;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
   color: #ffffff;
   font-size: 16px;
   font-weight: 900;
