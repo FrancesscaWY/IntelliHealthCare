@@ -27,15 +27,15 @@
 
 ## 2. 联调环境
 
-- Base URL：`http://localhost:8190/api/v1`
-- Swagger：`http://localhost:8190/api/v1/docs`
+- Base URL：`http://server.mctown.online:8190/api/v1`
+- Swagger：`http://server.mctown.online:8190/api/v1/docs`
 - 用户端账号：`13900139000 / 123456`
 - 后台账号：`13600136000 / 123456`
 
 ## 3. 通用脚本（建议前端本地保留）
 
 ```bash
-BASE_URL=${BASE_URL:-http://localhost:8190/api/v1}
+BASE_URL=${BASE_URL:-http://server.mctown.online:8190/api/v1}
 
 json_get() {
   node -e '

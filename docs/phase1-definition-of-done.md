@@ -16,7 +16,7 @@ Phase 1 仅覆盖以下三条 P0 主链路：
 
 - 命令：`npm run test:backend:smoke:baseline`
 - 脚本：`scripts/backend-smoke-baseline.mjs`
-- 默认地址：`http://localhost:8190/api/v1`
+- 默认地址：`http://server.mctown.online:8190/api/v1`
 - 默认测试账号：`13900139000 / 123456`
 
 可覆盖环境变量：

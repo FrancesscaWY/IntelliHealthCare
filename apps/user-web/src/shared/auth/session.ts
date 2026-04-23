@@ -70,6 +70,17 @@ export function getUserAccessToken() {
   return currentUserAuthSession.value?.accessToken || "";
 }
 
+export function getUserAuthorizationValue() {
+  const session = currentUserAuthSession.value;
+
+  if (!session?.accessToken) {
+    return "";
+  }
+
+  const tokenType = session.tokenType.trim() || "Bearer";
+  return `${tokenType} ${session.accessToken}`;
+}
+
 export function saveUserAuthSession(session: UserAuthSession) {
   currentUserAuthSession.value = session;
 

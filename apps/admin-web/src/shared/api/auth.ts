@@ -30,6 +30,12 @@ export interface AdminCurrentUserResponse {
   realName: string | null;
 }
 
+export interface AdminPrivacyAgreementResponse {
+  title: string;
+  version: string;
+  content: string;
+}
+
 export function loginWithPassword(payload: AdminLoginRequest) {
   return request<AdminLoginResponse>("/admin/auth/login/password", {
     method: "POST",
@@ -41,4 +47,8 @@ export function getCurrentAdmin() {
   return request<AdminCurrentUserResponse>("/admin/auth/me", {
     auth: true
   });
+}
+
+export function getPrivacyAgreement() {
+  return request<AdminPrivacyAgreementResponse>("/app/agreements/privacy");
 }

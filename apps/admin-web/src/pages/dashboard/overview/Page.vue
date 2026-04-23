@@ -2,10 +2,12 @@
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { getDashboardOverview } from "@/shared/api/workbench";
+import type { DashboardOverviewResponse } from "@/shared/api/workbench";
 import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const overview = ref<DashboardOverviewResponse | null>(null);
 
 const quickIcons: Record<string, string> = {
   users: `

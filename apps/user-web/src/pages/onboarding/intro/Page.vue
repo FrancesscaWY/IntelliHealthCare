@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { clearPostLoginPageId } from "@/shared/auth/navigation";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -16,10 +17,12 @@ function goBack() {
 }
 
 function skipIntro() {
+  clearPostLoginPageId();
   props.navigation.redirectTo(loginPageId);
 }
 
 function startExperience() {
+  clearPostLoginPageId();
   props.navigation.redirectTo(loginPageId);
 }
 

@@ -18,7 +18,7 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8190),
   APP_NAME: z.string().min(1).default("IntelliHealthCare Backend"),
   API_PREFIX: z.string().min(1).default("api/v1"),
-  CORS_ORIGINS: z.string().default("http://localhost:5173,http://localhost:5174"),
+  CORS_ORIGINS: z.string().default("http://server.mctown.online:5173,http://server.mctown.online:5174"),
   DATABASE_URL: z.string().min(1),
   DATABASE_DEV_FALLBACK_ENABLED: booleanStringTrue,
   DATABASE_DEV_FALLBACK_AUTO_SEED: booleanStringTrue,

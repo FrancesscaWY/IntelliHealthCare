@@ -346,9 +346,8 @@ async function bootstrap() {
     .setDescription(`
 ## 前端联调入口
 
-- 当前 Swagger 同时支持本地和远端访问。
-- 远端示例：\`http://server.mctown.online:8190/api/v1/docs\`
-- 本地示例：\`http://localhost:8190/api/v1/docs\`
+- 当前 Swagger 统一使用域名联调入口。
+- 联调示例：\`http://server.mctown.online:8190/api/v1/docs\`
 - \`Try it out\` 会自动跟随你当前打开的 Swagger 页面的域名和端口，不再写死远端地址。
 - 推荐先在 Swagger 页面完成测试，再回到前端页面接真实接口。
 

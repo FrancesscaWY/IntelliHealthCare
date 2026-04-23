@@ -105,11 +105,11 @@ npm run dev:backend
 
 默认访问地址：
 
-- 用户端：`http://127.0.0.1:5173`
-- 后台端：`http://127.0.0.1:5174`
-- 后端 API：`http://localhost:8190/api/v1`
-- Swagger：`http://localhost:8190/api/v1/docs`
-- 健康检查：`http://localhost:8190/api/v1/system/health`
+- 用户端：`http://server.mctown.online:5173`
+- 后台端：`http://server.mctown.online:5174`
+- 后端 API：`http://server.mctown.online:8190/api/v1`
+- Swagger：`http://server.mctown.online:8190/api/v1/docs`
+- 健康检查：`http://server.mctown.online:8190/api/v1/system/health`
 
 ## 常用命令
 

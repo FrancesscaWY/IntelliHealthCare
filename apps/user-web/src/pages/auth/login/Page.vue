@@ -11,6 +11,7 @@ import {
 } from "@/shared/api/auth";
 import type { LoginResponse } from "@/shared/api/auth";
 import { saveUserAuthSession, clearUserAuthSession, hasUserAuthSession } from "@/shared/auth/session";
+import { resolvePostLoginPageId } from "@/shared/auth/navigation";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
 
@@ -83,7 +84,7 @@ function createDeviceId(prefix: string) {
 
 async function redirectAfterLogin() {
   const currentUser = await getCurrentUser();
-  props.navigation.reLaunch(currentUser.realNameVerified ? "home/dashboard" : "auth/real-name");
+  props.navigation.reLaunch(resolvePostLoginPageId(currentUser.realNameVerified));
 }
 
 function storeSession(session: LoginResponse) {

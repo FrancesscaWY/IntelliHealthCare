@@ -2,7 +2,7 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
-const backendTarget = "http://server.mctown.online:8190";
+const backendTarget = process.env.IHC_BACKEND_TARGET || "http://server.mctown.online:8190";
 
 export default defineConfig({
   base: "./",
