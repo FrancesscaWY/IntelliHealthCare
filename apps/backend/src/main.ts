@@ -97,7 +97,13 @@ const swaggerFeedbackTemplate = [
   "【截图附件】如有请附上"
 ].join("\n");
 
-const swaggerDescription = String.raw`
+const swaggerDescription = [
+  "前后端联调说明已通过页面自定义面板展示。",
+  "",
+  "如果字段、权限或返回结构有问题，可使用右上角 `反馈 Issue`。"
+].join("\n");
+
+const swaggerInfoPanelHtml = String.raw`
 <div class="ihc-doc-grid">
   <section class="ihc-doc-card">
     <h3>联调入口</h3>
@@ -147,7 +153,6 @@ const swaggerDescription = String.raw`
     <h3>快速提示</h3>
     <ul>
       <li>支持一键复制当前接口的请求方法和完整 URL。</li>
-      <li>接口列表区已限制在内部滚动容器里，顶层页面不会无限变长。</li>
       <li>切换用户端 / 后台端测试时，记得替换全局 Bearer Token。</li>
     </ul>
   </section>
@@ -174,6 +179,7 @@ const swaggerDescription = String.raw`
 const swaggerUiEnhancementScript = String.raw`
   (() => {
     const BUTTON_CLASS = "ihc-copy-api-button";
+    const INFO_PANEL_CLASS = "ihc-swagger-intro";
     const ISSUE_LINK_CLASS = "ihc-open-issue-link";
     const ISSUE_BUTTON_CLASS = "ihc-open-issue-button";
     const FEEDBACK_COPY_BUTTON_CLASS = "ihc-feedback-copy-button";
@@ -185,6 +191,7 @@ const swaggerUiEnhancementScript = String.raw`
     const ERROR_TEXT = "复制失败";
     const ISSUE_NEW_URL = ${JSON.stringify(swaggerGithubNewIssueUrl)};
     const FEEDBACK_TEMPLATE = ${JSON.stringify(swaggerFeedbackTemplate)};
+    const INFO_PANEL_HTML = ${JSON.stringify(swaggerInfoPanelHtml)};
 
     const buttonSelector = "." + BUTTON_CLASS;
     const buttonResetTimers = new WeakMap();
@@ -278,6 +285,28 @@ const swaggerUiEnhancementScript = String.raw`
       return issueUrl.toString();
     };
 
+    const ensureInfoPanel = () => {
+      const info = document.querySelector(".swagger-ui .info");
+      if (!info) {
+        return;
+      }
+
+      const existingPanel = info.querySelector("." + INFO_PANEL_CLASS);
+      if (existingPanel) {
+        return;
+      }
+
+      const description = info.querySelector(".description");
+      if (description instanceof HTMLElement) {
+        description.style.display = "none";
+      }
+
+      const panel = document.createElement("section");
+      panel.className = INFO_PANEL_CLASS;
+      panel.innerHTML = INFO_PANEL_HTML;
+      info.appendChild(panel);
+    };
+
     const resetButtonState = (button) => {
       button.textContent = getDefaultButtonText(button);
       button.classList.remove(COPIED_CLASS);
@@ -363,24 +392,46 @@ const swaggerUiEnhancementScript = String.raw`
 
     const decorateTopbarIssueEntry = () => {
       const topbar = document.querySelector(".swagger-ui .topbar");
-      if (!topbar || topbar.querySelector("." + ISSUE_BUTTON_CLASS)) {
+      if (!topbar) {
         return;
       }
 
       const topbarWrapper =
         topbar.querySelector(".topbar-wrapper") || topbar.querySelector(".wrapper") || topbar;
-      const actions = document.createElement("div");
-      actions.className = "ihc-topbar-actions";
+      if (!(topbarWrapper instanceof HTMLElement)) {
+        return;
+      }
 
-      const issueLink = document.createElement("a");
-      issueLink.className = ISSUE_LINK_CLASS + " " + ISSUE_BUTTON_CLASS;
-      issueLink.target = "_blank";
-      issueLink.rel = "noreferrer";
-      issueLink.textContent = "反馈 Issue";
-      issueLink.setAttribute("aria-label", "前往 GitHub Issue 页面");
-      actions.appendChild(issueLink);
+      let actions = topbarWrapper.querySelector(".ihc-topbar-actions");
+      if (!(actions instanceof HTMLElement)) {
+        actions = document.createElement("div");
+        actions.className = "ihc-topbar-actions";
+        topbarWrapper.appendChild(actions);
+      }
 
-      topbarWrapper.appendChild(actions);
+      let issueLink = actions.querySelector("." + ISSUE_BUTTON_CLASS);
+      if (!(issueLink instanceof HTMLAnchorElement)) {
+        issueLink = document.createElement("a");
+        issueLink.className = ISSUE_LINK_CLASS + " " + ISSUE_BUTTON_CLASS;
+        issueLink.target = "_blank";
+        issueLink.rel = "noreferrer";
+        issueLink.textContent = "反馈 Issue";
+        issueLink.setAttribute("aria-label", "前往 GitHub Issue 页面");
+        actions.appendChild(issueLink);
+      }
+
+      issueLink.href = buildIssueUrl();
+
+      let templateButton = actions.querySelector("." + FEEDBACK_COPY_BUTTON_CLASS);
+      if (!(templateButton instanceof HTMLButtonElement)) {
+        templateButton = document.createElement("button");
+        templateButton.type = "button";
+        templateButton.className = "btn " + FEEDBACK_COPY_BUTTON_CLASS + " ihc-topbar-feedback-copy-button";
+        templateButton.textContent = DEFAULT_TEMPLATE_TEXT;
+        templateButton.setAttribute("data-default-label", DEFAULT_TEMPLATE_TEXT);
+        actions.appendChild(templateButton);
+      }
+
       decorateIssueLinks();
     };
 
@@ -402,16 +453,59 @@ const swaggerUiEnhancementScript = String.raw`
       });
     };
 
+    const updateApiScrollShellHeight = (shell) => {
+      const resolvedShell =
+        shell instanceof HTMLElement
+          ? shell
+          : document.querySelector(".swagger-ui .ihc-api-scroll-shell");
+      if (!(resolvedShell instanceof HTMLElement)) {
+        return;
+      }
+
+      const availableHeight = window.innerHeight - resolvedShell.getBoundingClientRect().top - 16;
+      resolvedShell.style.maxHeight = Math.max(320, availableHeight) + "px";
+    };
+
+    const flattenLegacyApiScrollShells = (host) => {
+      if (!(host instanceof HTMLElement)) {
+        return;
+      }
+
+      Array.from(host.querySelectorAll(".ihc-api-scroll-shell"))
+        .reverse()
+        .forEach((shell) => {
+          const parent = shell.parentNode;
+          if (!(shell instanceof HTMLElement) || !(parent instanceof HTMLElement)) {
+            return;
+          }
+
+          while (shell.firstChild) {
+            parent.insertBefore(shell.firstChild, shell);
+          }
+
+          parent.removeChild(shell);
+        });
+    };
+
     const decorateApiScrollShell = () => {
       const firstTagSection = document.querySelector(".swagger-ui .opblock-tag-section");
       if (!firstTagSection) {
         return;
       }
 
-      const scrollShell = firstTagSection.closest(".wrapper");
-      if (scrollShell) {
-        scrollShell.classList.add("ihc-api-scroll-shell");
+      const parent = firstTagSection.parentElement;
+      if (!(parent instanceof HTMLElement)) {
+        return;
       }
+
+      if (parent.classList.contains("ihc-api-scroll-shell")) {
+        updateApiScrollShellHeight(parent);
+        return;
+      }
+
+      flattenLegacyApiScrollShells(parent);
+      parent.classList.add("ihc-api-scroll-shell");
+      updateApiScrollShellHeight(parent);
     };
 
     const decorateAllOperations = () => {
@@ -478,15 +572,24 @@ const swaggerUiEnhancementScript = String.raw`
       }
 
       decorateAllOperations();
+      ensureInfoPanel();
       decorateTopbarIssueEntry();
       decorateIssueLinks();
       decorateFeedbackControls();
       decorateApiScrollShell();
       swaggerRoot.addEventListener("click", handleCopyClick);
 
+      if (swaggerRoot.dataset.ihcResizeBound !== "true") {
+        swaggerRoot.dataset.ihcResizeBound = "true";
+        window.addEventListener("resize", () => {
+          window.requestAnimationFrame(updateApiScrollShellHeight);
+        });
+      }
+
       const observer = new MutationObserver(() => {
         window.requestAnimationFrame(() => {
           decorateAllOperations();
+          ensureInfoPanel();
           decorateTopbarIssueEntry();
           decorateIssueLinks();
           decorateFeedbackControls();
@@ -578,29 +681,12 @@ async function bootstrap() {
     jsonDocumentUrl: `${apiPrefix}/docs/json`,
     customSiteTitle: "智诊康养前后端联调 API 文档",
     customCss: `
-      html,
-      body,
-      #swagger-ui {
-        height: 100%;
-        min-height: 100%;
-      }
       body {
         margin: 0;
         background: linear-gradient(180deg, #f1f5f9 0, #ffffff 180px);
-        overflow: hidden;
-      }
-      #swagger-ui,
-      .swagger-ui {
-        height: 100%;
-        min-height: 100vh;
       }
       .swagger-ui {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding: 12px 16px 18px;
-        overflow: hidden;
+        padding: 12px 16px 28px;
       }
       .swagger-ui .topbar {
         background: linear-gradient(90deg, #0f766e, #155e75);
@@ -625,6 +711,7 @@ async function bootstrap() {
         margin-left: auto;
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 10px;
       }
       .swagger-ui .ihc-open-issue-button {
@@ -642,12 +729,11 @@ async function bootstrap() {
         text-decoration: none;
         white-space: nowrap;
       }
-      .swagger-ui .information-container {
-        width: min(1680px, 100%);
-        margin: 0 auto;
-        padding: 0;
+      .swagger-ui .wrapper {
+        max-width: min(1680px, 100%);
+        padding: 0 16px 24px;
       }
-      .swagger-ui .information-container .info {
+      .swagger-ui .info {
         margin: 0;
       }
       .swagger-ui .info .title {
@@ -659,59 +745,59 @@ async function bootstrap() {
         margin: 8px 0 0;
       }
       .swagger-ui .info .description {
-        margin: 12px 0 0;
+        display: none;
       }
-      .swagger-ui .info .description .markdown {
-        margin: 0;
+      .swagger-ui .ihc-swagger-intro {
+        margin-top: 12px;
       }
-      .swagger-ui .info .description .ihc-doc-grid {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(280px, 1fr));
         gap: 12px;
       }
-      .swagger-ui .info .description .ihc-doc-card,
-      .swagger-ui .info .description .ihc-doc-feedback {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback {
         border: 1px solid #dbe4ea;
         border-radius: 16px;
         background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
         box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
       }
-      .swagger-ui .info .description .ihc-doc-card {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card {
         padding: 14px 16px;
       }
-      .swagger-ui .info .description .ihc-doc-card h3,
-      .swagger-ui .info .description .ihc-doc-feedback h3 {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card h3,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback h3 {
         margin: 0;
         color: #0f172a;
         font-size: 16px;
         font-weight: 700;
       }
-      .swagger-ui .info .description .ihc-doc-card ul,
-      .swagger-ui .info .description .ihc-doc-card ol {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card ul,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card ol {
         margin: 10px 0 0;
         padding-left: 20px;
         color: #334155;
       }
-      .swagger-ui .info .description .ihc-doc-card li,
-      .swagger-ui .info .description .ihc-doc-feedback p {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card li,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback p {
         margin: 0 0 6px;
         line-height: 1.55;
       }
-      .swagger-ui .info .description .ihc-doc-card li:last-child,
-      .swagger-ui .info .description .ihc-doc-feedback p:last-child {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card li:last-child,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback p:last-child {
         margin-bottom: 0;
       }
-      .swagger-ui .info .description .ihc-doc-feedback {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback {
         margin-top: 12px;
         padding: 14px 16px 16px;
       }
-      .swagger-ui .info .description .ihc-doc-feedback-head {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-head {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
         gap: 14px;
       }
-      .swagger-ui .info .description .ihc-doc-feedback-actions {
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-actions {
         display: flex;
         flex-wrap: wrap;
         justify-content: flex-end;
@@ -748,7 +834,15 @@ async function bootstrap() {
         text-decoration: none;
         filter: brightness(0.98);
       }
-      .swagger-ui .info .description .ihc-feedback-template {
+      .swagger-ui .ihc-topbar-feedback-copy-button {
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-feedback-template {
         margin: 14px 0 0;
         padding: 12px 14px;
         overflow: auto;
@@ -758,26 +852,23 @@ async function bootstrap() {
         font-size: 12px;
         line-height: 1.55;
       }
-      .swagger-ui .info .description .ihc-feedback-template code {
+      .swagger-ui .ihc-swagger-intro .ihc-feedback-template code {
         color: inherit;
         white-space: pre-wrap;
       }
       .swagger-ui .scheme-container {
-        width: min(1680px, 100%);
-        margin: 0 auto;
         padding: 12px 16px;
+        margin-top: 12px;
         background: #fff7ed;
         border: 1px solid #fdba74;
         box-shadow: none;
+        position: sticky;
+        top: 12px;
+        z-index: 5;
         border-radius: 14px;
       }
-      .swagger-ui > .wrapper:not(.information-container),
       .swagger-ui .ihc-api-scroll-shell {
-        flex: 1 1 auto;
-        width: min(1680px, 100%);
-        max-width: none;
-        min-height: 0;
-        margin: 0 auto;
+        margin-top: 12px;
         padding: 8px 16px 22px;
         overflow-y: auto;
         overflow-x: hidden;
@@ -788,11 +879,9 @@ async function bootstrap() {
         background: rgba(255, 255, 255, 0.94);
         box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
       }
-      .swagger-ui > .wrapper:not(.information-container)::-webkit-scrollbar,
       .swagger-ui .ihc-api-scroll-shell::-webkit-scrollbar {
         width: 10px;
       }
-      .swagger-ui > .wrapper:not(.information-container)::-webkit-scrollbar-thumb,
       .swagger-ui .ihc-api-scroll-shell::-webkit-scrollbar-thumb {
         border: 2px solid transparent;
         border-radius: 999px;
@@ -888,6 +977,28 @@ async function bootstrap() {
         border-color: #dc2626;
         color: #dc2626;
       }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button {
+        min-height: 36px;
+        margin: 0;
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button:hover,
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button:focus-visible {
+        border-color: rgba(255, 255, 255, 0.44);
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button.is-copied {
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.26);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button.is-error {
+        border-color: #fecaca;
+        color: #ffffff;
+      }
       .swagger-ui .models {
         margin-top: 10px;
       }
@@ -903,23 +1014,23 @@ async function bootstrap() {
         }
         .swagger-ui .ihc-topbar-actions {
           width: 100%;
-          margin-left: 0;
+          margin-left: auto;
           padding-bottom: 12px;
+          justify-content: flex-end;
         }
         .swagger-ui .info .title {
           font-size: 24px;
         }
-        .swagger-ui .info .description .ihc-doc-grid {
+        .swagger-ui .ihc-swagger-intro .ihc-doc-grid {
           grid-template-columns: 1fr;
         }
-        .swagger-ui .info .description .ihc-doc-feedback-head {
+        .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-head {
           flex-direction: column;
         }
-        .swagger-ui .info .description .ihc-doc-feedback-actions {
+        .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-actions {
           width: 100%;
           justify-content: flex-start;
         }
-        .swagger-ui > .wrapper:not(.information-container),
         .swagger-ui .ihc-api-scroll-shell {
           padding: 8px 10px 18px;
         }
