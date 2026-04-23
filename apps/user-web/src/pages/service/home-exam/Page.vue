@@ -65,7 +65,7 @@ const openPackage = () => {
   box-sizing: border-box;
   transform: translateX(-50%);
   overflow-x: hidden;
-  background: #f6f7f8;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -131,8 +131,8 @@ const openPackage = () => {
 }
 
 .category-button.active {
-  background: #eef0ff;
-  color: #6a72f4;
+  background: rgba(26, 231, 206, 0.13);
+  color: #2d90f0;
 }
 
 .package-list {
@@ -179,7 +179,7 @@ const openPackage = () => {
 }
 
 .price {
-  color: #f2736d;
+  color: #006DFF;
   font-size: 17px;
   font-weight: 800;
 }

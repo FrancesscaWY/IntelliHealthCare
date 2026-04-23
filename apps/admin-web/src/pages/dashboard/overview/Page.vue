@@ -725,7 +725,8 @@ function openQuickEntry(entry: { title: string; pageId?: string }) {
 }
 
 .table {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid #eef2f0;
   border-radius: 16px;
 }
@@ -749,11 +750,13 @@ function openQuickEntry(entry: { title: string; pageId?: string }) {
 .table__head--product,
 .table__row--product {
   grid-template-columns: 70px minmax(0, 1fr) 150px;
+  min-width: 560px;
 }
 
 .table__head--staff,
 .table__row--staff {
   grid-template-columns: 70px minmax(0, 1.15fr) 1fr 148px;
+  min-width: 680px;
 }
 
 .table__row {
@@ -778,7 +781,7 @@ function openQuickEntry(entry: { title: string; pageId?: string }) {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-width: 0;
+  min-width: max-content;
 }
 
 .table__product img {
@@ -802,8 +805,7 @@ function openQuickEntry(entry: { title: string; pageId?: string }) {
   font-weight: 500;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: none;
 }
 
 .table__type,

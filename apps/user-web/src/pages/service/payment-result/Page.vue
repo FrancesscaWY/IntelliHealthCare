@@ -139,19 +139,19 @@ function viewOrder() {
 </template>
 
 <style scoped>
-.payment-result-page {
-  position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  min-height: 874px;
-  margin: -18px 0;
-  transform: translateX(-50%);
-  padding: 16px 14px 96px;
-  box-sizing: border-box;
-  background: #f5f6f7;
-  color: #34383f;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-}
+  .payment-result-page {
+    position: relative;
+    left: 50%;
+    width: min(402px, 100vw);
+    min-height: 874px;
+    margin: -18px 0;
+    transform: translateX(-50%);
+    padding: 16px 14px 96px;
+    box-sizing: border-box;
+    background: #ffffff;
+    color: #34383f;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
 
 .page-header {
   height: 58px;
@@ -190,12 +190,15 @@ function viewOrder() {
   flex-direction: column;
 }
 
-.voucher-card,
-.empty-card {
-  padding: 24px 22px;
-  border-radius: 16px;
-  background: #fff;
-}
+  .success-icon {
+    width: 96px;
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #75d6df;
+  }
 
 .voucher-top {
   display: flex;
@@ -217,132 +220,19 @@ function viewOrder() {
   line-height: 1.4;
 }
 
-.voucher-top strong {
-  color: #f1736d;
-  font-size: 24px;
-  white-space: nowrap;
-}
-
-.voucher-meta {
-  margin-top: 18px;
-}
-
-.voucher-meta span {
-  display: block;
-  margin-bottom: 8px;
-  color: #9fa2a9;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.voucher-meta p,
-.code-block p,
-.empty-card p {
-  margin: 0;
-  color: #34383f;
-  font-size: 16px;
-  line-height: 1.6;
-}
-
-.code-block {
-  margin-top: 24px;
-  padding: 18px;
-  border-radius: 14px;
-  background: #f6f7fb;
-  text-align: center;
-}
-
-.code-number {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.code-number span {
-  min-width: 60px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.scan-card {
-  margin-top: 24px;
-  padding: 18px 0 6px;
-  border-top: 1px solid #ededee;
-}
-
-.qr-code {
-  width: 156px;
-  height: 156px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto;
-  padding: 10px;
-  border-radius: 14px;
-  background: #f5f5f4;
-  box-sizing: border-box;
-}
-
-.qr-code__image {
-  display: block;
-  width: 136px;
-  height: 136px;
-  border-radius: 10px;
-  background: #ffffff;
-}
-
-.barcode {
-  display: grid;
-  place-items: center;
-  margin: 14px auto 0;
-  padding: 0 8px;
-}
-
-.barcode__image {
-  display: block;
-  width: 100%;
-  max-width: 270px;
-  height: 46px;
-  object-fit: fill;
-  background: #ffffff;
-}
-
-.empty-card h2 {
-  margin: 0 0 10px;
-  font-size: 22px;
-}
-
-.result-bar {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  z-index: 20;
-  width: 100%;
-  max-width: 402px;
-  padding: 12px 26px 28px;
-  box-sizing: border-box;
-  transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -8px 20px rgba(20, 24, 36, 0.04);
-}
-
-.result-button {
-  width: 350px;
-  max-width: 100%;
-  height: 48px;
-  display: block;
-  margin: 0 auto;
-  border: 0;
-  border-radius: 8px;
-  background: #6870f2;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0;
-  cursor: pointer;
-}
+  .result-button {
+    width: 350px;
+    max-width: 100%;
+    height: 48px;
+    display: block;
+    margin: 0 auto;
+    border: 0;
+    border-radius: 8px;
+    background: #75d6df;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0;
+    cursor: pointer;
+  }
 </style>

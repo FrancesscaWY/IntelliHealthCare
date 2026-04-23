@@ -65,8 +65,6 @@ Page({
     this.setData({
       statusBarHeight
     });
-
-    this.refreshPosts();
   },
 
   onShow() {
