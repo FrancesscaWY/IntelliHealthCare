@@ -1,7 +1,7 @@
 # API前端接入说明文档
 
   1. [Swagger](http://server.mctown.online:8190/api/v1/docs#/)网站：测试后端服务是否正常启动；API状态测试；API分类模块；问题反馈。
-  2. API文档：API分类、名称、含义、使用方式。
+  2. [API文档](../frontend-api-test/swagger-api-formal-reference.md)：API分类、名称、含义、使用方式。
   3. API-前端网页映射汇总表：API分类模块与前端页面的映射关系。
    
 ## 操作规范
