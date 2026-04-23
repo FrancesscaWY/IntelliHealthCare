@@ -103,6 +103,20 @@ npm run dev:admin
 npm run dev:backend
 ```
 
+如需让后端常驻在独立 `tmux` 会话中：
+
+```bash
+npm run dev:backend:tmux
+npm run dev:backend:tmux:attach
+```
+
+说明：
+
+- 默认创建 `ihc-backend` 会话。
+- `backend` 窗口会先执行 `docker compose -f docker-compose.backend.yml up -d`，再启动 `npm run dev:backend`。
+- `infra` 窗口会展示依赖容器状态。
+- `npm run dev:backend:tmux:stop` 只关闭 `tmux` 会话，不会自动执行 `docker compose down`。
+
 默认访问地址：
 
 - 用户端：`http://server.mctown.online:5173`

@@ -113,6 +113,59 @@ class ReviewReportDto {
   status!: ReportStatus;
 }
 
+class CreateAdminReportDto {
+  @ApiPropertyOptional({
+    description: "长者 ID。",
+    example: "user_elder_joy"
+  })
+  @IsOptional()
+  @IsString()
+  elderId?: string;
+
+  @ApiPropertyOptional({
+    description: "关联订单 ID。",
+    example: "order_exam_done"
+  })
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiProperty({
+    description: "报告类型。",
+    enum: ReportType,
+    example: ReportType.CHECKUP
+  })
+  @IsEnum(ReportType)
+  type!: ReportType;
+
+  @ApiProperty({
+    description: "报告标题。",
+    example: "2026 年 4 月常规血脂检查"
+  })
+  @IsString()
+  title!: string;
+
+  @ApiProperty({
+    description: "报告摘要。",
+    example: {
+      conclusion: "建议继续复查血压和血脂"
+    }
+  })
+  @IsObject()
+  summary!: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: "附件信息。",
+    example: {
+      fileId: "file_report_exam_pdf",
+      fileName: "exam.pdf"
+    }
+  })
+  @IsOptional()
+  @IsObject()
+  attachment?: Record<string, unknown>;
+}
+
 @Controller("app/health/reports/checkups")
 @UseGuards(JwtAuthGuard)
 @ApiTags(SwaggerTags.AppReports)
@@ -202,6 +255,42 @@ export class AdminReportsController {
       query.type,
       query.keyword
     );
+  }
+
+  @Get(":reportId")
+  @ApiOperation({
+    summary: "后台获取报告详情",
+    description: "后台报告管理页详情接口。"
+  })
+  getReportDetail(@Param("reportId") reportId: string) {
+    return this.reportsService.getAdminReportDetail(reportId);
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: "后台上传报告",
+    description: "后台报告上传接口。"
+  })
+  createAdminReport(@Body() body: CreateAdminReportDto) {
+    return this.reportsService.createAdminReport(body);
+  }
+
+  @Delete(":reportId")
+  @ApiOperation({
+    summary: "后台删除报告",
+    description: "后台报告删除接口。"
+  })
+  deleteAdminReport(@Param("reportId") reportId: string) {
+    return this.reportsService.deleteAdminReport(reportId);
+  }
+
+  @Get(":reportId/download-metadata")
+  @ApiOperation({
+    summary: "获取报告下载元数据",
+    description: "后台报告下载按钮先调用，返回 fileId、fileName、url 等元数据。"
+  })
+  getDownloadMetadata(@Param("reportId") reportId: string) {
+    return this.reportsService.getAdminReportDownloadMetadata(reportId);
   }
 
   @Put(":reportId/review")

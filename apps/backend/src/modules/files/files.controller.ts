@@ -79,3 +79,35 @@ export class AppFilesController {
     return this.filesService.getFileInfo(userId, fileId);
   }
 }
+
+@ApiTags(SwaggerTags.AdminFiles)
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller("admin/files")
+export class AdminFilesController {
+  constructor(private readonly filesService: AppFilesService) {}
+
+  @Post("presign")
+  @ApiOperation({ summary: "获取后台上传凭证" })
+  createPresign(
+    @CurrentUser("id") userId: string,
+    @Body() body: PresignUploadDto
+  ) {
+    return this.filesService.createAdminPresign(userId, body);
+  }
+
+  @Post("complete")
+  @ApiOperation({ summary: "通知后台上传完成并落库" })
+  completeUpload(
+    @CurrentUser("id") userId: string,
+    @Body() body: CompleteUploadDto
+  ) {
+    return this.filesService.completeAdminUpload(userId, body);
+  }
+
+  @Get(":fileId")
+  @ApiOperation({ summary: "获取后台文件信息" })
+  getFileInfo(@Param("fileId") fileId: string) {
+    return this.filesService.getAdminFileInfo(fileId);
+  }
+}
