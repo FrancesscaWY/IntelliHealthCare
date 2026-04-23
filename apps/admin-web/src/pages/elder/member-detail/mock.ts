@@ -1,4 +1,13 @@
 import memberListMock, { type MemberItem, type MemberTag, type MemberTagTone } from "../member-list/mock";
+import homeCareOrderImage from "../../../../../user-web/src/assets/service/daily-clean/cleaning-card.png";
+import rehabOrderImage from "../../../../../user-web/src/assets/service/home-care/img.png";
+import examOrderImage from "../../../../../user-web/src/assets/service/home-care/img_2.png";
+import circleBeachImage from "../../../../../user-web/src/assets/community/activities/beach-walk-activity.jpg";
+import circleCherryImage from "../../../../../user-web/src/assets/community/activities/cherry-blossom-activity.jpg";
+import circleCookImage from "../../../../../user-web/src/assets/community/activities/cook.png";
+import circleCookTwoImage from "../../../../../user-web/src/assets/community/activities/cook2.png";
+import circleCookThreeImage from "../../../../../user-web/src/assets/community/activities/cook3.png";
+import circleSunsetImage from "../../../../../user-web/src/assets/community/activities/sunset.png";
 
 export const memberDetailStorageKey = "admin:elder:selected-member-id";
 const deletedMemberIdsStorageKey = "admin:elder:deleted-member-ids";
@@ -70,6 +79,48 @@ export interface MemberHealthLog {
   tone: MemberDetailTone;
 }
 
+export type MemberHealthDashboardKey =
+  | "weight"
+  | "steps"
+  | "sleep"
+  | "bloodSugar"
+  | "bloodPressure"
+  | "oxygen"
+  | "heartRate";
+
+export interface MemberHealthDashboardPoint {
+  label: string;
+  value: number;
+}
+
+export interface MemberHealthDashboardChart {
+  title: string;
+  unit?: string;
+  color: string;
+  points: MemberHealthDashboardPoint[];
+  min?: number;
+  max?: number;
+  decimals?: number;
+}
+
+export interface MemberHealthDashboardRecord {
+  id: string;
+  time: string;
+  value: string;
+  source: string;
+  creator: string;
+}
+
+export interface MemberHealthDashboardModule {
+  key: MemberHealthDashboardKey;
+  label: string;
+  startDate: string;
+  endDate: string;
+  valueLabel: string;
+  charts: [MemberHealthDashboardChart, MemberHealthDashboardChart];
+  records: MemberHealthDashboardRecord[];
+}
+
 export interface MemberDeviceItem {
   name: string;
   model: string;
@@ -78,6 +129,103 @@ export interface MemberDeviceItem {
   lastSync: string;
   status: string;
   tone: MemberDetailTone;
+}
+
+export interface MemberReportItem {
+  id: string;
+  uploadedAt: string;
+  name: string;
+  type: string;
+  source: string;
+  uploader: string;
+  orderId: string;
+  reportDate: string;
+}
+
+export interface MemberOrderItem {
+  id: string;
+  orderTime: string;
+  orderNo: string;
+  serviceType: string;
+  image: string;
+  productName: string;
+  productSummary: string;
+  price: string;
+  payAmount: string;
+  buyerName: string;
+  buyerPhone: string;
+  orderStatus: string;
+  paymentMethod: string;
+  tone: MemberDetailTone;
+}
+
+export interface MemberAssetCouponItem {
+  id: string;
+  name: string;
+  status: string;
+  amount: string;
+  condition: string;
+  scope: string;
+  receivedAt: string;
+  expiresAt: string;
+  tone: MemberDetailTone;
+}
+
+export interface MemberAssetPointItem {
+  id: string;
+  type: string;
+  amount: string;
+  reason: string;
+  remark: string;
+  operator: string;
+  time: string;
+  tone: MemberDetailTone;
+}
+
+export interface MemberAssetGrowthItem {
+  id: string;
+  type: string;
+  amount: string;
+  reason: string;
+  remark: string;
+  operator: string;
+  time: string;
+  tone: MemberDetailTone;
+}
+
+export interface MemberContentItem {
+  id: string;
+  content: string;
+  topic: string;
+  image: string;
+  likes: number;
+  favorites: number;
+  shares: number;
+  comments: number;
+  publishedAt: string;
+  visible: boolean;
+}
+
+export interface MemberServiceRecordItem {
+  id: string;
+  orderNo: string;
+  serviceType: string;
+  image: string;
+  orderName: string;
+  productSummary: string;
+  serviceItem: string;
+  price: string;
+  couponAmount: string;
+  payAmount: string;
+  status: string;
+  tone: MemberDetailTone;
+  staff: string;
+  serviceTime: string;
+  createdAt: string;
+  paidAt: string;
+  serviceCode: string;
+  serviceCodeHint: string;
+  remark: string;
 }
 
 export interface MemberListRow {
@@ -126,11 +274,16 @@ export interface MemberDetailRecord {
   medicationTips: string[];
   healthMetricCards: MemberHealthMetric[];
   healthMetricLogs: MemberHealthLog[];
+  healthMetricModules: MemberHealthDashboardModule[];
   devices: MemberDeviceItem[];
-  reports: MemberListRow[];
-  orders: MemberListRow[];
+  reports: MemberReportItem[];
+  orders: MemberOrderItem[];
+  assetCoupons: MemberAssetCouponItem[];
+  assetPoints: MemberAssetPointItem[];
+  assetGrowthRecords: MemberAssetGrowthItem[];
   assetRecords: MemberListRow[];
-  contents: MemberListRow[];
+  contents: MemberContentItem[];
+  serviceRecords: MemberServiceRecordItem[];
   operationTimeline: MemberTimelineItem[];
   serviceTimeline: MemberTimelineItem[];
 }
@@ -171,10 +324,12 @@ const medicationPool: readonly MemberMedication[][] = [
   [
     { name: "缬沙坦胶囊", dosage: "80mg / 次", schedule: "早餐后 1 次", adherence: "按时服用", note: "晨起测压后服用", tone: "brand" },
     { name: "阿司匹林肠溶片", dosage: "100mg / 次", schedule: "晚餐后 1 次", adherence: "需继续观察", note: "注意胃部不适反馈", tone: "accent" },
+    { name: "维生素B1片", dosage: "1 片 / 次", schedule: "午餐后 1 次", adherence: "按时服用", note: "建议饭后服用减少胃部刺激", tone: "neutral" },
   ],
   [
     { name: "盐酸二甲双胍片", dosage: "500mg / 次", schedule: "早餐后、晚餐后", adherence: "按时服用", note: "建议同步记录餐后血糖", tone: "brand" },
     { name: "维生素 D3", dosage: "1 粒 / 次", schedule: "午餐后 1 次", adherence: "偶有遗漏", note: "已开启提醒推送", tone: "accent" },
+    { name: "阿卡波糖片", dosage: "50mg / 次", schedule: "午餐后 1 次", adherence: "按时服用", note: "建议随主食同服", tone: "neutral" },
   ],
   [
     { name: "氨氯地平片", dosage: "5mg / 次", schedule: "早晨 1 次", adherence: "按时服用", note: "最近血压较平稳", tone: "brand" },
@@ -183,6 +338,8 @@ const medicationPool: readonly MemberMedication[][] = [
   [
     { name: "褪黑素片", dosage: "2mg / 次", schedule: "睡前 30 分钟", adherence: "按时服用", note: "一周后复查睡眠评分", tone: "brand" },
     { name: "葡萄糖胺胶囊", dosage: "1 粒 / 次", schedule: "早餐后、晚餐后", adherence: "需继续观察", note: "运动日注意补水", tone: "accent" },
+    { name: "钙维生素D片", dosage: "1 片 / 次", schedule: "午餐后 1 次", adherence: "按时服用", note: "建议随餐服用", tone: "neutral" },
+    { name: "维生素B族片", dosage: "1 片 / 次", schedule: "早餐后 1 次", adherence: "按时服用", note: "早餐后服用更稳妥", tone: "brand" },
   ],
 ] as const;
 
@@ -303,27 +460,406 @@ function createHealthMetricLogs(index: number): MemberHealthLog[] {
   ];
 }
 
-function createDevices(member: MemberItem, index: number): MemberDeviceItem[] {
+function createHealthMetricModules(member: MemberItem, index: number): MemberHealthDashboardModule[] {
+  const dateLabels = ["04/01", "04/02", "04/03", "04/04", "04/05", "04/06", "04/07"];
+  const startDate = "2026-04-01";
+  const endDate = "2026-04-07";
+
   return [
     {
-      name: "智能腕带",
-      model: `IHC-WATCH-${index + 1}`,
-      serial: `WB-${member.id.slice(-6)}`,
-      location: "佩戴中",
-      lastSync: `2026-04-${18 + index} 09:2${index}`,
-      status: "在线",
-      tone: "brand",
+      key: "weight",
+      label: "体重",
+      startDate,
+      endDate,
+      valueLabel: "体重（kg）",
+      charts: [
+        {
+          title: "体重趋势",
+          unit: "kg",
+          color: "#44cfab",
+          points: [
+            { label: dateLabels[0], value: 52.4 + index * 0.2 },
+            { label: dateLabels[1], value: 57.6 + index * 0.2 },
+            { label: dateLabels[2], value: 54.2 + index * 0.2 },
+            { label: dateLabels[3], value: 54.1 + index * 0.2 },
+            { label: dateLabels[4], value: 52.5 + index * 0.2 },
+            { label: dateLabels[5], value: 57.4 + index * 0.2 },
+            { label: dateLabels[6], value: 57.5 + index * 0.2 },
+          ],
+          min: 40,
+          max: 65,
+          decimals: 0,
+        },
+        {
+          title: "BMI趋势",
+          color: "#f8cf59",
+          points: [
+            { label: dateLabels[0], value: 19.7 + index * 0.03 },
+            { label: dateLabels[1], value: 19.7 + index * 0.03 },
+            { label: dateLabels[2], value: 19.2 + index * 0.03 },
+            { label: dateLabels[3], value: 19.4 + index * 0.03 },
+            { label: dateLabels[4], value: 19.4 + index * 0.03 },
+            { label: dateLabels[5], value: 19.8 + index * 0.03 },
+            { label: dateLabels[6], value: 19.2 + index * 0.03 },
+          ],
+          min: 18,
+          max: 20.5,
+          decimals: 1,
+        },
+      ],
+      records: [
+        { id: `weight-${member.id}-1`, time: "2026-04-07 09:18", value: `${(57.5 + index * 0.2).toFixed(1)}`, source: "手动添加", creator: member.realName },
+        { id: `weight-${member.id}-2`, time: "2026-04-06 08:56", value: `${(57.4 + index * 0.2).toFixed(1)}`, source: "蓝牙体脂秤", creator: member.realName },
+        { id: `weight-${member.id}-3`, time: "2026-04-05 09:10", value: `${(52.5 + index * 0.2).toFixed(1)}`, source: "手动添加", creator: member.realName },
+        { id: `weight-${member.id}-4`, time: "2026-04-04 08:42", value: `${(54.1 + index * 0.2).toFixed(1)}`, source: "蓝牙体脂秤", creator: member.realName },
+        { id: `weight-${member.id}-5`, time: "2026-04-03 09:05", value: `${(54.2 + index * 0.2).toFixed(1)}`, source: "手动添加", creator: member.realName },
+        { id: `weight-${member.id}-6`, time: "2026-04-02 08:38", value: `${(57.6 + index * 0.2).toFixed(1)}`, source: "蓝牙体脂秤", creator: member.realName },
+        { id: `weight-${member.id}-7`, time: "2026-04-01 08:50", value: `${(52.4 + index * 0.2).toFixed(1)}`, source: "手动添加", creator: member.realName },
+      ],
     },
     {
-      name: index % 2 === 0 ? "蓝牙血压计" : "睡眠监测带",
-      model: index % 2 === 0 ? `BP-${index + 21}` : `SLP-${index + 21}`,
-      serial: `DV-${member.id.slice(-4)}-${index + 3}`,
-      location: "居家客厅",
-      lastSync: `2026-04-${17 + index} 21:1${index}`,
-      status: index % 2 === 0 ? "同步正常" : "待校准",
-      tone: index % 2 === 0 ? "neutral" : "accent",
+      key: "steps",
+      label: "步数",
+      startDate,
+      endDate,
+      valueLabel: "步数（步）",
+      charts: [
+        {
+          title: "步数趋势",
+          unit: "步",
+          color: "#ff8d66",
+          points: [
+            { label: dateLabels[0], value: 4200 + index * 120 },
+            { label: dateLabels[1], value: 6100 + index * 140 },
+            { label: dateLabels[2], value: 5300 + index * 130 },
+            { label: dateLabels[3], value: 4800 + index * 110 },
+            { label: dateLabels[4], value: 6600 + index * 160 },
+            { label: dateLabels[5], value: 5900 + index * 150 },
+            { label: dateLabels[6], value: 6300 + index * 170 },
+          ],
+          min: 3000,
+          max: 8000,
+          decimals: 0,
+        },
+        {
+          title: "活动时长趋势",
+          unit: "分钟",
+          color: "#6f8cff",
+          points: [
+            { label: dateLabels[0], value: 38 + index },
+            { label: dateLabels[1], value: 56 + index },
+            { label: dateLabels[2], value: 45 + index },
+            { label: dateLabels[3], value: 42 + index },
+            { label: dateLabels[4], value: 61 + index },
+            { label: dateLabels[5], value: 53 + index },
+            { label: dateLabels[6], value: 58 + index },
+          ],
+          min: 20,
+          max: 80,
+          decimals: 0,
+        },
+      ],
+      records: [
+        { id: `steps-${member.id}-1`, time: "2026-04-07 20:30", value: `${6300 + index * 170}`, source: "腕带设备", creator: member.realName },
+        { id: `steps-${member.id}-2`, time: "2026-04-06 20:30", value: `${5900 + index * 150}`, source: "腕带设备", creator: member.realName },
+        { id: `steps-${member.id}-3`, time: "2026-04-05 20:30", value: `${6600 + index * 160}`, source: "腕带设备", creator: member.realName },
+        { id: `steps-${member.id}-4`, time: "2026-04-04 20:30", value: `${4800 + index * 110}`, source: "腕带设备", creator: member.realName },
+        { id: `steps-${member.id}-5`, time: "2026-04-03 20:30", value: `${5300 + index * 130}`, source: "腕带设备", creator: member.realName },
+        { id: `steps-${member.id}-6`, time: "2026-04-02 20:30", value: `${6100 + index * 140}`, source: "腕带设备", creator: member.realName },
+        { id: `steps-${member.id}-7`, time: "2026-04-01 20:30", value: `${4200 + index * 120}`, source: "腕带设备", creator: member.realName },
+      ],
+    },
+    {
+      key: "sleep",
+      label: "睡眠",
+      startDate,
+      endDate,
+      valueLabel: "睡眠时长（h）",
+      charts: [
+        {
+          title: "睡眠时长趋势",
+          unit: "h",
+          color: "#8b7cf8",
+          points: [
+            { label: dateLabels[0], value: 6.2 + index * 0.05 },
+            { label: dateLabels[1], value: 6.8 + index * 0.05 },
+            { label: dateLabels[2], value: 5.9 + index * 0.05 },
+            { label: dateLabels[3], value: 6.4 + index * 0.05 },
+            { label: dateLabels[4], value: 6.1 + index * 0.05 },
+            { label: dateLabels[5], value: 7.0 + index * 0.05 },
+            { label: dateLabels[6], value: 6.5 + index * 0.05 },
+          ],
+          min: 4,
+          max: 8,
+          decimals: 1,
+        },
+        {
+          title: "深睡时长趋势",
+          unit: "h",
+          color: "#5db6ff",
+          points: [
+            { label: dateLabels[0], value: 1.6 + index * 0.03 },
+            { label: dateLabels[1], value: 1.9 + index * 0.03 },
+            { label: dateLabels[2], value: 1.4 + index * 0.03 },
+            { label: dateLabels[3], value: 1.7 + index * 0.03 },
+            { label: dateLabels[4], value: 1.5 + index * 0.03 },
+            { label: dateLabels[5], value: 2.1 + index * 0.03 },
+            { label: dateLabels[6], value: 1.8 + index * 0.03 },
+          ],
+          min: 1,
+          max: 2.5,
+          decimals: 1,
+        },
+      ],
+      records: [
+        { id: `sleep-${member.id}-1`, time: "2026-04-07 07:05", value: `${(6.5 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+        { id: `sleep-${member.id}-2`, time: "2026-04-06 07:08", value: `${(7.0 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+        { id: `sleep-${member.id}-3`, time: "2026-04-05 07:02", value: `${(6.1 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+        { id: `sleep-${member.id}-4`, time: "2026-04-04 07:10", value: `${(6.4 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+        { id: `sleep-${member.id}-5`, time: "2026-04-03 07:12", value: `${(5.9 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+        { id: `sleep-${member.id}-6`, time: "2026-04-02 07:03", value: `${(6.8 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+        { id: `sleep-${member.id}-7`, time: "2026-04-01 07:01", value: `${(6.2 + index * 0.05).toFixed(1)}`, source: "睡眠监测带", creator: member.realName },
+      ],
+    },
+    {
+      key: "bloodSugar",
+      label: "血糖",
+      startDate,
+      endDate,
+      valueLabel: "血糖（mmol/L）",
+      charts: [
+        {
+          title: "空腹血糖趋势",
+          unit: "mmol/L",
+          color: "#f29a5f",
+          points: [
+            { label: dateLabels[0], value: 5.6 + index * 0.08 },
+            { label: dateLabels[1], value: 5.9 + index * 0.08 },
+            { label: dateLabels[2], value: 5.8 + index * 0.08 },
+            { label: dateLabels[3], value: 5.7 + index * 0.08 },
+            { label: dateLabels[4], value: 6.0 + index * 0.08 },
+            { label: dateLabels[5], value: 5.8 + index * 0.08 },
+            { label: dateLabels[6], value: 5.7 + index * 0.08 },
+          ],
+          min: 4.5,
+          max: 7,
+          decimals: 1,
+        },
+        {
+          title: "餐后血糖趋势",
+          unit: "mmol/L",
+          color: "#ffbe55",
+          points: [
+            { label: dateLabels[0], value: 7.2 + index * 0.08 },
+            { label: dateLabels[1], value: 7.8 + index * 0.08 },
+            { label: dateLabels[2], value: 7.5 + index * 0.08 },
+            { label: dateLabels[3], value: 7.4 + index * 0.08 },
+            { label: dateLabels[4], value: 7.9 + index * 0.08 },
+            { label: dateLabels[5], value: 7.3 + index * 0.08 },
+            { label: dateLabels[6], value: 7.4 + index * 0.08 },
+          ],
+          min: 6,
+          max: 9,
+          decimals: 1,
+        },
+      ],
+      records: [
+        { id: `sugar-${member.id}-1`, time: "2026-04-07 12:25", value: `${(7.4 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+        { id: `sugar-${member.id}-2`, time: "2026-04-06 12:28", value: `${(7.3 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+        { id: `sugar-${member.id}-3`, time: "2026-04-05 12:17", value: `${(7.9 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+        { id: `sugar-${member.id}-4`, time: "2026-04-04 12:20", value: `${(7.4 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+        { id: `sugar-${member.id}-5`, time: "2026-04-03 12:12", value: `${(7.5 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+        { id: `sugar-${member.id}-6`, time: "2026-04-02 12:10", value: `${(7.8 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+        { id: `sugar-${member.id}-7`, time: "2026-04-01 12:05", value: `${(7.2 + index * 0.08).toFixed(1)}`, source: "家用血糖仪", creator: member.realName },
+      ],
+    },
+    {
+      key: "bloodPressure",
+      label: "血压",
+      startDate,
+      endDate,
+      valueLabel: "血压（mmHg）",
+      charts: [
+        {
+          title: "收缩压趋势",
+          unit: "mmHg",
+          color: "#6f8cff",
+          points: [
+            { label: dateLabels[0], value: 126 + index },
+            { label: dateLabels[1], value: 131 + index },
+            { label: dateLabels[2], value: 128 + index },
+            { label: dateLabels[3], value: 127 + index },
+            { label: dateLabels[4], value: 130 + index },
+            { label: dateLabels[5], value: 129 + index },
+            { label: dateLabels[6], value: 128 + index },
+          ],
+          min: 110,
+          max: 145,
+          decimals: 0,
+        },
+        {
+          title: "舒张压趋势",
+          unit: "mmHg",
+          color: "#8fd5ff",
+          points: [
+            { label: dateLabels[0], value: 78 + index },
+            { label: dateLabels[1], value: 82 + index },
+            { label: dateLabels[2], value: 80 + index },
+            { label: dateLabels[3], value: 79 + index },
+            { label: dateLabels[4], value: 83 + index },
+            { label: dateLabels[5], value: 81 + index },
+            { label: dateLabels[6], value: 80 + index },
+          ],
+          min: 70,
+          max: 95,
+          decimals: 0,
+        },
+      ],
+      records: [
+        { id: `pressure-${member.id}-1`, time: "2026-04-07 08:12", value: `${128 + index}/${80 + index}`, source: "蓝牙血压计", creator: member.realName },
+        { id: `pressure-${member.id}-2`, time: "2026-04-06 08:09", value: `${129 + index}/${81 + index}`, source: "蓝牙血压计", creator: member.realName },
+        { id: `pressure-${member.id}-3`, time: "2026-04-05 08:14", value: `${130 + index}/${83 + index}`, source: "蓝牙血压计", creator: member.realName },
+        { id: `pressure-${member.id}-4`, time: "2026-04-04 08:06", value: `${127 + index}/${79 + index}`, source: "蓝牙血压计", creator: member.realName },
+        { id: `pressure-${member.id}-5`, time: "2026-04-03 08:11", value: `${128 + index}/${80 + index}`, source: "蓝牙血压计", creator: member.realName },
+        { id: `pressure-${member.id}-6`, time: "2026-04-02 08:08", value: `${131 + index}/${82 + index}`, source: "蓝牙血压计", creator: member.realName },
+        { id: `pressure-${member.id}-7`, time: "2026-04-01 08:10", value: `${126 + index}/${78 + index}`, source: "蓝牙血压计", creator: member.realName },
+      ],
+    },
+    {
+      key: "oxygen",
+      label: "血氧饱和度",
+      startDate,
+      endDate,
+      valueLabel: "血氧（%）",
+      charts: [
+        {
+          title: "血氧饱和度趋势",
+          unit: "%",
+          color: "#49c7d6",
+          points: [
+            { label: dateLabels[0], value: 97 + index * 0.1 },
+            { label: dateLabels[1], value: 98 + index * 0.1 },
+            { label: dateLabels[2], value: 97 + index * 0.1 },
+            { label: dateLabels[3], value: 96 + index * 0.1 },
+            { label: dateLabels[4], value: 97 + index * 0.1 },
+            { label: dateLabels[5], value: 98 + index * 0.1 },
+            { label: dateLabels[6], value: 97 + index * 0.1 },
+          ],
+          min: 92,
+          max: 100,
+          decimals: 0,
+        },
+        {
+          title: "夜间低氧次数",
+          unit: "次",
+          color: "#7bd4f0",
+          points: [
+            { label: dateLabels[0], value: 2 + (index % 2) },
+            { label: dateLabels[1], value: 1 + (index % 2) },
+            { label: dateLabels[2], value: 2 + (index % 2) },
+            { label: dateLabels[3], value: 3 + (index % 2) },
+            { label: dateLabels[4], value: 2 + (index % 2) },
+            { label: dateLabels[5], value: 1 + (index % 2) },
+            { label: dateLabels[6], value: 2 + (index % 2) },
+          ],
+          min: 0,
+          max: 6,
+          decimals: 0,
+        },
+      ],
+      records: [
+        { id: `oxygen-${member.id}-1`, time: "2026-04-07 22:08", value: `${(97 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+        { id: `oxygen-${member.id}-2`, time: "2026-04-06 22:02", value: `${(98 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+        { id: `oxygen-${member.id}-3`, time: "2026-04-05 22:11", value: `${(97 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+        { id: `oxygen-${member.id}-4`, time: "2026-04-04 22:05", value: `${(96 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+        { id: `oxygen-${member.id}-5`, time: "2026-04-03 22:10", value: `${(97 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+        { id: `oxygen-${member.id}-6`, time: "2026-04-02 22:04", value: `${(98 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+        { id: `oxygen-${member.id}-7`, time: "2026-04-01 22:07", value: `${(97 + index * 0.1).toFixed(0)}%`, source: "指夹血氧仪", creator: member.realName },
+      ],
+    },
+    {
+      key: "heartRate",
+      label: "心率",
+      startDate,
+      endDate,
+      valueLabel: "心率（bpm）",
+      charts: [
+        {
+          title: "静息心率趋势",
+          unit: "bpm",
+          color: "#ff7a7a",
+          points: [
+            { label: dateLabels[0], value: 74 + index },
+            { label: dateLabels[1], value: 76 + index },
+            { label: dateLabels[2], value: 72 + index },
+            { label: dateLabels[3], value: 75 + index },
+            { label: dateLabels[4], value: 73 + index },
+            { label: dateLabels[5], value: 77 + index },
+            { label: dateLabels[6], value: 74 + index },
+          ],
+          min: 60,
+          max: 90,
+          decimals: 0,
+        },
+        {
+          title: "运动峰值心率",
+          unit: "bpm",
+          color: "#ffa765",
+          points: [
+            { label: dateLabels[0], value: 102 + index },
+            { label: dateLabels[1], value: 108 + index },
+            { label: dateLabels[2], value: 105 + index },
+            { label: dateLabels[3], value: 104 + index },
+            { label: dateLabels[4], value: 110 + index },
+            { label: dateLabels[5], value: 107 + index },
+            { label: dateLabels[6], value: 109 + index },
+          ],
+          min: 90,
+          max: 125,
+          decimals: 0,
+        },
+      ],
+      records: [
+        { id: `heart-${member.id}-1`, time: "2026-04-07 09:36", value: `${74 + index}`, source: "腕带设备", creator: member.realName },
+        { id: `heart-${member.id}-2`, time: "2026-04-06 09:32", value: `${77 + index}`, source: "腕带设备", creator: member.realName },
+        { id: `heart-${member.id}-3`, time: "2026-04-05 09:20", value: `${73 + index}`, source: "腕带设备", creator: member.realName },
+        { id: `heart-${member.id}-4`, time: "2026-04-04 09:24", value: `${75 + index}`, source: "腕带设备", creator: member.realName },
+        { id: `heart-${member.id}-5`, time: "2026-04-03 09:18", value: `${72 + index}`, source: "腕带设备", creator: member.realName },
+        { id: `heart-${member.id}-6`, time: "2026-04-02 09:26", value: `${76 + index}`, source: "腕带设备", creator: member.realName },
+        { id: `heart-${member.id}-7`, time: "2026-04-01 09:22", value: `${74 + index}`, source: "腕带设备", creator: member.realName },
+      ],
     },
   ];
+}
+
+function createDevices(member: MemberItem, index: number): MemberDeviceItem[] {
+  const statusPool: Array<{ status: string; tone: MemberDetailTone }> = [
+    { status: "已连接", tone: "brand" },
+    { status: "已连接", tone: "brand" },
+    { status: "同步中", tone: "accent" },
+    { status: "已连接", tone: "brand" },
+    { status: "待校准", tone: "accent" },
+    { status: "已连接", tone: "brand" },
+    { status: "离线", tone: "neutral" },
+  ];
+
+  return Array.from({ length: 7 }, (_, deviceIndex) => {
+    const suffix = String(deviceIndex + 1).padStart(3, "0");
+    const resolvedStatus = statusPool[deviceIndex % statusPool.length];
+    const bindDay = 9 + deviceIndex;
+    const bindHour = 10 + (deviceIndex % 4);
+    const bindMinute = `${deviceIndex}${deviceIndex}`;
+
+    return {
+      name: `智能手表A${suffix}`,
+      model: `v1.10.${String(3 + ((deviceIndex + index) % 4)).padStart(2, "0")}`,
+      serial: `Ch.watch.a${suffix}`,
+      location: addressPool[(index + deviceIndex) % addressPool.length],
+      lastSync: `2024-10-${String(bindDay).padStart(2, "0")} ${String(bindHour).padStart(2, "0")}:${bindMinute}:09`,
+      status: resolvedStatus.status,
+      tone: resolvedStatus.tone,
+    };
+  });
 }
 
 function createReports(index: number): MemberListRow[] {
@@ -355,6 +891,41 @@ function createReports(index: number): MemberListRow[] {
   ];
 }
 
+function createReportRecords(index: number): MemberReportItem[] {
+  const reportNames = [
+    "常规血脂检查",
+    "空腹血糖复查",
+    "骨密度评估",
+    "睡眠质量评估",
+    "康复训练阶段报告",
+    "慢病随访总结",
+  ] as const;
+  const reportTypes = ["体检报告", "检验报告", "评估报告", "康复报告"] as const;
+  const reportSources = ["后台上传", "医生上传", "护士上传", "设备同步"] as const;
+  const uploaders = ["李明明", "张婷婷", "周雨晴", "王晨"] as const;
+
+  return Array.from({ length: 12 }, (_, reportIndex) => {
+    const day = 24 - reportIndex;
+    const hour = 10 + (reportIndex % 6);
+    const minute = `${(reportIndex * 7) % 6}${(reportIndex * 3) % 10}`;
+    const type = reportTypes[(index + reportIndex) % reportTypes.length];
+    const source = reportSources[(index + reportIndex) % reportSources.length];
+    const uploader = uploaders[(index + reportIndex) % uploaders.length];
+    const reportDate = `2026-04-${String(Math.max(day - 1, 1)).padStart(2, "0")}`;
+
+    return {
+      id: `report-${index + 1}-${reportIndex + 1}`,
+      uploadedAt: `2026-04-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${minute}`,
+      name: reportNames[(index + reportIndex) % reportNames.length],
+      type,
+      source,
+      uploader,
+      orderId: `GD202604210${String(index * 20 + reportIndex + 13).padStart(4, "0")}`,
+      reportDate,
+    };
+  });
+}
+
 function createOrders(index: number): MemberListRow[] {
   return [
     {
@@ -382,6 +953,229 @@ function createOrders(index: number): MemberListRow[] {
       extra: `有效期：30 天`,
     },
   ];
+}
+
+const memberServiceCatalog = [
+  {
+    serviceType: "家政护理",
+    image: homeCareOrderImage,
+    productName: "家政护理 2 小时上门服务",
+    productSummary: "参考客户端家政护理项目，覆盖日常整理、深度保洁与长者卧室整理。",
+    price: 168,
+    serviceItems: ["日常整理", "深度保洁护理", "长者卧室整理护理", "居家陪护整理"],
+    staffPool: ["周丽；陈阿姨", "王小倩；李阿姨", "赵阿姨；刘芳"],
+  },
+  {
+    serviceType: "康复理疗",
+    image: rehabOrderImage,
+    productName: "脑中风术后康复理疗套餐",
+    productSummary: "参考客户端康复理疗项目，包含上门评估、制定康复计划与阶段训练。",
+    price: 1990,
+    serviceItems: ["上门评估", "制定康复计划", "肌力增强训练", "平衡训练"],
+    staffPool: ["周明远；林安琪", "林安琪；陈嘉宁", "周明远；陈嘉宁"],
+  },
+  {
+    serviceType: "上门体检",
+    image: examOrderImage,
+    productName: "老年人 基础套餐一",
+    productSummary: "参考客户端上门体检套餐，支持上门采样、基础体征检测与报告解读。",
+    price: 399,
+    serviceItems: ["基础体征检测", "上门采样", "重点指标解读", "健康评估"],
+    staffPool: ["赵医生；林护士", "林护士；陈医生", "赵医生；陈医生"],
+  },
+] as const;
+
+function createOrderRecords(member: MemberItem, index: number): MemberOrderItem[] {
+  const paymentMethods = ["支付宝", "微信支付"] as const;
+  const statusPool: Array<{ label: string; tone: MemberDetailTone }> = [
+    { label: "已关闭", tone: "neutral" },
+    { label: "待服务", tone: "accent" },
+    { label: "已完成", tone: "brand" },
+    { label: "待支付", tone: "danger" },
+  ];
+
+  return Array.from({ length: 12 }, (_, orderIndex) => {
+    const service = memberServiceCatalog[(index + orderIndex) % memberServiceCatalog.length];
+    const status = statusPool[(index + orderIndex) % statusPool.length];
+    const amount = service.price;
+    const day = 9 + orderIndex;
+    const minutes = `${(orderIndex + 1) % 6}${(orderIndex * 2 + 3) % 10}`;
+
+    return {
+      id: `order-${member.id}-${orderIndex + 1}`,
+      orderTime: `2026-04-${String(day).padStart(2, "0")} 14:1${orderIndex}:${minutes}`,
+      orderNo: `24001266${String(index * 10 + orderIndex + 70).padStart(2, "0")}`,
+      serviceType: service.serviceType,
+      image: service.image,
+      productName: service.productName,
+      productSummary: service.productSummary,
+      price: `${amount.toFixed(2)}`,
+      payAmount: `${amount.toFixed(2)}`,
+      buyerName: member.nickname,
+      buyerPhone: member.phone,
+      orderStatus: status.label,
+      paymentMethod: paymentMethods[(index + orderIndex) % paymentMethods.length],
+      tone: status.tone,
+    };
+  });
+}
+
+function createServiceRecords(member: MemberItem, index: number): MemberServiceRecordItem[] {
+  const statusPool: Array<{ label: string; tone: MemberDetailTone }> = [
+    { label: "已完成", tone: "brand" },
+    { label: "待服务", tone: "accent" },
+    { label: "服务中", tone: "neutral" },
+    { label: "已取消", tone: "danger" },
+  ];
+  const remarkPool = [
+    "家属已确认上门时间",
+    "服务后回访待补充",
+    "已同步护理师执行记录",
+    "用户反馈良好，建议持续跟进",
+  ] as const;
+
+  return Array.from({ length: 12 }, (_, serviceIndex) => {
+    const service = memberServiceCatalog[(index + serviceIndex) % memberServiceCatalog.length];
+    const status = statusPool[(index + serviceIndex) % statusPool.length];
+    const day = 9 + serviceIndex;
+    const hour = 9 + (serviceIndex % 6);
+    const minute = `${(serviceIndex + 1) % 6}${(serviceIndex * 2 + 3) % 10}`;
+    const couponAmount =
+      service.serviceType === "康复理疗"
+        ? 100 + (serviceIndex % 3) * 20
+        : service.serviceType === "家政护理"
+          ? 20 + (serviceIndex % 3) * 10
+          : 20 + (serviceIndex % 3) * 5;
+    const payAmount = Math.max(service.price - couponAmount, 0);
+    const createdDay = Math.max(day - 1, 1);
+    const createdHour = Math.max(hour - 1, 8);
+    const paidMinute = `${(serviceIndex + 2) % 6}${(serviceIndex * 3 + 5) % 10}`;
+    const serviceCode = `${String(7000 + index * 30 + serviceIndex * 7).padStart(4, "0")} ${String(4100 + serviceIndex * 13 + index).padStart(4, "0")} ${String(2600 + serviceIndex * 9 + index * 2).padStart(4, "0")}`;
+    const serviceCodeHint =
+      status.label === "已完成"
+        ? "服务已完成，可继续查看服务记录或申请售后。"
+        : status.label === "已取消"
+          ? "当前工单已取消，如需继续服务可重新预约。"
+          : "服务开始前向护理或医护人员出示此服务码。";
+
+    return {
+      id: `service-record-${member.id}-${serviceIndex + 1}`,
+      orderNo: `GD202604${String(day).padStart(2, "0")}${String(index * 10 + serviceIndex + 13).padStart(4, "0")}`,
+      serviceType: service.serviceType,
+      image: service.image,
+      orderName: service.productName,
+      productSummary: service.productSummary,
+      serviceItem: service.serviceItems[(index + serviceIndex) % service.serviceItems.length],
+      price: `${service.price.toFixed(2)}`,
+      couponAmount: `${couponAmount.toFixed(2)}`,
+      payAmount: `${payAmount.toFixed(2)}`,
+      status: status.label,
+      tone: status.tone,
+      staff: service.staffPool[(index + serviceIndex) % service.staffPool.length],
+      serviceTime: `2026-04-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${minute}:09`,
+      createdAt: `2026-04-${String(createdDay).padStart(2, "0")} ${String(createdHour).padStart(2, "0")}:${minute}:18`,
+      paidAt: `2026-04-${String(createdDay).padStart(2, "0")} ${String(createdHour).padStart(2, "0")}:${paidMinute}:36`,
+      serviceCode,
+      serviceCodeHint,
+      remark: remarkPool[(index + serviceIndex) % remarkPool.length],
+    };
+  });
+}
+
+function formatAssetDateTime(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  const seconds = `${date.getSeconds()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function createAssetCoupons(index: number): MemberAssetCouponItem[] {
+  const statusPool: Array<{ label: string; tone: MemberDetailTone }> = [
+    { label: "未使用", tone: "brand" },
+    { label: "已使用", tone: "neutral" },
+    { label: "已过期", tone: "danger" },
+  ];
+  const couponCatalog = [
+    { name: "新客专享优惠券", amount: "¥20", condition: "满200元可用", scope: "全部商品" },
+    { name: "康复理疗专享券", amount: "¥80", condition: "满999元可用", scope: "康复理疗" },
+    { name: "上门体检抵扣券", amount: "¥50", condition: "满399元可用", scope: "上门体检" },
+    { name: "家政护理满减券", amount: "¥30", condition: "满299元可用", scope: "家政护理" },
+  ] as const;
+
+  return Array.from({ length: 12 }, (_, couponIndex) => {
+    const coupon = couponCatalog[(index + couponIndex) % couponCatalog.length];
+    const status = statusPool[(index + couponIndex) % statusPool.length];
+    const receivedAt = new Date(2026, 3, 24 - couponIndex, 10 + (couponIndex % 6), 9, 9);
+    const expiresAt = new Date(receivedAt);
+
+    expiresAt.setDate(expiresAt.getDate() + 36 + (couponIndex % 3) * 7);
+
+    return {
+      id: `asset-coupon-${index + 1}-${couponIndex + 1}`,
+      name: coupon.name,
+      status: status.label,
+      amount: coupon.amount,
+      condition: coupon.condition,
+      scope: coupon.scope,
+      receivedAt: formatAssetDateTime(receivedAt),
+      expiresAt: formatAssetDateTime(expiresAt),
+      tone: status.tone,
+    };
+  });
+}
+
+function createAssetPoints(member: MemberItem, index: number): MemberAssetPointItem[] {
+  const pointCatalog = [
+    { type: "收入", amount: "+100", reason: "订单完成积分", remark: "-", operator: "系统", tone: "brand" as MemberDetailTone },
+    { type: "收入", amount: "+30", reason: "每日签到奖励", remark: "连续签到第7天", operator: "系统", tone: "brand" as MemberDetailTone },
+    { type: "支出", amount: "-80", reason: "兑换上门体检券", remark: "自动扣减", operator: "系统", tone: "neutral" as MemberDetailTone },
+    { type: "赠送", amount: "+50", reason: "活动补发积分", remark: "会员关怀赠送", operator: "运营后台", tone: "accent" as MemberDetailTone },
+  ] as const;
+
+  return Array.from({ length: 12 }, (_, pointIndex) => {
+    const point = pointCatalog[(index + pointIndex) % pointCatalog.length];
+    const time = new Date(2026, 3, 22 - pointIndex, 9 + (pointIndex % 5), 18, 9);
+
+    return {
+      id: `asset-point-${member.id}-${pointIndex + 1}`,
+      type: point.type,
+      amount: point.amount,
+      reason: point.reason,
+      remark: point.remark,
+      operator: point.operator,
+      time: formatAssetDateTime(time),
+      tone: point.tone,
+    };
+  });
+}
+
+function createAssetGrowthRecords(member: MemberItem, index: number): MemberAssetGrowthItem[] {
+  const growthCatalog = [
+    { type: "收入", amount: "+100", reason: "登录", remark: "-", operator: "系统", tone: "brand" as MemberDetailTone },
+    { type: "收入", amount: "+120", reason: "完善健康档案", remark: "首次完善资料", operator: "系统", tone: "brand" as MemberDetailTone },
+    { type: "收入", amount: "+180", reason: "订单完成成长值", remark: "服务已结算", operator: "系统", tone: "brand" as MemberDetailTone },
+    { type: "赠送", amount: "+90", reason: "后台赠送成长值", remark: "会员等级维护", operator: "运营后台", tone: "accent" as MemberDetailTone },
+  ] as const;
+
+  return Array.from({ length: 12 }, (_, growthIndex) => {
+    const growth = growthCatalog[(index + growthIndex) % growthCatalog.length];
+    const time = new Date(2026, 3, 20 - growthIndex, 11 + (growthIndex % 4), 9, 9);
+
+    return {
+      id: `asset-growth-${member.id}-${growthIndex + 1}`,
+      type: growth.type,
+      amount: growth.amount,
+      reason: growth.reason,
+      remark: growth.remark,
+      operator: growth.operator,
+      time: formatAssetDateTime(time),
+      tone: growth.tone,
+    };
+  });
 }
 
 function createAssetRecords(index: number): MemberListRow[] {
@@ -437,6 +1231,85 @@ function createContents(index: number): MemberListRow[] {
       extra: "最近打开：昨天",
     },
   ];
+}
+
+function createContentRecords(member: MemberItem, index: number): MemberContentItem[] {
+  const postCatalog = [
+    {
+      topic: "美食",
+      image: circleCookImage,
+      content: "分享一下喜欢做又简单的菜，今天晚饭刚好有阳光照进厨房。",
+      likes: 1010,
+      favorites: 88,
+      shares: 32,
+      comments: 201,
+    },
+    {
+      topic: "落日",
+      image: circleSunsetImage,
+      content: "散步时遇到很漂亮的天空，落日把云染成橘色，心情也慢慢安静下来。",
+      likes: 520,
+      favorites: 42,
+      shares: 18,
+      comments: 96,
+    },
+    {
+      topic: "风景",
+      image: circleBeachImage,
+      content: "今天沿着河边慢慢走，路边的树影和风都刚刚好，随手拍了几张很喜欢。",
+      likes: 430,
+      favorites: 36,
+      shares: 21,
+      comments: 74,
+    },
+    {
+      topic: "美食",
+      image: circleCookTwoImage,
+      content: "家常菜不用复杂，青菜、豆腐和一点酱汁就能很香，适合晚饭轻轻松松吃。",
+      likes: 688,
+      favorites: 59,
+      shares: 27,
+      comments: 128,
+    },
+    {
+      topic: "摄影",
+      image: circleCherryImage,
+      content: "参加摄影大赛的第一组照片，想把清晨的光、路边的花和安静的街角都留下来。",
+      likes: 904,
+      favorites: 82,
+      shares: 44,
+      comments: 156,
+    },
+    {
+      topic: "美食",
+      image: circleCookThreeImage,
+      content: "把今天的午饭拍下来留个纪念，简单的家常味道最容易让人觉得踏实。",
+      likes: 356,
+      favorites: 28,
+      shares: 15,
+      comments: 63,
+    },
+  ] as const;
+
+  return Array.from({ length: 12 }, (_, contentIndex) => {
+    const post = postCatalog[(index + contentIndex) % postCatalog.length];
+    const publishDay = 24 - contentIndex;
+    const publishHour = 9 + (contentIndex % 7);
+    const publishMinute = `${(contentIndex + 1) % 6}${(contentIndex * 3 + 2) % 10}`;
+
+    return {
+      id: `content-${member.id}-${contentIndex + 1}`,
+      content: post.content,
+      topic: post.topic,
+      image: post.image,
+      likes: post.likes + index * 11 + contentIndex * 6,
+      favorites: post.favorites + index * 3 + contentIndex,
+      shares: post.shares + (contentIndex % 4),
+      comments: post.comments + (index % 3) * 2 + (contentIndex % 5),
+      publishedAt: `2026-04-${String(Math.max(publishDay, 1)).padStart(2, "0")} ${String(publishHour).padStart(2, "0")}:${publishMinute}:09`,
+      visible: (index + contentIndex) % 5 !== 0,
+    };
+  });
 }
 
 function createOperationTimeline(index: number): MemberTimelineItem[] {
@@ -524,11 +1397,16 @@ function buildMemberDetail(member: MemberItem, index: number): MemberDetailRecor
   ];
   const healthMetricCards = createHealthMetricCards(index);
   const healthMetricLogs = createHealthMetricLogs(index);
+  const healthMetricModules = createHealthMetricModules(member, index);
   const devices = createDevices(member, index);
-  const reports = createReports(index);
-  const orders = createOrders(index);
+  const reports = createReportRecords(index);
+  const orders = createOrderRecords(member, index);
+  const assetCoupons = createAssetCoupons(index);
+  const assetPoints = createAssetPoints(member, index);
+  const assetGrowthRecords = createAssetGrowthRecords(member, index);
   const assetRecords = createAssetRecords(index);
-  const contents = createContents(index);
+  const contents = createContentRecords(member, index);
+  const serviceRecords = createServiceRecords(member, index);
   const operationTimeline = createOperationTimeline(index);
   const serviceTimeline = createServiceTimeline(index);
 
@@ -555,11 +1433,16 @@ function buildMemberDetail(member: MemberItem, index: number): MemberDetailRecor
     medicationTips,
     healthMetricCards,
     healthMetricLogs,
+    healthMetricModules,
     devices,
     reports,
     orders,
+    assetCoupons,
+    assetPoints,
+    assetGrowthRecords,
     assetRecords,
     contents,
+    serviceRecords,
     operationTimeline,
     serviceTimeline,
   };
