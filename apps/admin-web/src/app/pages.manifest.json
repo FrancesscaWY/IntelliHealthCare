@@ -455,19 +455,6 @@
     "legacySources": []
   },
   {
-    "id": "service/order-dispatch",
-    "title": "服务调度",
-    "group": "service",
-    "route": "/service/order-dispatch",
-    "owner": "后台组",
-    "status": "planned",
-    "summary": "订单流转、派单排班、服务人员状态与异常处理。",
-    "folderPath": "/apps/admin-web/src/pages/service/order-dispatch",
-    "modulePath": "/apps/admin-web/src/pages/service/order-dispatch/Page.vue",
-    "mockPath": "/apps/admin-web/src/pages/service/order-dispatch/mock.ts",
-    "legacySources": []
-  },
-  {
     "id": "service/product-management",
     "title": "商品管理",
     "group": "service",

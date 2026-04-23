@@ -172,9 +172,13 @@ function submitLogin() {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(420px, 520px);
   align-items: center;
+  width: 100%;
   min-height: 100vh;
+  min-height: 100svh;
+  min-height: max(720px, 100svh);
   padding: 40px 56px 68px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at top left, rgba(115, 192, 156, 0.18), transparent 30%),
     radial-gradient(circle at 30% 18%, rgba(208, 241, 224, 0.86), transparent 24%),
@@ -522,6 +526,7 @@ function submitLogin() {
   .login-page {
     grid-template-columns: 1fr;
     gap: 20px;
+    align-content: start;
     padding: 24px 16px 70px;
   }
 

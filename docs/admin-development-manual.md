@@ -39,7 +39,7 @@ npm run dev:admin:page -- --page auth/login
 
 ```bash
 npm run dev:admin:page -- --page elder/member-list
-npm run dev:admin:page -- --page service/order-dispatch
+npm run dev:admin:page -- --page dashboard/order-list
 npm run dev:admin:page -- --page health/alert-center
 ```
 
@@ -50,7 +50,7 @@ npm run dev:admin:page -- --page health/alert-center
 - `auth/login`：登录页
 - `dashboard/overview`：后台首页
 - `elder/member-list`：长者档案
-- `service/order-dispatch`：服务调度
+- `dashboard/order-list`：全部订单
 - `health/alert-center`：健康预警
 - `device/device-monitor`：设备监控
 - `content/content-management`：内容管理

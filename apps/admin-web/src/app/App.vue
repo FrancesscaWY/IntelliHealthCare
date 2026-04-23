@@ -37,6 +37,10 @@ const loadError = shallowRef("");
 const searchKeyword = ref("");
 const isAccountMenuOpen = ref(false);
 const isNotificationOpen = ref(false);
+const sidebarCollapsedStorageKey = "ihc-admin-sidebar-collapsed";
+const isSidebarCollapsed = ref(
+  typeof window !== "undefined" ? window.localStorage.getItem(sidebarCollapsedStorageKey) === "1" : false,
+);
 const accountMenuRef = ref<HTMLElement | null>(null);
 const notificationPanelRef = ref<HTMLElement | null>(null);
 
@@ -101,10 +105,10 @@ const resolvedComponent = computed(() => {
 
 const railItems: Array<{ key: PrimaryNavKey; label: string; pageId: string; icon: Component }> = [
   { key: "home", label: "首页", pageId: "dashboard/overview", icon: Home },
+  { key: "analytics", label: "数据分析", pageId: "analytics/data-board", icon: ChartHistogram },
   { key: "users", label: "用户管理", pageId: "elder/member-list", icon: EveryUser },
   { key: "services", label: "服务管理", pageId: "service/staff-management", icon: ApplicationMenu },
-  { key: "transactions", label: "交易管理", pageId: "service/order-dispatch", icon: TransactionOrder },
-  { key: "analytics", label: "数据分析", pageId: "analytics/data-board", icon: ChartHistogram },
+  { key: "transactions", label: "交易管理", pageId: "dashboard/order-list", icon: TransactionOrder },
   { key: "system", label: "系统设置", pageId: "system/account-settings", icon: SettingTwo },
   { key: "messages", label: "消息管理", pageId: "dashboard/session", icon: MessageOne },
 ];
@@ -134,7 +138,6 @@ function resolvePrimaryNavKey(pageEntry?: PageEntry | null): PrimaryNavKey {
 
   if (
     [
-      "service/order-dispatch",
       "dashboard/order-list",
       "dashboard/order-detail",
       "dashboard/work-order",
@@ -210,7 +213,6 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
   if (activePrimaryNavKey.value === "transactions") {
     return [
       { key: "transaction-section", label: "交易中心", kind: "section" },
-      { key: "dispatch", label: "订单调度", active: isPageActive("service/order-dispatch"), pageId: "service/order-dispatch", kind: "item" },
       {
         key: "order-list",
         label: "全部订单",
@@ -326,6 +328,10 @@ watch(
   { immediate: true },
 );
 
+watch(isSidebarCollapsed, (collapsed) => {
+  window.localStorage.setItem(sidebarCollapsedStorageKey, collapsed ? "1" : "0");
+});
+
 const pageProps = computed(() => {
   if (!activePage.value) {
     return null;
@@ -359,6 +365,10 @@ function openSecondaryItem(item: { pageId?: string; toast?: string }) {
   if (item.toast) {
     showToast(item.toast);
   }
+}
+
+function toggleSidebar() {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
 }
 
 function submitSearch() {
@@ -463,7 +473,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="admin-shell" :class="[`admin-shell--${config.mode}`, { 'admin-shell--auth': isAuthPage }]">
+  <main
+    class="admin-shell"
+    :class="[
+      `admin-shell--${config.mode}`,
+      {
+        'admin-shell--auth': isAuthPage,
+        'admin-shell--sidebar-collapsed': config.mode === 'app' && isSidebarCollapsed,
+      },
+    ]"
+  >
     <template v-if="isAuthPage">
       <section class="auth-stage">
         <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
@@ -489,6 +508,19 @@ onBeforeUnmount(() => {
           <small>IntelliHealthCare</small>
         </div>
 
+        <button
+          class="rail__collapse"
+          type="button"
+          :aria-label="isSidebarCollapsed ? '展开左侧导航' : '收起左侧导航'"
+          :title="isSidebarCollapsed ? '展开左侧导航' : '收起左侧导航'"
+          @click="toggleSidebar"
+        >
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M8 6h9M8 12h9M8 18h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+            <path d="m5 8-3.5 4L5 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+
         <nav class="rail__nav" aria-label="主导航">
           <button
             v-for="item in railItems"
@@ -508,7 +540,7 @@ onBeforeUnmount(() => {
         </nav>
       </aside>
 
-      <aside v-if="config.mode === 'app'" class="subnav">
+      <aside v-if="config.mode === 'app'" class="subnav" :aria-hidden="isSidebarCollapsed">
         <header class="subnav__header">
           <strong>{{ currentGroupTitle }}</strong>
         </header>
@@ -647,6 +679,10 @@ onBeforeUnmount(() => {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.admin-shell--app.admin-shell--sidebar-collapsed {
+  grid-template-columns: 72px 0 minmax(0, 1fr);
+}
+
 .admin-shell--page,
 .admin-shell--auth {
   grid-template-columns: minmax(0, 1fr);
@@ -657,16 +693,24 @@ onBeforeUnmount(() => {
 }
 
 .auth-stage {
+  display: grid;
+  width: 100%;
   min-height: 100vh;
+  min-height: 100svh;
 }
 
 .rail {
+  grid-column: 1;
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   align-content: start;
   gap: 12px;
   padding: 16px 12px 16px;
   background: linear-gradient(180deg, var(--rail-bg) 0%, var(--rail-bg-end) 100%);
+  overflow: hidden;
+  transition:
+    padding 0.2s ease,
+    width 0.2s ease;
 }
 
 .rail__logo {
@@ -709,6 +753,33 @@ onBeforeUnmount(() => {
   font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.rail__collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.76);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.rail__collapse:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.rail__collapse svg {
+  width: 20px;
+  height: 20px;
 }
 
 .rail__nav {
@@ -776,11 +847,15 @@ onBeforeUnmount(() => {
 }
 
 .subnav {
+  grid-column: 2;
   display: grid;
   align-content: start;
   background: #ffffff;
   border-right: 1px solid #edf3ef;
   overflow-y: auto;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
 .subnav__header {
@@ -845,7 +920,60 @@ onBeforeUnmount(() => {
   box-shadow: 0 10px 22px rgba(60, 201, 159, 0.18);
 }
 
+.admin-shell--sidebar-collapsed .rail {
+  justify-items: center;
+  gap: 10px;
+  padding: 14px 8px;
+}
+
+.admin-shell--sidebar-collapsed .rail__logo {
+  width: 42px;
+  height: 42px;
+}
+
+.admin-shell--sidebar-collapsed .rail__brand {
+  display: none;
+}
+
+.admin-shell--sidebar-collapsed .rail__collapse {
+  width: 42px;
+  transform: rotate(180deg);
+}
+
+.admin-shell--sidebar-collapsed .rail__nav {
+  justify-items: center;
+}
+
+.admin-shell--sidebar-collapsed .rail__item {
+  justify-content: center;
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+}
+
+.admin-shell--sidebar-collapsed .rail__item-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.admin-shell--sidebar-collapsed .rail__item-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.admin-shell--sidebar-collapsed .subnav {
+  visibility: hidden;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .main {
+  grid-column: 3;
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr);
   min-width: 0;
@@ -1185,4 +1313,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
