@@ -4,7 +4,7 @@
   delivery: "后台工作区基于 Vue 3、TypeScript 与 Vite 构建。",
   homePageId: "auth/login",
   prototypeUrl: "https://www.axureshop.com/ys/2296569",
-  featureHighlights: ["登录入口", "工作台", "用户管理", "订单调度", "健康预警", "数据分析", "系统设置"],
+  featureHighlights: ["登录入口", "工作台", "用户管理", "订单管理", "健康预警", "数据分析", "系统设置"],
 };
 
 export const groupMeta: Record<string, { title: string; description: string }> = {
@@ -199,10 +199,6 @@ export const pageMeta: Record<string, { title: string; summary: string; shortTit
   "service/review-detail": {
     title: "审核详情",
     summary: "查看服务人员审核资料、实名信息与审核处理动作。",
-  },
-  "service/order-dispatch": {
-    title: "订单管理",
-    summary: "管理支付订单、服务工单与上门安排。",
   },
   "service/product-management": {
     title: "商品管理",
