@@ -4,6 +4,7 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import { getAdminElders } from "@/shared/api/elders";
 import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock, {
+  getMemberSource,
   saveRemoteMembers,
   type MemberItem,
   type MemberTag,
@@ -18,7 +19,6 @@ const deletedMemberIdsStorageKey = "admin:elder:deleted-member-ids";
 const memberTagOverridesStorageKey = "admin:elder:member-tag-overrides";
 const addedMembersStorageKey = "admin:elder:added-members";
 const tagToneSequence: MemberTagTone[] = ["mint", "peach", "lavender", "gold"];
-const mockMemberIds = new Set(mock.members.map((member) => member.id));
 const avatarPalette = [
   { accent: "#8b97a4", shadow: "#33404d" },
   { accent: "#9c9084", shadow: "#4f4338" },
@@ -78,6 +78,10 @@ const filteredMembers = computed(() => {
     return matchesTag && matchesDate && matchesKeyword;
   });
 });
+
+function getBaseMemberIds() {
+  return new Set(getMemberSource().map((member) => member.id));
+}
 
 function loadMembers() {
   const deletedIds = new Set(readDeletedMemberIds());
@@ -203,7 +207,7 @@ function readAddedMembers() {
 
     return parsed
       .filter((item): item is MemberItem => Boolean(item && typeof item === "object" && typeof item.id === "string"))
-      .filter((item) => !mockMemberIds.has(item.id))
+      .filter((item) => !getBaseMemberIds().has(item.id))
       .map((item) => ({
         ...item,
         nickname: String(item.nickname || "").trim(),
@@ -233,7 +237,7 @@ function saveAddedMembers(sourceMembers = members.value) {
   }
 
   const payload = sourceMembers
-    .filter((member) => !mockMemberIds.has(member.id))
+    .filter((member) => !getBaseMemberIds().has(member.id))
     .map((member) => ({
       ...member,
       tags: member.tags.map((tag) => ({ ...tag })),

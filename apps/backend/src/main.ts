@@ -100,6 +100,8 @@ const swaggerFeedbackTemplate = [
 const swaggerDescription = [
   "前后端联调说明已通过页面自定义面板展示。",
   "",
+  "后台端主链路文档摘要已挂载到当前 Swagger 首页。",
+  "",
   "如果字段、权限或返回结构有问题，可使用右上角 `反馈 Issue`。"
 ].join("\n");
 
@@ -157,6 +159,25 @@ const swaggerInfoPanelHtml = String.raw`
       <li>支持一键复制当前接口的请求方法和完整 URL。</li>
       <li>切换用户端 / 后台端测试时，记得替换全局 Bearer Token。</li>
     </ul>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>后台端联调地图</h3>
+    <ul>
+      <li>后台认证：<code>POST /admin/auth/login/password</code>、<code>GET /admin/auth/me</code></li>
+      <li>后台工作台：<code>GET /admin/dashboard/overview</code>、<code>GET /admin/elders</code>、<code>GET /admin/work-orders</code></li>
+      <li>后台订单调度：<code>GET /admin/orders</code>、<code>GET /admin/orders/:orderId</code>、<code>POST /admin/orders/:orderId/dispatch</code></li>
+      <li>后台报告审核：<code>GET /admin/reports</code>、<code>PUT /admin/reports/:reportId/review</code></li>
+    </ul>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>后台页面映射</h3>
+    <ol>
+      <li><code>admin-web/dashboard/overview</code> 对应后台总览接口。</li>
+      <li><code>admin-web/elder/member-list</code> 对应长者列表与长者详情接口。</li>
+      <li><code>admin-web/dashboard/work-order</code> 对应工单列表与工单状态流转接口。</li>
+      <li><code>admin-web/dashboard/order-list</code> 对应订单列表、订单详情与派单接口。</li>
+      <li><code>admin-web/elder/report-management</code> 对应报告列表与审核接口。</li>
+    </ol>
   </section>
 </div>
 <section class="ihc-doc-feedback">

@@ -72,7 +72,7 @@ function adaptRow(item: AdminWorkOrderListItem) {
     cover:
       item.serviceCover ||
       "https://images.pexels.com/photos/7579831/pexels-photo-7579831.jpeg?auto=compress&cs=tinysrgb&w=320",
-    project: item.serviceSummary || item.serviceCategoryText,
+    project: `${item.serviceCategoryText}${item.serviceSummary ? `｜${item.serviceSummary}` : ""}`,
     amount: formatMoney(item.payableAmount),
     staff: item.assigneeName || "待分配",
     customerName: item.customerName,

@@ -530,8 +530,9 @@ Bearer <accessToken>
 | API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
 | --- | --- | --- | --- |
 | 获取后台总览数据 | `GET /api/v1/admin/dashboard/overview` | `ADMIN_TOKEN` | 后台首页首接口，加载统计卡片、待办事项和运营概览。 |
+| 获取长者列表 | `GET /api/v1/admin/elders` | `ADMIN_TOKEN` | 后台用户列表页接口，支持 `keyword / tag / page / pageSize` 查询。 |
 | 获取长者详情 | `GET /api/v1/admin/elders/:elderId` | `ADMIN_TOKEN` | 后台长者详情页接口。 |
-| 获取工单列表 | `GET /api/v1/admin/work-orders` | `ADMIN_TOKEN` | 后台工单列表页接口，支持分页。 |
+| 获取工单列表 | `GET /api/v1/admin/work-orders` | `ADMIN_TOKEN` | 后台工单列表页接口，支持 `status / serviceCategory / keyword / page / pageSize` 查询。 |
 
 #### 3.3.3 后台订单调度模块（`orders` / admin）
 
@@ -541,7 +542,7 @@ Bearer <accessToken>
 
 | API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
 | --- | --- | --- | --- |
-| 后台获取订单列表 | `GET /api/v1/admin/orders` | `ADMIN_TOKEN` | 后台订单管理页接口，可按状态筛选。 |
+| 后台获取订单列表 | `GET /api/v1/admin/orders` | `ADMIN_TOKEN` | 后台订单管理页接口，支持 `status / serviceCategory / paymentChannel / keyword / page / pageSize` 查询。 |
 | 后台获取订单详情 | `GET /api/v1/admin/orders/:orderId` | `ADMIN_TOKEN` | 后台订单详情页接口。 |
 | 后台派单 | `POST /api/v1/admin/orders/:orderId/dispatch` | `ADMIN_TOKEN` | 分派机构、人员或排班。 |
 | 更新工单状态 | `PUT /api/v1/admin/work-orders/:workOrderId/status` | `ADMIN_TOKEN` | 后台工单执行状态流转接口。 |
@@ -554,7 +555,7 @@ Bearer <accessToken>
 
 | API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
 | --- | --- | --- | --- |
-| 后台获取报告列表 | `GET /api/v1/admin/reports` | `ADMIN_TOKEN` | 后台报告管理页接口，支持按审核状态查询。 |
+| 后台获取报告列表 | `GET /api/v1/admin/reports` | `ADMIN_TOKEN` | 后台报告管理页接口，支持 `status / type / keyword / page / pageSize` 查询。 |
 | 后台审核报告 | `PUT /api/v1/admin/reports/:reportId/review` | `ADMIN_TOKEN` | 后台审核操作接口，更新报告审核状态。 |
 
 ### 3.4 内部治理层

@@ -157,7 +157,6 @@ onBeforeUnmount(() => {
       </button>
 
       <section class="menu-card">
-        <button v-for="item in mock.menus" :key="item.key" class="menu-row" type="button">
         <button
           v-for="item in mock.menus"
           :key="item.key"

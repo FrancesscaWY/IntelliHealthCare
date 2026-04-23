@@ -2,15 +2,16 @@
 
   1. [Swagger](http://server.mctown.online:8190/api/v1/docs#/)网站：测试后端服务是否正常启动；API状态测试；API分类模块；复制API；问题反馈。
   2. [API文档](../frontend-api-test/swagger-api-formal-reference.md)：API分类、名称、含义、使用方式。
-  3. API-前端网页映射汇总表：API分类模块与前端页面的映射关系。
+  3. API-前端网页映射汇总表：API分类模块与前端页面的映射关系
    
 ## 操作规范
 1. 基于main创建新分支
-2. 找到自己负责的模块
-3. 根据API-前端映射表找到对应的接入页
-4. 根据Swagger/API文档上找到负责模型涉及的API
-5. 根据具体的逻辑关系将API接入前端页面
-6. 问题反馈：通过Swagger提交Github Issue，规范符合模板，包括：
+2. 根据CodeArts/InteliHealthAPI思维导图找到自己负责的模块名称，对应Swagger网站的API分类
+3. 根据下方的【API-前端网页映射表】找到对应的接入页，每个API模块涉及多个页面
+4. 根据【具体页面需求】与【Swagger网站显示的API信息】，确认工作内容：**在哪个页面接入什么API**
+5. 交代任务给AI/Codex(Swagger网页可以**复制API**,帮助Codex理解任务需求)
+6. 交付内容：**当前模块**涉及的**所有页面**均完成相关的API接入，即完成该模块的API接入。
+7. 问题反馈：通过Swagger提交Github Issue，需符合规范模板，内容包括：
    -  API访问失败
    -  API返回错误
    -  前端需要的数据API没有正常提供
