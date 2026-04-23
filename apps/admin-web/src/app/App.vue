@@ -584,21 +584,6 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <section class="workspace-metrics">
-          <article>
-            <span>当前模式</span>
-            <strong>{{ config.mode === "page" ? "单页预览" : "整站预览" }}</strong>
-          </article>
-          <article>
-            <span>已登记页面</span>
-            <strong>{{ manifest.length }}</strong>
-          </article>
-          <article>
-            <span>登录入口</span>
-            <strong>{{ projectInfo.homePageId }}</strong>
-          </article>
-        </section>
-
         <section class="admin-content">
           <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
           <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
@@ -1151,7 +1136,6 @@ onBeforeUnmount(() => {
     grid-template-columns: 170px 170px minmax(0, 1fr);
   }
 
-  .workspace-metrics,
   .admin-content {
     padding-right: 20px;
     padding-left: 20px;
@@ -1187,11 +1171,6 @@ onBeforeUnmount(() => {
     justify-content: flex-end;
   }
 
-  .workspace-metrics {
-    grid-template-columns: 1fr;
-    padding: 16px 16px 0;
-  }
-
   .admin-content {
     padding: 16px;
   }
@@ -1206,5 +1185,4 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
 

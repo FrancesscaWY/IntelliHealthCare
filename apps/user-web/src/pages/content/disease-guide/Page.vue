@@ -71,10 +71,11 @@ function openDisease(name: string) {
   margin: -18px 0;
   overflow: hidden;
   background: #f5f6f7;
-  color: #333844;
-  font-family: var(--ihc-font-family);
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .disease-nav {
@@ -103,17 +104,17 @@ function openDisease(name: string) {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .disease-nav h1 {
   margin: 0 0 0 10px;
-  color: #30343d;
-  font-size: 23px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .disease-main {
@@ -125,32 +126,34 @@ function openDisease(name: string) {
 .disease-search {
   display: flex;
   align-items: center;
-  height: 59px;
-  padding: 0 22px;
-  border: 1px solid #eeeeee;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(70, 84, 110, 0.025);
+  height: 40px;
+  padding: 3px 14px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
+  box-shadow: 0 13px 28px rgba(68, 144, 162, 0.08);
 }
 
 .search-icon {
   position: relative;
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   margin-right: 10px;
-  border: 3px solid #c9c9c9;
+  border: 2.5px solid #9a9da6;
   border-radius: 50%;
 }
 
 .search-icon::after {
   position: absolute;
-  right: -8px;
+  right: -7px;
   bottom: -5px;
-  width: 10px;
-  height: 3px;
+  width: 9px;
+  height: 2.5px;
   content: "";
   border-radius: 999px;
-  background: #c9c9c9;
+  background: #9a9da6;
   transform: rotate(45deg);
 }
 
@@ -160,12 +163,13 @@ function openDisease(name: string) {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #333844;
-  font-size: 20px;
+  color: #252939;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .disease-search input::placeholder {
-  color: #b9bbc1;
+  color: #9a9da6;
   opacity: 1;
 }
 
@@ -173,8 +177,8 @@ function openDisease(name: string) {
   display: grid;
   grid-template-columns: 101px minmax(0, 1fr);
   gap: 24px;
-  height: calc(100% - 91px);
-  margin-top: 31px;
+  height: calc(100% - 72px);
+  margin-top: 24px;
 }
 
 .department-list {
@@ -184,9 +188,10 @@ function openDisease(name: string) {
   height: 100%;
   padding: 14px 0;
   overflow-y: auto;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 13px 32px rgba(76, 85, 112, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
   scrollbar-width: none;
 }
 
@@ -200,38 +205,39 @@ function openDisease(name: string) {
   height: 53px;
   margin: 0 auto;
   padding: 0;
-  border-radius: 12px;
-  color: #646873;
-  font-size: 18px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
+  border-radius: 15px;
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .department-item--active {
-  background: #f0f2ff !important;
-  color: #6872f0 !important;
-  font-weight: 600 !important;
+  background: rgba(102, 207, 167, 0.14) !important;
+  color: #39a980 !important;
+  font-weight: 900 !important;
 }
 
 .disease-list-panel {
   height: 100%;
-  padding: 0 30px;
+  padding: 0 24px;
   overflow-y: auto;
-  border-radius: 16px 16px 0 0;
-  background: #ffffff;
-  box-shadow: 0 13px 32px rgba(76, 85, 112, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px 15px 0 0;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
   scrollbar-width: none;
 }
 
 .disease-list-panel button {
   display: block;
   width: 100%;
-  height: 73px;
+  height: 64px;
   padding: 0;
-  border-bottom: 1px solid #eeeeee;
-  color: #30343d;
-  font-size: 20px;
-  font-weight: 400;
+  border-bottom: 1px solid rgba(205, 207, 215, 0.72);
+  color: #222733;
+  font-size: 15px;
+  font-weight: 800;
   text-align: left;
 }
 

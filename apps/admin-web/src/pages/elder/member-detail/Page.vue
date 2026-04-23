@@ -7697,8 +7697,7 @@ onBeforeUnmount(() => {
   font-size: 18px;
 }
 
-:global(body.member-detail-shell-hidden .admin-topbar),
-:global(body.member-detail-shell-hidden .workspace-metrics) {
+:global(body.member-detail-shell-hidden .admin-topbar) {
   display: none;
 }
 

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { SetOff } from "@icon-park/vue-next";
+import avatarImage from "@/assets/community/activities/people.png";
 import mock from "./mock";
 import { takeHealthDataBackTarget } from "./source";
 
@@ -135,7 +136,8 @@ const scoreLabel = computed(() => {
 const addDevicePageId = "health/add-device-placeholder";
 
 const profileSummary = computed(() => ({
-  name: "JOY",
+  name: "张爱清",
+  avatar: avatarImage,
   age: 65,
   height: 172,
   weight: latest.value.weight.toFixed(1),
@@ -309,13 +311,7 @@ function goToAddDevice() {
       <section class="overview-card">
         <div class="overview-device">
           <div class="overview-profile">
-            <div class="profile-avatar" aria-hidden="true">
-              <span class="profile-avatar__eye profile-avatar__eye--left"></span>
-              <span class="profile-avatar__eye profile-avatar__eye--right"></span>
-              <span class="profile-avatar__blush profile-avatar__blush--left"></span>
-              <span class="profile-avatar__blush profile-avatar__blush--right"></span>
-              <span class="profile-avatar__smile"></span>
-            </div>
+            <img class="profile-avatar" :src="profileSummary.avatar" :alt="profileSummary.name" draggable="false" />
             <div class="profile-copy">
               <h2>{{ profileSummary.name }}</h2>
             </div>
@@ -503,12 +499,13 @@ function goToAddDevice() {
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .medication-nav {
@@ -531,17 +528,17 @@ function goToAddDevice() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .medication-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .medication-scroll {
@@ -594,93 +591,23 @@ function goToAddDevice() {
 }
 
 .profile-avatar {
-  display: grid;
-  place-items: center;
-  position: relative;
+  display: block;
   width: 76px;
   height: 76px;
+  box-sizing: border-box;
   border: 2px solid rgba(255, 255, 255, 0.92);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), transparent 30%),
-    radial-gradient(circle at 70% 74%, rgba(255, 214, 224, 0.85), transparent 24%),
-    linear-gradient(135deg, #ffd6de 0%, #ffc7a8 100%);
+  object-fit: cover;
   box-shadow: 0 10px 18px rgba(54, 67, 92, 0.12);
-}
-
-.profile-avatar::before,
-.profile-avatar::after {
-  position: absolute;
-  top: 8px;
-  width: 18px;
-  height: 14px;
-  content: "";
-  border-radius: 14px 14px 4px 4px;
-  background: linear-gradient(180deg, #8b6b79 0%, #6f5561 100%);
-}
-
-.profile-avatar::before {
-  left: 10px;
-  transform: rotate(-18deg);
-}
-
-.profile-avatar::after {
-  right: 10px;
-  transform: rotate(18deg);
-}
-
-.profile-avatar__eye {
-  position: absolute;
-  top: 28px;
-  width: 7px;
-  height: 9px;
-  border-radius: 50%;
-  background: #4b4652;
-}
-
-.profile-avatar__eye--left {
-  left: 22px;
-}
-
-.profile-avatar__eye--right {
-  right: 22px;
-}
-
-.profile-avatar__blush {
-  position: absolute;
-  top: 37px;
-  width: 12px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255, 142, 163, 0.42);
-  filter: blur(0.5px);
-}
-
-.profile-avatar__blush--left {
-  left: 12px;
-}
-
-.profile-avatar__blush--right {
-  right: 12px;
-}
-
-.profile-avatar__smile {
-  position: absolute;
-  top: 40px;
-  left: 50%;
-  width: 18px;
-  height: 10px;
-  border-bottom: 3px solid #4b4652;
-  border-radius: 0 0 18px 18px;
-  transform: translateX(-50%);
+  user-select: none;
 }
 
 .profile-copy h2 {
   margin: 0;
-  color: #30343f;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .profile-alerts {
@@ -698,14 +625,14 @@ function goToAddDevice() {
   border: 1px solid rgba(255, 255, 255, 0.86);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
-  color: #9da1ab;
-  font-size: 14px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   backdrop-filter: blur(8px);
 }
 
 .profile-alert-chip--normal {
-  color: #7f8998;
+  color: #8f95a2;
 }
 
 .device-panel {
@@ -732,30 +659,30 @@ function goToAddDevice() {
 }
 
 .device-stat span {
-  color: #c3c5cd;
-  font-size: 14px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .device-stat strong {
-  color: #30343f;
-  font-size: 26px;
-  font-weight: 700;
+  color: #222733;
+  font-size: 24px;
+  font-weight: 900;
   line-height: 1;
 }
 
 .device-stat strong small {
   margin-left: 3px;
-  color: #b7b7bb;
-  font-size: 15px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .device-panel__meta {
   margin: 20px 0 0;
-  color: #8e8f94;
-  font-size: 16px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .device-list {
@@ -903,7 +830,7 @@ function goToAddDevice() {
   padding: 18px 16px 14px;
   border: 0;
   background: transparent;
-  color: #202534;
+  color: #252939;
   text-align: left;
   cursor: pointer;
 }
@@ -926,17 +853,17 @@ function goToAddDevice() {
 }
 
 .metric-card-title {
-  color: #202534;
-  font-size: 18px;
-  font-weight: 800;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
   letter-spacing: 0;
 }
 
 .metric-card-subtitle {
   margin-top: 5px;
-  color: #8f96a3;
+  color: #8f95a2;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .metric-card-value {
@@ -951,27 +878,27 @@ function goToAddDevice() {
 .metric-card-value strong {
   max-width: 100%;
   overflow: hidden;
-  color: #202534;
-  font-size: 34px;
-  font-weight: 800;
+  color: #222733;
+  font-size: 30px;
+  font-weight: 900;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .metric-card-value small {
-  color: #8f96a3;
-  font-size: 15px;
-  font-weight: 700;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .metric-card--bloodPressure .metric-card-value strong {
-  font-size: 27px;
+  font-size: 25px;
 }
 
 .metric-card--bloodSugar .metric-card-value strong {
-  font-size: 31px;
+  font-size: 28px;
 }
 
 .metric-card-detail {
@@ -982,12 +909,12 @@ function goToAddDevice() {
   justify-content: space-between;
   min-width: 0;
   gap: 7px;
-  color: #7f8998;
+  color: #8f95a2;
   font-size: 12px;
 }
 
 .metric-card-change {
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .metric-card-change.good {
@@ -1008,7 +935,7 @@ function goToAddDevice() {
   background: rgba(102, 207, 167, 0.14);
   color: #39a980;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 900;
   line-height: 24px;
   text-align: center;
   text-overflow: ellipsis;
@@ -1069,14 +996,14 @@ function goToAddDevice() {
 }
 
 .metric-card-detail {
-  color: #7f8998;
+  color: #8f95a2;
 }
 
 .no-more {
   margin: 28px 0 0;
-  color: #c9c9c9;
-  font-size: 17px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   text-align: center;
 }
 
@@ -1100,7 +1027,7 @@ function goToAddDevice() {
   }
 
   .profile-copy h2 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .profile-alert-chip {
@@ -1121,7 +1048,7 @@ function goToAddDevice() {
   }
 
   .device-stat strong {
-    font-size: 22px;
+    font-size: 21px;
   }
 
   .device-stat strong small {
@@ -1146,11 +1073,11 @@ function goToAddDevice() {
   }
 
   .metric-card-title {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .metric-card-value strong {
-    font-size: 26px;
+    font-size: 28px;
   }
 }
 </style>

@@ -1,7 +1,7 @@
 const mock = {
   title: "健康档案",
   profile: {
-    name: "JOY",
+    name: "张爱清",
     subtitle: "个人健康档案总览",
     updatedAt: "2026-04-15 09:30",
     completion: "92%",

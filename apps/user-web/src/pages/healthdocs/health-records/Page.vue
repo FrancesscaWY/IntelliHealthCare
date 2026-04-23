@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { setHealthDataBackTarget } from "@/pages/health/health-data/source";
+import avatarImage from "@/assets/community/activities/people.png";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -80,11 +81,7 @@ function getSectionIconMarkup(key: string) {
     <main class="page-scroll">
       <section class="hero-card">
         <div class="hero-main">
-          <div class="profile-avatar" aria-hidden="true">
-            <span class="profile-avatar__glow"></span>
-            <span class="profile-avatar__head"></span>
-            <span class="profile-avatar__body"></span>
-          </div>
+          <img class="profile-avatar" :src="avatarImage" :alt="mock.profile.name" draggable="false" />
 
           <div class="hero-copy">
             <div class="hero-copy__top">
@@ -142,19 +139,13 @@ function getSectionIconMarkup(key: string) {
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family:
-    "HarmonyOS Sans SC",
-    "MiSans",
-    "Source Han Sans SC",
-    "Noto Sans SC",
-    "PingFang SC",
-    "Microsoft YaHei UI",
-    sans-serif;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .page-nav {
@@ -185,8 +176,8 @@ function getSectionIconMarkup(key: string) {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
@@ -202,7 +193,7 @@ function getSectionIconMarkup(key: string) {
   width: 22px;
   height: 22px;
   fill: none;
-  stroke: #3e4350;
+  stroke: #48bfa3;
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -224,9 +215,9 @@ function getSectionIconMarkup(key: string) {
 .hero-card,
 .menu-item {
   border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.055);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .hero-card {
@@ -246,47 +237,16 @@ function getSectionIconMarkup(key: string) {
 }
 
 .profile-avatar {
-  position: relative;
   flex: 0 0 82px;
   width: 82px;
   height: 82px;
-  overflow: hidden;
+  display: block;
+  box-sizing: border-box;
   border: 2px solid rgba(255, 255, 255, 0.96);
-  border-radius: 25px;
-  background: linear-gradient(145deg, #d8dde6 0%, #8a909c 100%);
-  box-shadow: 0 10px 20px rgba(54, 67, 92, 0.1);
-}
-
-.profile-avatar__glow {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 24% 20%, rgba(255, 255, 255, 0.78), transparent 28%),
-    radial-gradient(circle at 76% 78%, rgba(0, 0, 0, 0.18), transparent 40%);
-}
-
-.profile-avatar__head,
-.profile-avatar__body {
-  position: absolute;
-  z-index: 1;
-  background: rgba(35, 35, 38, 0.84);
-}
-
-.profile-avatar__head {
-  top: 17px;
-  left: 26px;
-  width: 21px;
-  height: 21px;
   border-radius: 50%;
-}
-
-.profile-avatar__body {
-  bottom: 13px;
-  left: 16px;
-  width: 49px;
-  height: 33px;
-  border-radius: 24px 24px 16px 16px;
-  transform: rotate(-14deg);
+  object-fit: cover;
+  box-shadow: 0 10px 20px rgba(54, 67, 92, 0.1);
+  user-select: none;
 }
 
 .hero-copy {
@@ -305,18 +265,18 @@ function getSectionIconMarkup(key: string) {
 
 .hero-copy h1 {
   margin: 0;
-  color: #253247;
+  color: #222733;
   font-size: 22px;
-  font-weight: 650;
+  font-weight: 900;
   line-height: 1;
-  letter-spacing: 0.005em;
+  letter-spacing: 0;
 }
 
 .hero-caption {
   margin: 0;
-  color: #9aa4b3;
-  font-size: 10px;
-  font-weight: 400;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1.35;
 }
 
@@ -358,18 +318,18 @@ function getSectionIconMarkup(key: string) {
 
 .stat-item__label {
   display: block;
-  color: #a3acba;
-  font-size: 10px;
-  font-weight: 400;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .stat-item__value {
   display: block;
-  color: #334055;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
   line-height: 1;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -418,8 +378,8 @@ function getSectionIconMarkup(key: string) {
 }
 
 .menu-item__icon--health {
-  background: rgba(106, 122, 248, 0.1);
-  color: #6678ff;
+  background: rgba(105, 213, 209, 0.12);
+  color: #69d5d1;
 }
 
 .menu-item__icon--medication {
@@ -428,8 +388,8 @@ function getSectionIconMarkup(key: string) {
 }
 
 .menu-item__icon--data {
-  background: rgba(53, 119, 255, 0.1);
-  color: #3577ff;
+  background: rgba(117, 214, 223, 0.12);
+  color: #4fbfca;
 }
 
 .menu-item__icon--report {
@@ -451,22 +411,24 @@ function getSectionIconMarkup(key: string) {
 }
 
 .menu-item__top strong {
-  color: #3a3f4b;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .menu-item__top em {
   font-style: normal;
-  color: #9aa2b1;
+  color: #8f95a2;
   font-size: 12px;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .menu-item__desc {
-  color: #7f8998;
+  color: #8f95a2;
   font-size: 12px;
+  font-weight: 800;
   line-height: 1.45;
 }
 
@@ -499,21 +461,7 @@ function getSectionIconMarkup(key: string) {
     flex-basis: 76px;
     width: 76px;
     height: 76px;
-    border-radius: 22px;
-  }
-
-  .profile-avatar__head {
-    top: 16px;
-    left: 24px;
-    width: 18px;
-    height: 18px;
-  }
-
-  .profile-avatar__body {
-    bottom: 12px;
-    left: 15px;
-    width: 44px;
-    height: 30px;
+    border-radius: 50%;
   }
 
   .hero-copy {
@@ -525,7 +473,7 @@ function getSectionIconMarkup(key: string) {
   }
 
   .hero-caption {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   .stats-card {
@@ -548,11 +496,11 @@ function getSectionIconMarkup(key: string) {
   }
 
   .stat-item__label {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   .stat-item__value {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .menu-item__top {

@@ -123,10 +123,10 @@ function uploadReport() {
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -157,17 +157,17 @@ function uploadReport() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -228,10 +228,10 @@ function uploadReport() {
 
 .card-title h2 {
   margin: 0;
-  color: #30343f;
+  color: #222733;
   font-size: 17px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .card-info {
@@ -242,7 +242,7 @@ function uploadReport() {
 
 .card-info p {
   margin: 0;
-  color: #9a9da5;
+  color: #8f95a2;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
@@ -274,14 +274,14 @@ function uploadReport() {
 }
 
 .action-btn--primary {
-  background: #6670f0;
-  box-shadow: 0 12px 22px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 12px 22px rgba(89, 200, 162, 0.22);
   color: #ffffff;
 }
 
 .no-more {
   margin: 28px 0 0;
-  color: #c9c9c9;
+  color: #8f95a2;
   font-size: 16px;
   font-weight: 500;
   text-align: center;
@@ -298,12 +298,12 @@ function uploadReport() {
   width: 100%;
   height: 60px;
   border-radius: 16px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 14px 28px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .dialog-mask {
@@ -329,9 +329,9 @@ function uploadReport() {
 
 .dialog-card h3 {
   margin: 0;
-  color: #30343f;
-  font-size: 18px;
-  font-weight: 700;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .dialog-card p {
@@ -363,7 +363,7 @@ function uploadReport() {
 }
 
 .dialog-btn--primary {
-  background: #6670f0;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
   color: #ffffff;
 }
 

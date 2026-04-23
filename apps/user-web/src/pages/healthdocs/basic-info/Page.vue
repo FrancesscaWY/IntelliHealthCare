@@ -160,10 +160,10 @@ function pickFromAlbum() {
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -194,17 +194,17 @@ function pickFromAlbum() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -262,11 +262,11 @@ function pickFromAlbum() {
 }
 
 .form-label__text {
-  color: #8f96a0;
-  font-size: 15px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.3;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -290,8 +290,8 @@ function pickFromAlbum() {
   min-height: 60px;
   padding: 0;
   color: #b5b7bc;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
   text-align: left;
 }
 
@@ -314,20 +314,20 @@ function pickFromAlbum() {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.5;
 }
 
 .field-control::placeholder {
-  color: #b7b7bb;
+  color: #9a9da6;
   font-weight: 500;
   opacity: 1;
 }
 
 .field-control--empty {
-  color: #b7b7bb;
+  color: #9a9da6;
   font-weight: 500;
 }
 
@@ -347,8 +347,8 @@ function pickFromAlbum() {
 .field-suffix {
   flex: 0 0 auto;
   color: #b4bac5;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .field-wrap--date {
@@ -363,15 +363,15 @@ function pickFromAlbum() {
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: 6px;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.5;
   white-space: nowrap;
 }
 
 .field-date-text--empty {
-  color: #b7b7bb;
+  color: #9a9da6;
 }
 
 .field-native-date {
@@ -451,12 +451,12 @@ function pickFromAlbum() {
   width: 100%;
   height: 54px;
   border-radius: 11px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 14px 28px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .sheet-mask {
@@ -481,11 +481,11 @@ function pickFromAlbum() {
   height: 52px;
   border: 0;
   border-radius: 12px;
-  background: #6670f0;
-  box-shadow: 0 12px 24px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 12px 24px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .avatar-sheet__action + .avatar-sheet__action {

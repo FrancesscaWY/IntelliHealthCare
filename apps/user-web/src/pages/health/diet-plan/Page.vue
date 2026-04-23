@@ -193,6 +193,8 @@ const visibleRecipes = computed(() => {
   background: #f5f6f7;
   color: #252939;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
   transform: translateX(-50%);
 }
 
@@ -216,7 +218,7 @@ const visibleRecipes = computed(() => {
   width: 28px;
   height: 38px;
   padding: 0;
-  color: #34383f;
+  color: #252939;
   font-size: 38px;
   font-weight: 300;
   line-height: 30px;
@@ -225,7 +227,7 @@ const visibleRecipes = computed(() => {
 .diet-nav h1 {
   margin: 0;
   overflow: hidden;
-  color: #34383f;
+  color: #222733;
   font-size: 20px;
   font-weight: 900;
   letter-spacing: 0;
@@ -252,9 +254,10 @@ const visibleRecipes = computed(() => {
   min-height: 128px;
   padding: 18px;
   overflow: hidden;
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .hero-copy {
@@ -265,18 +268,20 @@ const visibleRecipes = computed(() => {
 .hero-copy span {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 14px;
   border-radius: 999px;
-  background: #effaf5;
-  color: #30bd8a;
-  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 8px 18px rgba(107, 126, 160, 0.06);
+  color: #66cfa7;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .hero-copy h2 {
   margin: 10px 0 0;
-  color: #252939;
+  color: #222733;
   font-size: 21px;
   font-weight: 900;
   line-height: 1.35;
@@ -284,8 +289,8 @@ const visibleRecipes = computed(() => {
 
 .hero-copy p {
   margin: 8px 0 0;
-  color: #9499a2;
-  font-size: 12px;
+  color: #8f95a2;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.55;
 }
@@ -311,9 +316,10 @@ const visibleRecipes = computed(() => {
   gap: 0;
   margin-top: 12px;
   overflow: hidden;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .nutrition-card div {
@@ -323,31 +329,35 @@ const visibleRecipes = computed(() => {
 }
 
 .nutrition-card div + div {
-  border-left: 1px solid #eef0f2;
+  border-left: 1px solid rgba(205, 207, 215, 0.72);
 }
 
 .nutrition-card strong {
-  color: #34383f;
+  color: #222733;
   font-size: 16px;
   font-weight: 900;
 }
 
 .nutrition-card span {
   margin-top: -2px;
-  color: #9b9fa7;
-  font-size: 11px;
+  color: #8f95a2;
+  font-size: 12px;
   font-weight: 800;
 }
 
 .diet-search {
+  position: relative;
   display: flex;
   align-items: center;
-  height: 46px;
+  height: 40px;
   margin-top: 12px;
-  padding: 0 14px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(31, 40, 58, 0.04);
+  padding: 3px 14px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
+  box-shadow: 0 13px 28px rgba(68, 144, 162, 0.08);
 }
 
 .search-icon {
@@ -355,7 +365,7 @@ const visibleRecipes = computed(() => {
   width: 18px;
   height: 18px;
   margin-right: 10px;
-  border: 2.5px solid #d2d5dc;
+  border: 2.5px solid #9a9da6;
   border-radius: 50%;
 }
 
@@ -367,7 +377,7 @@ const visibleRecipes = computed(() => {
   height: 2.5px;
   content: "";
   border-radius: 999px;
-  background: #d2d5dc;
+  background: #9a9da6;
   transform: rotate(45deg);
 }
 
@@ -375,13 +385,13 @@ const visibleRecipes = computed(() => {
   flex: 1;
   min-width: 0;
   outline: 0;
-  color: #34383f;
-  font-size: 13px;
-  font-weight: 800;
+  color: #252939;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .diet-search input::placeholder {
-  color: #b7bbc3;
+  color: #9a9da6;
   opacity: 1;
 }
 
@@ -395,36 +405,40 @@ const visibleRecipes = computed(() => {
 .meal-tabs button {
   display: grid;
   justify-items: center;
-  min-height: 78px;
+  min-height: 86px;
   padding: 8px 4px 7px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(31, 40, 58, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .meal-tabs button strong {
   margin-top: 6px;
-  color: #34383f;
+  color: #222733;
   font-size: 12px;
   font-weight: 900;
 }
 
 .meal-tabs button small {
   margin-top: 2px;
-  color: #9b9fa7;
-  font-size: 9px;
+  color: #8f95a2;
+  font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .meal-tab--active {
-  background: #f3f4ff !important;
-  color: #6872f0;
-  box-shadow: 0 10px 24px rgba(104, 114, 240, 0.1);
+  border-color: transparent;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)) padding-box,
+    linear-gradient(100deg, #75d6df 0%, #7be28e 100%) border-box !important;
+  color: #66cfa7;
+  box-shadow: 0 16px 30px rgba(89, 200, 162, 0.16);
 }
 
 .meal-tab--active strong {
-  color: #6872f0;
+  color: #48bfa3;
 }
 
 .meal-tab-icon {
@@ -432,7 +446,7 @@ const visibleRecipes = computed(() => {
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: 12px;
+  border-radius: 13px;
   background: #f6f7f9;
 }
 
@@ -463,8 +477,8 @@ const visibleRecipes = computed(() => {
 }
 
 .meal-tab-icon--snack {
-  color: #6872f0;
-  background: rgba(104, 114, 240, 0.11);
+  color: #69d5d1;
+  background: rgba(105, 213, 209, 0.12);
 }
 
 .meal-tab-icon--breakfast svg,
@@ -485,14 +499,14 @@ const visibleRecipes = computed(() => {
 
 .section-header h2 {
   margin: 0;
-  color: #34383f;
+  color: #222733;
   font-size: 18px;
   font-weight: 900;
 }
 
 .section-header span {
-  color: #9b9fa7;
-  font-size: 11px;
+  color: #8f95a2;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -508,21 +522,22 @@ const visibleRecipes = computed(() => {
   gap: 6px;
   margin-top: 12px;
   padding: 18px 16px;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
   text-align: center;
 }
 
 .recipe-empty strong {
-  color: #34383f;
+  color: #222733;
   font-size: 14px;
   font-weight: 900;
 }
 
 .recipe-empty p {
   margin: 0;
-  color: #9499a2;
+  color: #8f95a2;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.5;
@@ -531,22 +546,23 @@ const visibleRecipes = computed(() => {
 .recipe-card {
   overflow: hidden;
   padding: 0 0 9px;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(31, 40, 58, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .recipe-photo {
   display: block;
   width: 100%;
-  height: 98px;
+  height: 104px;
   object-fit: cover;
   background: #eaf6ee;
 }
 
 .recipe-card h3 {
   margin: 9px 10px 0;
-  color: #34383f;
+  color: #222733;
   font-size: 14px;
   font-weight: 900;
   line-height: 1.35;
@@ -554,8 +570,8 @@ const visibleRecipes = computed(() => {
 
 .recipe-card p {
   margin: 6px 10px 0;
-  color: #9499a2;
-  font-size: 10px;
+  color: #8f95a2;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -570,8 +586,9 @@ const visibleRecipes = computed(() => {
   height: 22px;
   padding: 0 7px;
   border-radius: 999px;
-  background: #f1f2ff;
-  color: #6872f0;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.84);
+  color: #66cfa7;
   font-size: 10px;
   font-weight: 900;
   line-height: 22px;

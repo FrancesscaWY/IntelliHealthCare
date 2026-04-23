@@ -2469,8 +2469,7 @@ onBeforeUnmount(() => {
   margin-top: 22px;
 }
 
-:global(body.member-list-shell-hidden .admin-topbar),
-:global(body.member-list-shell-hidden .workspace-metrics) {
+:global(body.member-list-shell-hidden .admin-topbar) {
   display: none;
 }
 
@@ -2628,4 +2627,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
