@@ -7,12 +7,20 @@ import {
 import {
   AfterSaleType,
   OrderStatus,
+  PaymentChannel,
   Prisma,
+  ServiceCategory,
   UserType,
   WorkOrderStatus
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
-import { paginate, toDateString, toDateTimeString, toNumber } from "../../common/utils/serializers";
+import {
+  ensureRecord,
+  paginate,
+  toDateString,
+  toDateTimeString,
+  toNumber
+} from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
 @Injectable()
@@ -503,7 +511,15 @@ export class OrdersService {
     }));
   }
 
-  async listAdminOrders(page: number, pageSize: number, status?: OrderStatus) {
+  async listAdminOrders(
+    page: number,
+    pageSize: number,
+    status?: OrderStatus,
+    serviceCategory?: ServiceCategory,
+    paymentChannel?: PaymentChannel,
+    keyword?: string
+  ) {
+    const normalizedKeyword = keyword?.trim().toLowerCase();
     const orders = await this.prismaService.order.findMany({
       where: {
         status: status ?? undefined
@@ -511,20 +527,92 @@ export class OrdersService {
       include: {
         service: true,
         owner: true,
-        elder: true
+        elder: true,
+        payments: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        },
+        workOrders: {
+          include: {
+            assignee: true
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1
+        },
+        afterSales: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
       },
       orderBy: { createdAt: "desc" }
     });
 
-    return paginate(
-      orders.map((item) => ({
-        ...this.toOrderCard(item),
-        ownerName: item.owner.realName ?? item.owner.nickname ?? item.owner.phone,
-        elderName: item.elder?.realName ?? item.elder?.nickname ?? null
-      })),
-      page,
-      pageSize
-    );
+    const list = orders
+      .map((item) => {
+        const contactSnapshot = ensureRecord(item.contactSnapshot);
+        const addressSnapshot = ensureRecord(item.addressSnapshot);
+        const latestPayment = item.payments[0] ?? null;
+        const latestWorkOrder = item.workOrders[0] ?? null;
+        const latestAfterSale = item.afterSales[0] ?? null;
+        const ownerName = item.owner.realName ?? item.owner.nickname ?? item.owner.phone;
+        const paymentChannelText = latestPayment
+          ? this.getPaymentChannelText(latestPayment.channel)
+          : null;
+
+        return {
+          ...this.toOrderCard(item),
+          ownerId: item.owner.id,
+          ownerName,
+          ownerPhone: item.owner.phone,
+          ownerAvatar: item.owner.avatarUrl,
+          ownerCreatedAt: toDateTimeString(item.owner.createdAt),
+          ownerLastLoginAt: toDateTimeString(item.owner.lastLoginAt),
+          elderName: item.elder?.realName ?? item.elder?.nickname ?? null,
+          source: item.source,
+          serviceCategoryText: this.getServiceCategoryText(item.service.category),
+          serviceSummary: item.service.summary,
+          originalAmount: toNumber(item.originalAmount),
+          discountAmount: toNumber(item.discountAmount),
+          payableAmount: toNumber(item.payableAmount),
+          actualAmount: toNumber(item.actualAmount) ?? toNumber(item.payableAmount),
+          paymentChannel: latestPayment?.channel ?? null,
+          paymentChannelText,
+          paymentStatus: latestPayment?.status ?? null,
+          paidAt: toDateTimeString(item.paidAt ?? latestPayment?.paidAt),
+          completedAt: toDateTimeString(item.completedAt),
+          cancelledAt: toDateTimeString(item.cancelledAt),
+          contactName: String(contactSnapshot.contactName ?? contactSnapshot.name ?? ""),
+          contactPhone: String(contactSnapshot.contactPhone ?? contactSnapshot.phone ?? ""),
+          addressText: this.buildAddressText(addressSnapshot),
+          remark: item.remark,
+          workOrderId: latestWorkOrder?.id ?? null,
+          workOrderStatus: latestWorkOrder?.status ?? null,
+          assigneeName: latestWorkOrder?.assignee?.name ?? latestWorkOrder?.assigneeName ?? null,
+          afterSaleId: latestAfterSale?.id ?? null,
+          afterSaleStatus: latestAfterSale?.status ?? null,
+          afterSaleReason: latestAfterSale?.reason ?? null
+        };
+      })
+      .filter((item) => {
+        const matchesServiceCategory =
+          !serviceCategory || item.serviceCategory === serviceCategory;
+        const matchesPaymentChannel =
+          !paymentChannel || item.paymentChannel === paymentChannel;
+        const matchesKeyword =
+          !normalizedKeyword ||
+          [
+            item.orderNo,
+            item.title,
+            item.ownerName,
+            item.ownerPhone
+          ]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(normalizedKeyword));
+
+        return matchesServiceCategory && matchesPaymentChannel && matchesKeyword;
+      });
+
+    return paginate(list, page, pageSize);
   }
 
   async getAdminOrderDetail(orderId: string) {
@@ -535,6 +623,10 @@ export class OrdersService {
         owner: true,
         elder: true,
         payments: true,
+        afterSales: {
+          orderBy: { createdAt: "desc" }
+        },
+        reviews: true,
         workOrders: {
           include: {
             assignee: true,
@@ -558,7 +650,9 @@ export class OrdersService {
       owner: {
         userId: order.owner.id,
         name: order.owner.realName ?? order.owner.nickname ?? order.owner.phone,
-        phone: order.owner.phone
+        phone: order.owner.phone,
+        createdAt: toDateTimeString(order.owner.createdAt),
+        lastLoginAt: toDateTimeString(order.owner.lastLoginAt)
       },
       elder: order.elder
         ? {
@@ -567,9 +661,60 @@ export class OrdersService {
             phone: order.elder.phone
           }
         : null,
-      payments: order.payments,
-      workOrders: order.workOrders,
-      reports: order.reports,
+      source: order.source,
+      originalAmount: toNumber(order.originalAmount),
+      discountAmount: toNumber(order.discountAmount),
+      payableAmount: toNumber(order.payableAmount),
+      actualAmount: toNumber(order.actualAmount) ?? toNumber(order.payableAmount),
+      paidAt: toDateTimeString(order.paidAt),
+      completedAt: toDateTimeString(order.completedAt),
+      cancelledAt: toDateTimeString(order.cancelledAt),
+      remark: order.remark,
+      contactSnapshot: order.contactSnapshot,
+      addressSnapshot: order.addressSnapshot,
+      payments: order.payments.map((item) => ({
+        paymentId: item.id,
+        paymentNo: item.paymentNo,
+        channel: item.channel,
+        channelText: this.getPaymentChannelText(item.channel),
+        status: item.status,
+        amount: toNumber(item.amount),
+        paidAt: toDateTimeString(item.paidAt),
+        createdAt: toDateTimeString(item.createdAt)
+      })),
+      workOrders: order.workOrders.map((item) => ({
+        workOrderId: item.id,
+        status: item.status,
+        institutionName: item.institution?.name ?? item.institutionName,
+        assigneeName: item.assignee?.name ?? item.assigneeName,
+        scheduleAt: toDateTimeString(item.scheduleAt),
+        startedAt: toDateTimeString(item.startedAt),
+        completedAt: toDateTimeString(item.completedAt),
+        dispatchNote: item.dispatchNote
+      })),
+      reports: order.reports.map((item) => ({
+        reportId: item.id,
+        title: item.title,
+        type: item.type,
+        status: item.status,
+        createdAt: toDateTimeString(item.createdAt)
+      })),
+      afterSales: order.afterSales.map((item) => ({
+        afterSaleId: item.id,
+        type: item.type,
+        status: item.status,
+        reason: item.reason,
+        description: item.description,
+        amountRequested: toNumber(item.amountRequested),
+        createdAt: toDateTimeString(item.createdAt)
+      })),
+      reviews: order.reviews.map((item) => ({
+        reviewId: item.id,
+        score: item.score,
+        tags: item.tags,
+        content: item.content,
+        createdAt: toDateTimeString(item.createdAt)
+      })),
       timeline: order.timeline.map((item) => ({
         ...item,
         createdAt: toDateTimeString(item.createdAt)
@@ -981,6 +1126,44 @@ export class OrdersService {
       case OrderStatus.CANCELLED:
         return "已取消";
     }
+  }
+
+  private getServiceCategoryText(category: ServiceCategory) {
+    switch (category) {
+      case ServiceCategory.HOME_CARE:
+        return "家政护工";
+      case ServiceCategory.REHAB_THERAPY:
+        return "康复理疗";
+      case ServiceCategory.HOME_EXAM:
+        return "上门体检";
+      case ServiceCategory.ELDERLY_CARE:
+        return "养老机构";
+    }
+  }
+
+  private getPaymentChannelText(channel: PaymentChannel) {
+    switch (channel) {
+      case PaymentChannel.WECHAT:
+        return "微信支付";
+      case PaymentChannel.ALIPAY:
+        return "支付宝";
+      case PaymentChannel.BALANCE:
+        return "余额";
+      case PaymentChannel.OFFLINE:
+        return "线下";
+    }
+  }
+
+  private buildAddressText(addressSnapshot: Record<string, unknown>) {
+    return [
+      addressSnapshot.province,
+      addressSnapshot.city,
+      addressSnapshot.district,
+      addressSnapshot.street,
+      addressSnapshot.detailAddress
+    ]
+      .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+      .join("");
   }
 
   private generateOrderNo() {

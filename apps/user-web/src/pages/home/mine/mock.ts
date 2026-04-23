@@ -25,7 +25,7 @@ const mock = {
     { key: "activity", label: "我参加的活动", icon: "star" },
     { key: "review", label: "我的评价", icon: "comment" },
     { key: "support", label: "帮助与支持", icon: "help" },
-    { key: "settings", label: "设置", icon: "setting" },
+    { key: "settings", label: "设置", icon: "setting", pageId: "home/MyJ/setting" },
   ],
   tabs: [
     { key: "home", label: "首页", pageId: "home/dashboard" },

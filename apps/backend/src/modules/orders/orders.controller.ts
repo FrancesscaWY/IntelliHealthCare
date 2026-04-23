@@ -27,7 +27,13 @@ import {
   ApiPropertyOptional,
   ApiTags
 } from "@nestjs/swagger";
-import { AfterSaleType, OrderStatus, WorkOrderStatus } from "@prisma/client";
+import {
+  AfterSaleType,
+  OrderStatus,
+  PaymentChannel,
+  ServiceCategory,
+  WorkOrderStatus
+} from "@prisma/client";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
@@ -130,6 +136,43 @@ class OrdersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
+}
+
+class AdminOrdersQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: "订单状态筛选。",
+    enum: OrderStatus,
+    example: OrderStatus.PENDING_PAYMENT
+  })
+  @IsOptional()
+  @IsEnum(OrderStatus)
+  status?: OrderStatus;
+
+  @ApiPropertyOptional({
+    description: "服务分类筛选。",
+    enum: ServiceCategory,
+    example: ServiceCategory.HOME_CARE
+  })
+  @IsOptional()
+  @IsEnum(ServiceCategory)
+  serviceCategory?: ServiceCategory;
+
+  @ApiPropertyOptional({
+    description: "支付渠道筛选。",
+    enum: PaymentChannel,
+    example: PaymentChannel.ALIPAY
+  })
+  @IsOptional()
+  @IsEnum(PaymentChannel)
+  paymentChannel?: PaymentChannel;
+
+  @ApiPropertyOptional({
+    description: "关键字，可匹配订单号、服务名称、下单人姓名或手机号。",
+    example: "王兰"
+  })
+  @IsOptional()
+  @IsString()
+  keyword?: string;
 }
 
 class UpdateScheduleDto {
@@ -486,8 +529,15 @@ export class AdminOrdersController {
     summary: "后台获取订单列表",
     description: "后台订单管理页接口，可按状态筛选。"
   })
-  listOrders(@Query() query: OrdersQueryDto) {
-    return this.ordersService.listAdminOrders(query.page, query.pageSize, query.status);
+  listOrders(@Query() query: AdminOrdersQueryDto) {
+    return this.ordersService.listAdminOrders(
+      query.page,
+      query.pageSize,
+      query.status,
+      query.serviceCategory,
+      query.paymentChannel,
+      query.keyword
+    );
   }
 
   @Get("orders/:orderId")

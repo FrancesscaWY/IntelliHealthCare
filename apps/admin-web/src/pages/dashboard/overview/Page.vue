@@ -8,6 +8,30 @@ import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const overview = ref<DashboardOverviewResponse | null>(null);
+const displayStats = computed(() => {
+  const currentOverview = overview.value;
+
+  if (!currentOverview) {
+    return mock.stats;
+  }
+
+  const labels = ["长者档案总数", "工单总量", "订单总量", "报告总量"];
+  const values = [
+    currentOverview.elderCount,
+    currentOverview.workOrderCount,
+    currentOverview.orderCount,
+    currentOverview.reportCount
+  ];
+
+  return mock.stats.map((item, index) => ({
+    ...item,
+    label: labels[index] ?? item.label,
+    value: String(values[index] ?? item.value),
+    compareLabel: index === 0 ? "待处理预警" : "联调状态",
+    compareValue: index === 0 ? `${currentOverview.openAlertCount}` : "已接通",
+    compareTone: "positive" as const
+  }));
+});
 
 const quickIcons: Record<string, string> = {
   users: `
@@ -139,11 +163,14 @@ onMounted(async () => {
   <section class="overview">
     <header class="overview__greeting">
       <span class="overview__emoji">👋</span>
-      <h1>{{ mock.greeting }}</h1>
+      <div>
+        <h1>{{ mock.greeting }}</h1>
+        <p v-if="overview" class="overview__subtitle">当前待处理预警 {{ overview.openAlertCount }} 条</p>
+      </div>
     </header>
 
     <section class="metrics">
-      <article v-for="item in mock.stats" :key="item.label" class="metric">
+      <article v-for="item in displayStats" :key="item.label" class="metric">
         <div class="metric__main">
           <p class="metric__label">{{ item.label }}</p>
           <strong class="metric__value">{{ item.value }}</strong>
@@ -369,6 +396,12 @@ onMounted(async () => {
   font-size: 18px;
   font-weight: 500;
   letter-spacing: 0.01em;
+}
+
+.overview__subtitle {
+  margin: 6px 0 0;
+  color: #6d7884;
+  font-size: 13px;
 }
 
 .metrics,

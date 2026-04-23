@@ -1,7 +1,14 @@
 ﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type MemberItem, type MemberTag, type MemberTagTone } from "./mock";
+import { getAdminElders } from "@/shared/api/elders";
+import { clearAdminAuthSession } from "@/shared/auth/session";
+import mock, {
+  saveRemoteMembers,
+  type MemberItem,
+  type MemberTag,
+  type MemberTagTone
+} from "./mock";
 
 type ViewMode = "grid" | "list";
 
@@ -16,7 +23,7 @@ const avatarPalette = [
   { accent: "#8b97a4", shadow: "#33404d" },
   { accent: "#9c9084", shadow: "#4f4338" },
   { accent: "#88a096", shadow: "#345147" },
-  { accent: "#938bb0", shadow: "#443d63" },
+  { accent: "#938bb0", shadow: "#443d63" }
 ];
 
 const selectedTags = ref<string[]>([]);
@@ -83,6 +90,70 @@ function loadMembers() {
       ...member,
       tags: resolveMemberTags(member, tagOverrides[member.id]),
     }));
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hour = `${date.getUTCHours()}`.padStart(2, "0");
+  const minute = `${date.getUTCMinutes()}`.padStart(2, "0");
+  const second = `${date.getUTCSeconds()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function pickAvatarPalette(id: string) {
+  const seed = Array.from(id).reduce((total, char) => total + char.charCodeAt(0), 0);
+  return avatarPalette[seed % avatarPalette.length] ?? avatarPalette[0];
+}
+
+async function syncMembersFromApi() {
+  try {
+    const response = await getAdminElders({
+      page: 1,
+      pageSize: 100
+    });
+    const remoteMembers: MemberItem[] = response.list.map((item) => {
+      const palette = pickAvatarPalette(item.elderId);
+      return {
+        id: item.elderId,
+        nickname: item.nickname || item.realName || item.displayName,
+        realName: item.realName || item.displayName,
+        phone: item.phone,
+        registeredAt: formatDateTime(item.createdAt) || "未提供",
+        tags: buildMemberTags(item.tags),
+        avatarAccent: palette.accent,
+        avatarShadow: palette.shadow
+      };
+    });
+
+    if (remoteMembers.length > 0) {
+      saveRemoteMembers(remoteMembers);
+      members.value = loadMembers();
+    }
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+
+    if (status === 401 || status === 403) {
+      clearAdminAuthSession();
+      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
+      props.navigation.reLaunch("auth/login");
+      return;
+    }
+
+    props.showToast(error instanceof Error ? error.message : "长者列表加载失败，已回退到演示数据");
+  }
 }
 
 function readDeletedMemberIds() {
@@ -702,6 +773,7 @@ const pageShellHiddenClass = "member-list-shell-hidden";
 
 onMounted(() => {
   document.body.classList.add(pageShellHiddenClass);
+  void syncMembersFromApi();
 });
 
 onBeforeUnmount(() => {

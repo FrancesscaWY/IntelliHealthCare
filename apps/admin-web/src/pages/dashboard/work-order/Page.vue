@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAdminWorkOrders, type AdminWorkOrderListItem } from "@/shared/api/work-orders";
+import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const rows = ref(mock.rows);
 
 const selectedType = ref(mock.serviceTypes[0]);
 const assignStart = ref("2024-10-01");
@@ -13,8 +16,107 @@ const bookingEnd = ref("2024-10-31");
 const keyword = ref("");
 const activeStatus = ref(mock.statusTabs[0]);
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hour = `${date.getUTCHours()}`.padStart(2, "0");
+  const minute = `${date.getUTCMinutes()}`.padStart(2, "0");
+  const second = `${date.getUTCSeconds()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function formatMoney(value: number | null | undefined) {
+  return Number(value || 0).toFixed(2);
+}
+
+function buildActions(status: string) {
+  if (status === "待服务") {
+    return [
+      { label: "改单", tone: "green" as const },
+      { label: "取消预约", tone: "red" as const },
+      { label: "工单详情", tone: "green" as const },
+      { label: "备注", tone: "green" as const }
+    ];
+  }
+
+  if (status === "服务中") {
+    return [
+      { label: "工单详情", tone: "green" as const },
+      { label: "备注", tone: "green" as const }
+    ];
+  }
+
+  return [
+    { label: "工单详情", tone: "green" as const },
+    { label: "备注", tone: "green" as const }
+  ];
+}
+
+function adaptRow(item: AdminWorkOrderListItem) {
+  return {
+    id: item.workOrderId,
+    orderNo: item.orderNo,
+    title: item.serviceTitle,
+    cover:
+      item.serviceCover ||
+      "https://images.pexels.com/photos/7579831/pexels-photo-7579831.jpeg?auto=compress&cs=tinysrgb&w=320",
+    project: item.serviceSummary || item.serviceCategoryText,
+    amount: formatMoney(item.payableAmount),
+    staff: item.assigneeName || "待分配",
+    customerName: item.customerName,
+    customerPhone: item.customerPhone,
+    customerAvatar:
+      item.customerAvatar ||
+      "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240",
+    assignTime: formatDateTime(item.createdAt),
+    status: item.statusText,
+    actions: buildActions(item.statusText)
+  };
+}
+
+async function syncWorkOrdersFromApi() {
+  try {
+    const response = await getAdminWorkOrders({
+      page: 1,
+      pageSize: 100
+    });
+    const nextRows = response.list.map(adaptRow);
+
+    if (nextRows.length > 0) {
+      rows.value = nextRows;
+    }
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+
+    if (status === 401 || status === 403) {
+      clearAdminAuthSession();
+      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
+      props.navigation.reLaunch("auth/login");
+      return;
+    }
+
+    props.showToast(error instanceof Error ? error.message : "工单列表加载失败，已回退到演示数据");
+  }
+}
+
+onMounted(() => {
+  void syncWorkOrdersFromApi();
+});
+
 const filteredRows = computed(() =>
-  mock.rows.filter((row) => {
+  rows.value.filter((row) => {
     const matchesType = selectedType.value === "全部类型" || row.project.includes(selectedType.value) || row.title.includes(selectedType.value);
     const matchesKeyword =
       !keyword.value.trim() || `${row.id}${row.orderNo}${row.title}${row.customerName}${row.customerPhone}`.includes(keyword.value.trim());

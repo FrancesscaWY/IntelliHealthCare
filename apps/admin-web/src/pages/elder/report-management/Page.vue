@@ -1,16 +1,84 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAdminReports, type AdminReportListItem } from "@/shared/api/reports";
+import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const rows = ref(mock.rows);
 
 const selectedType = ref(mock.reportTypes[0]);
 const keyword = ref("");
 const selectedIds = ref<string[]>([]);
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hour = `${date.getUTCHours()}`.padStart(2, "0");
+  const minute = `${date.getUTCMinutes()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
+function adaptRow(item: AdminReportListItem) {
+  return {
+    id: item.reportId,
+    uploadedAt: formatDateTime(item.createdAt),
+    userName: item.elderName || item.elderPhone || "未命名用户",
+    avatar:
+      "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240",
+    reportName: item.title,
+    reportType: item.typeText,
+    source: item.source,
+    uploader: item.uploader,
+    ticketNo: item.orderNo || "-",
+    reportDate: item.reportDate || "-"
+  };
+}
+
+async function syncReportsFromApi() {
+  try {
+    const response = await getAdminReports({
+      page: 1,
+      pageSize: 100
+    });
+    const nextRows = response.list.map(adaptRow);
+
+    if (nextRows.length > 0) {
+      rows.value = nextRows;
+    }
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+
+    if (status === 401 || status === 403) {
+      clearAdminAuthSession();
+      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
+      props.navigation.reLaunch("auth/login");
+      return;
+    }
+
+    props.showToast(error instanceof Error ? error.message : "报告列表加载失败，已回退到演示数据");
+  }
+}
+
+onMounted(() => {
+  void syncReportsFromApi();
+});
+
 const filteredRows = computed(() =>
-  mock.rows.filter((row) => {
+  rows.value.filter((row) => {
     const matchesType = selectedType.value === "全部类型" || row.reportType === selectedType.value;
     const matchesKeyword =
       !keyword.value.trim() ||

@@ -158,6 +158,13 @@ onBeforeUnmount(() => {
 
       <section class="menu-card">
         <button v-for="item in mock.menus" :key="item.key" class="menu-row" type="button">
+        <button
+          v-for="item in mock.menus"
+          :key="item.key"
+          class="menu-row"
+          type="button"
+          @click="openSubPage(item.pageId || '', item.label)"
+        >
           <span class="menu-icon">
             <component :is="menuIconMap[item.icon]" theme="outline" size="18" fill="currentColor" />
           </span>
