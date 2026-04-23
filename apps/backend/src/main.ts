@@ -83,6 +83,226 @@ const swaggerOperationsSorter = new Function(
   `
 ) as SwaggerUiOperationSorter;
 
+const swaggerCopyApiButtonScript = String.raw`
+  (() => {
+    const BUTTON_CLASS = "ihc-copy-api-button";
+    const COPIED_CLASS = "is-copied";
+    const ERROR_CLASS = "is-error";
+    const DEFAULT_TEXT = "复制 API";
+    const COPIED_TEXT = "已复制";
+    const ERROR_TEXT = "复制失败";
+
+    const buttonSelector = "." + BUTTON_CLASS;
+    const buttonResetTimers = new WeakMap();
+
+    const getFallbackServerPath = () =>
+      window.location.pathname.replace(/\/docs(?:\/index\.html)?\/?$/, "");
+
+    const normalizePath = (value) => {
+      if (!value) {
+        return "";
+      }
+
+      return value.startsWith("/") ? value : "/" + value;
+    };
+
+    const getSelectedServerValue = () => {
+      const serverSelect = document.querySelector(".swagger-ui .servers select");
+      const selectedOption =
+        serverSelect &&
+        serverSelect.selectedOptions &&
+        serverSelect.selectedOptions[0];
+
+      if (!selectedOption) {
+        return getFallbackServerPath();
+      }
+
+      const optionValue =
+        typeof selectedOption.value === "string" ? selectedOption.value.trim() : "";
+
+      if (optionValue && !/^[0-9]+$/.test(optionValue)) {
+        return optionValue;
+      }
+
+      const optionText =
+        typeof selectedOption.textContent === "string"
+          ? selectedOption.textContent.trim()
+          : "";
+
+      return optionText.split(/\s+-\s+/)[0] || getFallbackServerPath();
+    };
+
+    const buildAbsoluteApiUrl = (path) => {
+      const serverValue = getSelectedServerValue();
+      const normalizedPath = normalizePath(path);
+
+      if (/^https?:\/\//i.test(serverValue)) {
+        const baseUrl = serverValue.endsWith("/") ? serverValue : serverValue + "/";
+        return new URL(normalizedPath.replace(/^\/+/, ""), baseUrl).toString();
+      }
+
+      return window.location.origin + serverValue.replace(/\/+$/, "") + normalizedPath;
+    };
+
+    const copyWithExecCommand = (text) => {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.top = "-9999px";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+
+      if (!copied) {
+        throw new Error("copy failed");
+      }
+    };
+
+    const copyText = async (text) => {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+
+      copyWithExecCommand(text);
+    };
+
+    const resetButtonState = (button) => {
+      button.textContent = DEFAULT_TEXT;
+      button.classList.remove(COPIED_CLASS);
+      button.classList.remove(ERROR_CLASS);
+      buttonResetTimers.delete(button);
+    };
+
+    const setButtonState = (button, text, stateClass) => {
+      button.textContent = text;
+      button.classList.remove(COPIED_CLASS);
+      button.classList.remove(ERROR_CLASS);
+
+      if (stateClass) {
+        button.classList.add(stateClass);
+      }
+
+      const existingTimer = buttonResetTimers.get(button);
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+      }
+
+      const timer = window.setTimeout(() => {
+        resetButtonState(button);
+      }, 1500);
+      buttonResetTimers.set(button, timer);
+    };
+
+    const getOperationCopyText = (opblock) => {
+      const methodNode = opblock.querySelector(".opblock-summary-method");
+      const pathNode = opblock.querySelector(".opblock-summary-path");
+      const method =
+        (methodNode && methodNode.textContent ? methodNode.textContent : "").trim().toUpperCase();
+      const path =
+        (opblock.getAttribute("data-path") ||
+          (pathNode && pathNode.textContent ? pathNode.textContent : "")).trim();
+
+      if (!method || !path) {
+        return "";
+      }
+
+      return method + " " + buildAbsoluteApiUrl(path);
+    };
+
+    const decorateOperation = (opblock) => {
+      if (!opblock || opblock.querySelector(buttonSelector)) {
+        return;
+      }
+
+      const summary = opblock.querySelector(".opblock-summary");
+      if (!summary) {
+        return;
+      }
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn " + BUTTON_CLASS;
+      button.textContent = DEFAULT_TEXT;
+      button.setAttribute("aria-label", "复制当前接口地址");
+      button.setAttribute("title", "复制请求方法和完整地址");
+      summary.appendChild(button);
+    };
+
+    const decorateAllOperations = () => {
+      document.querySelectorAll(".swagger-ui .opblock").forEach((opblock) => {
+        decorateOperation(opblock);
+      });
+    };
+
+    const handleCopyClick = async (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      const button = target.closest(buttonSelector);
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const opblock = button.closest(".opblock");
+      if (!opblock) {
+        return;
+      }
+
+      const textToCopy = getOperationCopyText(opblock);
+      if (!textToCopy) {
+        setButtonState(button, ERROR_TEXT, ERROR_CLASS);
+        return;
+      }
+
+      try {
+        await copyText(textToCopy);
+        setButtonState(button, COPIED_TEXT, COPIED_CLASS);
+      } catch (error) {
+        console.error(error);
+        setButtonState(button, ERROR_TEXT, ERROR_CLASS);
+      }
+    };
+
+    const bootstrapCopyButtons = () => {
+      const swaggerRoot = document.getElementById("swagger-ui");
+      if (!swaggerRoot) {
+        window.setTimeout(bootstrapCopyButtons, 200);
+        return;
+      }
+
+      decorateAllOperations();
+      swaggerRoot.addEventListener("click", handleCopyClick);
+
+      const observer = new MutationObserver(() => {
+        window.requestAnimationFrame(decorateAllOperations);
+      });
+
+      observer.observe(swaggerRoot, {
+        childList: true,
+        subtree: true
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bootstrapCopyButtons, {
+        once: true
+      });
+    } else {
+      bootstrapCopyButtons();
+    }
+  })();
+`;
+
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
   databaseBootstrap = await bootstrapDatabase(logger);
@@ -271,6 +491,30 @@ async function bootstrap() {
         background-color: #0f766e;
         border-color: #0f766e;
       }
+      .swagger-ui .ihc-copy-api-button {
+        align-self: center;
+        flex-shrink: 0;
+        margin: 6px 8px 6px 0;
+        min-width: 88px;
+        border-color: #0f766e;
+        color: #0f766e;
+        background: #ffffff;
+      }
+      .swagger-ui .ihc-copy-api-button:hover,
+      .swagger-ui .ihc-copy-api-button:focus-visible {
+        border-color: #115e59;
+        color: #115e59;
+        background: #f0fdfa;
+      }
+      .swagger-ui .ihc-copy-api-button.is-copied {
+        border-color: #0f766e;
+        background: #0f766e;
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-copy-api-button.is-error {
+        border-color: #dc2626;
+        color: #dc2626;
+      }
       @media (max-width: 768px) {
         .swagger-ui {
           padding: 12px 12px 32px;
@@ -282,8 +526,13 @@ async function bootstrap() {
         .swagger-ui .wrapper {
           padding: 0 0 32px;
         }
+        .swagger-ui .ihc-copy-api-button {
+          min-width: 76px;
+          margin-right: 4px;
+        }
       }
     `,
+    customJsStr: swaggerCopyApiButtonScript,
     swaggerOptions: {
       persistAuthorization: true,
       displayRequestDuration: true,

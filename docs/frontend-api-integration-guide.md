@@ -65,9 +65,9 @@
 - JSON 格式化工具
 - Shell 变量
 
-### 1.3 先认识 Swagger 页面里最常用的 6 个位置
+### 1.3 先认识 Swagger 页面里最常用的 7 个位置
 
-打开 `http://server.mctown.online:8190/api/v1/docs` 后，最常用的是这 6 个位置：
+打开 `http://server.mctown.online:8190/api/v1/docs` 后，最常用的是这 7 个位置：
 
 | 位置 | 你会看到什么 | 你在这里做什么 |
 | --- | --- | --- |
@@ -75,6 +75,7 @@
 | 右上角 `Authorize` | 鉴权弹窗 | 粘贴 `Bearer accessToken` |
 | 模块标题行 | 如“用户认证”“健康档案”“订单与预约” | 找你负责页面所属模块 |
 | 接口折叠项 | 如 `POST /app/auth/login/password` | 点开后查看参数、返回体 |
+| 接口行右侧 `复制 API` | 一键复制当前接口的请求方法和完整地址 | 直接发给前端同学、联调同学或贴到文档里 |
 | `Try it out` 按钮 | 请求可编辑状态 | 开始填写参数并测试 |
 | `Execute` 按钮 | 真正发请求 | 看状态码、返回数据、请求 URL |
 
