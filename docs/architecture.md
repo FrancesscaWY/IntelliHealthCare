@@ -2,20 +2,23 @@
 
 ## 1. 项目概览
 
-IntelliHealthCare 当前使用 Monorepo 统一管理前端工作区。
+IntelliHealthCare 当前使用全栈 Monorepo 统一管理前后端工作区。
 
 核心目标：
 
-- APP 端与后台端使用同一套技术栈
+- 用户端、后台端与后端在同一仓库内演进
+- 前后端统一使用 TypeScript 体系，降低协作切换成本
 - 整站预览与单页预览使用同一套启动机制
-- 页面开发以“页面目录”作为最小协作单元
+- 前端页面开发以“页面目录”作为最小协作单元
+- 后端以 `NestJS` 模块化单体承接统一业务 API
 
 关键目录：
 
 ```text
 apps/
-  user-web/                 APP 端网页工作区
+  user-web/                 用户端网页工作区
   admin-web/                后台端网页工作区
+  backend/                  统一后端服务
 packages/
   page-core/                页面类型与运行时工具
 scripts/
@@ -24,9 +27,9 @@ docs/
   *.md                      协作文档
 ```
 
-## 2. 双工作区结构
+## 2. 三应用结构
 
-### APP 端
+### 用户端
 
 ```text
 apps/user-web/
@@ -34,7 +37,8 @@ apps/user-web/
 
 定位：
 
-- 面向长者与家属的业务页面工作区
+- 面向长者与家属的统一业务页面工作区
+- 老人和家属共用同一套用户端系统，不单独拆分为两个前端应用
 - 保留移动端页面壳与轻量导航模型
 
 ### 后台端
@@ -49,9 +53,26 @@ apps/admin-web/
 - 使用桌面端工作台壳承载页面
 - 页面结构参考后台原型与当前仓库页面协作规范
 
+### 后端
+
+```text
+apps/backend/
+```
+
+定位：
+
+- 面向用户端和后台端提供统一业务 API
+- 采用 `NestJS` 模块化单体组织业务域
+- 承接 PostgreSQL、Redis、MinIO 和后续 Agent 运行时接入
+
+补充说明：
+
+- 本文档重点描述 Monorepo 结构以及两个前端工作区的页面装配机制
+- 后端模块边界和基础设施设计以 [backend-architecture.md](./backend-architecture.md) 为准
+
 ## 3. 主应用入口
 
-两个工作区都遵循同样的启动链路：
+两个前端工作区都遵循同样的启动链路：
 
 ```text
 apps/<app>/index.html
@@ -152,7 +173,10 @@ packages/page-core/src/types.ts
 
 ## 6. scripts 的职责
 
-脚本层已经支持 `user` 和 `admin` 两种应用目标。
+脚本层当前分为两类：
+
+- 前端页面工作区脚本：支持 `user` 和 `admin` 两种应用目标
+- 根工作区脚本：统一聚合 `user-web`、`admin-web`、`backend`
 
 ### 开发入口
 
@@ -170,13 +194,15 @@ npm run check
 npm run build
 ```
 
-也可以分别执行：
+根命令默认覆盖整个仓库；也可以分别执行：
 
 ```bash
 npm run check:user
 npm run check:admin
+npm run check:backend
 npm run build:user
 npm run build:admin
+npm run build:backend
 ```
 
 ### 页面脚手架
@@ -191,7 +217,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 - 创建页面目录
 - 生成 `Page.vue`
 - 生成 `mock.ts`
-- 生成 `README.md`
+- 在需要时通过 `--with-readme` 生成 `README.md`
 - 写入对应应用的 `pages.manifest.json`
 
 ## 7. packages/page-core 的职责
@@ -205,7 +231,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 - `normalizePageId`
 - `resolveInitialPage`
 - 页面分组工具
-- APP 端底部导航数据
+- 用户端底部导航数据
 
 如果逻辑满足以下条件，优先放到 `packages/page-core`：
 

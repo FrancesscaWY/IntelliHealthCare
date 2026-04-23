@@ -7,16 +7,30 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "dev": "ts-node-dev --respawn --transpile-only --files src/main.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "start": "node dist/main.js",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "TS_NODE_PROJECT=tsconfig.test.json node --require ts-node/register/transpile-only --test test/unit/*.test.ts",
+    "test:integration": "TS_NODE_PROJECT=tsconfig.test.json node --require ts-node/register/transpile-only --test test/integration/*.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "rag:build": "tsx scripts/build-rag-db.ts",
+    "rag:rebuild": "tsx scripts/build-rag-db.ts --mode=full",
+    "rag:eval": "tsx scripts/eval-rag.ts --fail-on-regression",
+    "test:smoke:regression": "node ../../scripts/backend-smoke-expanded.mjs",
     "prisma:studio": "prisma studio",
     "postinstall": "prisma generate"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
+    "@electric-sql/pglite": "^0.4.4",
+    "@electric-sql/pglite-socket": "^0.1.4",
     "@nestjs/common": "latest",
     "@nestjs/config": "latest",
     "@nestjs/core": "latest",
@@ -28,16 +42,22 @@
     "bullmq": "latest",
     "class-transformer": "latest",
     "class-validator": "latest",
+    "dotenv": "^17.2.3",
     "ioredis": "latest",
     "minio": "latest",
+    "pg": "^8.20.0",
     "reflect-metadata": "latest",
     "rxjs": "latest",
     "swagger-ui-express": "latest",
     "zod": "latest"
   },
   "devDependencies": {
+    "@nestjs/testing": "latest",
     "@types/node": "latest",
+    "@types/pg": "^8.15.6",
     "prisma": "^5.20.0",
+    "ts-node": "latest",
+    "ts-node-dev": "^2.0.0",
     "tsx": "latest",
     "typescript": "latest"
   }

@@ -1,0 +1,67 @@
+{
+  "datasetName": "rag-regression-core",
+  "datasetVersion": "2026-04-22",
+  "cases": [
+    {
+      "caseKey": "service-rehab-stroke",
+      "query": "脑卒中术后康复套餐 上门评估 步态训练",
+      "limit": 5,
+      "knowledgeTypes": ["SERVICE_CATALOG"],
+      "visibilityScopes": ["PUBLIC"],
+      "expected": {
+        "knowledgeBaseCodes": ["rag-service-catalog-public"],
+        "sourceUris": ["record://ServiceItem/srv_rehab_stroke"],
+        "titleIncludes": ["脑卒中术后康复套餐"]
+      }
+    },
+    {
+      "caseKey": "health-article-salt",
+      "query": "高血压 控盐 每日盐摄入",
+      "limit": 5,
+      "knowledgeTypes": ["HEALTH_KNOWLEDGE"],
+      "visibilityScopes": ["PUBLIC"],
+      "expected": {
+        "knowledgeBaseCodes": ["rag-health-knowledge-public"],
+        "sourceUris": ["record://Article/article_low_salt"],
+        "titleIncludes": ["盐摄入"]
+      }
+    },
+    {
+      "caseKey": "platform-private-boundary",
+      "query": "用户私有知识访问边界 ownerUserId FamilyBinding",
+      "limit": 5,
+      "knowledgeTypes": ["PLATFORM_RULE"],
+      "visibilityScopes": ["PUBLIC"],
+      "expected": {
+        "knowledgeBaseCodes": ["rag-platform-rule-public"],
+        "sourceUris": ["record://policy/private-archive-access"],
+        "titleIncludes": ["用户私有知识访问边界"]
+      }
+    },
+    {
+      "caseKey": "institution-renhe-rehab",
+      "query": "周明 康复治疗师 脑卒中术后康复",
+      "limit": 5,
+      "knowledgeTypes": ["INSTITUTION_RESOURCE"],
+      "visibilityScopes": ["INSTITUTION"],
+      "institutionId": "inst_renhe",
+      "expected": {
+        "knowledgeBaseCodes": ["rag-institution-resource-rhkf003"],
+        "sourceUris": ["record://Institution/inst_renhe"],
+        "titleIncludes": ["仁和康复门诊"]
+      }
+    },
+    {
+      "caseKey": "private-joy-metrics",
+      "query": "王秀珍 近期健康指标 血压 监测记录",
+      "limit": 5,
+      "knowledgeTypes": ["USER_PRIVATE_ARCHIVE"],
+      "visibilityScopes": ["USER_PRIVATE"],
+      "targetUserId": "user_elder_joy",
+      "expected": {
+        "sourceUris": ["record://HealthMetricRecord/user/user_elder_joy"],
+        "titleIncludes": ["近期健康指标"]
+      }
+    }
+  ]
+}

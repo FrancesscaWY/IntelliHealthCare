@@ -13,6 +13,7 @@ import { CommunityModule } from "./modules/community/community.module";
 import { ContentModule } from "./modules/content/content.module";
 import { FamilyModule } from "./modules/family/family.module";
 import { HealthArchiveModule } from "./modules/health-archive/health-archive.module";
+import { HealthLifestyleModule } from "./modules/health-lifestyle/health-lifestyle.module";
 import { HealthMetricsModule } from "./modules/health-metrics/health-metrics.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { OrdersModule } from "./modules/orders/orders.module";
@@ -21,6 +22,7 @@ import { ReportsModule } from "./modules/reports/reports.module";
 import { ServiceCatalogModule } from "./modules/service-catalog/service-catalog.module";
 import { SystemModule } from "./modules/system/system.module";
 import { UsersModule } from "./modules/users/users.module";
+import { FilesModule } from "./modules/files/files.module";
 
 const envFilePath = [
   join(process.cwd(), "apps/backend/.env"),
@@ -45,10 +47,12 @@ const envFilePath = [
     FamilyModule,
     HealthArchiveModule,
     HealthMetricsModule,
+    HealthLifestyleModule,
     ServiceCatalogModule,
     OrdersModule,
     PaymentsModule,
     ReportsModule,
+    FilesModule,
     MessagingModule,
     CommunityModule,
     ContentModule,
