@@ -1,15 +1,16 @@
 # API前端接入说明文档
 
-  1. [Swagger](http://server.mctown.online:8190/api/v1/docs#/)网站：测试后端服务是否正常启动；API状态测试；API分类模块；问题反馈。
+  1. [Swagger](http://server.mctown.online:8190/api/v1/docs#/)网站：测试后端服务是否正常启动；API状态测试；API分类模块；复制API；问题反馈。
   2. [API文档](../frontend-api-test/swagger-api-formal-reference.md)：API分类、名称、含义、使用方式。
   3. API-前端网页映射汇总表：API分类模块与前端页面的映射关系。
    
 ## 操作规范
-1. 找到自己负责的模块
-2. 根据API-前端映射表找到对应的接入页
-3. 根据Swagger/API文档上找到负责模型涉及的API
-4. 根据具体的逻辑关系将API接入前端页面
-5. 问题反馈：通过Swagger提交Github Issue，规范符合模板，包括：
+1. 基于main创建新分支
+2. 找到自己负责的模块
+3. 根据API-前端映射表找到对应的接入页
+4. 根据Swagger/API文档上找到负责模型涉及的API
+5. 根据具体的逻辑关系将API接入前端页面
+6. 问题反馈：通过Swagger提交Github Issue，规范符合模板，包括：
    -  API访问失败
    -  API返回错误
    -  前端需要的数据API没有正常提供
