@@ -111,6 +111,7 @@ const swaggerInfoPanelHtml = String.raw`
       <li>统一从域名入口进入 Swagger。</li>
       <li>文档地址：<code>http://server.mctown.online:8190/api/v1/docs</code></li>
       <li><code>Try it out</code> 会跟随当前页面的域名和端口。</li>
+      <li>API Base URL：http://server.mctown.online:8190/api/v1</li>
     </ul>
   </section>
   <section class="ihc-doc-card">
@@ -137,6 +138,7 @@ const swaggerInfoPanelHtml = String.raw`
     <ul>
       <li><code>APP_TOKEN</code> / <code>ADMIN_TOKEN</code> 都来自登录返回的 <code>data.accessToken</code></li>
       <li><code>Authorize</code> 中必须保留 <code>Bearer</code> 和后面的空格</li>
+      <li>注意部分API的调用需要登录产生的<code>TOKEN</code></li>
       <li>成功响应重点看 <code>code</code>、<code>message</code>、<code>requestId</code>、<code>data</code></li>
       <li>列表通常在 <code>data.list</code>，详情通常直接在 <code>data</code></li>
     </ul>
