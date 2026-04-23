@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import { reactive } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  getCurrentUser,
+  getPrivacyAgreement,
+  loginWithPassword,
+  loginWithSms,
+  loginWithThirdParty,
+  sendSmsCode
+} from "@/shared/api/auth";
+import type { LoginResponse } from "@/shared/api/auth";
+import { saveUserAuthSession, clearUserAuthSession, hasUserAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
 
 const props = defineProps<PageComponentProps>();
+const phonePattern = /^1\d{10}$/;
+let codeTimer = 0;
 
 const state = reactive({
   loginMode: "password" as "password" | "code",
@@ -12,6 +24,18 @@ const state = reactive({
   password: "",
   code: "",
   agreed: true,
+  submitting: false,
+  sendingCode: false,
+  codeCountdown: 0,
+});
+
+const submitButtonText = computed(() => (state.submitting ? "登录中..." : "登录"));
+const sendCodeButtonText = computed(() => {
+  if (state.sendingCode) {
+    return "发送中...";
+  }
+
+  return state.codeCountdown > 0 ? `${state.codeCountdown}s 后重发` : "获取验证码";
 });
 
 function goBack() {
@@ -24,58 +48,171 @@ function toggleMode() {
   state.loginMode = state.loginMode === "password" ? "code" : "password";
 }
 
-function sendCode() {
-  if (!state.phone.trim()) {
-    props.showToast("请先输入手机号");
+function validatePhone() {
+  const normalizedPhone = state.phone.trim();
+
+  if (!normalizedPhone) {
+    throw new Error("请输入手机号");
+  }
+
+  if (!phonePattern.test(normalizedPhone)) {
+    throw new Error("请输入正确的 11 位手机号");
+  }
+
+  return normalizedPhone;
+}
+
+function startCodeCountdown() {
+  state.codeCountdown = 60;
+  window.clearInterval(codeTimer);
+  codeTimer = window.setInterval(() => {
+    if (state.codeCountdown <= 1) {
+      window.clearInterval(codeTimer);
+      state.codeCountdown = 0;
+      return;
+    }
+
+    state.codeCountdown -= 1;
+  }, 1000);
+}
+
+function createDeviceId(prefix: string) {
+  const userAgent = typeof window === "undefined" ? "unknown" : window.navigator.userAgent;
+  return `${prefix}-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
+}
+
+async function redirectAfterLogin() {
+  const currentUser = await getCurrentUser();
+  props.navigation.reLaunch(currentUser.realNameVerified ? "home/dashboard" : "auth/real-name");
+}
+
+function storeSession(session: LoginResponse) {
+  saveUserAuthSession(session);
+  setLastLoginPhone(session.user.phone);
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+async function sendCode() {
+  if (state.sendingCode || state.codeCountdown > 0) {
     return;
   }
 
-  props.showToast("验证码已发送");
+  try {
+    const phone = validatePhone();
+    state.sendingCode = true;
+    const result = await sendSmsCode(phone);
+    startCodeCountdown();
+    props.showToast(result.debugCode ? `验证码已发送：${result.debugCode}` : "验证码已发送");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    state.sendingCode = false;
+  }
 }
 
 function forgetPassword() {
   props.navigation.navigateTo("auth/forgot-password");
 }
 
-function submitForm() {
-  if (!state.agreed) {
-    props.showToast("请先同意隐私政策");
+async function submitForm() {
+  if (state.submitting) {
     return;
   }
 
-  if (!state.phone.trim()) {
-    props.showToast("请输入手机号");
-    return;
-  }
+  try {
+    if (!state.agreed) {
+      throw new Error("请先同意隐私政策");
+    }
 
-  if (state.loginMode === "password" && !state.password.trim()) {
-    props.showToast("请输入密码");
-    return;
-  }
+    const phone = validatePhone();
 
-  if (state.loginMode === "code" && !state.code.trim()) {
-    props.showToast("请输入验证码");
-    return;
-  }
+    if (state.loginMode === "password" && !state.password.trim()) {
+      throw new Error("请输入密码");
+    }
 
-  setLastLoginPhone(state.phone);
-  props.showToast("登录成功");
-  window.setTimeout(() => {
-    props.navigation.reLaunch("auth/real-name");
-  }, 280);
+    if (state.loginMode === "code" && !state.code.trim()) {
+      throw new Error("请输入验证码");
+    }
+
+    state.submitting = true;
+
+    const session =
+      state.loginMode === "password"
+        ? await loginWithPassword({
+            phone,
+            password: state.password.trim(),
+            agreePrivacy: state.agreed,
+            deviceId: createDeviceId("user-web")
+          })
+        : await loginWithSms({
+            phone,
+            code: state.code.trim()
+          });
+
+    storeSession(session);
+    props.showToast("登录成功");
+    await redirectAfterLogin();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    state.submitting = false;
+  }
 }
 
-function handleThirdPartyLogin(label: string) {
-  setLastLoginPhone(state.phone);
-  props.showToast(`${label}登录成功`);
-  window.setTimeout(() => {
-    props.navigation.reLaunch("auth/real-name");
-  }, 280);
+async function handleThirdPartyLogin(provider: string, label: string) {
+  if (state.submitting) {
+    return;
+  }
+
+  try {
+    if (!state.agreed) {
+      throw new Error("请先同意隐私政策");
+    }
+
+    state.submitting = true;
+    const normalizedPhone = state.phone.trim();
+    const session = await loginWithThirdParty({
+      phone: phonePattern.test(normalizedPhone) ? normalizedPhone : undefined,
+      provider
+    });
+
+    storeSession(session);
+    props.showToast(`${label}登录成功`);
+    await redirectAfterLogin();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    state.submitting = false;
+  }
 }
 
-function showPolicy() {
-  props.showToast("隐私政策页面待补充");
+async function showPolicy() {
+  try {
+    const agreement = await getPrivacyAgreement();
+    props.showToast(`${agreement.title} ${agreement.version}`);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
 }
+
+onMounted(async () => {
+  if (!hasUserAuthSession()) {
+    return;
+  }
+
+  try {
+    await redirectAfterLogin();
+  } catch {
+    clearUserAuthSession();
+  }
+});
+
+onBeforeUnmount(() => {
+  window.clearInterval(codeTimer);
+});
 </script>
 
 <template>
@@ -108,7 +245,15 @@ function showPolicy() {
           <span class="phone-dot"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="phone" v-model="state.phone" class="login-input" type="tel" maxlength="11" placeholder="手机号码" />
+        <input
+          id="phone"
+          v-model="state.phone"
+          class="login-input"
+          type="tel"
+          maxlength="11"
+          placeholder="手机号码"
+          :disabled="state.submitting"
+        />
       </label>
 
       <label v-if="state.loginMode === 'password'" class="input-box" for="password">
@@ -117,7 +262,7 @@ function showPolicy() {
           <span class="lock-ring"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="password" v-model="state.password" class="login-input" type="password" placeholder="密码" />
+        <input id="password" v-model="state.password" class="login-input" type="password" placeholder="密码" :disabled="state.submitting" />
       </label>
 
       <label v-else class="input-box" for="code">
@@ -126,19 +271,23 @@ function showPolicy() {
           <span class="code-dot"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="code" v-model="state.code" class="login-input code-input" type="text" maxlength="6" placeholder="验证码" />
-        <button class="code-action" type="button" @click="sendCode">获取验证码</button>
+        <input id="code" v-model="state.code" class="login-input code-input" type="text" maxlength="6" placeholder="验证码" :disabled="state.submitting" />
+        <button class="code-action" type="button" :disabled="state.sendingCode || state.codeCountdown > 0 || state.submitting" @click="sendCode">
+          {{ sendCodeButtonText }}
+        </button>
       </label>
 
       <div v-if="state.loginMode === 'password'" class="forget-row">
         <button class="forget-btn" type="button" @click="forgetPassword">忘记密码</button>
       </div>
 
-      <button class="login-btn" type="submit">登录</button>
+      <button class="login-btn" type="submit" :disabled="state.submitting">{{ submitButtonText }}</button>
 
-      <button class="mode-switch" type="button" @click="toggleMode">
+      <button class="mode-switch" type="button" :disabled="state.submitting" @click="toggleMode">
         {{ state.loginMode === "password" ? "手机验证码登录" : "手机号密码登录" }}
       </button>
+
+      <p class="account-tip">测试账号：家属 13900139000 / 123456，长者 13800138000 / 123456</p>
     </form>
 
     <section class="third-party-area" aria-label="第三方登录">
@@ -156,7 +305,8 @@ function showPolicy() {
           :class="`third-party-item--${item.key}`"
           type="button"
           :aria-label="`${item.label}登录`"
-          @click="handleThirdPartyLogin(item.label)"
+          :disabled="state.submitting"
+          @click="handleThirdPartyLogin(item.key, item.label)"
         >
           <img :src="item.icon" :alt="item.label" draggable="false" />
         </button>
@@ -432,6 +582,14 @@ function showPolicy() {
   font-size: 14px;
 }
 
+.code-action:disabled,
+.login-btn:disabled,
+.mode-switch:disabled,
+.third-party-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .forget-row {
   display: flex;
   justify-content: flex-end;
@@ -464,6 +622,14 @@ function showPolicy() {
   padding: 0;
   color: #6670f0;
   font-size: 19px;
+}
+
+.account-tip {
+  margin: 12px 0 0;
+  color: #7f8694;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .third-party-area {

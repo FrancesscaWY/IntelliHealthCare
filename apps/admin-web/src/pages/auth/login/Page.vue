@@ -1,23 +1,82 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getCurrentAdmin, loginWithPassword } from "@/shared/api/auth";
+import {
+  clearAdminAuthSession,
+  hasAdminAuthSession,
+  saveAdminAuthSession
+} from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const phonePattern = /^1\d{10}$/;
 
 const account = ref(mock.account);
 const password = ref(mock.password);
 const remember = ref(mock.remember);
+const submitting = ref(false);
+const submitButtonText = computed(() => (submitting.value ? "登录中..." : "进入后台"));
 
-function submitLogin() {
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function createDeviceId() {
+  const userAgent = typeof window === "undefined" ? "unknown" : window.navigator.userAgent;
+  return `admin-web-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
+}
+
+async function redirectToDashboard() {
+  await getCurrentAdmin();
   props.navigation.reLaunch("dashboard/overview");
-  props.showToast("已进入后台，当前为免校验演示登录");
 }
 
-function openPage(pageId: string, label: string) {
-  props.navigation.reLaunch(pageId);
-  props.showToast(`已进入${label}`);
+async function submitLogin() {
+  if (submitting.value) {
+    return;
+  }
+
+  try {
+    if (!phonePattern.test(account.value.trim())) {
+      throw new Error("请输入正确的后台手机号");
+    }
+
+    if (!password.value.trim()) {
+      throw new Error("请输入登录密码");
+    }
+
+    submitting.value = true;
+    const session = await loginWithPassword({
+      phone: account.value.trim(),
+      password: password.value.trim(),
+      agreePrivacy: true,
+      deviceId: createDeviceId()
+    });
+
+    saveAdminAuthSession(session, {
+      persist: remember.value
+    });
+    await redirectToDashboard();
+    props.showToast("后台登录成功");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    submitting.value = false;
+  }
 }
+
+onMounted(async () => {
+  if (!hasAdminAuthSession()) {
+    return;
+  }
+
+  try {
+    await redirectToDashboard();
+  } catch {
+    clearAdminAuthSession();
+  }
+});
 </script>
 
 <template>
@@ -42,12 +101,12 @@ function openPage(pageId: string, label: string) {
 
       <label class="field">
         <span>账号</span>
-        <input v-model="account" type="text" placeholder="可留空或输入任意账号" />
+        <input v-model="account" type="text" maxlength="11" placeholder="请输入后台手机号" :disabled="submitting" />
       </label>
 
       <label class="field">
         <span>密码</span>
-        <input v-model="password" type="password" placeholder="可留空或输入任意密码" />
+        <input v-model="password" type="password" placeholder="请输入登录密码" :disabled="submitting" />
       </label>
 
       <label class="remember-line">
@@ -55,21 +114,12 @@ function openPage(pageId: string, label: string) {
         <span>记住当前登录信息</span>
       </label>
 
-      <button class="login-btn" type="button" @click="submitLogin">直接进入后台</button>
+      <button class="login-btn" type="button" :disabled="submitting" @click="submitLogin">{{ submitButtonText }}</button>
 
       <footer class="login-card__foot">
-        <span>单页调试入口</span>
-        <div class="quick-links">
-          <button
-            v-for="item in mock.quickEntries"
-            :key="item.pageId"
-            type="button"
-            class="quick-link"
-            @click="openPage(item.pageId, item.label)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
+        <span>联调账号</span>
+        <p class="login-card__hint">后台账号：13600136000 / 123456</p>
+        <p class="login-card__hint">勾选“记住当前登录信息”时，token 落到 `localStorage`；否则只放 `sessionStorage`。</p>
       </footer>
     </section>
   </section>
@@ -219,6 +269,10 @@ function openPage(pageId: string, label: string) {
   font-weight: 700;
 }
 
+.login-btn:disabled {
+  opacity: 0.72;
+}
+
 .login-card__foot {
   margin-top: 20px;
   padding-top: 18px;
@@ -231,11 +285,11 @@ function openPage(pageId: string, label: string) {
   font-size: 13px;
 }
 
-.quick-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
+.login-card__hint {
+  margin: 12px 0 0;
+  color: var(--admin-text);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .quick-link {

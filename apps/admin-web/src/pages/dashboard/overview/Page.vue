@@ -1,13 +1,53 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getDashboardOverview } from "@/shared/api/workbench";
+import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const overview = ref<{
+  elderCount: number;
+  orderCount: number;
+  workOrderCount: number;
+  reportCount: number;
+  openAlertCount: number;
+} | null>(null);
+
+const resolvedStats = computed(() => {
+  if (!overview.value) {
+    return mock.stats;
+  }
+
+  return [
+    { label: "在住长者", value: String(overview.value.elderCount), delta: "实时统计", tone: "brand" },
+    { label: "待处理预警", value: String(overview.value.openAlertCount), delta: "实时统计", tone: "danger" },
+    { label: "今日服务工单", value: String(overview.value.workOrderCount), delta: `累计订单 ${overview.value.orderCount}`, tone: "accent" },
+    { label: "报告总量", value: String(overview.value.reportCount), delta: "后台接口实时返回", tone: "neutral" },
+  ];
+});
 
 function openPage(pageId: string, label: string) {
   props.navigation.reLaunch(pageId);
   props.showToast(`已切换到${label}`);
 }
+
+onMounted(async () => {
+  try {
+    overview.value = await getDashboardOverview();
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+
+    if (status === 401 || status === 403) {
+      clearAdminAuthSession();
+      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
+      props.navigation.reLaunch("auth/login");
+      return;
+    }
+
+    props.showToast(error instanceof Error ? error.message : "后台首页加载失败");
+  }
+});
 </script>
 
 <template>
@@ -32,7 +72,7 @@ function openPage(pageId: string, label: string) {
     </section>
 
     <section class="stats-grid">
-      <article v-for="item in mock.stats" :key="item.label" class="stat-card" :class="`stat-card--${item.tone}`">
+      <article v-for="item in resolvedStats" :key="item.label" class="stat-card" :class="`stat-card--${item.tone}`">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
         <small>{{ item.delta }}</small>

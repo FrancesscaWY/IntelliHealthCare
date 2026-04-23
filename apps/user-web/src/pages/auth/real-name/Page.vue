@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getCurrentUser, submitRealName, updateUserProfile } from "@/shared/api/auth";
 import mock from "./mock";
 import { lastLoginPhone } from "../session";
 
@@ -11,10 +12,40 @@ const form = reactive({
   gender: "",
   birthday: "",
   address: "",
+  saving: false,
 });
 const activePicker = ref<"gender" | "birthday" | null>(null);
 const birthdayDraft = ref(mock.birthdayDefault);
-const displayPhone = computed(() => lastLoginPhone.value || mock.phone);
+const profilePhone = ref("");
+const displayPhone = computed(() => profilePhone.value || lastLoginPhone.value || mock.phone);
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function mapGenderFromApi(gender: string | null) {
+  if (gender === "MALE") {
+    return "男";
+  }
+
+  if (gender === "FEMALE") {
+    return "女";
+  }
+
+  return "";
+}
+
+function mapGenderToApi(gender: string) {
+  if (gender === "男") {
+    return "MALE" as const;
+  }
+
+  if (gender === "女") {
+    return "FEMALE" as const;
+  }
+
+  return "UNKNOWN" as const;
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -45,7 +76,11 @@ function confirmBirthday() {
   closePicker();
 }
 
-function saveProfile() {
+async function saveProfile() {
+  if (form.saving) {
+    return;
+  }
+
   if (!form.realName.trim()) {
     props.showToast("请填写真实姓名");
     return;
@@ -66,11 +101,39 @@ function saveProfile() {
     return;
   }
 
-  props.showToast("保存成功");
-  window.setTimeout(() => {
+  try {
+    form.saving = true;
+    await submitRealName({
+      realName: form.realName.trim(),
+      idCard: form.idCard.trim()
+    });
+    await updateUserProfile({
+      gender: mapGenderToApi(form.gender),
+      birthday: form.birthday
+    });
+    props.showToast("实名认证已提交");
     props.navigation.reLaunch("home/dashboard");
-  }, 280);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    form.saving = false;
+  }
 }
+
+onMounted(async () => {
+  try {
+    const currentUser = await getCurrentUser();
+    profilePhone.value = currentUser.phone;
+    form.gender = mapGenderFromApi(currentUser.gender);
+    form.birthday = currentUser.birthday || "";
+
+    if (currentUser.name && currentUser.name !== currentUser.phone) {
+      form.realName = currentUser.name;
+    }
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+});
 </script>
 
 <template>
@@ -150,7 +213,9 @@ function saveProfile() {
       </label>
 
       <div class="card-actions">
-        <button class="save-btn" type="button" @click="saveProfile">立即认证</button>
+        <button class="save-btn" type="button" :disabled="form.saving" @click="saveProfile">
+          {{ form.saving ? "提交中..." : "立即认证" }}
+        </button>
       </div>
     </section>
 
@@ -407,6 +472,10 @@ function saveProfile() {
   font-size: 17px;
   font-weight: 500;
   letter-spacing: 0.08em;
+}
+
+.save-btn:disabled {
+  opacity: 0.7;
 }
 
 .real-name-note {

@@ -28,11 +28,17 @@
 
 ### 2.1 Base URL
 
-本地默认地址：
+当前前端联调默认地址：
 
-- API Base URL：`http://localhost:8190/api/v1`
-- Swagger UI：`http://localhost:8190/api/v1/docs`
-- OpenAPI JSON：`http://localhost:8190/api/v1/docs/json`
+- API Base URL：`http://server.mctown.online:8190/api/v1`
+- Swagger UI：`http://server.mctown.online:8190/api/v1/docs`
+- OpenAPI JSON：`http://server.mctown.online:8190/api/v1/docs/json`
+
+说明：
+
+- 前端联调默认应使用可访问的 IP 或域名地址，不要默认写 `localhost`。
+- `localhost` 只表示当前访问设备自身；当前端页面不与后端运行在同一台机器上时，会直接导致“无法连接后端接口”。
+- 如需切换环境，可通过 `VITE_API_BASE_URL` 覆盖前端默认地址。
 
 ### 2.2 鉴权规则
 
