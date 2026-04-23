@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 
 export const rootDir = path.resolve(__dirname, "..");
 export const packageCoreDir = path.join(rootDir, "packages", "page-core");
+export const DEFAULT_PAGE_SUMMARY = "请根据原型补充页面职责说明。";
 
 export function getAppPaths(appArg = "user") {
   const target = resolveAppTarget(appArg);
@@ -96,7 +97,7 @@ export function buildPageEntry({
     route: `/${normalizedId}`,
     owner: owner || "待分配",
     status,
-    summary: summary || "请根据原型补充页面职责说明。",
+    summary: summary || DEFAULT_PAGE_SUMMARY,
     folderPath: baseFolder,
     modulePath: `${baseFolder}/Page.vue`,
     mockPath: `${baseFolder}/mock.ts`,

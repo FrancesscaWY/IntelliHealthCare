@@ -1,68 +1,67 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import heroIllustration from "@/assets/auth/medical-care-storyset.svg";
 import mock from "./mock";
 
 type LoginRole = (typeof mock.roles)[number];
 
 const props = defineProps<PageComponentProps>();
+const phonePattern = /^1\d{10}$/;
 
 const defaultRole = mock.roles[0]!;
 const phone = ref(mock.phone);
 const password = ref(mock.password);
-const agreePolicy = ref(mock.agreePolicy);
-const selectedRole = ref<LoginRole["key"]>(defaultRole.key);
-
-const currentRole = computed<LoginRole>(
-  () => mock.roles.find((item) => item.key === selectedRole.value) ?? defaultRole,
-);
-
-const roleIconMarkup: Record<string, string> = {
-  shield: `
-    <path d="M24 5 35 9.3v9.9c0 7.8-4.1 12.9-11 17.4-6.9-4.5-11-9.6-11-17.4V9.3L24 5Z" />
-    <path d="M24 12.5v16.8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-    <path d="M17.5 21h13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-  `,
-  headset: `
-    <path d="M13 22.5v-2c0-6.1 4.9-11 11-11s11 4.9 11 11v2" />
-    <rect x="10.5" y="21.2" width="5.8" height="10.4" rx="2.9" />
-    <rect x="31.7" y="21.2" width="5.8" height="10.4" rx="2.9" />
-    <path d="M31.7 33.3c0 3.3-2.7 6-6 6h-3.1" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-  `,
-  building: `
-    <path d="M13.5 9.5h15v27h-15z" />
-    <path d="M28.5 14h7v22.5h-7z" opacity=".72" />
-    <rect x="17.3" y="13.8" width="3.6" height="3.6" rx=".7" fill="#ffffff" />
-    <rect x="17.3" y="20.6" width="3.6" height="3.6" rx=".7" fill="#ffffff" />
-    <rect x="17.3" y="27.4" width="3.6" height="3.6" rx=".7" fill="#ffffff" />
-    <rect x="23.1" y="13.8" width="3.6" height="3.6" rx=".7" fill="#ffffff" opacity=".88" />
-    <rect x="23.1" y="20.6" width="3.6" height="3.6" rx=".7" fill="#ffffff" opacity=".88" />
-    <rect x="23.1" y="27.4" width="3.6" height="3.6" rx=".7" fill="#ffffff" opacity=".88" />
-  `,
-};
-
-function getRoleIconMarkup(icon: string) {
-  return roleIconMarkup[icon] || roleIconMarkup.shield;
-}
-
-function selectRole(roleKey: LoginRole["key"]) {
-  selectedRole.value = roleKey;
-}
-
-function openPolicy() {
-  props.showToast("隐私政策页面暂未接入，当前为演示登录。");
-}
+const remember = ref(mock.remember);
 
 function submitLogin() {
-  if (!agreePolicy.value) {
-    props.showToast("请先阅读并同意用户隐私政策。");
+  props.navigation.reLaunch("dashboard/overview");
+}
+
+async function submitLogin() {
+  if (submitting.value) {
     return;
   }
 
-  props.navigation.reLaunch("dashboard/overview");
-  props.showToast(`已使用${currentRole.value.label}身份进入后台演示系统`);
+  try {
+    if (!phonePattern.test(account.value.trim())) {
+      throw new Error("请输入正确的后台手机号");
+    }
+
+    if (!password.value.trim()) {
+      throw new Error("请输入登录密码");
+    }
+
+    submitting.value = true;
+    const session = await loginWithPassword({
+      phone: account.value.trim(),
+      password: password.value.trim(),
+      agreePrivacy: true,
+      deviceId: createDeviceId()
+    });
+
+    saveAdminAuthSession(session, {
+      persist: remember.value
+    });
+    await redirectToDashboard();
+    props.showToast("后台登录成功");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    submitting.value = false;
+  }
 }
+
+onMounted(async () => {
+  if (!hasAdminAuthSession()) {
+    return;
+  }
+
+  try {
+    await redirectToDashboard();
+  } catch {
+    clearAdminAuthSession();
+  }
+});
 </script>
 
 <template>
@@ -128,13 +127,13 @@ function submitLogin() {
       </div>
 
       <label class="field">
-        <span class="field__label">手机号</span>
-        <input v-model="phone" type="text" autocomplete="username" placeholder="请输入手机号" />
+        <span>账号</span>
+        <input v-model="account" type="text" placeholder="可留空或输入任意账号" />
       </label>
 
       <label class="field">
-        <span class="field__label">密码</span>
-        <input v-model="password" type="password" autocomplete="current-password" placeholder="请输入密码" />
+        <span>密码</span>
+        <input v-model="password" type="password" placeholder="可留空或输入任意密码" />
       </label>
 
       <label class="agreement-line">
@@ -143,9 +142,22 @@ function submitLogin() {
         <button type="button" class="agreement-link" @click="openPolicy">{{ mock.policyName }}</button>
       </label>
 
-      <button class="login-btn" type="button" @click="submitLogin">登录</button>
+      <button class="login-btn" type="button" @click="submitLogin">直接进入后台</button>
 
-      <p class="login-card__hint">{{ mock.forgotPasswordText }}</p>
+      <footer class="login-card__foot">
+        <span>单页调试入口</span>
+        <div class="quick-links">
+          <button
+            v-for="item in mock.quickEntries"
+            :key="item.pageId"
+            type="button"
+            class="quick-link"
+            @click="openPage(item.pageId, item.label)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </footer>
     </section>
 
     <footer class="login-footer">
@@ -476,9 +488,13 @@ function submitLogin() {
   background: linear-gradient(135deg, #59b886 0%, #2f9b6e 100%);
   color: #ffffff;
   font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  box-shadow: 0 14px 28px rgba(47, 155, 110, 0.18);
+  font-weight: 700;
+}
+
+.login-card__foot {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(22, 53, 45, 0.08);
 }
 
 .login-card__hint {
@@ -489,16 +505,11 @@ function submitLogin() {
   text-align: center;
 }
 
-.login-footer {
-  position: absolute;
-  right: 56px;
-  bottom: 22px;
-  left: 56px;
+.quick-links {
   display: flex;
-  justify-content: center;
-  gap: 16px;
-  color: #a5b2bf;
-  font-size: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .login-footer a {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getDashboardOverview } from "@/shared/api/workbench";
+import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -112,6 +114,23 @@ function openQuickEntry(entry: { title: string; pageId?: string }) {
 
   props.showToast(`${entry.title}功能正在接入中。`);
 }
+
+onMounted(async () => {
+  try {
+    overview.value = await getDashboardOverview();
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+
+    if (status === 401 || status === 403) {
+      clearAdminAuthSession();
+      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
+      props.navigation.reLaunch("auth/login");
+      return;
+    }
+
+    props.showToast(error instanceof Error ? error.message : "后台首页加载失败");
+  }
+});
 </script>
 
 <template>
