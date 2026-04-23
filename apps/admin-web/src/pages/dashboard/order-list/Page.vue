@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onActivated, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import mock, { orderDetailPendingActionStorageKey, orderDetailStorageKey } from "./mock";
 
 const props = defineProps<PageComponentProps>();
 
@@ -13,10 +13,20 @@ const minPrice = ref("");
 const maxPrice = ref("");
 const keyword = ref("");
 const activeStatus = ref("全部");
+const listRefreshTick = ref(0);
+const reusableDetailActionLabels = new Set(["关闭订单", "手动派单", "退款", "发起售后", "处理售后"]);
+
+function refreshList() {
+  listRefreshTick.value += 1;
+}
+
+onMounted(refreshList);
+onActivated(refreshList);
 
 const filteredOrders = computed(() =>
+  (listRefreshTick.value,
   mock.orders.filter((order) => {
-    const matchesType = !selectedServiceType.value || order.serviceType === selectedServiceType.value;
+    const matchesType = selectedServiceType.value === "全部类型" || order.serviceType === selectedServiceType.value;
     const matchesPayment = paymentMethod.value === "全部方式" || order.payment === paymentMethod.value;
     const matchesKeyword =
       !keyword.value.trim() || `${order.title}${order.buyerName}${order.id}${order.buyerPhone}`.includes(keyword.value.trim());
@@ -24,7 +34,7 @@ const filteredOrders = computed(() =>
     const matchesMin = !minPrice.value || Number(order.price) >= Number(minPrice.value);
     const matchesMax = !maxPrice.value || Number(order.price) <= Number(maxPrice.value);
     return matchesType && matchesPayment && matchesKeyword && matchesStatus && matchesMin && matchesMax;
-  }),
+  })),
 );
 
 function searchOrders() {
@@ -43,7 +53,60 @@ function resetFilters() {
   props.showToast("筛选条件已重置");
 }
 
+function openOrderDetail(orderId: string, pendingAction?: string) {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(orderDetailStorageKey, orderId);
+
+    if (pendingAction) {
+      window.sessionStorage.setItem(orderDetailPendingActionStorageKey, pendingAction);
+    } else {
+      window.sessionStorage.removeItem(orderDetailPendingActionStorageKey);
+    }
+  }
+
+  const targetPageId = "dashboard/order-detail";
+  const previousStack = props.navigation.getStack();
+
+  props.navigation.navigateTo(targetPageId);
+
+  const nextStack = props.navigation.getStack();
+  const activePageId = nextStack[nextStack.length - 1] || "";
+
+  if (activePageId !== targetPageId) {
+    props.navigation.reLaunch(targetPageId);
+  }
+
+  const finalStack = props.navigation.getStack();
+  const resolvedPageId = finalStack[finalStack.length - 1] || "";
+
+  if (resolvedPageId !== targetPageId) {
+    props.showToast(`跳转失败，当前导航栈：${previousStack.join(" > ") || "空"}`);
+  }
+}
+
 function triggerAction(label: string, orderId?: string) {
+  if (label === "订单详情" && orderId) {
+    openOrderDetail(orderId);
+    return;
+  }
+
+  if (orderId && reusableDetailActionLabels.has(label)) {
+    openOrderDetail(orderId, label);
+    return;
+  }
+
+  const order = orderId ? mock.orders.find((item) => item.id === orderId) : undefined;
+
+  if (label === "联系用户" && order) {
+    props.showToast(`已打开 ${order.contactName} 的联系入口`);
+    return;
+  }
+
+  if (label === "备注" && orderId) {
+    props.showToast(`已打开订单 ${orderId} 的备注入口`);
+    return;
+  }
+
   props.showToast(orderId ? `${label}：${orderId}` : `${label}功能为演示状态`);
 }
 </script>

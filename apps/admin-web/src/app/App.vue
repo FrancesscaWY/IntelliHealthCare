@@ -136,8 +136,11 @@ function resolvePrimaryNavKey(pageEntry?: PageEntry | null): PrimaryNavKey {
     [
       "service/order-dispatch",
       "dashboard/order-list",
+      "dashboard/order-detail",
       "dashboard/work-order",
       "dashboard/after-sale",
+      "dashboard/after-sale-detail",
+      "dashboard/comment-management",
     ].includes(pageId)
   ) {
     return "transactions";
@@ -208,9 +211,28 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
     return [
       { key: "transaction-section", label: "交易中心", kind: "section" },
       { key: "dispatch", label: "订单调度", active: isPageActive("service/order-dispatch"), pageId: "service/order-dispatch", kind: "item" },
-      { key: "order-list", label: "全部订单", active: isPageActive("dashboard/order-list"), pageId: "dashboard/order-list", kind: "item" },
+      {
+        key: "order-list",
+        label: "全部订单",
+        active: isPageActive("dashboard/order-list", "dashboard/order-detail"),
+        pageId: "dashboard/order-list",
+        kind: "item",
+      },
       { key: "work-order", label: "工单管理", active: isPageActive("dashboard/work-order"), pageId: "dashboard/work-order", kind: "item" },
-      { key: "after-sale", label: "售后管理", active: isPageActive("dashboard/after-sale"), pageId: "dashboard/after-sale", kind: "item" },
+      {
+        key: "after-sale",
+        label: "售后管理",
+        active: isPageActive("dashboard/after-sale", "dashboard/after-sale-detail"),
+        pageId: "dashboard/after-sale",
+        kind: "item",
+      },
+      {
+        key: "comment-management",
+        label: "评价管理",
+        active: isPageActive("dashboard/comment-management"),
+        pageId: "dashboard/comment-management",
+        kind: "item",
+      },
     ];
   }
 
@@ -237,6 +259,9 @@ const secondaryNavItems = computed<SecondaryNavItem[]>(() => {
       { key: "system-section", label: "系统配置", kind: "section" },
       { key: "account-settings", label: "账号设置", active: isPageActive("system/account-settings"), pageId: "system/account-settings", kind: "item" },
       { key: "reset-password", label: "重置密码", active: isPageActive("system/reset-password"), pageId: "system/reset-password", kind: "item" },
+      { key: "institution", label: "机构管理", active: isPageActive("system/institution-management"), pageId: "system/institution-management", kind: "item" },
+      { key: "role", label: "角色管理", active: isPageActive("system/role-management"), pageId: "system/role-management", kind: "item" },
+      { key: "log", label: "操作日志", toast: "操作日志原型页暂未接入。", kind: "item" },
     ];
   }
 

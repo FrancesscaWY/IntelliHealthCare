@@ -247,6 +247,19 @@
     "legacySources": []
   },
   {
+    "id": "dashboard/order-detail",
+    "title": "订单详情",
+    "group": "dashboard",
+    "route": "/dashboard/order-detail",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "按订单状态查看用户信息、预约信息、商品明细与处理动作。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/order-detail",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/order-detail/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/order-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "dashboard/work-order",
     "title": "工单管理",
     "group": "dashboard",
@@ -296,6 +309,32 @@
     "folderPath": "/apps/admin-web/src/pages/dashboard/after-sale",
     "modulePath": "/apps/admin-web/src/pages/dashboard/after-sale/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/dashboard/after-sale/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/after-sale-detail",
+    "title": "售后详情",
+    "group": "dashboard",
+    "route": "/dashboard/after-sale-detail",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "查看售后单状态、退款申请信息、关联订单与后续处理动作。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/after-sale-detail",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/after-sale-detail/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/after-sale-detail/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "dashboard/comment-management",
+    "title": "评价管理",
+    "group": "dashboard",
+    "route": "/dashboard/comment-management",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "评价筛选、显示状态、置顶处理与详情查看。",
+    "folderPath": "/apps/admin-web/src/pages/dashboard/comment-management",
+    "modulePath": "/apps/admin-web/src/pages/dashboard/comment-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/dashboard/comment-management/mock.ts",
     "legacySources": []
   },
   {
@@ -491,6 +530,32 @@
     "folderPath": "/apps/admin-web/src/pages/system/reset-password",
     "modulePath": "/apps/admin-web/src/pages/system/reset-password/Page.vue",
     "mockPath": "/apps/admin-web/src/pages/system/reset-password/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "system/institution-management",
+    "title": "机构管理",
+    "group": "system",
+    "route": "/system/institution-management",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "机构列表筛选、基础资料维护和启用状态管理。",
+    "folderPath": "/apps/admin-web/src/pages/system/institution-management",
+    "modulePath": "/apps/admin-web/src/pages/system/institution-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/system/institution-management/mock.ts",
+    "legacySources": []
+  },
+  {
+    "id": "system/role-management",
+    "title": "角色管理",
+    "group": "system",
+    "route": "/system/role-management",
+    "owner": "后台组",
+    "status": "implemented",
+    "summary": "角色筛选、启停状态、增删改和批量操作。",
+    "folderPath": "/apps/admin-web/src/pages/system/role-management",
+    "modulePath": "/apps/admin-web/src/pages/system/role-management/Page.vue",
+    "mockPath": "/apps/admin-web/src/pages/system/role-management/mock.ts",
     "legacySources": []
   }
 ]
