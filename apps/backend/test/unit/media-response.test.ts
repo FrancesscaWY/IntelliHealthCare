@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeApiMediaPayload } from "../../src/common/utils/media-response";
 
-test("normalizeApiMediaPayload rewrites demo-host content images by default", () => {
+test("normalizeApiMediaPayload rewrites demo-host content images to real public media by default", () => {
   const payload = {
     title: "高血压长者如何把控每日盐摄入",
     coverUrl: "https://cdn.intellihealthcare.demo/content/article-salt.jpg",
@@ -11,14 +11,9 @@ test("normalizeApiMediaPayload rewrites demo-host content images by default", ()
 
   const normalized = normalizeApiMediaPayload(payload);
 
-  assert.match(
-    normalized.coverUrl,
-    /^\/api\/v1\/assets\/demo\/content\/content-[1-3]\.jpg$/
-  );
-  assert.match(
-    normalized.images[0],
-    /^\/api\/v1\/assets\/demo\/content\/content-[1-3]\.jpg$/
-  );
+  assert.match(normalized.coverUrl, /^https:\/\/images\.pexels\.com\/photos\//);
+  assert.match(normalized.images[0], /^https:\/\/images\.pexels\.com\/photos\//);
+  assert.doesNotMatch(normalized.coverUrl, /intellihealthcare\.demo|\/demo\//);
 });
 
 test("normalizeApiMediaPayload preserves news images when demo content fallback is disabled", () => {
@@ -39,6 +34,20 @@ test("normalizeApiMediaPayload preserves news images when demo content fallback 
   assert.deepEqual(normalized.images, [
     "/api/v1/assets/curated/content/article-hypertension-msdmanuals-cn.gif",
   ]);
+});
+
+test("normalizeApiMediaPayload rewrites demo-host service and diet images to real public media", () => {
+  const payload = {
+    serviceCover: "https://cdn.intellihealthcare.demo/services/home-clean.jpg",
+    dietCoverUrl: "https://cdn.intellihealthcare.demo/diet/oat-milk.jpg",
+  };
+
+  const normalized = normalizeApiMediaPayload(payload);
+
+  assert.match(normalized.serviceCover, /^https:\/\/images\.pexels\.com\/photos\//);
+  assert.match(normalized.dietCoverUrl, /^https:\/\/images\.pexels\.com\/photos\//);
+  assert.doesNotMatch(normalized.serviceCover, /intellihealthcare\.demo|\/demo\//);
+  assert.doesNotMatch(normalized.dietCoverUrl, /intellihealthcare\.demo|\/demo\//);
 });
 
 test("normalizeApiMediaPayload resolves lecture media paths against the current request origin", () => {

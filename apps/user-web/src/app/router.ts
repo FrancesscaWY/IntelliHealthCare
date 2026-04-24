@@ -24,18 +24,6 @@ import {
   hasUserAuthSession,
 } from "@/shared/auth/session";
 
-const TEMPORARILY_DISABLED_PAGE_IDS = new Set([
-  "home/assistant-chat",
-  "orders/checkup-ai-waiting",
-  "orders/checkup-ai-analysis",
-  "service/home-care-recommend-waiting",
-  "service/home-care-recommend",
-  "service/home-exam-recommend-waiting",
-  "service/home-exam-recommend",
-  "service/rehab-recommend-waiting",
-  "service/rehab-recommend",
-]);
-
 declare module "vue-router" {
   interface RouteMeta {
     pageId?: string;
@@ -128,13 +116,6 @@ router.beforeEach((to) => {
   const pageId = resolvePageIdFromRoute(to);
   if (!pageId) {
     return true;
-  }
-
-  if (TEMPORARILY_DISABLED_PAGE_IDS.has(pageId)) {
-    return {
-      name: hasUserAuthSession() ? DEFAULT_AUTHENTICATED_PAGE_ID : projectInfo.homePageId,
-      replace: true,
-    };
   }
 
   if (!requiresUserAuth(pageId) || hasUserAuthSession()) {

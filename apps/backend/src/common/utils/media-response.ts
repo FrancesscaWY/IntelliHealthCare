@@ -1,55 +1,56 @@
 const DEMO_MEDIA_HOSTS = new Set(["cdn.intellihealthcare.demo"]);
-const DEMO_ASSET_BASE_PATH = "/api/v1/assets/demo";
 const AVATAR_KEY_PATTERN = /avatar/i;
 const IMAGE_KEY_PATTERN =
   /(^|_)(image|cover|banner)(_|$)|imageUrl|coverUrl|heroImage|productImage|serviceCover/i;
 const VIDEO_KEY_PATTERN = /(^|_)(video)(_|$)|videoUrl/i;
 const AVATAR_ARRAY_KEY_PATTERN = /avatars/i;
 const IMAGE_ARRAY_KEY_PATTERN = /images|covers|banners/i;
+const PEXELS_IMAGE_BASE_URL = "https://images.pexels.com/photos";
+const CURATED_AVATAR_BASE_URL = "/api/v1/assets/curated/avatars";
 const AVATAR_POOL = [
-  "avatars/avatar-1.jpg",
-  "avatars/avatar-2.jpg",
-  "avatars/avatar-3.jpg",
-  "avatars/avatar-4.jpg",
-  "avatars/avatar-5.jpg"
+  `${CURATED_AVATAR_BASE_URL}/wang-xiuzhen.jpg`,
+  `${CURATED_AVATAR_BASE_URL}/shen-qingzhi.jpg`,
+  `${CURATED_AVATAR_BASE_URL}/wang-lan.jpg`,
+  `${CURATED_AVATAR_BASE_URL}/li-yuan.jpg`
 ] as const;
-const STAFF_POOL = [
-  "staff/staff-1.png",
-  "staff/staff-2.png",
-  "staff/staff-3.png",
-  "avatars/avatar-2.jpg"
-] as const;
+const STAFF_POOL = AVATAR_POOL;
 const SERVICE_POOL = [
-  "services/service-cleaning.jpg",
-  "services/service-home-care.png",
-  "services/service-home-visit.png",
-  "services/service-rehab.png",
-  "services/service-exam.jpg"
+  buildPexelsImageUrl("8055825"),
+  buildPexelsImageUrl("8413217"),
+  buildPexelsImageUrl("6922186"),
+  buildPexelsImageUrl("30483052"),
+  buildPexelsImageUrl("14532311")
 ] as const;
 const CONTENT_POOL = [
-  "content/content-1.jpg",
-  "content/content-2.jpg",
-  "content/content-3.jpg"
+  buildPexelsImageUrl("4975654"),
+  buildPexelsImageUrl("775417"),
+  buildPexelsImageUrl("8865662"),
+  buildPexelsImageUrl("8088856"),
+  buildPexelsImageUrl("11583653")
 ] as const;
 const ACTIVITY_POOL = [
-  "activities/activity-1.jpg",
-  "activities/activity-2.jpg",
-  "activities/activity-3.jpg",
-  "activities/activity-4.png"
+  buildPexelsImageUrl("7445404"),
+  buildPexelsImageUrl("13659778"),
+  buildPexelsImageUrl("775417"),
+  buildPexelsImageUrl("18509799")
 ] as const;
 const RECIPE_POOL = [
-  "recipes/recipe-1.jpg",
-  "recipes/recipe-2.jpg",
-  "recipes/recipe-3.jpg",
-  "recipes/recipe-4.jpg"
+  buildPexelsImageUrl("4725729"),
+  buildPexelsImageUrl("6740517"),
+  buildPexelsImageUrl("8983415"),
+  buildPexelsImageUrl("8286788"),
+  buildPexelsImageUrl("704569"),
+  buildPexelsImageUrl("5835353"),
+  buildPexelsImageUrl("13630358"),
+  buildPexelsImageUrl("1029582")
 ] as const;
 const DEVICE_POOL = [
-  "devices/device-1.jpg",
-  "devices/device-2.jpg"
+  buildPexelsImageUrl("18870282"),
+  buildPexelsImageUrl("8413217")
 ] as const;
 const REPORT_POOL = [
-  "reports/report-1.png",
-  "reports/report-2.jpg"
+  buildPexelsImageUrl("590022"),
+  buildPexelsImageUrl("669610")
 ] as const;
 
 type MediaNormalizationOptions = {
@@ -59,6 +60,10 @@ type MediaNormalizationOptions = {
 
 type MediaKind = "avatar" | "image" | "video";
 type NonVideoMediaKind = Exclude<MediaKind, "video">;
+
+function buildPexelsImageUrl(photoId: string) {
+  return `${PEXELS_IMAGE_BASE_URL}/${photoId}/pexels-photo-${photoId}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+}
 
 export function normalizeApiMediaPayload<T>(
   input: T,
@@ -335,27 +340,27 @@ function buildDemoMediaUrl(
 
   if (kind === "avatar") {
     const pool = scope === "staff" ? STAFF_POOL : AVATAR_POOL;
-    return toDemoAssetUrl(pickFromPool(pool, seed));
+    return pickFromPool(pool, seed);
   }
 
   if (scope === "services") {
-    return toDemoAssetUrl(selectServiceAsset(normalizedPath, seed));
+    return selectServiceAsset(normalizedPath, seed);
   }
 
   if (scope === "diet") {
-    return toDemoAssetUrl(pickFromPool(RECIPE_POOL, seed));
+    return pickFromPool(RECIPE_POOL, seed);
   }
 
   if (scope === "content") {
-    return toDemoAssetUrl(pickFromPool(CONTENT_POOL, seed));
+    return pickFromPool(CONTENT_POOL, seed);
   }
 
   if (scope === "community" || scope === "activities") {
-    return toDemoAssetUrl(pickFromPool(ACTIVITY_POOL, seed));
+    return pickFromPool(ACTIVITY_POOL, seed);
   }
 
   if (scope === "reports") {
-    return toDemoAssetUrl(pickFromPool(REPORT_POOL, seed));
+    return pickFromPool(REPORT_POOL, seed);
   }
 
   return buildLocalFallbackMediaUrl(kind, key, context, index);
@@ -375,26 +380,26 @@ function buildLocalFallbackMediaUrl(
 
   if (kind === "avatar") {
     const pool = /staff|assignee|operator/i.test(key) ? STAFF_POOL : AVATAR_POOL;
-    return toDemoAssetUrl(pickFromPool(pool, seed));
+    return pickFromPool(pool, seed);
   }
 
   if (/report/i.test(key)) {
-    return toDemoAssetUrl(pickFromPool(REPORT_POOL, seed));
+    return pickFromPool(REPORT_POOL, seed);
   }
 
   if (/device|exam|health|bp|glucose/i.test(seed)) {
-    return toDemoAssetUrl(pickFromPool(DEVICE_POOL, seed));
+    return pickFromPool(DEVICE_POOL, seed);
   }
 
   if (/recipe|diet|meal|food|nutrition/i.test(seed)) {
-    return toDemoAssetUrl(pickFromPool(RECIPE_POOL, seed));
+    return pickFromPool(RECIPE_POOL, seed);
   }
 
   if (/activity|lecture|article|topic|community|content|banner/i.test(seed)) {
-    return toDemoAssetUrl(pickFromPool(ACTIVITY_POOL, seed));
+    return pickFromPool(ACTIVITY_POOL, seed);
   }
 
-  return toDemoAssetUrl(selectServiceAsset(seed.toLowerCase(), seed));
+  return selectServiceAsset(seed.toLowerCase(), seed);
 }
 
 function pickFirstString(
@@ -417,19 +422,25 @@ function pickFirstString(
 
 function selectServiceAsset(seedText: string, seed: string) {
   if (/clean|housekeep|home clean|daily clean/.test(seedText)) {
-    return "services/service-cleaning.jpg";
+    return buildPexelsImageUrl("8055825");
   }
 
   if (/rehab|stroke|knee|therapy|recover/.test(seedText)) {
-    return "services/service-rehab.png";
+    return /knee|joint/i.test(seedText)
+      ? buildPexelsImageUrl("30483052")
+      : buildPexelsImageUrl("6922186");
   }
 
   if (/exam|doctor|checkup|device|monitor|clinic/.test(seedText)) {
-    return "services/service-exam.jpg";
+    return /doctor|clinic/i.test(seedText)
+      ? buildPexelsImageUrl("8413217")
+      : buildPexelsImageUrl("18870282");
   }
 
   if (/elder|room|institution|nursing|care/.test(seedText)) {
-    return "services/service-home-care.png";
+    return /day|community/i.test(seedText)
+      ? buildPexelsImageUrl("18509799")
+      : buildPexelsImageUrl("14532311");
   }
 
   return pickFromPool(SERVICE_POOL, seed);
@@ -437,10 +448,6 @@ function selectServiceAsset(seedText: string, seed: string) {
 
 function pickFromPool(pool: readonly string[], seed: string) {
   return pool[hashString(seed) % pool.length] ?? pool[0] ?? "";
-}
-
-function toDemoAssetUrl(path: string) {
-  return path ? `${DEMO_ASSET_BASE_PATH}/${path}` : "";
 }
 
 function absolutizeMediaUrl(value: string, absoluteBaseUrl?: string) {

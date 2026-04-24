@@ -4,6 +4,7 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import locationIcon from "@/assets/home/topbar/定位.png";
 import scanIcon from "@/assets/home/topbar/二维码.png";
 import sectionImage from "@/assets/home/sections/img.png";
+import FloatingAssistant from "./FloatingAssistant.vue";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -173,6 +174,10 @@ function applyTag(tag: string) {
 
 function showAction(label: string) {
   props.showToast(`${label}功能待接入`);
+}
+
+function openAssistantPanel() {
+  props.navigation.navigateTo("home/assistant-chat");
 }
 
 function toggleLike(articleId: string) {
@@ -394,6 +399,7 @@ function toggleStar(articleId: string) {
       </button>
     </nav>
 
+    <FloatingAssistant @open="openAssistantPanel" />
   </section>
 </template>
 

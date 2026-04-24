@@ -55,6 +55,11 @@ const prisma = new PrismaClient();
 const dt = (value: string) => new Date(value);
 const CDN = "https://cdn.intellihealthcare.demo";
 const CURATED_ASSET_BASE = "/api/v1/assets/curated";
+const PEXELS_IMAGE_BASE_URL = "https://images.pexels.com/photos";
+
+function buildPexelsImageUrl(photoId: string) {
+  return `${PEXELS_IMAGE_BASE_URL}/${photoId}/pexels-photo-${photoId}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+}
 
 const ids = {
   roles: {
@@ -1231,7 +1236,7 @@ async function main() {
         durationMinutes: 120,
         rating: "4.80",
         salesVolume: 1260,
-        coverUrl: `${CDN}/services/home-clean.jpg`,
+        coverUrl: buildPexelsImageUrl("8055825"),
         tags: ["上门服务", "家庭清洁", "可预约周末"],
         regionScope: ["浦东新区", "徐汇区", "杨浦区"],
         serviceContent: ["地面清洁", "卧室整理", "厨房基础清洁", "卫生间基础保洁"],
@@ -1249,7 +1254,7 @@ async function main() {
         durationMinutes: 240,
         rating: "4.70",
         salesVolume: 380,
-        coverUrl: `${CDN}/services/accompany-doctor.jpg`,
+        coverUrl: buildPexelsImageUrl("8413217"),
         tags: ["陪诊", "家属代办", "病历协助"],
         regionScope: ["浦东新区", "长宁区", "杨浦区"],
         serviceContent: ["挂号协助", "陪同问诊", "检查陪同", "取药协助"],
@@ -1268,7 +1273,7 @@ async function main() {
         durationMinutes: 180,
         rating: "4.90",
         salesVolume: 420,
-        coverUrl: `${CDN}/services/rehab-stroke.jpg`,
+        coverUrl: buildPexelsImageUrl("6922186"),
         tags: ["脑血管疾病", "运动疗法", "家庭康复"],
         regionScope: ["浦东新区", "长宁区"],
         serviceContent: ["初次评估", "康复训练", "家庭动作指导", "随访报告"],
@@ -1287,7 +1292,7 @@ async function main() {
         durationMinutes: 150,
         rating: "4.70",
         salesVolume: 210,
-        coverUrl: `${CDN}/services/rehab-knee.jpg`,
+        coverUrl: buildPexelsImageUrl("30483052"),
         tags: ["关节康复", "步态训练", "居家训练"],
         regionScope: ["浦东新区", "徐汇区"],
         serviceContent: ["疼痛评估", "关节活动度训练", "肌力训练", "居家计划"],
@@ -1306,7 +1311,7 @@ async function main() {
         durationMinutes: 90,
         rating: "4.60",
         salesVolume: 520,
-        coverUrl: `${CDN}/services/exam-basic.jpg`,
+        coverUrl: buildPexelsImageUrl("18870282"),
         tags: ["基础筛查", "上门采样", "快速出报告"],
         regionScope: ["浦东新区", "杨浦区", "长宁区"],
         serviceContent: ["基础采样", "生命体征检查", "心电图", "报告上传"],
@@ -1325,7 +1330,7 @@ async function main() {
         durationMinutes: 120,
         rating: "4.90",
         salesVolume: 268,
-        coverUrl: `${CDN}/services/exam-chronic.jpg`,
+        coverUrl: buildPexelsImageUrl("8413217"),
         tags: ["慢病管理", "医生复核", "趋势解读"],
         regionScope: ["浦东新区", "杨浦区"],
         serviceContent: ["糖化血红蛋白", "肾功能", "血脂", "医生解读"],
@@ -1344,7 +1349,7 @@ async function main() {
         durationMinutes: 43200,
         rating: "4.90",
         salesVolume: 68,
-        coverUrl: `${CDN}/services/qingsong-room.jpg`,
+        coverUrl: buildPexelsImageUrl("14532311"),
         tags: ["医养结合", "双人间", "康复护理"],
         regionScope: ["上海市"],
         serviceContent: ["24小时照护", "营养餐", "康复活动", "家属探视"],
@@ -1363,7 +1368,7 @@ async function main() {
         durationMinutes: 28800,
         rating: "4.80",
         salesVolume: 52,
-        coverUrl: `${CDN}/services/nuanyang-daycare.jpg`,
+        coverUrl: buildPexelsImageUrl("18509799"),
         tags: ["日间照料", "助餐", "文娱活动"],
         regionScope: ["上海市杨浦区"],
         serviceContent: ["日间陪护", "午餐", "康乐活动", "接送协调"],
@@ -1712,7 +1717,7 @@ async function main() {
         tags: ["低糖早餐", "高纤维", "饱腹感"],
         ingredients: ["燕麦40克", "纯牛奶200毫升", "蓝莓50克", "核桃仁10克"],
         steps: ["燕麦加牛奶小火煮5分钟", "关火后焖2分钟", "盛出后加入蓝莓和核桃仁"],
-        coverUrl: `${CDN}/diet/oat-milk.jpg`,
+        coverUrl: buildPexelsImageUrl("4725729"),
         suitableFor: ["血糖管理", "早餐", "加餐"],
         createdAt: dt("2026-04-01T08:20:00Z"),
       },
@@ -1726,7 +1731,7 @@ async function main() {
         tags: ["高蛋白", "少油", "软嫩"],
         ingredients: ["鸡蛋2个", "鲜虾80克", "温水150毫升", "香葱5克"],
         steps: ["鲜虾去壳去虾线后焯水备用", "鸡蛋打散加温水和少量盐", "蛋液过筛后放入虾仁蒸10分钟", "出锅后撒葱花即可"],
-        coverUrl: `${CDN}/diet/shrimp-egg.jpg`,
+        coverUrl: buildPexelsImageUrl("6740517"),
         suitableFor: ["早餐", "午餐", "术后恢复"],
         createdAt: dt("2026-04-03T09:10:00Z"),
       },
@@ -1740,7 +1745,7 @@ async function main() {
         tags: ["高蛋白", "低脂", "清淡"],
         ingredients: ["鲈鱼150克", "糙米饭80克", "西兰花100克"],
         steps: ["鲈鱼清蒸10分钟", "搭配糙米饭和焯水西兰花"],
-        coverUrl: `${CDN}/diet/steamed-fish.jpg`,
+        coverUrl: buildPexelsImageUrl("8983415"),
         suitableFor: ["午餐", "晚餐", "高血压", "康复期"],
         createdAt: dt("2026-04-05T11:40:00Z"),
       },
@@ -1754,7 +1759,7 @@ async function main() {
         tags: ["均衡午餐", "控油", "高纤"],
         ingredients: ["鸡胸肉120克", "藜麦70克", "南瓜60克", "西兰花80克"],
         steps: ["藜麦提前浸泡后煮熟", "鸡胸肉煮熟撕成细丝", "南瓜蒸软切块", "与西兰花一同装盘，淋少量橄榄油"],
-        coverUrl: `${CDN}/diet/chicken-quinoa.jpg`,
+        coverUrl: buildPexelsImageUrl("8286788"),
         suitableFor: ["午餐", "康复期", "控制总热量"],
         createdAt: dt("2026-04-08T11:10:00Z"),
       },
@@ -1768,7 +1773,7 @@ async function main() {
         tags: ["易消化", "暖胃", "低负担"],
         ingredients: ["小米50克", "南瓜120克", "清水适量"],
         steps: ["小米与南瓜同煮25分钟", "煮至软烂即可"],
-        coverUrl: `${CDN}/diet/pumpkin-porridge.jpg`,
+        coverUrl: buildPexelsImageUrl("704569"),
         suitableFor: ["晚餐", "早餐", "胃口一般"],
         createdAt: dt("2026-04-10T18:00:00Z"),
       },
@@ -1782,7 +1787,7 @@ async function main() {
         tags: ["植物蛋白", "低脂", "补钙"],
         ingredients: ["北豆腐180克", "香菇80克", "金针菇60克", "胡萝卜30克"],
         steps: ["豆腐切块焯水去豆腥味", "菌菇和胡萝卜翻炒出香味", "加半碗清水炖煮6分钟", "放入豆腐后小火煨至入味"],
-        coverUrl: `${CDN}/diet/tofu-mushroom.jpg`,
+        coverUrl: buildPexelsImageUrl("5835353"),
         suitableFor: ["晚餐", "控脂", "补钙"],
         createdAt: dt("2026-04-12T18:20:00Z"),
       },
@@ -1796,7 +1801,7 @@ async function main() {
         tags: ["低脂", "轻食", "高纤"],
         ingredients: ["鸡胸肉80克", "西兰花100克", "玉米粒30克"],
         steps: ["鸡胸煮熟切片", "西兰花焯水后拌入玉米粒"],
-        coverUrl: `${CDN}/diet/broccoli-salad.jpg`,
+        coverUrl: buildPexelsImageUrl("13630358"),
         suitableFor: ["加餐", "晚餐", "减脂", "控制总热量"],
         createdAt: dt("2026-04-14T15:10:00Z"),
       },
@@ -1810,7 +1815,7 @@ async function main() {
         tags: ["少糖", "补能", "清爽"],
         ingredients: ["无糖酸奶150克", "苹果80克", "蓝莓40克", "奇亚籽5克"],
         steps: ["苹果切丁后与蓝莓分层放入杯中", "加入无糖酸奶", "表面撒少量奇亚籽即可"],
-        coverUrl: `${CDN}/diet/yogurt-fruit-cup.jpg`,
+        coverUrl: buildPexelsImageUrl("1029582"),
         suitableFor: ["加餐", "早餐", "补充维生素"],
         createdAt: dt("2026-04-16T15:30:00Z"),
       },
@@ -3020,7 +3025,7 @@ async function main() {
         slug: "home-blood-pressure-routine-for-older-adults",
         title: "家庭血压总反复？先把晨起测压、控盐和药盒管理做扎实",
         summary: "结合 MedlinePlus 与 WHO 的公开资料，整理适合长者和家属一起执行的家庭控压重点。",
-        coverUrl: `${CURATED_ASSET_BASE}/content/article-hypertension-medlineplus.jpg`,
+        coverUrl: buildPexelsImageUrl("4975654"),
         authorName: "康养内容策展组",
         sourceName: "MedlinePlus",
         status: ContentStatus.PUBLISHED,
@@ -3034,10 +3039,10 @@ async function main() {
           imageAlt: "长者在家中测量血压并记录读数",
           gallery: [
             {
-              url: `${CURATED_ASSET_BASE}/content/article-hypertension-medlineplus.jpg`,
-              alt: "家庭血压监测场景",
+              url: buildPexelsImageUrl("4975654"),
+              alt: "长者在家中使用电子血压计测量血压",
               caption: "把固定测压、低盐饮食和药盒复核放到同一张家庭管理表里，更容易坚持。",
-              credit: "MedlinePlus"
+              credit: "Pexels / Gustavo Fring"
             }
           ],
           sections: [
@@ -3084,23 +3089,23 @@ async function main() {
         slug: "older-adult-fall-prevention-checklist",
         title: "老年跌倒预防别只盯地滑：力量训练、视力复查和药物复盘都要跟上",
         summary: "结合 CDC 老年跌倒预防建议，把居家环境、用药检查和日常训练三类措施拆成了家庭版清单。",
-        coverUrl: `${CURATED_ASSET_BASE}/content/article-falls-cdc.png`,
+        coverUrl: buildPexelsImageUrl("775417"),
         authorName: "康养内容策展组",
         sourceName: "Centers for Disease Control and Prevention",
         status: ContentStatus.PUBLISHED,
         sortOrder: 9,
         content: {
-          sourceUrl: "https://www.cdc.gov/falls/about/index.html",
+          sourceUrl: "https://www.cdc.gov/falls/index.html",
           sourceTitle: "About Older Adult Fall Prevention | Older Adult Fall Prevention | CDC",
           sourceDescription: "Learn how you can reduce your chance of falling or help a loved one prevent falls.",
           readingMinutes: 5,
           imageAlt: "社区中长者在步行训练时互相照看",
           gallery: [
             {
-              url: `${CURATED_ASSET_BASE}/content/article-falls-cdc.png`,
-              alt: "老年跌倒预防专题图",
+              url: buildPexelsImageUrl("775417"),
+              alt: "两位长者在公园慢走锻炼",
               caption: "跌倒风险往往来自多个小问题叠加，家庭环境、药物和步态要一起看。",
-              credit: "CDC"
+              credit: "Pexels / Matthias Zomer"
             }
           ],
           sections: [
@@ -3129,7 +3134,7 @@ async function main() {
           references: [
             {
               title: "About Older Adult Fall Prevention | Older Adult Fall Prevention | CDC",
-              url: "https://www.cdc.gov/falls/about/index.html",
+              url: "https://www.cdc.gov/falls/index.html",
               sourceName: "CDC"
             },
             {
@@ -3147,7 +3152,7 @@ async function main() {
         slug: "sleep-routine-checklist-for-older-adults",
         title: "总是睡不实，不一定先加药：先排查午睡、起夜和卧室光线",
         summary: "参考 MedlinePlus 睡眠障碍资料，把更适合长者先尝试的睡眠管理步骤做成了家庭版清单。",
-        coverUrl: `${CURATED_ASSET_BASE}/content/article-sleep-medlineplus.jpg`,
+        coverUrl: buildPexelsImageUrl("8865662"),
         authorName: "康养内容策展组",
         sourceName: "MedlinePlus",
         status: ContentStatus.PUBLISHED,
@@ -3160,10 +3165,10 @@ async function main() {
           imageAlt: "夜间安静卧室中的助眠场景",
           gallery: [
             {
-              url: `${CURATED_ASSET_BASE}/content/article-sleep-medlineplus.jpg`,
-              alt: "睡眠管理专题图",
+              url: buildPexelsImageUrl("8865662"),
+              alt: "长者在安静卧室中侧卧休息",
               caption: "对很多长者来说，睡眠问题往往和白天作息、起夜频率以及卧室环境同时相关。",
-              credit: "MedlinePlus"
+              credit: "Pexels / RDNE Stock project"
             }
           ],
           sections: [
@@ -3217,8 +3222,8 @@ async function main() {
         summary: "基于央视网全国高血压日科普视频，讲清家庭血压测量前准备、标准姿势和日常记录要点。",
         speakerName: "李海霞",
         speakerTitle: "中国中医科学院广安门医院心血管科副主任、主任医师",
-        coverUrl: `${CURATED_ASSET_BASE}/content/lecture-bp-blood-pressure-check.jpg`,
-        videoUrl: `${CURATED_ASSET_BASE}/videos/lecture-bp-blood-pressure-check.mp4`,
+        coverUrl: buildPexelsImageUrl("8088856"),
+        videoUrl: "https://videos.pexels.com/video-files/8088985/8088985-uhd_2732_1440_24fps.mp4",
         durationMinutes: 2,
         status: ContentStatus.PUBLISHED,
         content: {
@@ -3232,10 +3237,10 @@ async function main() {
           imageAlt: "家庭血压测量视频封面图",
           gallery: [
             {
-              url: `${CURATED_ASSET_BASE}/content/lecture-bp-blood-pressure-check.jpg`,
-              alt: "家庭血压测量视频封面",
+              url: buildPexelsImageUrl("8088856"),
+              alt: "两位长者在家中检查血压",
               caption: "视频围绕家庭血压测量方法、测量次数与天数展开中文科普。",
-              credit: "央视网《够科普》"
+              credit: "Pexels / cottonbro studio"
             }
           ],
           outline: ["测量前先安静休息并避开进食、运动和情绪波动", "坐姿、手臂高度与袖带位置都要按标准执行", "固定早晚时段连续记录，更容易判断真实趋势"],
@@ -3262,8 +3267,8 @@ async function main() {
         summary: "围绕 WHO 的健康老龄化资料，讲清长者家庭管理里最容易被忽略的“功能保持”思路。",
         speakerName: "康养内容策展组",
         speakerTitle: "官方资料导读",
-        coverUrl: `${CURATED_ASSET_BASE}/content/lecture-ageing-who.jpg`,
-        videoUrl: "https://www.who.int/news-room/fact-sheets/detail/ageing-and-health",
+        coverUrl: buildPexelsImageUrl("775417"),
+        videoUrl: "https://videos.pexels.com/video-files/4806686/4806686-uhd_2560_1440_30fps.mp4",
         durationMinutes: 36,
         status: ContentStatus.PUBLISHED,
         content: {
@@ -3277,10 +3282,10 @@ async function main() {
           imageAlt: "健康老龄化导读封面图",
           gallery: [
             {
-              url: `${CURATED_ASSET_BASE}/content/lecture-ageing-who.jpg`,
-              alt: "健康老龄化导读封面",
+              url: buildPexelsImageUrl("775417"),
+              alt: "两位长者在公园步道上慢走",
               caption: "很多家庭把注意力都放在某一项异常指标，却忽略了走路、转移、吃饭和社交能力的持续下降。",
-              credit: "WHO"
+              credit: "Pexels / Matthias Zomer"
             }
           ],
           outline: ["什么叫功能保持", "慢病管理为何要和运动社交一起看", "家属怎么做每周复盘"],
@@ -3307,8 +3312,8 @@ async function main() {
         summary: "基于 MedlinePlus Healthy Aging 资料，梳理出更适合家庭照护场景的一周管理框架。",
         speakerName: "康养内容策展组",
         speakerTitle: "官方资料导读",
-        coverUrl: `${CURATED_ASSET_BASE}/content/lecture-healthy-ageing-medlineplus.jpg`,
-        videoUrl: "https://medlineplus.gov/healthyaging.html",
+        coverUrl: buildPexelsImageUrl("11583653"),
+        videoUrl: "https://videos.pexels.com/video-files/8107720/8107720-uhd_1440_2732_25fps.mp4",
         durationMinutes: 24,
         status: ContentStatus.PUBLISHED,
         content: {
@@ -3322,10 +3327,10 @@ async function main() {
           imageAlt: "健康老龄化生活方式导读封面图",
           gallery: [
             {
-              url: `${CURATED_ASSET_BASE}/content/lecture-healthy-ageing-medlineplus.jpg`,
-              alt: "健康老龄化生活方式导读封面",
+              url: buildPexelsImageUrl("11583653"),
+              alt: "摆放在桌面的水果燕麦早餐",
               caption: "真正可持续的家庭管理，不是短期冲刺，而是饮食、活动、用药和复诊节奏都能长期执行。",
-              credit: "MedlinePlus"
+              credit: "Pexels / Ella Olsson"
             }
           ],
           outline: ["一周生活节奏怎么排", "饮食和运动谁都不能单独做", "慢病管理怎样避免三天热度"],
@@ -3410,10 +3415,10 @@ async function main() {
 
   await prisma.communityTopic.createMany({
     data: [
-      { id: ids.topics.scenery, title: "#晨练打卡", coverUrl: `${CURATED_ASSET_BASE}/community/morning-walk.jpg`, participantCount: 208000, tone: "blue" },
-      { id: ids.topics.food, title: "#低盐餐桌", coverUrl: `${CURATED_ASSET_BASE}/community/low-salt-meal-1.png`, participantCount: 33000, tone: "yellow" },
-      { id: ids.topics.sunset, title: "#晚风散步", coverUrl: `${CURATED_ASSET_BASE}/community/evening-sunset.png`, participantCount: 149000, tone: "orange" },
-      { id: ids.topics.photo, title: "#社区活动记录", coverUrl: `${CURATED_ASSET_BASE}/community/community-garden.jpg`, participantCount: 14000, tone: "purple" },
+      { id: ids.topics.scenery, title: "#晨练打卡", coverUrl: buildPexelsImageUrl("775417"), participantCount: 208000, tone: "blue" },
+      { id: ids.topics.food, title: "#低盐餐桌", coverUrl: buildPexelsImageUrl("18476165"), participantCount: 33000, tone: "yellow" },
+      { id: ids.topics.sunset, title: "#晚风散步", coverUrl: buildPexelsImageUrl("13659778"), participantCount: 149000, tone: "orange" },
+      { id: ids.topics.photo, title: "#社区活动记录", coverUrl: buildPexelsImageUrl("7445404"), participantCount: 14000, tone: "purple" },
     ],
   });
 
@@ -3426,9 +3431,9 @@ async function main() {
         status: CommunityPostStatus.PUBLISHED,
         content: "给爸妈做了份低盐晚餐，豆腐、青菜和蒸南瓜一起上桌，饭前顺手测了血压，今天数字比上周平稳不少。",
         images: [
-          `${CURATED_ASSET_BASE}/community/low-salt-meal-1.png`,
-          `${CURATED_ASSET_BASE}/community/low-salt-meal-2.png`,
-          `${CURATED_ASSET_BASE}/community/low-salt-meal-3.png`
+          buildPexelsImageUrl("18476165"),
+          buildPexelsImageUrl("15779235"),
+          buildPexelsImageUrl("15913456")
         ],
         tagLabel: "低盐餐桌",
         likesCount: 1010,
@@ -3444,8 +3449,8 @@ async function main() {
         status: CommunityPostStatus.PUBLISHED,
         content: "晚饭后陪妈妈慢慢走了两圈，天边那点橘色刚好落在小区楼顶上。最近把散步节奏放慢，她反而更愿意每天出门了。",
         images: [
-          `${CURATED_ASSET_BASE}/community/evening-sunset.png`,
-          `${CURATED_ASSET_BASE}/community/community-garden.jpg`
+          buildPexelsImageUrl("13659778"),
+          buildPexelsImageUrl("8953853")
         ],
         tagLabel: "晚风散步",
         likesCount: 520,
@@ -3461,8 +3466,8 @@ async function main() {
         status: CommunityPostStatus.PUBLISHED,
         content: "早上沿着河边走了三千多步，膝盖没有前阵子那么紧了。康复老师说先把节奏稳住，不追求速度，这两天确实舒服很多。",
         images: [
-          `${CURATED_ASSET_BASE}/community/lakeside-walk.jpg`,
-          `${CURATED_ASSET_BASE}/community/morning-walk.jpg`
+          buildPexelsImageUrl("775417"),
+          buildPexelsImageUrl("13659778")
         ],
         tagLabel: "晨练打卡",
         likesCount: 430,
@@ -3478,8 +3483,8 @@ async function main() {
         status: CommunityPostStatus.PUBLISHED,
         content: "中午给奶奶做了清淡一点的便当，青菜、豆腐和玉米分量刚好，少放调味料以后反而更能吃出食材本身的味道。",
         images: [
-          `${CURATED_ASSET_BASE}/community/low-salt-meal-2.png`,
-          `${CURATED_ASSET_BASE}/community/low-salt-meal-3.png`
+          buildPexelsImageUrl("15779235"),
+          buildPexelsImageUrl("18476165")
         ],
         tagLabel: "低盐餐桌",
         likesCount: 688,
@@ -3495,9 +3500,9 @@ async function main() {
         status: CommunityPostStatus.PUBLISHED,
         content: "今天社区园艺活动挺热闹，大家一边修枝一边聊天。给邻居阿姨拍了几张照片，她说最近愿意多下楼活动，心情也跟着轻松不少。",
         images: [
-          `${CURATED_ASSET_BASE}/community/community-garden.jpg`,
-          `${CURATED_ASSET_BASE}/community/morning-walk.jpg`,
-          `${CURATED_ASSET_BASE}/community/lakeside-walk.jpg`
+          buildPexelsImageUrl("7445404"),
+          buildPexelsImageUrl("8953853"),
+          buildPexelsImageUrl("1337308")
         ],
         tagLabel: "社区活动记录",
         likesCount: 904,
@@ -3541,7 +3546,7 @@ async function main() {
         status: ActivityStatus.ONGOING,
         fee: "20.00",
         location: "海滨社区文化活动中心",
-        coverUrl: `${CDN}/activities/photography.jpg`,
+        coverUrl: buildPexelsImageUrl("7445404"),
         startAt: dt("2026-04-16T09:00:00Z"),
         endAt: dt("2026-05-02T17:00:00Z"),
         signupDeadline: dt("2026-04-25T23:59:59Z"),
@@ -3564,7 +3569,7 @@ async function main() {
         status: ActivityStatus.ONGOING,
         fee: "20.00",
         location: "第一海水浴场",
-        coverUrl: `${CDN}/activities/seaside-walk.jpg`,
+        coverUrl: buildPexelsImageUrl("13659778"),
         startAt: dt("2026-04-16T08:30:00Z"),
         endAt: dt("2026-05-02T12:00:00Z"),
         signupDeadline: dt("2026-04-22T23:59:59Z"),
@@ -3587,7 +3592,7 @@ async function main() {
         status: ActivityStatus.UPCOMING,
         fee: "0.00",
         location: "桂花社区活动室",
-        coverUrl: `${CDN}/activities/photo-salon.jpg`,
+        coverUrl: buildPexelsImageUrl("1337308"),
         startAt: dt("2026-04-24T14:00:00Z"),
         endAt: dt("2026-04-24T16:30:00Z"),
         signupDeadline: dt("2026-04-23T18:00:00Z"),
@@ -3609,7 +3614,7 @@ async function main() {
         status: ActivityStatus.UPCOMING,
         fee: "15.00",
         location: "海天步道南段",
-        coverUrl: `${CDN}/activities/coast-walk.jpg`,
+        coverUrl: buildPexelsImageUrl("775417"),
         startAt: dt("2026-04-27T09:00:00Z"),
         endAt: dt("2026-04-27T11:30:00Z"),
         signupDeadline: dt("2026-04-25T18:00:00Z"),
@@ -3747,7 +3752,7 @@ async function main() {
         targetType: FootprintTargetType.SERVICE,
         targetId: ids.services.homeClean,
         title: "日常清洁 2小时1人上门服务",
-        coverUrl: `${CDN}/services/home-clean.jpg`,
+        coverUrl: buildPexelsImageUrl("8055825"),
         metadata: { price: "¥298" },
         viewedAt: dt("2026-04-20T06:40:00Z"),
       },
@@ -3757,7 +3762,7 @@ async function main() {
         targetType: FootprintTargetType.ACTIVITY,
         targetId: ids.activities.photography,
         title: "桂花小区老年摄影大赛火热进行中",
-        coverUrl: `${CDN}/activities/photography.jpg`,
+        coverUrl: buildPexelsImageUrl("7445404"),
         metadata: { time: "2026.04.16~2026.05.02", location: "海滨社区文化活动中心", fee: "20元" },
         viewedAt: dt("2026-04-20T06:12:00Z"),
       },
@@ -3767,7 +3772,7 @@ async function main() {
         targetType: FootprintTargetType.SERVICE,
         targetId: ids.services.rehabStroke,
         title: "脑卒中术后康复套餐",
-        coverUrl: `${CDN}/services/rehab-stroke.jpg`,
+        coverUrl: buildPexelsImageUrl("6922186"),
         metadata: { price: "¥1990" },
         viewedAt: dt("2026-04-20T07:58:00Z"),
       },
@@ -3777,7 +3782,7 @@ async function main() {
         targetType: FootprintTargetType.SERVICE,
         targetId: ids.services.elderlyQingsong,
         title: "青松颐养中心 医养结合双人间",
-        coverUrl: `${CDN}/services/qingsong-room.jpg`,
+        coverUrl: buildPexelsImageUrl("14532311"),
         metadata: { price: "¥5200/月" },
         viewedAt: dt("2026-04-20T08:42:00Z"),
       },

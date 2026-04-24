@@ -95,49 +95,25 @@ const pageProps = computed(() => {
     showToast,
   };
 });
-
-const hostDebugLines = computed(() => [
-  `props.pageId: ${props.pageId || "(empty)"}`,
-  `pageEntry.id: ${pageEntry.value?.id || "(missing)"}`,
-  `pageEntry.route: ${pageEntry.value?.route || "(missing)"}`,
-  `isPageLoading: ${String(isPageLoading.value)}`,
-  `activeComponentPageId: ${activeComponentPageId.value || "(empty)"}`,
-  `hasResolvedComponent: ${String(Boolean(resolvedComponent.value))}`,
-  `hasPageProps: ${String(Boolean(pageProps.value))}`,
-  `loadError: ${loadError.value || "(none)"}`,
-]);
 </script>
 
 <template>
-  <section class="page-host-debug-shell">
-    <aside class="page-host-debug" aria-label="page-host-debug">
-      <strong>PageHost Runtime</strong>
-      <p v-for="line in hostDebugLines" :key="line">{{ line }}</p>
-    </aside>
-
-    <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="pageEntry?.id" v-bind="pageProps" />
-    <section v-else-if="pageEntry && isPageLoading" class="page-loader">
-      <strong>页面加载中</strong>
-      <p>首次访问页面时会按需加载模块，通常只会短暂出现；若持续停留将自动转为错误提示。</p>
-    </section>
-    <section v-else-if="pageEntry" class="page-error">
-      <strong>页面加载失败</strong>
-      <p>{{ loadError || "页面组件不可用，请检查模块导出和模板语法。" }}</p>
-    </section>
-    <section v-else class="page-error">
-      <strong>页面不存在</strong>
-      <p>当前访问地址没有对应的用户端页面，请检查路由配置。</p>
-    </section>
+  <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="pageEntry?.id" v-bind="pageProps" />
+  <section v-else-if="pageEntry && isPageLoading" class="page-loader">
+    <strong>页面加载中</strong>
+    <p>首次访问页面时会按需加载模块，通常只会短暂出现；若持续停留将自动转为错误提示。</p>
+  </section>
+  <section v-else-if="pageEntry" class="page-error">
+    <strong>页面加载失败</strong>
+    <p>{{ loadError || "页面组件不可用，请检查模块导出和模板语法。" }}</p>
+  </section>
+  <section v-else class="page-error">
+    <strong>页面不存在</strong>
+    <p>当前访问地址没有对应的用户端页面，请检查路由配置。</p>
   </section>
 </template>
 
 <style scoped>
-.page-host-debug-shell {
-  display: grid;
-  gap: 10px;
-}
-
-.page-host-debug,
 .page-loader,
 .page-error {
   display: grid;
@@ -146,26 +122,6 @@ const hostDebugLines = computed(() => [
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
-}
-
-.page-host-debug {
-  padding: 12px 14px;
-  border: 1px dashed rgba(35, 97, 235, 0.24);
-  background: rgba(250, 252, 255, 0.98);
-  color: #24324a;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.page-host-debug strong {
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.page-host-debug p {
-  margin: 0;
-  word-break: break-all;
 }
 
 .page-loader strong,

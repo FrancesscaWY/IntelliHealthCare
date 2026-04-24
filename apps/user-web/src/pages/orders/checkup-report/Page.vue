@@ -19,7 +19,7 @@ function openUpload() {
 }
 
 function openAiEvaluation() {
-  props.showToast("AI 评估入口暂时关闭");
+  props.navigation.navigateTo("orders/checkup-ai-waiting");
 }
 </script>
 

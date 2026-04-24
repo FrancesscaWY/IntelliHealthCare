@@ -200,7 +200,7 @@ const goBack = () => {
 }
 
 const openSmartRecommend = () => {
-  props.showToast('AI 推荐入口暂时关闭')
+  props.navigation.navigateTo('service/home-care-recommend-waiting')
 }
 
 const resizeAssistant = () => {

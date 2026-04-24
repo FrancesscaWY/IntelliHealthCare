@@ -63,7 +63,7 @@ function viewReport(reportId: string) {
 
 function viewAiEvaluation(reportId: string) {
   setSelectedAiReportId(reportId);
-  props.showToast("AI 评估入口暂时关闭");
+  props.navigation.navigateTo("orders/checkup-ai-waiting");
 }
 
 onMounted(() => {

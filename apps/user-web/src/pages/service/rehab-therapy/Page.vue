@@ -38,7 +38,7 @@ const openProduct = () => {
 }
 
 const openSmartRecommend = () => {
-  props.showToast('AI 推荐入口暂时关闭')
+  props.navigation.navigateTo('service/rehab-recommend-waiting')
 }
 
 const resizeAssistant = () => {
