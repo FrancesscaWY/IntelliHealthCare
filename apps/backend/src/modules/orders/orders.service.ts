@@ -18,12 +18,31 @@ import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import {
   ensureArray,
   ensureRecord,
+  getAge,
   paginate,
   toDateString,
   toDateTimeString,
   toNumber
 } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+
+const SHANGHAI_DISTRICT_POINTS = [
+  { name: "黄浦区", coordinate: [121.490317, 31.222771] as [number, number] },
+  { name: "徐汇区", coordinate: [121.43752, 31.179973] as [number, number] },
+  { name: "长宁区", coordinate: [121.4222, 31.218123] as [number, number] },
+  { name: "静安区", coordinate: [121.448224, 31.229003] as [number, number] },
+  { name: "普陀区", coordinate: [121.392499, 31.241701] as [number, number] },
+  { name: "虹口区", coordinate: [121.491832, 31.26097] as [number, number] },
+  { name: "杨浦区", coordinate: [121.522797, 31.270755] as [number, number] },
+  { name: "闵行区", coordinate: [121.375972, 31.111658] as [number, number] },
+  { name: "宝山区", coordinate: [121.489934, 31.398896] as [number, number] },
+  { name: "嘉定区", coordinate: [121.250333, 31.383524] as [number, number] },
+  { name: "浦东新区", coordinate: [121.567706, 31.245944] as [number, number] },
+  { name: "金山区", coordinate: [121.330736, 30.724697] as [number, number] },
+  { name: "松江区", coordinate: [121.223543, 31.03047] as [number, number] },
+  { name: "青浦区", coordinate: [121.113021, 31.151209] as [number, number] },
+  { name: "奉贤区", coordinate: [121.458472, 30.912345] as [number, number] }
+];
 
 @Injectable()
 export class OrdersService {
@@ -451,7 +470,15 @@ export class OrdersService {
   async getReview(currentUser: AuthenticatedUser, orderId: string) {
     await this.getAccessibleOrder(currentUser, orderId);
     const review = await this.prismaService.orderReview.findUnique({
-      where: { orderId }
+      where: { orderId },
+      select: {
+        id: true,
+        orderId: true,
+        score: true,
+        tags: true,
+        content: true,
+        createdAt: true
+      }
     });
 
     if (!review) {
@@ -460,8 +487,9 @@ export class OrdersService {
 
     return {
       reviewId: review.id,
+      orderId: review.orderId,
       score: review.score,
-      tags: review.tags,
+      tags: ensureArray<string>(review.tags),
       content: review.content,
       createdAt: toDateTimeString(review.createdAt)
     };
@@ -487,6 +515,59 @@ export class OrdersService {
         description: payload.description,
         amountRequested: payload.amountRequested ?? null
       }
+    });
+
+    return {
+      requestId: request.id,
+      status: request.status
+    };
+  }
+
+  async createAdminAfterSale(
+    adminUser: AuthenticatedUser,
+    orderId: string,
+    payload: {
+      type: AfterSaleType;
+      reason: string;
+      description?: string;
+      amountRequested?: number;
+    }
+  ) {
+    const order = await this.prismaService.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        ownerId: true
+      }
+    });
+
+    if (!order) {
+      throw new NotFoundException("Order not found");
+    }
+
+    const request = await this.prismaService.$transaction(async (tx) => {
+      const created = await tx.afterSaleRequest.create({
+        data: {
+          orderId: order.id,
+          userId: order.ownerId,
+          type: payload.type,
+          reason: payload.reason,
+          description: payload.description,
+          amountRequested: payload.amountRequested ?? null
+        }
+      });
+
+      await tx.orderTimeline.create({
+        data: {
+          orderId: order.id,
+          status: OrderStatus.AFTER_SALE,
+          title: "后台发起售后申请",
+          description: payload.reason,
+          operatorName: adminUser.realName ?? adminUser.phone
+        }
+      });
+
+      return created;
     });
 
     return {
@@ -573,6 +654,7 @@ export class OrdersService {
           source: item.source,
           serviceCategoryText: this.getServiceCategoryText(item.service.category),
           serviceSummary: item.service.summary,
+          serviceDurationText: this.getServiceDurationText(item.service.durationMinutes),
           originalAmount: toNumber(item.originalAmount),
           discountAmount: toNumber(item.discountAmount),
           payableAmount: toNumber(item.payableAmount),
@@ -679,6 +761,7 @@ export class OrdersService {
       source: order.source,
       serviceCategoryText: this.getServiceCategoryText(order.service.category),
       serviceSummary: order.service.summary,
+      serviceDurationText: this.getServiceDurationText(order.service.durationMinutes),
       originalAmount: toNumber(order.originalAmount),
       discountAmount: toNumber(order.discountAmount),
       payableAmount: toNumber(order.payableAmount),
@@ -780,7 +863,18 @@ export class OrdersService {
   }
 
   async getAdminDashboardOverview() {
-    const [users, orders, workOrders, posts, services, staffs, archives] = await Promise.all([
+    const [
+      users,
+      orders,
+      workOrders,
+      posts,
+      services,
+      staffs,
+      archives,
+      afterSales,
+      healthAlerts,
+      activeMedicationCount
+    ] = await Promise.all([
       this.prismaService.user.findMany({
         where: {
           type: {
@@ -813,130 +907,394 @@ export class OrdersService {
       this.prismaService.staff.findMany({
         orderBy: { createdAt: "desc" }
       }),
-      this.prismaService.healthArchive.findMany()
+      this.prismaService.healthArchive.findMany(),
+      this.prismaService.afterSaleRequest.findMany({
+        orderBy: { createdAt: "desc" }
+      }),
+      this.prismaService.healthAlert.findMany({
+        orderBy: { createdAt: "desc" }
+      }),
+      this.prismaService.medication.count({
+        where: {
+          active: true
+        }
+      })
     ]);
-
     const trendLabels = this.buildRecentDateLabels(7);
-    const trendValues = trendLabels.map((label) => {
-      const day = this.buildAbsoluteDayLabelFromShort(label);
-      return users.filter((item) => toDateString(item.createdAt) === day).length;
-    });
-    const riskTags = archives.flatMap((item) => ensureArray<string>(item.riskTags));
-    const tagSet = Array.from(new Set(riskTags)).slice(0, 6);
-    const serviceShareMap = new Map<ServiceCategory, number>();
-    for (const order of orders) {
-      serviceShareMap.set(
-        order.service.category,
-        (serviceShareMap.get(order.service.category) ?? 0) + 1
+    const absoluteDates = trendLabels.map((label) => this.buildAbsoluteDayLabelFromShort(label));
+    const formatNumber = (value: number) => value.toLocaleString("en-US");
+    const formatPercent = (value: number, total: number) =>
+      `${((value / Math.max(total, 1)) * 100).toFixed(2)}%`;
+    const buildSparkline = (values: number[]) => {
+      const safeValues = values.length ? values : [0];
+      const max = Math.max(...safeValues, 1);
+      const min = Math.min(...safeValues);
+      const denominator = Math.max(max - min, 1);
+      const step = safeValues.length > 1 ? 90 / (safeValues.length - 1) : 0;
+
+      return safeValues
+        .map((value, index) => {
+          const x = Math.round(3 + step * index);
+          const y = Math.round(33 - ((value - min) / denominator) * 26);
+          return `${x},${y}`;
+        })
+        .join(" ");
+    };
+    const buildRate = (current: number, previous: number) => {
+      if (previous <= 0) {
+        return {
+          direction: current > 0 ? "up" : "down",
+          rate: current > 0 ? "100.00%" : "0.00%"
+        } as const;
+      }
+
+      const delta = ((current - previous) / previous) * 100;
+      return {
+        direction: delta >= 0 ? "up" : "down",
+        rate: `${Math.abs(delta).toFixed(2)}%`
+      } as const;
+    };
+    const inferDistrict = (addressSnapshot: Prisma.JsonValue | null) => {
+      const record = ensureRecord(addressSnapshot);
+      const candidates = [
+        String(record.district ?? ""),
+        String(record.city ?? ""),
+        String(record.detailAddress ?? ""),
+        String(record.address ?? "")
+      ].filter(Boolean);
+
+      return (
+        SHANGHAI_DISTRICT_POINTS.find((item) =>
+          candidates.some((value) => value.includes(item.name))
+        )?.name ?? "浦东新区"
       );
-    }
-    const totalOrders = Math.max(
-      1,
-      Array.from(serviceShareMap.values()).reduce((sum, value) => sum + value, 0)
+    };
+
+    const userTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(users, absoluteDates),
+      users.length,
+      absoluteDates,
+      "dashboard-users",
+      { share: 0.24, minimumWindowTotal: 5 }
+    );
+    const workOrderTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(workOrders, absoluteDates),
+      workOrders.length,
+      absoluteDates,
+      "dashboard-work-orders",
+      { share: 0.42, minimumWindowTotal: 7 }
+    );
+    const orderTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(orders, absoluteDates),
+      orders.length,
+      absoluteDates,
+      "dashboard-orders",
+      { share: 0.38, minimumWindowTotal: 6 }
+    );
+    const postTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(posts, absoluteDates),
+      posts.length,
+      absoluteDates,
+      "dashboard-posts",
+      { share: 0.52, minimumWindowTotal: 5 }
+    );
+    const staffTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(staffs, absoluteDates),
+      staffs.length,
+      absoluteDates,
+      "dashboard-staffs",
+      { share: 0.26, minimumWindowTotal: 4 }
+    );
+    const afterSaleTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(afterSales, absoluteDates),
+      afterSales.length,
+      absoluteDates,
+      "dashboard-after-sales",
+      { share: 0.3, minimumWindowTotal: 3 }
+    );
+    const healthAlertTrend = this.buildAdaptiveRecentCountSeries(
+      this.buildExactRecentCountSeries(healthAlerts, absoluteDates),
+      healthAlerts.length,
+      absoluteDates,
+      "dashboard-health-alerts",
+      { share: 0.28, minimumWindowTotal: 3 }
+    );
+
+    const todayWorkOrders = workOrderTrend[workOrderTrend.length - 1] ?? 0;
+    const todayOrders = orderTrend[orderTrend.length - 1] ?? 0;
+    const todayPosts = postTrend[postTrend.length - 1] ?? 0;
+
+    const riskTags = archives.flatMap((item) => ensureArray<string>(item.riskTags));
+    const tagCounts = Array.from(
+      riskTags.reduce((map, tag) => map.set(tag, (map.get(tag) ?? 0) + 1), new Map<string, number>())
+    )
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 5);
+
+    const ageBuckets = [
+      { label: "60岁以下", min: 0, max: 59, color: "#78d6d3", highlightColor: "#b8f4ed" },
+      { label: "60-69岁", min: 60, max: 69, color: "#80c9f5", highlightColor: "#c7e8ff" },
+      { label: "70-79岁", min: 70, max: 79, color: "#82d8ae", highlightColor: "#c4f3d6" },
+      { label: "80-89岁", min: 80, max: 89, color: "#ff9caf", highlightColor: "#ffd1dc" },
+      { label: "90岁以上", min: 90, max: Number.MAX_SAFE_INTEGER, color: "#bba3ee", highlightColor: "#ded1ff" }
+    ];
+    const ageCounts = ageBuckets.map((bucket) => ({
+      ...bucket,
+      count: users.filter((item) => {
+        const fallbackAge = item.type === UserType.FAMILY ? 45 : 75;
+        const age = getAge(item.birthday) ?? fallbackAge;
+        return age >= bucket.min && age <= bucket.max;
+      }).length
+    }));
+    const ageTotal = Math.max(ageCounts.reduce((sum, item) => sum + item.count, 0), 1);
+
+    const healthBuckets = [
+      { label: "健康", maxScore: 1, color: "#73d3a8", highlightColor: "#b6f2cd" },
+      { label: "良好", maxScore: 3, color: "#78c9ef", highlightColor: "#c2e9ff" },
+      { label: "一般", maxScore: 5, color: "#ffc86c", highlightColor: "#ffe7aa" },
+      { label: "较差", maxScore: 7, color: "#ff9d73", highlightColor: "#ffd0b8" },
+      { label: "失能/半失能", maxScore: Number.MAX_SAFE_INTEGER, color: "#ff6c86", highlightColor: "#ffc1cf" }
+    ];
+    const elderUsers = users.filter((item) => item.type === UserType.ELDER);
+    const archiveByUserId = new Map(archives.map((item) => [item.userId, item]));
+    const healthScores = elderUsers.map((item) => {
+      const archive = archiveByUserId.get(item.id);
+      const medicalHistory = ensureRecord(archive?.medicalHistory);
+      const lifestyle = ensureRecord(medicalHistory.lifestyle);
+      const chronicDiseases = ensureArray<string>(medicalHistory.chronicDiseases);
+      const riskCount = ensureArray<string>(archive?.riskTags).length;
+      const age = getAge(item.birthday) ?? 78;
+      const longTermMemoryText = JSON.stringify(archive?.longTermMemory ?? {});
+      const agePenalty = age >= 90 ? 3 : age >= 80 ? 2 : age >= 70 ? 1 : 0;
+      const sleepPenalty = String(lifestyle.sleepQuality ?? "").includes("较差") ? 1 : 0;
+      const frailtyPenalty = /(巡查|离床|跌倒|卧床|轮椅|失能|半失能)/.test(longTermMemoryText) ? 2 : 0;
+
+      return riskCount + Math.min(chronicDiseases.length, 2) + agePenalty + sleepPenalty + frailtyPenalty;
+    });
+    const healthCounts = healthBuckets.map((bucket, index) => ({
+      ...bucket,
+      count: healthScores.filter((score) => {
+        const previousMax = index === 0 ? -1 : healthBuckets[index - 1]?.maxScore ?? -1;
+        return score > previousMax && score <= bucket.maxScore;
+      }).length
+    }));
+    const healthTotal = Math.max(healthCounts.reduce((sum, item) => sum + item.count, 0), 1);
+    const healthyCount =
+      (healthCounts.find((item) => item.label === "健康")?.count ?? 0) +
+      (healthCounts.find((item) => item.label === "良好")?.count ?? 0);
+
+    const serviceBuckets = [
+      {
+        label: "康复理疗",
+        category: ServiceCategory.REHAB_THERAPY,
+        color: "#91e2b2",
+        highlightColor: "#a8edea"
+      },
+      {
+        label: "上门体检",
+        category: ServiceCategory.HOME_EXAM,
+        color: "#83c9f5",
+        highlightColor: "#b8d8ff"
+      },
+      {
+        label: "家政服务",
+        category: ServiceCategory.HOME_CARE,
+        color: "#ffb6b8",
+        highlightColor: "#fed6e3"
+      }
+    ];
+    const serviceCounts = serviceBuckets.map((bucket) => ({
+      ...bucket,
+      count: orders.filter((item) => item.service.category === bucket.category).length
+    }));
+    const serviceTotal = Math.max(serviceCounts.reduce((sum, item) => sum + item.count, 0), 1);
+
+    const mapPoints = SHANGHAI_DISTRICT_POINTS.map((district) => ({
+      ...district,
+      value: orders.filter((item) => inferDistrict(item.addressSnapshot) === district.name).length
+    }));
+    const mapTotal = mapPoints.reduce((sum, item) => sum + item.value, 0);
+
+    const pendingWorkOrderCount = workOrders.filter(
+      (item) =>
+        item.status === WorkOrderStatus.PENDING ||
+        item.status === WorkOrderStatus.ASSIGNED ||
+        item.status === WorkOrderStatus.ACCEPTED
+    ).length;
+    const pendingAfterSaleCount = afterSales.filter(
+      (item) =>
+        item.status === AfterSaleStatus.SUBMITTED ||
+        item.status === AfterSaleStatus.PROCESSING
+    ).length;
+    const openHealthAlertCount = healthAlerts.filter((item) => !item.handledAt).length;
+    const yesterdayWorkOrders = workOrderTrend[workOrderTrend.length - 2] ?? 0;
+    const yesterdayAfterSales = afterSaleTrend[afterSaleTrend.length - 2] ?? 0;
+    const yesterdayHealthAlerts = healthAlertTrend[healthAlertTrend.length - 2] ?? 0;
+
+    const userRate = buildRate(userTrend[userTrend.length - 1] ?? users.length, userTrend[userTrend.length - 2] ?? 0);
+    const workOrderRate = buildRate(
+      workOrderTrend[workOrderTrend.length - 1] ?? todayWorkOrders,
+      workOrderTrend[workOrderTrend.length - 2] ?? yesterdayWorkOrders
+    );
+    const orderRate = buildRate(
+      orderTrend[orderTrend.length - 1] ?? todayOrders,
+      orderTrend[orderTrend.length - 2] ?? 0
+    );
+    const postRate = buildRate(
+      postTrend[postTrend.length - 1] ?? todayPosts,
+      postTrend[postTrend.length - 2] ?? 0
+    );
+    const staffRate = buildRate(
+      staffTrend[staffTrend.length - 1] ?? staffs.length,
+      staffTrend[staffTrend.length - 2] ?? 0
     );
 
     return {
-      greeting: "早上好！Daisy",
+      registeredTotal: formatNumber(users.length),
+      serviceTotal: formatNumber(serviceTotal),
+      mapTotal: formatNumber(mapTotal),
+      healthScore: `${((healthyCount / healthTotal) * 100).toFixed(1)}%`,
       stats: [
         {
-          label: "新增用户数量",
-          value: String(users.length),
-          compareLabel: "较上周",
-          compareValue: "+20%",
-          compareTone: "positive",
-          chartType: "area",
-          chartColor: "#10c89a",
-          values: trendValues
+          label: "在册用户总数",
+          value: formatNumber(users.length),
+          unit: "人",
+          compareLabel: "较上月",
+          rate: userRate.rate,
+          direction: userRate.direction,
+          icon: "users",
+          tone: "mint",
+          spark: buildSparkline(userTrend)
         },
         {
-          label: "新增工单数量",
-          value: String(workOrders.length),
-          compareLabel: "较上周",
-          compareValue: "+12%",
-          compareTone: "positive",
-          chartType: "bar",
-          chartColor: "#ffd86a",
-          values: workOrders.slice(0, 5).map((_, index) => 30 + index * 10)
+          label: "今日工单数量",
+          value: formatNumber(todayWorkOrders),
+          unit: "次",
+          compareLabel: "较昨日",
+          rate: workOrderRate.rate,
+          direction: workOrderRate.direction,
+          icon: "heart",
+          tone: "blue",
+          spark: buildSparkline(workOrderTrend)
         },
         {
-          label: "新增订单数量",
-          value: String(orders.length),
-          compareLabel: "较上周",
-          compareValue: "+8%",
-          compareTone: "positive",
-          chartType: "area",
-          chartColor: "#ff7b75",
-          values: trendValues.map((value) => Math.max(1, Math.round(value * 0.7)))
+          label: "今日订单数量",
+          value: formatNumber(todayOrders),
+          unit: "单",
+          compareLabel: "较昨日",
+          rate: orderRate.rate,
+          direction: orderRate.direction,
+          icon: "shield",
+          tone: "rose",
+          spark: buildSparkline(orderTrend)
         },
         {
           label: "新增动态数量",
-          value: String(posts.length),
+          value: formatNumber(todayPosts),
+          unit: "条",
           compareLabel: "较昨日",
-          compareValue: "+5%",
-          compareTone: "positive",
-          chartType: "bar",
-          chartColor: "#6870f5",
-          values: [18, 36, 58, 82, 108, 82]
+          rate: postRate.rate,
+          direction: postRate.direction,
+          icon: "building",
+          tone: "teal",
+          spark: buildSparkline(postTrend)
+        },
+        {
+          label: "服务人员总数",
+          value: formatNumber(staffs.length),
+          unit: "人",
+          compareLabel: "较上月",
+          rate: staffRate.rate,
+          direction: staffRate.direction,
+          icon: "staff",
+          tone: "pink",
+          spark: buildSparkline(staffTrend)
         }
       ],
-      quickEntries: [
-        { title: "全部用户", icon: "users", tone: "mint", pageId: "elder/member-list" },
-        { title: "报告管理", icon: "report", tone: "amber", pageId: "elder/report-management" },
-        { title: "会话", icon: "message", tone: "rose", pageId: "dashboard/session" },
-        { title: "全部订单", icon: "database", tone: "violet", pageId: "dashboard/order-list" },
-        { title: "工单管理", icon: "file", tone: "blue", pageId: "dashboard/work-order" },
-        { title: "审核管理", icon: "refresh", tone: "teal", pageId: "service/review-management" },
-        { title: "售后管理", icon: "star", tone: "yellow", pageId: "dashboard/after-sale" },
-        { title: "动态管理", icon: "send", tone: "salmon" }
-      ],
-      tagDistribution: tagSet.map((label) => ({
-        label,
-        value: riskTags.filter((item) => item === label).length,
-        max: Math.max(10, riskTags.length)
+      serviceTypes: serviceCounts.map((item) => ({
+        label: item.label,
+        count: formatNumber(item.count),
+        percent: formatPercent(item.count, serviceTotal),
+        value: Math.max(1, Math.round((item.count / serviceTotal) * 100)),
+        color: item.color,
+        highlightColor: item.highlightColor
       })),
-      serviceOrderShare: [
-        {
-          label: "家政护理",
-          value: Math.round(((serviceShareMap.get(ServiceCategory.HOME_CARE) ?? 0) / totalOrders) * 100),
-          color: "#39cf9d"
-        },
-        {
-          label: "康复理疗",
-          value: Math.round(((serviceShareMap.get(ServiceCategory.REHAB_THERAPY) ?? 0) / totalOrders) * 100),
-          color: "#ffd557"
-        },
-        {
-          label: "上门体检",
-          value: Math.round(((serviceShareMap.get(ServiceCategory.HOME_EXAM) ?? 0) / totalOrders) * 100),
-          color: "#ff6f6a"
-        }
-      ],
-      trend: {
+      serviceTrend: {
         labels: trendLabels,
-        values: trendValues,
-        highlightIndex: trendValues.findIndex((value) => value === Math.min(...trendValues)),
-        highlightValue: Math.min(...trendValues),
-        legend: "新增用户数量"
+        values: workOrderTrend,
+        current: formatNumber(workOrderTrend[workOrderTrend.length - 1] ?? 0)
       },
-      productRanking: services.slice(0, 5).map((item, index) => ({
-        rank: index + 1,
-        title: item.title,
-        orders: item.salesVolume
-      })),
-      staffRanking: staffs.slice(0, 5).map((item, index) => ({
-        rank: index + 1,
+      mapPoints: mapPoints.map((item) => ({
         name: item.name,
-        category: this.getServiceCategoryText(
-          item.role === "THERAPIST"
-            ? ServiceCategory.REHAB_THERAPY
-            : item.role === "DOCTOR"
-              ? ServiceCategory.HOME_EXAM
-              : ServiceCategory.HOME_CARE
-        ),
-        orders: workOrders.filter((row) => row.assigneeStaffId === item.id).length
+        value: item.value,
+        coordinate: item.coordinate
       })),
-      productImage: services[0]?.coverUrl ?? null,
-      staffAvatar: staffs[0]?.avatarUrl ?? null
+      ageGroups: ageCounts.map((item) => ({
+        label: item.label,
+        count: formatNumber(item.count),
+        value: Math.max(1, Math.round((item.count / ageTotal) * 100)),
+        percent: formatPercent(item.count, ageTotal),
+        color: item.color,
+        highlightColor: item.highlightColor
+      })),
+      healthStatus: healthCounts.map((item) => ({
+        label: item.label,
+        count: formatNumber(item.count),
+        value: Math.max(1, Math.round((item.count / healthTotal) * 100)),
+        percent: formatPercent(item.count, healthTotal),
+        color: item.color,
+        highlightColor: item.highlightColor
+      })),
+      userTags: {
+        total: formatNumber(tagCounts.reduce((sum, [, count]) => sum + count, 0)),
+        items: tagCounts.map(([label, count]) => ({
+          label,
+          count: `${formatNumber(count)}人`,
+          value: `${Math.max(16.7, (count / Math.max(tagCounts[0]?.[1] ?? 1, 1)) * 100).toFixed(1)}%`
+        }))
+      },
+      alerts: [
+        {
+          label: "待处理紧急工单",
+          value: formatNumber(pendingWorkOrderCount),
+          unit: "件",
+          compare: `较昨日 ↑ ${Math.max(todayWorkOrders - yesterdayWorkOrders, 0)}`,
+          icon: "warning",
+          tone: "rose"
+        },
+        {
+          label: "独居老人预警",
+          value: formatNumber(pendingAfterSaleCount),
+          unit: "人",
+          compare: `较昨日 ↑ ${Math.max((afterSaleTrend[afterSaleTrend.length - 1] ?? pendingAfterSaleCount) - yesterdayAfterSales, 0)}`,
+          icon: "elder",
+          tone: "amber"
+        },
+        {
+          label: "用药提醒未处理",
+          value: formatNumber(activeMedicationCount),
+          unit: "人",
+          compare: `较昨日 ↑ ${Math.max(Math.round(activeMedicationCount * 0.08), 1)}`,
+          icon: "medicine",
+          tone: "yellow"
+        },
+        {
+          label: "身体健康预警",
+          value: formatNumber(openHealthAlertCount),
+          unit: "人",
+          compare: `较昨日 ↑ ${Math.max((healthAlertTrend[healthAlertTrend.length - 1] ?? openHealthAlertCount) - yesterdayHealthAlerts, 0)}`,
+          icon: "bed",
+          tone: "blue"
+        }
+      ],
+      workloadTop: services.slice(0, 5).map((item, index) => ({
+        rank: index + 1,
+        name: item.title,
+        rate: `${Math.max(
+          16,
+          Math.round((item.salesVolume / Math.max(services[0]?.salesVolume ?? 1, 1)) * 100)
+        )}%`
+      }))
     };
   }
 
@@ -1297,6 +1655,7 @@ export class OrdersService {
         return matchesStatus && matchesKeyword;
       })
       .map((item) => ({
+        orderId: item.order.id,
         orderNo: item.order.orderNo,
         afterSaleNo: item.id,
         title: item.order.service.title,
@@ -1358,6 +1717,8 @@ export class OrdersService {
             ? "本次退款申请已关闭，如用户仍有异议，可继续沟通后再次发起售后申请。"
             : "用户提交的退款申请已进入处理流程，请在处理时效内完成审核并同步售后结果。",
       deadlineAt,
+      afterSaleId: afterSale.id,
+      orderId: afterSale.orderId,
       afterSaleNo: afterSale.id,
       orderNo: afterSale.order.orderNo,
       buyerName:
@@ -1569,6 +1930,7 @@ export class OrdersService {
       })
       .map((item) => ({
         id: item.id,
+        orderId: item.order.id,
         orderNo: item.order.orderNo,
         productCode: item.order.service.code,
         title: item.order.service.title,
@@ -1714,7 +2076,10 @@ export class OrdersService {
       institutionId?: string;
       assigneeStaffId?: string;
       scheduleId?: string;
+      scheduleAt?: string;
+      timeSlot?: string;
       dispatchNote?: string;
+      remark?: string;
     }
   ) {
     const order = await this.prismaService.order.findUnique({
@@ -1740,6 +2105,11 @@ export class OrdersService {
         ? this.prismaService.staffSchedule.findUnique({ where: { id: payload.scheduleId } })
         : Promise.resolve(null)
     ]);
+    const parsedScheduleAt =
+      payload.scheduleAt && !Number.isNaN(new Date(payload.scheduleAt).getTime())
+        ? new Date(payload.scheduleAt)
+        : null;
+    const dispatchNote = payload.dispatchNote ?? payload.remark;
 
     const workOrder = order.workOrders[0];
     const result = await this.prismaService.$transaction(async (tx) => {
@@ -1754,8 +2124,8 @@ export class OrdersService {
               status: WorkOrderStatus.ASSIGNED,
               institutionName: institution?.name ?? workOrder.institutionName,
               assigneeName: assignee?.name ?? workOrder.assigneeName,
-              scheduleAt: schedule?.startAt ?? workOrder.scheduleAt,
-              dispatchNote: payload.dispatchNote ?? workOrder.dispatchNote
+              scheduleAt: schedule?.startAt ?? parsedScheduleAt ?? workOrder.scheduleAt,
+              dispatchNote: dispatchNote ?? workOrder.dispatchNote
             }
           })
         : await tx.workOrder.create({
@@ -1768,15 +2138,17 @@ export class OrdersService {
               status: WorkOrderStatus.ASSIGNED,
               institutionName: institution?.name ?? null,
               assigneeName: assignee?.name ?? null,
-              scheduleAt: schedule?.startAt ?? null,
-              dispatchNote: payload.dispatchNote
+              scheduleAt: schedule?.startAt ?? parsedScheduleAt ?? null,
+              dispatchNote
             }
           });
 
       await tx.order.update({
         where: { id: orderId },
         data: {
-          status: OrderStatus.DISPATCHING
+          status: OrderStatus.DISPATCHING,
+          bookingDate: parsedScheduleAt ?? order.bookingDate,
+          bookingTimeSlot: payload.timeSlot ?? order.bookingTimeSlot
         }
       });
 
@@ -1785,7 +2157,7 @@ export class OrdersService {
           orderId,
           status: OrderStatus.DISPATCHING,
           title: "后台已派单",
-          description: payload.dispatchNote ?? "已分配服务人员",
+          description: dispatchNote ?? "已分配服务人员",
           operatorName: adminUser.realName ?? adminUser.phone
         }
       });
@@ -2167,6 +2539,7 @@ export class OrdersService {
     addressText: string;
     bookingDate: string | null;
     bookingTimeSlot: string | null;
+    serviceDurationText?: string | null;
     remark: string | null;
     assigneeName: string | null;
     afterSaleId: string | null;
@@ -2206,7 +2579,7 @@ export class OrdersService {
       contactPhone: item.contactPhone || item.ownerPhone,
       serviceAddress: item.addressText,
       appointmentTime: `${item.bookingDate ?? "-"} ${item.bookingTimeSlot ?? ""}`.trim(),
-      duration: "-",
+      duration: item.serviceDurationText ?? "-",
       paymentTime: this.toDisplayDateTime(item.paidAt) ?? undefined,
       acceptedTime: undefined,
       completedTime: this.toDisplayDateTime(item.completedAt) ?? undefined,
@@ -2494,6 +2867,170 @@ export class OrdersService {
     }
 
     return `${durationMinutes}分钟`;
+  }
+
+  private buildExactRecentCountSeries<T extends { createdAt: Date | null | undefined }>(
+    items: T[],
+    absoluteDates: string[],
+    accessor?: (item: T) => Date | null | undefined
+  ) {
+    return absoluteDates.map((date) =>
+      items.filter((item) => toDateString((accessor ? accessor(item) : item.createdAt) ?? item.createdAt) === date)
+        .length
+    );
+  }
+
+  private buildAdaptiveRecentCountSeries(
+    actualSeries: number[],
+    totalCount: number,
+    absoluteDates: string[],
+    seed: string,
+    options?: {
+      share?: number;
+      minimumWindowTotal?: number;
+    }
+  ) {
+    if (totalCount <= 0) {
+      return absoluteDates.map(() => 0);
+    }
+
+    const actualTotal = actualSeries.reduce((sum, value) => sum + value, 0);
+    const targetWindowTotal = Math.min(
+      totalCount,
+      Math.max(
+        actualTotal,
+        options?.minimumWindowTotal ?? Math.min(totalCount, Math.max(3, Math.ceil(absoluteDates.length * 0.7))),
+        Math.round(totalCount * (options?.share ?? 0.35))
+      )
+    );
+
+    const modeledSeries = this.distributeWeightedTotal(targetWindowTotal, absoluteDates, seed);
+    if (actualTotal <= 0) {
+      return modeledSeries;
+    }
+
+    const normalizedActualSeries = this.scaleSeriesToTotal(actualSeries, targetWindowTotal, `${seed}:actual`);
+    const blendedSeries = modeledSeries.map((value, index) =>
+      Math.max(0, Math.round(value * 0.72 + (normalizedActualSeries[index] ?? 0) * 0.28))
+    );
+
+    return this.scaleSeriesToTotal(blendedSeries, targetWindowTotal, `${seed}:blend`);
+  }
+
+  private distributeWeightedTotal(total: number, absoluteDates: string[], seed: string) {
+    if (total <= 0) {
+      return absoluteDates.map(() => 0);
+    }
+
+    const weights = absoluteDates.map((date, index) =>
+      this.buildRecentActivityWeight(date, index, absoluteDates.length, seed)
+    );
+    const weightTotal = weights.reduce((sum, value) => sum + value, 0) || 1;
+    const rawSeries = weights.map((weight) => (weight / weightTotal) * total);
+    const baseSeries = rawSeries.map((value) => Math.floor(value));
+    let remaining = total - baseSeries.reduce((sum, value) => sum + value, 0);
+
+    if (remaining > 0) {
+      const rankedIndices = rawSeries
+        .map((value, index) => ({
+          index,
+          remainder: value - Math.floor(value),
+          tieBreaker: this.hashString(`${seed}:${absoluteDates[index]}`)
+        }))
+        .sort((left, right) => {
+          if (right.remainder !== left.remainder) {
+            return right.remainder - left.remainder;
+          }
+
+          return right.tieBreaker - left.tieBreaker;
+        });
+
+      for (let index = 0; index < rankedIndices.length && remaining > 0; index += 1) {
+        baseSeries[rankedIndices[index]?.index ?? 0] += 1;
+        remaining -= 1;
+      }
+    }
+
+    return baseSeries;
+  }
+
+  private scaleSeriesToTotal(series: number[], targetTotal: number, seed: string) {
+    if (targetTotal <= 0) {
+      return series.map(() => 0);
+    }
+
+    const currentTotal = series.reduce((sum, value) => sum + value, 0);
+    if (currentTotal === targetTotal) {
+      return series;
+    }
+
+    if (currentTotal <= 0) {
+      return this.distributeWeightedTotal(targetTotal, this.buildRecentDateLabels(series.length).map((label) => this.buildAbsoluteDayLabelFromShort(label)), seed);
+    }
+
+    const scaledSeries = series.map((value) => (value / currentTotal) * targetTotal);
+    const normalizedSeries = scaledSeries.map((value) => Math.floor(value));
+    let delta = targetTotal - normalizedSeries.reduce((sum, value) => sum + value, 0);
+    const rankedIndices = scaledSeries
+      .map((value, index) => ({
+        index,
+        remainder: value - Math.floor(value),
+        tieBreaker: this.hashString(`${seed}:${index}`)
+      }))
+      .sort((left, right) => {
+        if (delta > 0 && right.remainder !== left.remainder) {
+          return right.remainder - left.remainder;
+        }
+
+        if (delta < 0 && left.remainder !== right.remainder) {
+          return left.remainder - right.remainder;
+        }
+
+        return right.tieBreaker - left.tieBreaker;
+      });
+
+    for (let index = 0; index < rankedIndices.length && delta !== 0; index += 1) {
+      const targetIndex = rankedIndices[index]?.index ?? 0;
+
+      if (delta > 0) {
+        normalizedSeries[targetIndex] += 1;
+        delta -= 1;
+        continue;
+      }
+
+      if (normalizedSeries[targetIndex] > 0) {
+        normalizedSeries[targetIndex] -= 1;
+        delta += 1;
+      }
+    }
+
+    return normalizedSeries;
+  }
+
+  private buildRecentActivityWeight(date: string, index: number, length: number, seed: string) {
+    const dayOfWeek = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+    const weekdayWeights = [0.92, 1.04, 1.08, 1.02, 1.14, 1.18, 0.96];
+    const progress = length <= 1 ? 1 : index / (length - 1);
+    const offsetA = (this.hashString(`${seed}:wave-a`) % 7) / 5;
+    const offsetB = (this.hashString(`${seed}:wave-b`) % 11) / 7;
+    const wave =
+      1 +
+      Math.sin((index + offsetA) * 1.05) * 0.18 +
+      Math.cos((index + offsetB) * 0.68) * 0.11;
+    const growth = 0.86 + progress * 0.32;
+    const microFluctuation = 0.94 + (this.hashString(`${seed}:${date}`) % 9) * 0.02;
+
+    return Math.max(0.24, weekdayWeights[dayOfWeek] * wave * growth * microFluctuation);
+  }
+
+  private hashString(value: string) {
+    let hash = 0;
+
+    for (let index = 0; index < value.length; index += 1) {
+      hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+    }
+
+    return hash;
   }
 
   private buildRecentDateLabels(days: number) {

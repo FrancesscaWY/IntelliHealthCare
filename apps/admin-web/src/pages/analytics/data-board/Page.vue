@@ -3,14 +3,19 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import * as echarts from "echarts";
 import type { ECharts, EChartsOption } from "echarts";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAnalyticsDataBoard } from "@/shared/api/analytics";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 type RangeKey = (typeof mock.rangeOptions)[number]["key"];
+type DataBoardPageData = typeof mock & {
+  activeRange?: RangeKey;
+};
 
 const props = defineProps<PageComponentProps>();
-
+const pageData = ref<DataBoardPageData>(mock);
 const currentRange = ref<RangeKey>(mock.rangeOptions[0].key);
-const activePeriod = computed(() => mock.periods[currentRange.value]);
+const activePeriod = computed(() => pageData.value.periods[currentRange.value]);
 
 const lineChartEl = ref<HTMLElement | null>(null);
 const ageChartEl = ref<HTMLElement | null>(null);
@@ -273,14 +278,35 @@ function triggerAction(label: string) {
   props.showToast(`${label}为演示状态。`);
 }
 
-watch(currentRange, async () => {
+async function syncPageData(range = currentRange.value) {
+  try {
+    const response = (await getAnalyticsDataBoard({
+      range,
+    })) as DataBoardPageData;
+    pageData.value = response;
+    currentRange.value = response.activeRange ?? range;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "用户概况加载失败，已回退到演示数据",
+    });
+  }
+
   await nextTick();
   renderCharts();
+}
+
+watch(currentRange, (range, previousRange) => {
+  if (range === previousRange) {
+    return;
+  }
+
+  void syncPageData(range);
 });
 
 onMounted(async () => {
-  await nextTick();
-  renderCharts();
+  await syncPageData();
   window.addEventListener("resize", handleResize);
 });
 
@@ -297,14 +323,14 @@ onBeforeUnmount(() => {
         <div class="dashboard-shell__title">
           <span class="dashboard-shell__accent"></span>
           <div>
-            <h1>{{ mock.title }}</h1>
-            <p>{{ mock.subtitle }}</p>
+            <h1>{{ pageData.title }}</h1>
+            <p>{{ pageData.subtitle }}</p>
           </div>
         </div>
 
         <div class="range-switch" role="tablist" aria-label="数据周期">
           <button
-            v-for="option in mock.rangeOptions"
+            v-for="option in pageData.rangeOptions"
             :key="option.key"
             class="range-switch__item"
             :class="{ 'range-switch__item--active': currentRange === option.key }"

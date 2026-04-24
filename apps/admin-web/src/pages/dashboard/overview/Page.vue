@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
 import * as echarts from "echarts";
 import type { ECharts, EChartsOption } from "echarts";
 import shanghaiGeoJson from "@/assets/map/shanghai.json";
-import mock from "./mock";
+import { getAdminDashboardOverview } from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
 type ChartItem = {
   label: string;
@@ -67,6 +70,9 @@ const shanghaiMapGeoJson = {
 
 echarts.registerMap(shanghaiMapName, shanghaiMapGeoJson as Parameters<typeof echarts.registerMap>[1]);
 
+const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
+
 const serviceChartEl = ref<HTMLElement | null>(null);
 const ageChartEl = ref<HTMLElement | null>(null);
 const healthChartEl = ref<HTMLElement | null>(null);
@@ -110,7 +116,7 @@ function createRingOption(
       itemStyle: {
         color: rounded
           ? {
-              type: "linear",
+              type: "linear" as const,
               x: 0,
               y: 0,
               x2: 1,
@@ -129,7 +135,7 @@ function createRingOption(
         ? {
             itemStyle: {
               color: {
-                type: "linear",
+                type: "linear" as const,
                 x: 0,
                 y: 0,
                 x2: 1,
@@ -193,7 +199,7 @@ function createRingOption(
           fill: "#23302e",
           fontSize: 19,
           fontWeight: 900,
-          textAlign: "center",
+          align: "center",
         },
       },
       {
@@ -205,7 +211,7 @@ function createRingOption(
           fill: "#41515e",
           fontSize: 12,
           fontWeight: 800,
-          textAlign: "center",
+          align: "center",
         },
       },
     ],
@@ -270,7 +276,7 @@ function createTrendOption(): EChartsOption {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: mock.serviceTrend.labels,
+      data: mock.value.serviceTrend.labels,
       axisLine: {
         lineStyle: {
           color: "#edf3f1",
@@ -300,7 +306,12 @@ function createTrendOption(): EChartsOption {
         fontSize: 12,
         fontWeight: 700,
         formatter(value: number) {
-          return `${Math.round(value / 1000)}K`;
+          if (value < 1000) {
+            return `${Math.round(value)}`;
+          }
+
+          const normalized = value / 1000;
+          return normalized >= 10 ? `${Math.round(normalized)}K` : `${normalized.toFixed(1)}K`;
         },
       },
       splitLine: {
@@ -313,7 +324,7 @@ function createTrendOption(): EChartsOption {
       {
         name: "服务人次",
         type: "line",
-        data: mock.serviceTrend.values,
+        data: mock.value.serviceTrend.values,
         smooth: true,
         symbol: "circle",
         symbolSize: 9,
@@ -338,7 +349,7 @@ function createTrendOption(): EChartsOption {
 }
 
 function createMapOption(): EChartsOption {
-  const values = mock.mapPoints.map((item) => item.value);
+  const values = mock.value.mapPoints.map((item) => item.value);
   const mapLayout = {
     roam: false,
     zoom: 1,
@@ -348,7 +359,7 @@ function createMapOption(): EChartsOption {
     left: -22,
     right: -22,
   };
-  const centerPointData = mock.mapPoints.map((item) => ({
+  const centerPointData = mock.value.mapPoints.map((item) => ({
     name: item.name,
     value: [...item.coordinate, item.value],
   }));
@@ -433,7 +444,7 @@ function createMapOption(): EChartsOption {
             shadowOffsetY: 6,
           },
         },
-        data: mock.mapPoints,
+        data: mock.value.mapPoints,
       },
       {
         name: "区域中心点",
@@ -482,9 +493,18 @@ function renderCharts() {
   trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
   mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
 
-  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次", true), true);
-  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户", true), true);
-  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好", true), true);
+  serviceChart.value?.setOption(
+    createRingOption("服务类型分布", mock.value.serviceTypes, mock.value.serviceTotal, "服务人次", true),
+    true,
+  );
+  ageChart.value?.setOption(
+    createRingOption("用户年龄结构", mock.value.ageGroups, mock.value.registeredTotal, "在册用户", true),
+    true,
+  );
+  healthChart.value?.setOption(
+    createRingOption("健康状态分布", mock.value.healthStatus, mock.value.healthScore, "健康/良好", true),
+    true,
+  );
   trendChart.value?.setOption(createTrendOption(), true);
   mapChart.value?.setOption(createMapOption(), true);
 }
@@ -495,6 +515,20 @@ function resizeCharts() {
   healthChart.value?.resize();
   trendChart.value?.resize();
   mapChart.value?.resize();
+}
+
+async function syncPageData() {
+  try {
+    mock.value = (await getAdminDashboardOverview()) as typeof mockSeed;
+    await nextTick();
+    renderCharts();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "概览数据加载失败，已回退到演示数据",
+    });
+  }
 }
 
 onMounted(async () => {
@@ -512,6 +546,7 @@ onMounted(async () => {
   });
 
   window.addEventListener("resize", resizeCharts);
+  void syncPageData();
 });
 
 onBeforeUnmount(() => {
@@ -683,13 +718,14 @@ onBeforeUnmount(() => {
   gap: 16px;
   width: 100%;
   min-width: 0;
+  overflow-x: clip;
   color: #253244;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
@@ -801,17 +837,19 @@ onBeforeUnmount(() => {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 25.5%) minmax(0, 46%) minmax(0, 28.5%);
-  grid-template-rows: 250px 228px 228px;
+  grid-template-columns: minmax(260px, 1.05fr) minmax(360px, 1.6fr) minmax(280px, 1.15fr);
+  grid-template-rows: minmax(250px, auto) minmax(228px, auto) minmax(228px, auto);
   grid-template-areas:
     "service map age"
     "trend map health"
     "satisfaction alert workload";
   gap: 12px;
+  align-items: stretch;
 }
 
 .panel {
   min-width: 0;
+  min-height: 0;
   padding: 16px;
   overflow: hidden;
 }
@@ -1029,7 +1067,7 @@ onBeforeUnmount(() => {
 .map-chart-hook {
   position: relative;
   height: calc(100% - 36px);
-  min-height: 488px;
+  min-height: 360px;
   overflow: hidden;
   border-radius: 10px;
   background: #ffffff;
@@ -1188,7 +1226,7 @@ onBeforeUnmount(() => {
 
 .alert-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 18px;
   height: calc(100% - 36px);
 }
@@ -1290,6 +1328,47 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-style: normal;
   font-weight: 900;
+}
+
+@media (max-width: 1560px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+    grid-template-areas:
+      "map map"
+      "service age"
+      "trend health"
+      "satisfaction workload"
+      "alert alert";
+  }
+
+  .map-chart-hook {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "service"
+      "map"
+      "age"
+      "trend"
+      "health"
+      "satisfaction"
+      "alert"
+      "workload";
+  }
+
+  .ring-with-list,
+  .satisfaction-layout {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .side-legend {
+    gap: 10px;
+  }
 }
 
 @media (max-width: 780px) {

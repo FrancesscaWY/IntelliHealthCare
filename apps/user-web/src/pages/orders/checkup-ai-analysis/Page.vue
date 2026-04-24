@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
-import mock from "./mock";
+import AiConversationHistorySheet from "@/shared/ai/components/AiConversationHistorySheet.vue";
+import { prepareAiReportAnalysis, resolveAiReportId } from "@/shared/ai/runtime";
+import {
+  activeAssistantConversationId,
+  aiReportAnalysisState,
+  assistantConversationHistory,
+  requestAssistantTextEntry,
+  requestAssistantVoiceEntry,
+  selectedAiReportId,
+  setActiveAssistantConversation
+} from "@/shared/ai/state";
 
 const props = defineProps<PageComponentProps>();
 
@@ -13,13 +23,28 @@ const BLINK_TRIGGER_NAME = "blinkTrigger";
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const draft = ref("");
 const typedText = ref("");
+const isConversationHistoryOpen = ref(false);
 const quickActions = [
   { label: "报告解读", icon: Editor },
   { label: "商品智选", icon: Commodity },
-  { label: "体检定制", icon: Stethoscope },
+  { label: "体检定制", icon: Stethoscope }
 ];
 
+const reportState = aiReportAnalysisState;
 const typedParagraphs = computed(() => typedText.value.split("\n\n").filter(Boolean));
+const reportTitle = computed(() => reportState.value?.reportTitle || "体检报告");
+const reportHighlights = computed(() => reportState.value?.highlights.slice(0, 4) ?? []);
+const reportNarrative = computed(() => {
+  const paragraphs = [
+    reportState.value?.interpretation || "",
+    ...(reportState.value?.summaryLines ?? []),
+    ...(reportState.value?.followUpSuggestions.length
+      ? [`后续建议：${reportState.value.followUpSuggestions.join("；")}`]
+      : [])
+  ].filter(Boolean);
+
+  return paragraphs.join("\n\n");
+});
 
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;
@@ -35,7 +60,28 @@ function goBack() {
 }
 
 function useQuickAction(label: string) {
-  props.showToast(`${label}功能待接入`);
+  if (label === "报告解读") {
+    const reportId = reportState.value?.reportId || selectedAiReportId.value;
+
+    if (!reportId) {
+      props.showToast("暂无可解读报告");
+      return;
+    }
+
+    void prepareAiReportAnalysis(reportId).catch((error) => {
+      props.showToast(error instanceof Error ? error.message : "AI 报告解读刷新失败");
+    });
+    return;
+  }
+
+  if (label === "商品智选") {
+    props.navigation.navigateTo("service/home-care-recommend-waiting");
+    return;
+  }
+
+  if (label === "体检定制") {
+    props.navigation.navigateTo("service/home-exam-recommend-waiting");
+  }
 }
 
 function sendMessage() {
@@ -46,8 +92,26 @@ function sendMessage() {
     return;
   }
 
+  requestAssistantTextEntry(text, props.pageEntry.id);
   draft.value = "";
-  props.showToast("消息已发送");
+  props.navigation.navigateTo("home/assistant-chat");
+}
+
+function openVoiceAssistant() {
+  requestAssistantVoiceEntry(props.pageEntry.id);
+  props.navigation.navigateTo("home/assistant-chat");
+}
+
+function openConversationFromHistory(conversationId: string) {
+  setActiveAssistantConversation(conversationId);
+  isConversationHistoryOpen.value = false;
+  props.navigation.navigateTo("home/assistant-chat");
+}
+
+function createConversationFromHistory() {
+  setActiveAssistantConversation("");
+  isConversationHistoryOpen.value = false;
+  props.navigation.navigateTo("home/assistant-chat");
 }
 
 function nextTypingSize(text: string) {
@@ -66,7 +130,7 @@ function nextTypingSize(text: string) {
 }
 
 function typeNextChunk() {
-  const source = mock.analysisText;
+  const source = reportNarrative.value;
 
   if (typingIndex >= source.length) {
     return;
@@ -78,9 +142,25 @@ function typeNextChunk() {
   typingTimer = setTimeout(typeNextChunk, 34 + Math.random() * 42);
 }
 
+function restartTyping() {
+  clearTimeout(typingTimer ?? undefined);
+  typedText.value = "";
+  typingIndex = 0;
+
+  if (!reportNarrative.value) {
+    return;
+  }
+
+  typingTimer = setTimeout(typeNextChunk, 180);
+}
+
 function bindStateMachineInputs() {
   const inputs = riveInstance?.stateMachineInputs(STATE_MACHINE_NAME) ?? [];
-  blinkTrigger = inputs.find((input) => input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger) ?? null;
+  blinkTrigger =
+    inputs.find(
+      (input) =>
+        input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger
+    ) ?? null;
 }
 
 function triggerBlink() {
@@ -103,8 +183,22 @@ function resizeRive() {
   riveInstance?.resizeDrawingSurfaceToCanvas();
 }
 
+watch(reportNarrative, restartTyping, { immediate: true });
+
 onMounted(() => {
-  typingTimer = setTimeout(typeNextChunk, 280);
+  if (!reportState.value) {
+    void (async () => {
+      const reportId = selectedAiReportId.value || (await resolveAiReportId());
+
+      if (!reportId) {
+        throw new Error("暂无可用于 AI 解读的体检报告");
+      }
+
+      await prepareAiReportAnalysis(reportId);
+    })().catch((error) => {
+      props.showToast(error instanceof Error ? error.message : "AI 报告解读加载失败");
+    });
+  }
 
   const canvas = canvasRef.value;
 
@@ -119,13 +213,13 @@ onMounted(() => {
     autoplay: true,
     layout: new Layout({
       fit: Fit.Contain,
-      alignment: Alignment.Center,
+      alignment: Alignment.Center
     }),
     onLoad: () => {
       resizeRive();
       bindStateMachineInputs();
       scheduleBlink();
-    },
+    }
   });
 
   resizeObserver = new ResizeObserver(resizeRive);
@@ -150,14 +244,31 @@ onBeforeUnmount(() => {
         <button class="assistant-back" type="button" aria-label="返回" @click="goBack">
           <span aria-hidden="true"></span>
         </button>
-        <canvas ref="canvasRef" class="assistant-avatar" width="180" height="140" aria-label="AI 小助手"></canvas>
+        <canvas
+          ref="canvasRef"
+          class="assistant-avatar"
+          width="180"
+          height="140"
+          aria-label="AI 小助手"
+        ></canvas>
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
           <strong>您好！我是豆沙包</strong>
           <strong>正在为您解读报告。</strong>
           <p>分析仅供参考，医学建议请询问专业医生</p>
         </div>
-        <button class="more-btn" type="button" @click="props.showToast('更多功能待接入')">更多</button>
+        <button
+          class="history-btn"
+          type="button"
+          aria-label="查看历史对话记录"
+          @click="isConversationHistoryOpen = true"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 7v5l3 2"></path>
+            <path d="M4.5 12a7.5 7.5 0 1 0 2.1-5.22"></path>
+            <path d="M4.5 4.5v4h4"></path>
+          </svg>
+        </button>
       </header>
 
       <section class="report-section" aria-label="报告分析">
@@ -168,16 +279,28 @@ onBeforeUnmount(() => {
         </div>
 
         <section class="report-card">
-          <h2>老年人全面健康体检报告</h2>
+          <h2>{{ reportTitle }}</h2>
           <div class="metric-grid">
-            <span>血压 正常</span>
-            <span>血糖 正常</span>
-            <span>血氧 正常</span>
-            <span class="warning">血脂 偏高</span>
+            <span
+              v-for="item in reportHighlights.length ? reportHighlights : ['AI 正在提取报告重点']"
+              :key="item"
+              :class="{ warning: item.includes('高') || item.includes('风险') || item.includes('异常') }"
+            >
+              {{ item }}
+            </span>
           </div>
           <div class="analysis-text">
             <p v-for="paragraph in typedParagraphs" :key="paragraph">{{ paragraph }}</p>
-            <i v-if="typedText.length < mock.analysisText.length" aria-hidden="true"></i>
+            <i v-if="typedText.length < reportNarrative.length" aria-hidden="true"></i>
+          </div>
+        </section>
+
+        <section v-if="reportState?.riskSignals.length || reportState?.latestRiskAlert" class="risk-card">
+          <strong>风险提醒</strong>
+          <p v-for="signal in reportState?.riskSignals ?? []" :key="signal">{{ signal }}</p>
+          <div v-if="reportState?.latestRiskAlert" class="risk-card__detail">
+            <span>{{ reportState.latestRiskAlert.title }}</span>
+            <p>{{ reportState.latestRiskAlert.summary }}</p>
           </div>
         </section>
       </section>
@@ -192,7 +315,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="message-bar">
-        <button class="voice-btn" type="button" aria-label="语音输入" @click="props.showToast('语音输入待接入')">
+        <button class="voice-btn" type="button" aria-label="语音输入" @click="openVoiceAssistant">
           <span aria-hidden="true"></span>
         </button>
         <button class="camera-btn" type="button" aria-label="拍照或上传图片" @click="props.showToast('图片功能待接入')">
@@ -202,6 +325,15 @@ onBeforeUnmount(() => {
         <button class="send-btn" type="button" @click="sendMessage">发送</button>
       </div>
     </footer>
+
+    <AiConversationHistorySheet
+      :open="isConversationHistoryOpen"
+      :entries="assistantConversationHistory"
+      :active-conversation-id="activeAssistantConversationId"
+      @close="isConversationHistoryOpen = false"
+      @create="createConversationFromHistory"
+      @select="openConversationFromHistory"
+    />
   </section>
 </template>
 
@@ -247,7 +379,7 @@ onBeforeUnmount(() => {
 }
 
 .assistant-back,
-.more-btn,
+.history-btn,
 .quick-actions button,
 .voice-btn,
 .camera-btn,
@@ -276,6 +408,31 @@ onBeforeUnmount(() => {
   border-bottom: 3px solid rgba(31, 42, 68, 0.58);
   border-left: 3px solid rgba(31, 42, 68, 0.58);
   transform: rotate(45deg);
+}
+
+.history-btn {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 10px 24px rgba(65, 96, 136, 0.12);
+}
+
+.history-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: rgba(31, 42, 68, 0.78);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .assistant-avatar {
@@ -322,16 +479,6 @@ onBeforeUnmount(() => {
   line-height: 1.35;
 }
 
-.more-btn {
-  grid-column: 3;
-  justify-self: end;
-  margin-top: 5px;
-  padding: 0;
-  color: #2d344b;
-  font-size: 15px;
-  font-weight: 900;
-}
-
 .report-section {
   margin-top: -28px;
 }
@@ -356,7 +503,8 @@ onBeforeUnmount(() => {
   letter-spacing: 0.08em;
 }
 
-.report-card {
+.report-card,
+.risk-card {
   padding: 14px;
   border-radius: 6px;
   background:
@@ -366,7 +514,12 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 
-.report-card h2 {
+.risk-card {
+  margin-top: 16px;
+}
+
+.report-card h2,
+.risk-card strong {
   margin: 0 0 12px;
   color: #25305a;
   font-size: 18px;
@@ -384,26 +537,35 @@ onBeforeUnmount(() => {
   min-height: 32px;
   display: grid;
   place-items: center;
+  padding: 0 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.88);
   color: #2b9fa9;
   font-size: 13px;
   font-weight: 900;
+  text-align: center;
 }
 
 .metric-grid .warning {
   color: #006dff;
 }
 
-.analysis-text {
-  min-height: 260px;
+.analysis-text,
+.risk-card__detail {
+  min-height: 160px;
   padding: 14px 13px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
 }
 
-.analysis-text p {
+.risk-card__detail {
+  min-height: 0;
+  margin-top: 12px;
+}
+
+.analysis-text p,
+.risk-card p {
   margin: 0 0 12px;
   color: rgba(45, 55, 79, 0.78);
   font-size: 14px;
@@ -412,8 +574,20 @@ onBeforeUnmount(() => {
   text-align: justify;
 }
 
+.risk-card p:last-of-type,
 .analysis-text p:last-of-type {
   margin-bottom: 0;
+}
+
+.risk-card__detail span {
+  display: block;
+  color: #25305a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.risk-card__detail p {
+  margin-top: 8px;
 }
 
 .analysis-text i {

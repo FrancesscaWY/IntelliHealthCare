@@ -1,33 +1,36 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAdminBookingBoard } from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
-
-const selectedDate = ref(mock.defaultDate);
+const pageData = ref<typeof mock>(mock);
+const selectedDate = ref("");
 const selectedStaff = ref(mock.staffOptions[0]);
 const selectedServiceType = ref(mock.serviceTypeOptions[0]);
 
-const startHour = mock.timeSlots[0];
-const rowCount = mock.timeSlots.length - 1;
-const hourLabels = mock.timeSlots.slice(0, -1);
-const closingHour = mock.timeSlots[mock.timeSlots.length - 1];
+const startHour = computed(() => pageData.value.timeSlots[0] ?? 0);
+const rowCount = computed(() => Math.max(pageData.value.timeSlots.length - 1, 0));
+const hourLabels = computed(() => pageData.value.timeSlots.slice(0, -1));
+const closingHour = computed(() => pageData.value.timeSlots[pageData.value.timeSlots.length - 1] ?? 0);
 const slotHeight = 156;
 
 const filteredBookings = computed(() =>
-  mock.bookings.filter((item) => {
-    const matchesDate = item.date === selectedDate.value;
-    const matchesStaff = selectedStaff.value === mock.staffOptions[0] || item.staffs.includes(selectedStaff.value);
+  pageData.value.bookings.filter((item) => {
+    const matchesDate = !selectedDate.value || item.date === selectedDate.value;
+    const matchesStaff =
+      selectedStaff.value === pageData.value.staffOptions[0] || item.staffs.includes(selectedStaff.value);
     const matchesServiceType =
-      selectedServiceType.value === mock.serviceTypeOptions[0] || item.serviceType === selectedServiceType.value;
+      selectedServiceType.value === pageData.value.serviceTypeOptions[0] || item.serviceType === selectedServiceType.value;
     return matchesDate && matchesStaff && matchesServiceType;
   }),
 );
 
 function getBookingStyle(start: number, end: number, lane: number, laneSpan: number) {
   return {
-    gridRow: `${start - startHour + 1} / span ${end - start}`,
+    gridRow: `${start - startHour.value + 1} / span ${end - start}`,
     gridColumn: `${lane} / span ${laneSpan}`,
   };
 }
@@ -35,6 +38,53 @@ function getBookingStyle(start: number, end: number, lane: number, laneSpan: num
 function openBooking(title: string) {
   props.showToast(`查看预约：${title}`);
 }
+
+async function syncPageData(query: {
+  date?: string;
+  serviceType?: string;
+} = {}) {
+  try {
+    pageData.value = (await getAdminBookingBoard(query)) as typeof mock;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "预约看板加载失败，已回退到演示数据",
+    });
+  }
+
+  if (!selectedDate.value) {
+    selectedDate.value = pageData.value.defaultDate;
+  }
+
+  if (!pageData.value.staffOptions.includes(selectedStaff.value)) {
+    selectedStaff.value = pageData.value.staffOptions[0];
+  }
+
+  if (!pageData.value.serviceTypeOptions.includes(selectedServiceType.value)) {
+    selectedServiceType.value = pageData.value.serviceTypeOptions[0];
+  }
+}
+
+watch([selectedDate, selectedServiceType], ([date, serviceType], previousValues) => {
+  if (!date) {
+    return;
+  }
+
+  if (previousValues && date === previousValues[0] && serviceType === previousValues[1]) {
+    return;
+  }
+
+  void syncPageData({
+    date,
+    serviceType:
+      serviceType && serviceType !== pageData.value.serviceTypeOptions[0] ? serviceType : undefined,
+  });
+});
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -42,7 +92,7 @@ function openBooking(title: string) {
     <article class="booking-panel booking-panel--filters">
       <header class="section-head">
         <span class="section-head__accent"></span>
-        <h1>{{ mock.title }}</h1>
+        <h1>{{ pageData.title }}</h1>
       </header>
 
       <div class="filters">
@@ -61,7 +111,7 @@ function openBooking(title: string) {
           <span class="field__label">服务人员</span>
           <div class="field__control field__control--select">
             <select v-model="selectedStaff">
-              <option v-for="item in mock.staffOptions" :key="item" :value="item">{{ item }}</option>
+              <option v-for="item in pageData.staffOptions" :key="item" :value="item">{{ item }}</option>
             </select>
             <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
               <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />
@@ -73,7 +123,7 @@ function openBooking(title: string) {
           <span class="field__label">服务类型</span>
           <div class="field__control field__control--select">
             <select v-model="selectedServiceType">
-              <option v-for="item in mock.serviceTypeOptions" :key="item" :value="item">{{ item }}</option>
+              <option v-for="item in pageData.serviceTypeOptions" :key="item" :value="item">{{ item }}</option>
             </select>
             <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
               <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />

@@ -1,7 +1,5 @@
-const avatarA =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=160";
-const avatarB =
-  "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=160";
+const avatarA = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+const avatarB = "/api/v1/assets/demo/staff/staff-1.png";
 
 const mock = {
   title: "预约看板",

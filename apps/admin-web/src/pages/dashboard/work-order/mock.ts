@@ -1,7 +1,5 @@
-const coverImage =
-  "https://images.pexels.com/photos/7579831/pexels-photo-7579831.jpeg?auto=compress&cs=tinysrgb&w=320";
-const customerAvatar =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
+const coverImage = "/api/v1/assets/demo/services/service-rehab.png";
+const customerAvatar = "/api/v1/assets/demo/avatars/avatar-1.jpg";
 
 const mock = {
   title: "工单管理",
@@ -19,6 +17,8 @@ const mock = {
     customerPhone: "19288664488",
     customerAvatar,
     assignTime: "2024-10-09 10:09:09",
+    assignDate: "2024-10-09",
+    bookingDate: `2024-10-${String(10 + (index % 5)).padStart(2, "0")}`,
     status: "待服务",
     actions: [
       { label: "改单", tone: "green" },

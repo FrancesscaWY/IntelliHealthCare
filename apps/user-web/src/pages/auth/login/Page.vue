@@ -10,7 +10,7 @@ import {
   sendSmsCode
 } from "@/shared/api/auth";
 import type { LoginResponse } from "@/shared/api/auth";
-import { REAL_NAME_PAGE_ID } from "@/shared/auth/navigation";
+import { resolvePostLoginPageId } from "@/shared/auth/navigation";
 import { saveUserAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
@@ -84,8 +84,8 @@ function createDeviceId(prefix: string) {
   return `${prefix}-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
 }
 
-async function redirectAfterLogin() {
-  props.navigation.reLaunch(REAL_NAME_PAGE_ID);
+async function redirectAfterLogin(session: LoginResponse) {
+  props.navigation.reLaunch(resolvePostLoginPageId(Boolean(session.user.realName)));
 }
 
 function storeSession(session: LoginResponse) {
@@ -172,7 +172,7 @@ async function submitForm() {
 
     storeSession(session);
     props.showToast("登录成功");
-    await redirectAfterLogin();
+    await redirectAfterLogin(session);
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -199,7 +199,7 @@ async function handleThirdPartyLogin(provider: string, label: string) {
 
     storeSession(session);
     props.showToast(`${label}登录成功`);
-    await redirectAfterLogin();
+    await redirectAfterLogin(session);
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {

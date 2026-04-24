@@ -103,14 +103,116 @@ export interface AdminEldersQuery {
   tag?: string;
 }
 
+export interface CreateAdminElderPayload {
+  realName: string;
+  phone: string;
+  nickname?: string;
+  gender?: string;
+  birthday?: string;
+  ethnicity?: string;
+  education?: string;
+  maritalStatus?: string;
+  bloodType?: string;
+  city?: string;
+  address?: string;
+  tags?: string[];
+  emergencyContact?: Record<string, unknown>;
+}
+
 export function getAdminElders(query: AdminEldersQuery = {}) {
   return request<AdminElderListResponse>(`/admin/elders${buildQueryString(query)}`, {
     auth: true
   });
 }
 
+export function createAdminElder(payload: CreateAdminElderPayload) {
+  return request<any>("/admin/elders", {
+    method: "POST",
+    auth: true,
+    body: payload
+  });
+}
+
+export function deleteAdminElder(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}`, {
+    method: "DELETE",
+    auth: true
+  });
+}
+
+export function batchUpdateAdminElderTags(payload: {
+  elderIds: string[];
+  tags: string[];
+}) {
+  return request<any>("/admin/elders/tags/batch", {
+    method: "POST",
+    auth: true,
+    body: payload
+  });
+}
+
 export function getAdminElderDetail(elderId: string) {
   return request<AdminElderDetailResponse>(`/admin/elders/${elderId}`, {
+    auth: true
+  });
+}
+
+export function getAdminElderProfile(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/profile`, {
+    auth: true
+  });
+}
+
+export function getAdminElderHealth(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/health`, {
+    auth: true
+  });
+}
+
+export function getAdminElderMedication(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/medication`, {
+    auth: true
+  });
+}
+
+export function getAdminElderMetrics(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/metrics`, {
+    auth: true
+  });
+}
+
+export function getAdminElderDevices(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/devices`, {
+    auth: true
+  });
+}
+
+export function getAdminElderReports(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/reports`, {
+    auth: true
+  });
+}
+
+export function getAdminElderOrders(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/orders`, {
+    auth: true
+  });
+}
+
+export function getAdminElderAssets(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/assets`, {
+    auth: true
+  });
+}
+
+export function getAdminElderContents(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/contents`, {
+    auth: true
+  });
+}
+
+export function getAdminElderServiceRecords(elderId: string) {
+  return request<any>(`/admin/elders/${elderId}/service-records`, {
     auth: true
   });
 }

@@ -291,12 +291,36 @@ class DispatchOrderDto {
   scheduleId?: string;
 
   @ApiPropertyOptional({
+    description: "预约开始时间，前端未绑定排班时可直接传入。",
+    example: "2026-04-24T09:00:00.000Z"
+  })
+  @IsOptional()
+  @IsString()
+  scheduleAt?: string;
+
+  @ApiPropertyOptional({
+    description: "预约时段文案。",
+    example: "09:00-11:00"
+  })
+  @IsOptional()
+  @IsString()
+  timeSlot?: string;
+
+  @ApiPropertyOptional({
     description: "派单备注。",
     example: "优先安排熟悉康复护理的治疗师"
   })
   @IsOptional()
   @IsString()
   dispatchNote?: string;
+
+  @ApiPropertyOptional({
+    description: "派单备注的旧字段别名。",
+    example: "优先安排熟悉康复护理的治疗师"
+  })
+  @IsOptional()
+  @IsString()
+  remark?: string;
 }
 
 class UpdateWorkOrderStatusDto {
@@ -834,6 +858,19 @@ export class AdminOrdersController {
     @Body() body: DispatchOrderDto
   ) {
     return this.ordersService.dispatchOrder(user, orderId, body);
+  }
+
+  @Post("orders/:orderId/after-sales")
+  @ApiOperation({
+    summary: "后台发起售后申请",
+    description: "后台订单详情页退款/售后动作接口。"
+  })
+  createOrderAfterSale(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("orderId") orderId: string,
+    @Body() body: AfterSaleDto
+  ) {
+    return this.ordersService.createAdminAfterSale(user, orderId, body);
   }
 
   @Get("work-orders")

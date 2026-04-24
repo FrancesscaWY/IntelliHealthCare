@@ -152,11 +152,20 @@ async function submitLogin() {
       <div class="showcase-copy">
         <p class="showcase-kicker">IntelliHealthCare Admin</p>
         <h1>{{ mock.brandTitle }}</h1>
+        <p class="showcase-summary">{{ mock.brandSummary }}</p>
       </div>
 
-      <div class="showcase-illustration">
-        <div class="illustration-frame">
-          <img :src="heroIllustration" alt="智慧养老管理平台插画" draggable="false" />
+      <div class="showcase-panel">
+        <div class="showcase-panel__meta">
+          <span class="showcase-panel__eyebrow">当前登录角色</span>
+          <strong>{{ currentRole.label }}</strong>
+          <p>{{ currentRole.description }}</p>
+        </div>
+
+        <div class="showcase-illustration">
+          <div class="illustration-frame">
+            <img :src="heroIllustration" alt="智慧养老管理平台插画" draggable="false" />
+          </div>
         </div>
       </div>
     </section>
@@ -280,16 +289,23 @@ async function submitLogin() {
   --primary-soft: #eaf7f0;
   --surface-soft: #f7fcf9;
   position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(420px, 520px);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 500px);
   align-items: center;
+  justify-content: center;
+  gap: clamp(28px, 4vw, 60px);
   width: 100%;
+  max-width: 1248px;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100svh;
   min-height: max(720px, 100svh);
   padding: 40px 56px 68px;
+  box-sizing: border-box;
+  margin-inline: auto;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
   background:
     radial-gradient(circle at top left, rgba(115, 192, 156, 0.18), transparent 30%),
     radial-gradient(circle at 30% 18%, rgba(208, 241, 224, 0.86), transparent 24%),
@@ -331,21 +347,25 @@ async function submitLogin() {
 .login-card,
 .login-footer {
   position: relative;
+  min-width: 0;
   z-index: 1;
 }
 
 .login-showcase {
   display: grid;
   align-content: center;
-  justify-items: center;
-  gap: 26px;
+  justify-items: stretch;
+  gap: 24px;
+  width: 100%;
+  max-width: 600px;
+  align-self: center;
   padding-right: 0;
   min-height: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .showcase-copy {
-  max-width: 500px;
+  max-width: 520px;
 }
 
 .showcase-kicker {
@@ -360,55 +380,124 @@ async function submitLogin() {
 .showcase-copy h1 {
   margin: 14px 0 0;
   color: #1c2b3a;
-  font-size: 34px;
+  font-size: clamp(34px, 3.2vw, 46px);
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.22;
   letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+
+.showcase-summary {
+  margin: 16px 0 0;
+  max-width: 460px;
+  color: #698094;
+  font-size: 15px;
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+
+.showcase-panel {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  max-width: 560px;
+  padding: 24px 24px 18px;
+  border: 1px solid rgba(206, 228, 218, 0.9);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(240, 250, 244, 0.72));
+  box-shadow: 0 24px 56px rgba(48, 93, 72, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.showcase-panel__meta {
+  display: grid;
+  gap: 8px;
+}
+
+.showcase-panel__eyebrow {
+  color: #7a917f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.showcase-panel__meta strong {
+  color: #203242;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.showcase-panel__meta p {
+  margin: 0;
+  max-width: 420px;
+  color: #7a8f9f;
+  font-size: 14px;
+  line-height: 1.75;
+  text-wrap: pretty;
 }
 
 .showcase-illustration {
   display: grid;
   place-items: center;
-  width: min(100%, 520px);
-  min-height: 320px;
+  width: 100%;
+  min-height: 0;
+  padding: 14px 14px 0;
+  border-radius: 26px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(224, 245, 232, 0.78), rgba(224, 245, 232, 0) 54%),
+    linear-gradient(180deg, rgba(250, 253, 251, 0.96), rgba(229, 244, 236, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(162, 206, 182, 0.18);
 }
 
 .illustration-frame {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(100%, 500px);
-  aspect-ratio: 1 / 0.92;
+  width: 100%;
+  aspect-ratio: 1.18 / 0.82;
+  overflow: hidden;
 }
 
 .illustration-frame::before {
   content: "";
   position: absolute;
-  inset: 12% 10% 8%;
+  inset: 14% 14% 10%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(214, 241, 225, 0.72) 0%, rgba(214, 241, 225, 0.28) 48%, rgba(214, 241, 225, 0) 74%);
-  filter: blur(10px);
+  background: radial-gradient(circle, rgba(209, 239, 220, 0.68) 0%, rgba(209, 239, 220, 0.24) 50%, rgba(209, 239, 220, 0) 76%);
+  filter: blur(14px);
   pointer-events: none;
 }
 
 .showcase-illustration img {
   position: relative;
   z-index: 1;
-  width: min(100%, 470px);
-  height: auto;
-  object-fit: contain;
+  width: 114%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
   user-select: none;
-  filter: drop-shadow(0 18px 28px rgba(51, 102, 76, 0.1));
+  mix-blend-mode: multiply;
+  transform: translateX(-1.5%) scale(1.03);
+  filter: drop-shadow(0 18px 28px rgba(51, 102, 76, 0.12));
 }
 
 .login-card {
-  width: min(100%, 520px);
+  width: 100%;
+  max-width: 500px;
   padding: 40px 42px 32px;
   border: 1px solid var(--card-border);
   border-radius: 26px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 252, 249, 0.84));
   box-shadow: var(--card-shadow);
   backdrop-filter: blur(14px);
+  justify-self: end;
+  align-self: center;
 }
 
 .login-card__logo {
@@ -618,6 +707,19 @@ async function submitLogin() {
   text-align: center;
 }
 
+.login-footer {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  color: #8ea1b2;
+  font-size: 12px;
+  line-height: 1.6;
+  flex-wrap: wrap;
+}
+
 .quick-links {
   display: flex;
   flex-wrap: wrap;
@@ -632,13 +734,18 @@ async function submitLogin() {
 
 @media (max-width: 1200px) {
   .login-page {
-    grid-template-columns: minmax(0, 1fr) minmax(380px, 480px);
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 472px);
+    gap: 32px;
     padding-right: 36px;
     padding-left: 36px;
   }
 
   .showcase-copy h1 {
     font-size: 30px;
+  }
+
+  .showcase-panel {
+    max-width: 520px;
   }
 }
 
@@ -665,21 +772,35 @@ async function submitLogin() {
     font-size: 28px;
   }
 
+  .showcase-summary {
+    max-width: 100%;
+  }
+
+  .showcase-panel {
+    width: 100%;
+    max-width: 420px;
+    padding: 18px 18px 14px;
+    text-align: left;
+  }
+
   .showcase-illustration {
-    min-height: auto;
     place-items: center;
+    padding: 10px 10px 0;
   }
 
   .illustration-frame {
-    width: min(100%, 360px);
+    width: 100%;
+    aspect-ratio: 1 / 0.84;
   }
 
   .showcase-illustration img {
-    width: min(100%, 340px);
+    width: 110%;
+    object-position: center 20%;
   }
 
   .login-card {
     width: 100%;
+    justify-self: stretch;
     padding: 28px 18px 24px;
   }
 

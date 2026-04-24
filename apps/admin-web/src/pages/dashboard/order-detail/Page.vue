@@ -1,13 +1,34 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { buildOrderDetail, getActiveOrder, type DetailField } from "./mock";
+import {
+  closeAdminOrder,
+  createAdminOrderAfterSale,
+  dispatchAdminOrder,
+  getAdminOrderDetail,
+  saveAdminOrderRemark,
+  updateAdminOrderPrice,
+} from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
+import { getAdminStaffs } from "@/shared/api/catalog";
+import {
+  buildOrderDetail,
+  getActiveOrder,
+  readSelectedOrderId,
+  type DetailField,
+} from "./mock";
+import { afterSaleDetailStorageKey } from "../after-sale-detail/mock";
 import { getAfterSaleRowByNo, upsertAfterSaleRow } from "../after-sale/mock";
-import { updateOrderById, type AdminOrderRecord } from "../order-list/mock";
+import {
+  updateOrderById,
+  type AdminOrderRecord,
+} from "../order-list/mock";
 
 const props = defineProps<PageComponentProps>();
 const nowTimestamp = ref(Date.now());
+const selectedOrderId = ref(readSelectedOrderId());
 const selectedOrder = ref<AdminOrderRecord | null>(getActiveOrder());
+const hasRemoteDispatchStaff = ref(false);
 const priceEditorOpen = ref(false);
 const closeConfirmOpen = ref(false);
 const dispatchDialogOpen = ref(false);
@@ -32,14 +53,14 @@ type DispatchStaffOption = {
   status: DispatchStaffStatus;
 };
 
-const dispatchStaffOptions: DispatchStaffOption[] = [
+const fallbackDispatchStaffOptions: DispatchStaffOption[] = [
   {
     id: "staff-1001",
     name: "王小倩",
     employeeNo: "2024340089",
     region: "上海徐汇",
     phone: "15689004488",
-    avatar: "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/staff/staff-1.png",
     status: "空闲",
   },
   {
@@ -48,7 +69,7 @@ const dispatchStaffOptions: DispatchStaffOption[] = [
     employeeNo: "2024340126",
     region: "上海徐汇",
     phone: "15689002218",
-    avatar: "https://images.pexels.com/photos/3771836/pexels-photo-3771836.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/staff/staff-2.png",
     status: "空闲",
   },
   {
@@ -57,7 +78,7 @@ const dispatchStaffOptions: DispatchStaffOption[] = [
     employeeNo: "2024340172",
     region: "上海徐汇",
     phone: "15689003116",
-    avatar: "https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/staff/staff-3.png",
     status: "空闲",
   },
   {
@@ -66,7 +87,7 @@ const dispatchStaffOptions: DispatchStaffOption[] = [
     employeeNo: "2024340198",
     region: "上海徐汇",
     phone: "15689006542",
-    avatar: "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/avatars/avatar-4.jpg",
     status: "空闲",
   },
   {
@@ -75,7 +96,7 @@ const dispatchStaffOptions: DispatchStaffOption[] = [
     employeeNo: "2024340241",
     region: "上海徐汇",
     phone: "15689007425",
-    avatar: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/avatars/avatar-5.jpg",
     status: "忙碌",
   },
   {
@@ -84,10 +105,11 @@ const dispatchStaffOptions: DispatchStaffOption[] = [
     employeeNo: "2024340314",
     region: "上海浦东",
     phone: "15689008310",
-    avatar: "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/staff/staff-2.png",
     status: "忙碌",
   },
 ];
+const dispatchStaffOptions = ref<DispatchStaffOption[]>(fallbackDispatchStaffOptions);
 
 const dispatchForm = reactive({
   appointmentDate: "",
@@ -152,8 +174,12 @@ const priceAdjustmentError = computed(() => {
 });
 
 const canConfirmPriceChange = computed(() => !priceAdjustmentError.value);
-const selectedDispatchStaff = computed(() => dispatchStaffOptions.find((item) => item.id === dispatchForm.selectedStaffId) ?? null);
-const availableDispatchStaffCount = computed(() => dispatchStaffOptions.filter((item) => item.status === "空闲").length);
+const selectedDispatchStaff = computed(
+  () => dispatchStaffOptions.value.find((item) => item.id === dispatchForm.selectedStaffId) ?? null,
+);
+const availableDispatchStaffCount = computed(
+  () => dispatchStaffOptions.value.filter((item) => item.status === "空闲").length,
+);
 const canConfirmDispatch = computed(
   () => !!dispatchForm.appointmentDate && !!dispatchForm.appointmentTime && !!dispatchForm.durationHours && !!dispatchForm.selectedStaffId,
 );
@@ -245,6 +271,84 @@ function startCountdown() {
   }, 1000);
 }
 
+function navigateWithStorage(pageId: string, storageKey: string, value: string) {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(storageKey, value);
+  }
+
+  props.navigation.navigateTo(pageId);
+
+  const nextStack = props.navigation.getStack();
+  const activePageId = nextStack[nextStack.length - 1] || "";
+
+  if (activePageId !== pageId) {
+    props.navigation.reLaunch(pageId);
+  }
+}
+
+async function syncDispatchStaffOptions(serviceType?: string) {
+  try {
+    const response = await getAdminStaffs({
+      page: 1,
+      pageSize: 100,
+      serviceType: serviceType || undefined,
+    });
+    const rows = Array.isArray(response?.rows) ? response.rows : [];
+
+    dispatchStaffOptions.value = rows.length
+      ? rows.map((item: Record<string, unknown>) => ({
+          id: String(item.id ?? ""),
+          name: String(item.name ?? "待分配"),
+          employeeNo: String(item.staffId ?? item.employeeNo ?? ""),
+          region: String(item.district ?? "上海"),
+          phone: String(item.phone ?? ""),
+          avatar: String(
+            item.avatar ||
+              "/api/v1/assets/demo/staff/staff-2.png",
+          ),
+          status: item.enabled === false ? "忙碌" : "空闲",
+        }))
+      : fallbackDispatchStaffOptions;
+    hasRemoteDispatchStaff.value = rows.length > 0;
+  } catch {
+    dispatchStaffOptions.value = fallbackDispatchStaffOptions;
+    hasRemoteDispatchStaff.value = false;
+  }
+}
+
+async function syncPageData() {
+  const orderId = readSelectedOrderId();
+
+  selectedOrderId.value = orderId;
+
+  if (!orderId) {
+    selectedOrder.value = getActiveOrder();
+    await syncDispatchStaffOptions(selectedOrder.value?.serviceType);
+    return;
+  }
+
+  try {
+    const response = await getAdminOrderDetail(orderId);
+    const remoteOrder = (response?.viewModel?.order ?? null) as AdminOrderRecord | null;
+
+    if (remoteOrder) {
+      selectedOrder.value = { ...remoteOrder };
+    } else {
+      selectedOrder.value = getActiveOrder();
+    }
+
+    await syncDispatchStaffOptions(selectedOrder.value?.serviceType);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "订单详情加载失败，已回退到演示数据",
+    });
+    selectedOrder.value = getActiveOrder();
+    await syncDispatchStaffOptions(selectedOrder.value?.serviceType);
+  }
+}
+
 watch(
   () => detail.value?.order.paymentDeadlineAt ?? "",
   (deadlineAt) => {
@@ -260,6 +364,14 @@ watch(
 
 onBeforeUnmount(() => {
   stopCountdown();
+});
+
+onMounted(() => {
+  void syncPageData();
+});
+
+onActivated(() => {
+  void syncPageData();
 });
 
 function goBack() {
@@ -344,7 +456,9 @@ function applyOrderPatch(patch: Partial<AdminOrderRecord>) {
 
   const nextOrder = { ...order, ...patch };
   selectedOrder.value = nextOrder;
-  updateOrderById(order.id, patch);
+  if (selectedOrderId.value) {
+    updateOrderById(selectedOrderId.value, patch);
+  }
 }
 
 async function copyText(value: string, label: string) {
@@ -372,7 +486,7 @@ function handleFieldAction(field: DetailField) {
     return;
   }
 
-  props.showToast(`已打开订单 ${order.id} 的预约编辑入口`);
+  openDispatchDialog();
 }
 
 function openUserProfile() {
@@ -395,14 +509,34 @@ function contactUser() {
   props.showToast(`已打开 ${order.contactName} 的联系入口`);
 }
 
-function editRemark() {
+async function editRemark() {
   const order = detail.value?.order;
 
   if (!order) {
     return;
   }
 
-  props.showToast(`已打开订单 ${order.id} 的备注编辑入口`);
+  const nextRemark = typeof window !== "undefined" ? window.prompt("请输入订单备注", order.orderRemark || "") : order.orderRemark;
+
+  if (nextRemark === null) {
+    return;
+  }
+
+  try {
+    await saveAdminOrderRemark(selectedOrderId.value, {
+      remark: nextRemark.trim(),
+    });
+    applyOrderPatch({
+      orderRemark: nextRemark.trim() || "暂无订单备注",
+    });
+    props.showToast("订单备注已保存");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "订单备注保存失败，请稍后重试",
+    });
+  }
 }
 
 function openPriceEditor() {
@@ -422,19 +556,27 @@ function closePriceEditor() {
   priceAdjustmentInput.value = "";
 }
 
-function confirmPriceChange() {
+async function confirmPriceChange() {
   const order = selectedOrder.value;
 
   if (!order || !canConfirmPriceChange.value) {
     return;
   }
 
-  applyOrderPatch({
-    settleAmount: formatAmount(adjustedPayableAmount.value),
-  });
-
-  closePriceEditor();
-  props.showToast(`订单 ${order.id} 应付款已更新为 ¥${formatAmount(adjustedPayableAmount.value)}`);
+  try {
+    await updateAdminOrderPrice(selectedOrderId.value, {
+      payableAmount: adjustedPayableAmount.value,
+    });
+    closePriceEditor();
+    await syncPageData();
+    props.showToast(`订单 ${order.id} 应付款已更新为 ¥${formatAmount(adjustedPayableAmount.value)}`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "订单改价失败，请稍后重试",
+    });
+  }
 }
 
 function openCloseConfirm() {
@@ -445,27 +587,27 @@ function closeCloseConfirm() {
   closeConfirmOpen.value = false;
 }
 
-function confirmCloseOrder() {
+async function confirmCloseOrder() {
   const order = selectedOrder.value;
 
   if (!order) {
     return;
   }
 
-  applyOrderPatch({
-    status: "已关闭",
-    closedTime: formatCurrentTime(),
-    closeReason: "后台手动关闭",
-    paymentDeadlineAt: undefined,
-    detailTitle: "订单已关闭",
-    detailDescription: "订单已由后台手动关闭，如用户仍有服务需求，可重新引导下单。",
-    productActionLabel: "-",
-    footerActions: [{ label: "返回", tone: "ghost" }],
-    actions: order.actions.filter((item) => item.label === "订单详情" || item.label === "联系用户" || item.label === "备注"),
-  });
-
-  closeCloseConfirm();
-  props.showToast(`订单 ${order.id} 已关闭`);
+  try {
+    await closeAdminOrder(selectedOrderId.value, {
+      reason: "后台手动关闭",
+    });
+    closeCloseConfirm();
+    await syncPageData();
+    props.showToast(`订单 ${order.id} 已关闭`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "关闭订单失败，请稍后重试",
+    });
+  }
 }
 
 function openDispatchDialog() {
@@ -478,7 +620,8 @@ function openDispatchDialog() {
   dispatchForm.appointmentDate = formatDateInputFromAppointment(order.appointmentTime);
   dispatchForm.appointmentTime = formatTimeInputFromAppointment(order.appointmentTime);
   dispatchForm.durationHours = formatDurationInput(order.duration);
-  dispatchForm.selectedStaffId = dispatchStaffOptions.find((item) => item.name === order.serviceStaff && item.status === "空闲")?.id ?? "";
+  dispatchForm.selectedStaffId =
+    dispatchStaffOptions.value.find((item) => item.name === order.serviceStaff && item.status === "空闲")?.id ?? "";
   dispatchForm.remark = "";
   dispatchDialogOpen.value = true;
 }
@@ -530,7 +673,7 @@ function selectDispatchStaff(staff: DispatchStaffOption) {
   dispatchForm.selectedStaffId = staff.id;
 }
 
-function confirmDispatch() {
+async function confirmDispatch() {
   const order = selectedOrder.value;
   const selectedStaff = selectedDispatchStaff.value;
 
@@ -544,33 +687,23 @@ function confirmDispatch() {
     dispatchForm.durationHours,
   );
 
-  const nextRemark = dispatchForm.remark.trim()
-    ? `${order.orderRemark}；派单备注：${dispatchForm.remark.trim()}`
-    : order.orderRemark;
-
-  applyOrderPatch({
-    status: "待服务",
-    appointmentTime: nextAppointmentTime,
-    duration: formatDurationText(dispatchForm.durationHours),
-    acceptedTime: formatCurrentTime(),
-    serviceStaff: selectedStaff.name,
-    orderRemark: nextRemark,
-    detailTitle: "服务已排期，等待上门",
-    detailDescription: "服务人员已接单，请按预约时间上门并在完成后发起核销。",
-    footerActions: [
-      { label: "退款", tone: "danger" },
-      { label: "返回", tone: "ghost" },
-    ],
-    actions: [
-      { label: "订单详情", tone: "green" },
-      { label: "退款", tone: "red" },
-      { label: "联系用户", tone: "green" },
-      { label: "备注", tone: "green" },
-    ],
-  });
-
-  closeDispatchDialog();
-  props.showToast(`已为订单 ${order.id} 指派 ${selectedStaff.name}`);
+  try {
+    await dispatchAdminOrder(selectedOrderId.value, {
+      assigneeStaffId: hasRemoteDispatchStaff.value ? selectedStaff.id : undefined,
+      scheduleAt: `${dispatchForm.appointmentDate}T${dispatchForm.appointmentTime}:00`,
+      timeSlot: nextAppointmentTime.split(" ").slice(1).join(" "),
+      dispatchNote: dispatchForm.remark.trim() || undefined,
+    });
+    closeDispatchDialog();
+    await syncPageData();
+    props.showToast(`已为订单 ${order.id} 指派 ${selectedStaff.name}`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "手动派单失败，请稍后重试",
+    });
+  }
 }
 
 function openRefundConfirm() {
@@ -594,7 +727,7 @@ function syncAfterSaleRecord(order: AdminOrderRecord, afterSaleNo: string, refun
   });
 }
 
-function confirmAfterSale() {
+async function confirmAfterSale() {
   const order = selectedOrder.value;
 
   if (!order || !canConfirmAfterSale.value) {
@@ -606,32 +739,27 @@ function confirmAfterSale() {
   const afterSaleReason = `申请退款 ¥${refundAmount}，${afterSaleReasonInput.value.trim()}`;
   const appliedAt = formatCurrentTime();
 
-  applyOrderPatch({
-    status: "退款售后",
-    paymentDeadlineAt: undefined,
-    afterSaleNo,
-    afterSaleStatus: "待客服审核",
-    afterSaleReason,
-    detailTitle: "售后申请处理中",
-    detailDescription: "售后单已建立，请在规定时效内完成审核并同步处理结果。",
-    productActionLabel: "售后处理中",
-    footerActions: [
-      { label: "处理售后", tone: "danger" },
-      { label: "返回", tone: "ghost" },
-    ],
-    actions: [
-      { label: "订单详情", tone: "green" },
-      { label: "联系用户", tone: "green" },
-      { label: "备注", tone: "green" },
-    ],
-  });
-
-  syncAfterSaleRecord(order, afterSaleNo, refundAmount, appliedAt);
-  closeAfterSaleDialog();
-  props.showToast(`订单 ${order.id} 已发起售后申请`);
+  try {
+    await createAdminOrderAfterSale(selectedOrderId.value, {
+      type: "REFUND",
+      reason: afterSaleReason,
+      description: afterSaleReasonInput.value.trim(),
+      amountRequested: afterSaleRefundAmount.value,
+    });
+    syncAfterSaleRecord(order, afterSaleNo, refundAmount, appliedAt);
+    closeAfterSaleDialog();
+    await syncPageData();
+    props.showToast(`订单 ${order.id} 已发起售后申请`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "发起售后失败，请稍后重试",
+    });
+  }
 }
 
-function confirmRefund() {
+async function confirmRefund() {
   const order = selectedOrder.value;
 
   if (!order) {
@@ -642,29 +770,24 @@ function confirmRefund() {
   const refundAmount = formatAmount(Number(order.settleAmount));
   const appliedAt = formatCurrentTime();
 
-  applyOrderPatch({
-    status: "退款售后",
-    detailTitle: "订单已取消，退款处理中",
-    detailDescription: "退款将按原支付渠道原路退回，请关注售后处理进度。",
-    paymentDeadlineAt: undefined,
-    afterSaleNo,
-    afterSaleStatus: "退款处理中",
-    afterSaleReason: "后台发起取消订单退款，退款将退还至原支付渠道。",
-    productActionLabel: "退款处理中",
-    footerActions: [
-      { label: "处理售后", tone: "danger" },
-      { label: "返回", tone: "ghost" },
-    ],
-    actions: [
-      { label: "订单详情", tone: "green" },
-      { label: "联系用户", tone: "green" },
-      { label: "备注", tone: "green" },
-    ],
-  });
-
-  syncAfterSaleRecord(order, afterSaleNo, refundAmount, appliedAt);
-  closeRefundConfirm();
-  props.showToast(`订单 ${order.id} 已提交退款处理`);
+  try {
+    await createAdminOrderAfterSale(selectedOrderId.value, {
+      type: "REFUND",
+      reason: "后台发起取消订单退款",
+      description: "后台发起取消订单退款，退款将退还至原支付渠道。",
+      amountRequested: Number(order.settleAmount),
+    });
+    syncAfterSaleRecord(order, afterSaleNo, refundAmount, appliedAt);
+    closeRefundConfirm();
+    await syncPageData();
+    props.showToast(`订单 ${order.id} 已提交退款处理`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "提交退款失败，请稍后重试",
+    });
+  }
 }
 
 function confirmAfterSaleHandle() {
@@ -742,7 +865,12 @@ function triggerFooterAction(label: string) {
   }
 
   if (label === "处理售后") {
-    openAfterSaleHandleDialog();
+    if (order.afterSaleNo) {
+      navigateWithStorage("dashboard/after-sale-detail", afterSaleDetailStorageKey, order.afterSaleNo);
+      return;
+    }
+
+    props.showToast("当前订单暂无售后单");
     return;
   }
 

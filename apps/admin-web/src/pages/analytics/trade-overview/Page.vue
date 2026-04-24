@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import * as echarts from "echarts";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAnalyticsTradeOverview } from "@/shared/api/analytics";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const pageData = ref<typeof mock>(mock);
 
 const lineRef = ref<HTMLElement | null>(null);
 const barRef = ref<HTMLElement | null>(null);
@@ -12,7 +15,7 @@ const lineChart = shallowRef<echarts.ECharts | null>(null);
 const barChart = shallowRef<echarts.ECharts | null>(null);
 
 function buildLineOption() {
-  const { labels, values, legend, highlightIndex } = mock.lineChart;
+  const { labels, values, legend, highlightIndex } = pageData.value.lineChart;
   const maxValue = Math.max(...values);
 
   return {
@@ -104,7 +107,7 @@ function buildLineOption() {
 }
 
 function buildBarOption() {
-  const { labels, values, legend, highlightIndex } = mock.barChart;
+  const { labels, values, legend, highlightIndex } = pageData.value.barChart;
 
   return {
     animationDuration: 500,
@@ -192,8 +195,23 @@ function trigger(label: string) {
   props.showToast(`${label}为演示状态。`);
 }
 
-onMounted(() => {
+async function syncPageData() {
+  try {
+    pageData.value = (await getAnalyticsTradeOverview()) as typeof mock;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "交易概况加载失败，已回退到演示数据",
+    });
+  }
+
+  await nextTick();
   renderCharts();
+}
+
+onMounted(() => {
+  void syncPageData();
   window.addEventListener("resize", handleResize);
 });
 
@@ -211,17 +229,17 @@ onBeforeUnmount(() => {
     <article class="analysis-card analysis-card--filter">
       <header class="analysis-heading">
         <span class="analysis-heading__accent"></span>
-        <h1>{{ mock.title }}</h1>
+        <h1>{{ pageData.title }}</h1>
       </header>
 
       <div class="filter-stack">
         <div class="filter-row-grid">
           <div class="filter-field" style="grid-column: span 12">
-            <span class="filter-field__label">{{ mock.filterLabel }}</span>
+            <span class="filter-field__label">{{ pageData.filterLabel }}</span>
             <button class="filter-field__control filter-field__control--range" type="button" @click="trigger('日期筛选')">
-              <span class="filter-field__input">{{ mock.rangeLabel.split(" ~ ")[0] }}</span>
+              <span class="filter-field__input">{{ pageData.rangeLabel.split(" ~ ")[0] }}</span>
               <span class="filter-field__divider">~</span>
-              <span class="filter-field__input">{{ mock.rangeLabel.split(" ~ ")[1] }}</span>
+              <span class="filter-field__input">{{ pageData.rangeLabel.split(" ~ ")[1] }}</span>
               <svg class="filter-field__icon filter-field__icon--calendar" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                 <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
               </svg>
@@ -240,7 +258,7 @@ onBeforeUnmount(() => {
 
       <section class="overview-grid">
         <div class="overview-panel">
-          <div v-for="(row, index) in mock.overviewRows" :key="index" class="overview-row" :style="{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }">
+          <div v-for="(row, index) in pageData.overviewRows" :key="index" class="overview-row" :style="{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }">
             <div v-for="item in row" :key="item.label" class="overview-item">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
@@ -249,7 +267,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="funnel-panel">
-          <div v-for="item in mock.funnel" :key="item.label" class="funnel-segment">
+          <div v-for="item in pageData.funnel" :key="item.label" class="funnel-segment">
             <div class="funnel-segment__shape" :style="{ width: item.width, background: item.color }">
               {{ item.label }}
             </div>
@@ -260,28 +278,28 @@ onBeforeUnmount(() => {
       <section class="chart-section">
         <div class="section-heading">
           <div>
-            <h2>{{ mock.lineChart.title }}</h2>
+            <h2>{{ pageData.lineChart.title }}</h2>
             <p>（元）</p>
           </div>
         </div>
         <div ref="lineRef" class="chart-box chart-box--line"></div>
         <div class="chart-legend">
           <span class="chart-legend__dot"></span>
-          <span>{{ mock.lineChart.legend }}</span>
+          <span>{{ pageData.lineChart.legend }}</span>
         </div>
       </section>
 
       <section class="chart-section">
         <div class="section-heading">
           <div>
-            <h2>{{ mock.barChart.title }}</h2>
+            <h2>{{ pageData.barChart.title }}</h2>
             <p>（元）</p>
           </div>
         </div>
         <div ref="barRef" class="chart-box chart-box--bar"></div>
         <div class="chart-legend">
           <span class="chart-legend__dot"></span>
-          <span>{{ mock.barChart.legend }}</span>
+          <span>{{ pageData.barChart.legend }}</span>
         </div>
       </section>
     </article>

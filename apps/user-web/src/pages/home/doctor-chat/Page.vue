@@ -1,212 +1,342 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import { AddPicture, MessageEmoji, Microphone, Phone } from '@icon-park/vue-next'
-import mock from './mock'
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import { AddPicture, MessageEmoji, Microphone, Phone } from "@icon-park/vue-next";
+import { uploadUserFile } from "@/shared/api/files";
+import {
+  createDoctorConversation,
+  listConversationMessages,
+  markConversationAsRead,
+  sendConversationMessage
+} from "@/shared/api/messaging";
+import { BrowserVoiceRecorder, type VoiceCaptureResult } from "@/shared/ai/voice";
+import mock from "./mock";
 
 interface ChatMessage {
-  id: number
-  from: 'doctor' | 'me'
-  type: 'text' | 'image' | 'voice'
-  content: string
-  time: string
-  imageUrl?: string
-  audioUrl?: string
+  id: string;
+  from: "doctor" | "me";
+  type: "text" | "image" | "voice";
+  content: string;
+  time: string;
+  imageUrl?: string;
+  audioUrl?: string;
 }
 
-const props = defineProps<PageComponentProps>()
-const draft = ref('')
-const messages = ref<ChatMessage[]>(mock.messages as ChatMessage[])
-const showEmojiPanel = ref(false)
-const showImagePanel = ref(false)
-const isRecording = ref(false)
-const recordingSeconds = ref(0)
-const scrollRef = ref<HTMLElement | null>(null)
-const albumInputRef = ref<HTMLInputElement | null>(null)
-const cameraInputRef = ref<HTMLInputElement | null>(null)
+const props = defineProps<PageComponentProps>();
+const draft = ref("");
+const messages = ref<ChatMessage[]>([]);
+const showEmojiPanel = ref(false);
+const showImagePanel = ref(false);
+const isRecording = ref(false);
+const recordingSeconds = ref(0);
+const currentConversationId = ref("");
+const scrollRef = ref<HTMLElement | null>(null);
+const albumInputRef = ref<HTMLInputElement | null>(null);
+const cameraInputRef = ref<HTMLInputElement | null>(null);
+const mediaObjectUrls = new Set<string>();
 
-let mediaRecorder: MediaRecorder | null = null
-let mediaStream: MediaStream | null = null
-let audioChunks: Blob[] = []
-let recordingTimer: number | null = null
-let recordingMimeType = 'audio/webm'
+let voiceRecorder: BrowserVoiceRecorder | null = null;
 
-const emojiOptions = ['😊', '👍', '🙏', '❤️', '👌', '🌿', '💪', '☀️']
+const emojiOptions = ["😊", "👍", "🙏", "❤️", "👌", "🌿", "💪", "☀️"];
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('home/message')
+    props.navigation.reLaunch("home/message");
   }
 }
 
 function scrollToBottom() {
   void nextTick(() => {
     if (scrollRef.value) {
-      scrollRef.value.scrollTop = scrollRef.value.scrollHeight
+      scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
     }
-  })
-}
-
-function sendText() {
-  const content = draft.value.trim()
-  if (!content) {
-    return
-  }
-
-  messages.value.push({
-    id: Date.now(),
-    from: 'me',
-    type: 'text',
-    content,
-    time: '现在',
-  })
-  draft.value = ''
-  showEmojiPanel.value = false
-  scrollToBottom()
-}
-
-function appendEmoji(emoji: string) {
-  draft.value += emoji
+  });
 }
 
 function getCurrentTime() {
-  const now = new Date()
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatMessageTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return getCurrentTime();
+  }
+
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "消息发送失败，请稍后重试";
+}
+
+function mapConversationMessage(item: {
+  messageId: string;
+  from: "me" | "doctor";
+  contentType: "TEXT" | "IMAGE" | "AUDIO";
+  content: string;
+  createdAt: string;
+}) {
+  return {
+    id: item.messageId,
+    from: item.from,
+    type:
+      item.contentType === "AUDIO"
+        ? "voice"
+        : item.contentType === "IMAGE"
+          ? "image"
+          : "text",
+    content:
+      item.contentType === "AUDIO"
+        ? "语音消息"
+        : item.contentType === "IMAGE"
+          ? "图片"
+          : item.content,
+    time: formatMessageTime(item.createdAt),
+    imageUrl: item.contentType === "IMAGE" ? item.content : undefined,
+    audioUrl: item.contentType === "AUDIO" ? item.content : undefined
+  } satisfies ChatMessage;
+}
+
+async function ensureConversation() {
+  if (currentConversationId.value) {
+    return currentConversationId.value;
+  }
+
+  const conversation = await createDoctorConversation();
+  currentConversationId.value = conversation.conversationId;
+  return conversation.conversationId;
+}
+
+async function loadConversation() {
+  const conversationId = await ensureConversation();
+  const pageData = await listConversationMessages(conversationId, {
+    page: 1,
+    pageSize: 100
+  });
+
+  messages.value = pageData.list.map(mapConversationMessage);
+  await markConversationAsRead(conversationId);
+  scrollToBottom();
+}
+
+function appendEmoji(emoji: string) {
+  draft.value += emoji;
+}
+
+async function sendText() {
+  const content = draft.value.trim();
+  if (!content) {
+    return;
+  }
+
+  let optimisticMessage: ChatMessage | null = null;
+
+  try {
+    const conversationId = await ensureConversation();
+    optimisticMessage = {
+      id: `text-${Date.now()}`,
+      from: "me",
+      type: "text",
+      content,
+      time: getCurrentTime()
+    };
+
+    messages.value.push(optimisticMessage);
+    draft.value = "";
+    showEmojiPanel.value = false;
+    scrollToBottom();
+
+    const response = await sendConversationMessage(conversationId, {
+      contentType: "TEXT",
+      content
+    });
+    optimisticMessage.id = response.messageId;
+    optimisticMessage.time = formatMessageTime(response.createdAt);
+  } catch (error) {
+    if (optimisticMessage) {
+      messages.value = messages.value.filter((item) => item.id !== optimisticMessage?.id);
+    }
+    draft.value = content;
+    props.showToast(getErrorMessage(error));
+  }
 }
 
 function openAlbum() {
-  showImagePanel.value = false
-  albumInputRef.value?.click()
+  showImagePanel.value = false;
+  albumInputRef.value?.click();
 }
 
 function openCamera() {
-  showImagePanel.value = false
-  cameraInputRef.value?.click()
+  showImagePanel.value = false;
+  cameraInputRef.value?.click();
+}
+
+async function sendImageFile(file: File, localUrl: string) {
+  const conversationId = await ensureConversation();
+  const optimisticMessage: ChatMessage = {
+    id: `image-${Date.now()}`,
+    from: "me",
+    type: "image",
+    content: file.name || "图片",
+    imageUrl: localUrl,
+    time: getCurrentTime()
+  };
+
+  messages.value.push(optimisticMessage);
+  scrollToBottom();
+
+  try {
+    const uploadedImage = await uploadUserFile({
+      category: "CHAT_IMAGE",
+      file,
+      metadata: {
+        sourcePageId: props.pageEntry.id
+      }
+    });
+    const response = await sendConversationMessage(conversationId, {
+      contentType: "IMAGE",
+      content: uploadedImage.url
+    });
+
+    optimisticMessage.id = response.messageId;
+    optimisticMessage.time = formatMessageTime(response.createdAt);
+    optimisticMessage.imageUrl = response.content;
+  } catch (error) {
+    messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
+    props.showToast(getErrorMessage(error));
+  }
 }
 
 function handleImageSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
 
   if (!file) {
-    return
+    return;
   }
 
-  const imageUrl = URL.createObjectURL(file)
-  messages.value.push({
-    id: Date.now(),
-    from: 'me',
-    type: 'image',
-    content: file.name || '图片',
-    imageUrl,
-    time: getCurrentTime(),
-  })
-  input.value = ''
-  scrollToBottom()
+  const imageUrl = URL.createObjectURL(file);
+  mediaObjectUrls.add(imageUrl);
+  void sendImageFile(file, imageUrl).catch((error) => {
+    props.showToast(getErrorMessage(error));
+  });
+  input.value = "";
 }
 
 function formatDuration(seconds: number) {
-  return `${Math.max(1, seconds)}"`
+  return `${Math.max(1, seconds)}"`;
 }
 
-function startTimer() {
-  recordingSeconds.value = 0
-  recordingTimer = window.setInterval(() => {
-    recordingSeconds.value += 1
-  }, 1000)
-}
+async function sendVoiceCapture(capture: VoiceCaptureResult) {
+  const conversationId = await ensureConversation();
+  const optimisticMessage: ChatMessage = {
+    id: `voice-${Date.now()}`,
+    from: "me",
+    type: "voice",
+    content: `语音 ${formatDuration(capture.durationSeconds)}`,
+    audioUrl: capture.objectUrl,
+    time: getCurrentTime()
+  };
 
-function stopTimer() {
-  if (recordingTimer !== null) {
-    window.clearInterval(recordingTimer)
-    recordingTimer = null
+  messages.value.push(optimisticMessage);
+  scrollToBottom();
+
+  try {
+    const uploadedAudio = await uploadUserFile({
+      category: "CHAT_AUDIO",
+      file: capture.file,
+      metadata: {
+        durationSeconds: capture.durationSeconds,
+        transcript: capture.transcript || null,
+        sourcePageId: props.pageEntry.id
+      }
+    });
+    const response = await sendConversationMessage(conversationId, {
+      contentType: "AUDIO",
+      content: uploadedAudio.url
+    });
+
+    optimisticMessage.id = response.messageId;
+    optimisticMessage.time = formatMessageTime(response.createdAt);
+    optimisticMessage.audioUrl = response.content;
+  } catch (error) {
+    messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
+    props.showToast(getErrorMessage(error));
   }
-}
-
-function stopAudioTracks() {
-  mediaStream?.getTracks().forEach((track) => track.stop())
-  mediaStream = null
 }
 
 async function startVoiceRecording() {
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-    props.showToast('当前浏览器不支持录音')
-    return
+  if (!BrowserVoiceRecorder.isRecordingSupported()) {
+    props.showToast("当前浏览器不支持录音");
+    return;
   }
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    audioChunks = []
-    mediaRecorder = new MediaRecorder(mediaStream)
-    recordingMimeType = mediaRecorder.mimeType || 'audio/webm'
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data)
+    voiceRecorder = new BrowserVoiceRecorder({
+      onTick: (seconds) => {
+        recordingSeconds.value = seconds;
       }
-    }
-
-    mediaRecorder.onstop = () => {
-      const duration = recordingSeconds.value
-      stopTimer()
-      stopAudioTracks()
-      isRecording.value = false
-
-      if (!audioChunks.length) {
-        return
-      }
-
-      const audioBlob = new Blob(audioChunks, { type: recordingMimeType })
-      const audioUrl = URL.createObjectURL(audioBlob)
-      messages.value.push({
-        id: Date.now(),
-        from: 'me',
-        type: 'voice',
-        content: `语音 ${formatDuration(duration)}`,
-        audioUrl,
-        time: getCurrentTime(),
-      })
-      scrollToBottom()
-    }
-
-    mediaRecorder.start()
-    isRecording.value = true
-    startTimer()
-  } catch (error) {
-    stopTimer()
-    stopAudioTracks()
-    isRecording.value = false
-    props.showToast('无法访问麦克风，请检查权限')
+    });
+    await voiceRecorder.start();
+    isRecording.value = true;
+  } catch {
+    voiceRecorder?.dispose();
+    voiceRecorder = null;
+    isRecording.value = false;
+    recordingSeconds.value = 0;
+    props.showToast("无法访问麦克风，请检查权限");
   }
 }
 
-function stopVoiceRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop()
-    return
+async function stopVoiceRecording() {
+  if (!voiceRecorder) {
+    isRecording.value = false;
+    recordingSeconds.value = 0;
+    return;
   }
 
-  stopTimer()
-  stopAudioTracks()
-  isRecording.value = false
+  isRecording.value = false;
+  const recorder = voiceRecorder;
+  voiceRecorder = null;
+  const capture = await recorder.stop();
+  recordingSeconds.value = 0;
+
+  if (!capture) {
+    return;
+  }
+
+  mediaObjectUrls.add(capture.objectUrl);
+  try {
+    await sendVoiceCapture(capture);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
 }
 
 function toggleVoiceRecording() {
   if (isRecording.value) {
-    stopVoiceRecording()
-    return
+    void stopVoiceRecording();
+    return;
   }
 
-  void startVoiceRecording()
+  void startVoiceRecording();
 }
 
+onMounted(() => {
+  void loadConversation().catch((error) => {
+    props.showToast(getErrorMessage(error));
+  });
+});
+
 onBeforeUnmount(() => {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop()
-  }
-  stopTimer()
-  stopAudioTracks()
-})
+  voiceRecorder?.dispose();
+  voiceRecorder = null;
+  mediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  mediaObjectUrls.clear();
+});
 </script>
 
 <template>

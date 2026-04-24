@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
 import {
   Comment,
   Coupon,
@@ -12,14 +10,9 @@ import {
   Setting,
   Star,
 } from "@icon-park/vue-next";
-import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
-const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
-
-let assistantRive: Rive | null = null;
-let assistantResizeObserver: ResizeObserver | null = null;
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -74,39 +67,6 @@ function openSubPage(pageId: string, label: string) {
   props.navigation.navigateTo(pageId);
 }
 
-function openCheckupHistory() {
-  props.navigation.navigateTo("orders/checkup-history");
-}
-
-function resizeAssistant() {
-  assistantRive?.resizeDrawingSurfaceToCanvas();
-}
-
-onMounted(() => {
-  if (!assistantCanvasRef.value) return;
-
-  assistantRive = new Rive({
-    canvas: assistantCanvasRef.value,
-    src: assistantRiveUrl,
-    stateMachines: "State Machine 1",
-    autoplay: true,
-    layout: new Layout({
-      fit: Fit.Contain,
-      alignment: Alignment.Center,
-    }),
-    onLoad: resizeAssistant,
-  });
-
-  assistantResizeObserver = new ResizeObserver(resizeAssistant);
-  assistantResizeObserver.observe(assistantCanvasRef.value);
-});
-
-onBeforeUnmount(() => {
-  assistantResizeObserver?.disconnect();
-  assistantResizeObserver = null;
-  assistantRive?.cleanup();
-  assistantRive = null;
-});
 </script>
 
 <template>
@@ -136,14 +96,6 @@ onBeforeUnmount(() => {
           </section>
         </div>
       </header>
-
-      <section class="health-analyse" aria-label="报告分析">
-        <div class="assistant-entry-avatar" aria-hidden="true">
-          <canvas ref="assistantCanvasRef" width="92" height="92"></canvas>
-        </div>
-        <span>AI评估报告入口</span>
-        <button type="button" @click="openCheckupHistory">立即体验</button>
-      </section>
 
       <button class="order-entry-card" type="button" @click="openPage(mock.orderEntry.pageId, mock.orderEntry.label)">
         <span class="order-entry-icon">

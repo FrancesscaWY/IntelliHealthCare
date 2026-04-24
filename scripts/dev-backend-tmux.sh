@@ -2,16 +2,36 @@
 
 set -euo pipefail
 
-SESSION_NAME="${IHC_BACKEND_TMUX_SESSION:-ihc-backend}"
-TMUX_SOCKET_NAME="${IHC_BACKEND_TMUX_SOCKET:-ihc-backend}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.backend.yml"
 BACKEND_ENV_FILE="$ROOT_DIR/apps/backend/.env"
 COMMAND="${1:-start}"
+RUN_MODE="${2:-dev}"
+
+case "$RUN_MODE" in
+  dev)
+    DEFAULT_SESSION_NAME="ihc-backend"
+    DEFAULT_SOCKET_NAME="ihc-backend"
+    BACKEND_RUN_COMMAND="npm run dev:backend"
+    ;;
+  stable)
+    DEFAULT_SESSION_NAME="ihc-backend-stable"
+    DEFAULT_SOCKET_NAME="ihc-backend-stable"
+    BACKEND_RUN_COMMAND="npm run serve:backend"
+    ;;
+  *)
+    echo "Unsupported run mode: $RUN_MODE" >&2
+    echo "Supported modes: dev, stable" >&2
+    exit 1
+    ;;
+esac
+
+SESSION_NAME="${IHC_BACKEND_TMUX_SESSION:-$DEFAULT_SESSION_NAME}"
+TMUX_SOCKET_NAME="${IHC_BACKEND_TMUX_SOCKET:-$DEFAULT_SOCKET_NAME}"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [start|attach|status|stop|restart]
+Usage: $(basename "$0") [start|attach|status|stop|restart] [dev|stable]
 
 Commands:
   start    Create the tmux session and boot the backend workflow.
@@ -19,6 +39,10 @@ Commands:
   status   Print tmux window status for the backend session.
   stop     Kill the tmux session only.
   restart  Recreate the tmux session.
+
+Modes:
+  dev      Run the hot-reload backend workflow via npm run dev:backend.
+  stable   Run the compiled stable backend workflow via npm run serve:backend.
 
 Environment:
   IHC_BACKEND_TMUX_SESSION   Override the tmux session name (default: $SESSION_NAME)
@@ -66,15 +90,19 @@ start_session() {
   fi
 
   if session_exists; then
-    echo "tmux session '$SESSION_NAME' is already running."
-    echo "Attach with: npm run dev:backend:tmux:attach"
+    echo "tmux session '$SESSION_NAME' is already running in $RUN_MODE mode."
+    if [[ "$RUN_MODE" == "stable" ]]; then
+      echo "Attach with: npm run serve:backend:tmux:attach"
+    else
+      echo "Attach with: npm run dev:backend:tmux:attach"
+    fi
     echo "Manual attach: tmux -L $TMUX_SOCKET_NAME attach -t $SESSION_NAME"
     return 0
   fi
 
   tmux -L "$TMUX_SOCKET_NAME" new-session -d -s "$SESSION_NAME" -n backend -c "$ROOT_DIR"
   tmux -L "$TMUX_SOCKET_NAME" send-keys -t "$SESSION_NAME:backend" \
-    "docker compose -f '$COMPOSE_FILE' up -d && npm run dev:backend" C-m
+    "docker compose -f '$COMPOSE_FILE' up -d && $BACKEND_RUN_COMMAND" C-m
 
   tmux -L "$TMUX_SOCKET_NAME" new-window -t "$SESSION_NAME" -n infra -c "$ROOT_DIR"
   tmux -L "$TMUX_SOCKET_NAME" send-keys -t "$SESSION_NAME:infra" \
@@ -82,8 +110,12 @@ start_session() {
 
   tmux -L "$TMUX_SOCKET_NAME" select-window -t "$SESSION_NAME:backend"
 
-  echo "Started tmux session '$SESSION_NAME'."
-  echo "Attach with: npm run dev:backend:tmux:attach"
+  echo "Started tmux session '$SESSION_NAME' in $RUN_MODE mode."
+  if [[ "$RUN_MODE" == "stable" ]]; then
+    echo "Attach with: npm run serve:backend:tmux:attach"
+  else
+    echo "Attach with: npm run dev:backend:tmux:attach"
+  fi
   echo "Manual attach: tmux -L $TMUX_SOCKET_NAME attach -t $SESSION_NAME"
   echo "Detach with: Ctrl+b then d"
 }

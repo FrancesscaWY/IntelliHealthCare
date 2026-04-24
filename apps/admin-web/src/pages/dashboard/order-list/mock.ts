@@ -15,6 +15,7 @@ export interface OrderFooterAction {
 export interface AdminOrderRecord {
   id: string;
   orderTime: string;
+  orderDate?: string;
   settleLabel: string;
   settleAmount: string;
   title: string;
@@ -65,14 +66,10 @@ export const orderDetailStorageKey = "admin:dashboard:selected-order-id";
 export const orderDetailPendingActionStorageKey = "admin:dashboard:selected-order-action";
 const remoteOrdersStorageKey = "admin:dashboard:api-orders";
 
-const cleaningImage =
-  "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320";
-const rehabImage =
-  "https://images.pexels.com/photos/5793996/pexels-photo-5793996.jpeg?auto=compress&cs=tinysrgb&w=320";
-const buyerAvatarA =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
-const buyerAvatarB =
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240";
+const cleaningImage = "/api/v1/assets/demo/services/service-cleaning.jpg";
+const rehabImage = "/api/v1/assets/demo/services/service-rehab.png";
+const buyerAvatarA = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+const buyerAvatarB = "/api/v1/assets/demo/avatars/avatar-4.jpg";
 
 function createFutureIso(secondsFromNow: number) {
   return new Date(Date.now() + secondsFromNow * 1000).toISOString();

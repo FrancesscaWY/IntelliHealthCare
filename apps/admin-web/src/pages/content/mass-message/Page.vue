@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  deleteAdminCampaign,
+  getAdminCampaigns,
+  withdrawAdminCampaign,
+} from "@/shared/api/messaging";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
-const props = defineProps<PageComponentProps>();
+type CampaignRow = (typeof mock.rows)[number];
 
+const props = defineProps<PageComponentProps>();
+const pageData = ref<typeof mock>(mock);
+const campaignStorageKey = "admin:content:selected-campaign-id";
 const selectedStatus = ref<(typeof mock.statusOptions)[number]>(mock.statusOptions[0]);
 const keyword = ref("");
 
 const filteredRows = computed(() =>
-  mock.rows.filter((row) => {
-    const matchesStatus = selectedStatus.value === mock.statusOptions[0] || row.status === selectedStatus.value;
+  pageData.value.rows.filter((row) => {
+    const matchesStatus = selectedStatus.value === pageData.value.statusOptions[0] || row.status === selectedStatus.value;
     const query = keyword.value.trim();
     const matchesKeyword = !query || `${row.title}${row.content}${row.receiver}${row.channel}`.includes(query);
     return matchesStatus && matchesKeyword;
@@ -22,17 +31,97 @@ function submitSearch() {
 }
 
 function resetFilters() {
-  selectedStatus.value = mock.statusOptions[0];
+  selectedStatus.value = pageData.value.statusOptions[0];
   keyword.value = "";
   props.showToast("筛选条件已重置");
 }
 
+function updateCampaignStorage(campaignId = "") {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (campaignId) {
+    window.sessionStorage.setItem(campaignStorageKey, campaignId);
+    return;
+  }
+
+  window.sessionStorage.removeItem(campaignStorageKey);
+}
+
 function openCreatePage() {
+  updateCampaignStorage();
   props.navigation.navigateTo("content/mass-message-create");
 }
 
-function triggerAction(label: string, title?: string) {
-  props.showToast(title ? `${label}：${title}` : `${label}功能为演示状态`);
+function openEditPage(row: CampaignRow) {
+  updateCampaignStorage(row.id);
+  props.navigation.navigateTo("content/mass-message-create");
+}
+
+async function syncPageData() {
+  try {
+    pageData.value = (await getAdminCampaigns({
+      page: 1,
+      pageSize: 100,
+    })) as typeof mock;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "消息群发列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function triggerAction(label: string, row?: CampaignRow) {
+  if (!row) {
+    props.showToast(`${label}功能为演示状态`);
+    return;
+  }
+
+  if (label === "编辑") {
+    openEditPage(row);
+    return;
+  }
+
+  try {
+    if (label === "删除") {
+      await deleteAdminCampaign(row.id);
+      pageData.value = {
+        ...pageData.value,
+        rows: pageData.value.rows.filter((item) => item.id !== row.id),
+      };
+      props.showToast(`已删除：${row.title}`);
+      return;
+    }
+
+    if (label === "撤回") {
+      await withdrawAdminCampaign(row.id);
+      pageData.value = {
+        ...pageData.value,
+        rows: pageData.value.rows.map((item) =>
+          item.id === row.id
+            ? {
+                ...item,
+                status: "已撤回",
+              }
+            : item,
+        ),
+      };
+      props.showToast(`已撤回：${row.title}`);
+      return;
+    }
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${label}失败，请稍后重试`,
+    });
+    return;
+  }
+
+  props.showToast(`${label}：${row.title}`);
 }
 
 function getStatusTone(status: string) {
@@ -50,6 +139,10 @@ function getStatusTone(status: string) {
 
   return "status-pill--pending";
 }
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -57,7 +150,7 @@ function getStatusTone(status: string) {
     <article class="panel panel--filters">
       <header class="section-head">
         <span class="section-head__accent"></span>
-        <h1>{{ mock.title }}</h1>
+        <h1>{{ pageData.title }}</h1>
       </header>
 
       <div class="filters">
@@ -65,7 +158,7 @@ function getStatusTone(status: string) {
           <span class="field__label">状态</span>
           <div class="field__control field__control--select">
             <select v-model="selectedStatus">
-              <option v-for="item in mock.statusOptions" :key="item" :value="item">{{ item }}</option>
+              <option v-for="item in pageData.statusOptions" :key="item" :value="item">{{ item }}</option>
             </select>
             <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
               <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />
@@ -133,8 +226,9 @@ function getStatusTone(status: string) {
             <div class="cell">{{ row.receiver }}</div>
             <div class="cell">{{ row.channel }}</div>
             <div class="cell cell--actions">
-              <button type="button" class="table-link table-link--green" @click="triggerAction('编辑', row.title)">编辑</button>
-              <button type="button" class="table-link table-link--red" @click="triggerAction('删除', row.title)">删除</button>
+              <button type="button" class="table-link table-link--green" @click="triggerAction('编辑', row)">编辑</button>
+              <button v-if="row.status === '已发送'" type="button" class="table-link table-link--green" @click="triggerAction('撤回', row)">撤回</button>
+              <button type="button" class="table-link table-link--red" @click="triggerAction('删除', row)">删除</button>
             </div>
           </article>
         </div>

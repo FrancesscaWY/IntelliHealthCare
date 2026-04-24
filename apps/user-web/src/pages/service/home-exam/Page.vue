@@ -26,7 +26,7 @@ const openPackage = () => {
 }
 
 const openSmartRecommend = () => {
-  props.navigation.navigateTo('service/home-exam-recommend-waiting')
+  props.showToast('AI 推荐入口暂时关闭')
 }
 
 const resizeAssistant = () => {

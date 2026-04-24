@@ -1,26 +1,119 @@
 <script setup lang="ts">
-import { reactive } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import {
+  getAdminProfile,
+  updateAdminAvatar,
+  updateAdminProfile,
+} from "@/shared/api/auth";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
+const avatarPreview = ref("");
+const avatarInput = ref<HTMLInputElement | null>(null);
 
 const form = reactive({
-  name: mock.name,
-  employeeId: mock.employeeId,
-  phone: mock.phone,
-  role: mock.role,
-  note: mock.note,
+  name: mockSeed.name,
+  employeeId: mockSeed.employeeId,
+  phone: mockSeed.phone,
+  role: mockSeed.role,
+  note: mockSeed.note,
 });
 
-function saveProfile() {
+async function syncPageData() {
+  try {
+    const profile = await getAdminProfile();
+    mock.value = {
+      title: String(profile.title ?? mockSeed.title),
+      employeeId: String(profile.employeeId ?? mockSeed.employeeId),
+      name: String(profile.name ?? mockSeed.name),
+      phone: String(profile.phone ?? mockSeed.phone),
+      role: String(profile.role ?? mockSeed.role),
+      note: String(profile.note ?? ""),
+      roleOptions: Array.isArray(profile.roleOptions) ? profile.roleOptions : mockSeed.roleOptions,
+    };
+    form.name = mock.value.name;
+    form.employeeId = mock.value.employeeId;
+    form.phone = mock.value.phone;
+    form.role = mock.value.role;
+    form.note = mock.value.note;
+    avatarPreview.value = String(profile.avatarUrl ?? "");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "个人资料加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function saveProfile() {
   if (!form.name.trim() || !form.phone.trim()) {
     props.showToast("请完整填写姓名和手机号。");
     return;
   }
 
-  props.showToast("个人资料已保存。");
+  try {
+    const profile = await updateAdminProfile({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      note: form.note.trim(),
+    });
+    form.name = String(profile.name ?? form.name);
+    form.phone = String(profile.phone ?? form.phone);
+    form.note = String(profile.note ?? form.note);
+    props.showToast("个人资料已保存。");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "个人资料保存失败，请稍后重试",
+    });
+  }
 }
+
+function openAvatarPicker() {
+  avatarInput.value?.click();
+}
+
+async function onAvatarChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const avatarUrl = typeof reader.result === "string" ? reader.result : "";
+
+    if (!avatarUrl) {
+      props.showToast("头像读取失败，请重试");
+      return;
+    }
+
+    try {
+      await updateAdminAvatar({
+        avatarUrl,
+      });
+      avatarPreview.value = avatarUrl;
+      props.showToast("头像已更新。");
+    } catch (error) {
+      handleAdminPageError(error, {
+        navigation: props.navigation,
+        showToast: props.showToast,
+        fallbackMessage: "头像更新失败，请稍后重试",
+      });
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -51,14 +144,16 @@ function saveProfile() {
             <span class="form-row__label">头像</span>
             <div class="avatar-upload">
               <div class="avatar-upload__box">
-                <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
+                <img v-if="avatarPreview" :src="avatarPreview" alt="头像预览" />
+                <svg v-else viewBox="0 0 48 48" focusable="false" aria-hidden="true">
                   <circle cx="24" cy="16" r="9" fill="currentColor" opacity="0.24" />
                   <path d="M10 38c2.2-6.5 7.6-10.3 14-10.3S35.8 31.5 38 38" fill="currentColor" opacity="0.24" />
                 </svg>
               </div>
-              <button type="button" class="avatar-upload__button" @click="props.showToast('上传头像功能为演示状态')">
+              <button type="button" class="avatar-upload__button" @click="openAvatarPicker">
                 +点击上传
               </button>
+              <input ref="avatarInput" type="file" accept="image/*" hidden @change="onAvatarChange" />
             </div>
           </div>
 
@@ -251,6 +346,13 @@ function saveProfile() {
 .avatar-upload__box svg {
   width: 40px;
   height: 40px;
+}
+
+.avatar-upload__box img {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .avatar-upload__button {

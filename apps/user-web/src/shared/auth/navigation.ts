@@ -13,7 +13,11 @@ const PUBLIC_PAGE_IDS = new Set([
 ]);
 
 function canUseSessionStorage() {
-  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+  try {
+    return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+  } catch {
+    return false;
+  }
 }
 
 export function isPublicPageId(pageId: string) {
@@ -32,7 +36,11 @@ export function rememberPostLoginPageId(pageId: string) {
     return;
   }
 
-  window.sessionStorage.setItem(POST_LOGIN_REDIRECT_STORAGE_KEY, normalizedPageId);
+  try {
+    window.sessionStorage.setItem(POST_LOGIN_REDIRECT_STORAGE_KEY, normalizedPageId);
+  } catch {
+    // Ignore storage write failures in restricted browser contexts.
+  }
 }
 
 export function getPostLoginPageId() {
@@ -40,9 +48,15 @@ export function getPostLoginPageId() {
     return "";
   }
 
-  const storedPageId = normalizePageId(
-    window.sessionStorage.getItem(POST_LOGIN_REDIRECT_STORAGE_KEY) || ""
-  );
+  let storedValue = "";
+
+  try {
+    storedValue = window.sessionStorage.getItem(POST_LOGIN_REDIRECT_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+
+  const storedPageId = normalizePageId(storedValue);
 
   return requiresUserAuth(storedPageId) ? storedPageId : "";
 }
@@ -52,7 +66,11 @@ export function clearPostLoginPageId() {
     return;
   }
 
-  window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_STORAGE_KEY);
+  try {
+    window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_STORAGE_KEY);
+  } catch {
+    // Ignore storage cleanup failures in restricted browser contexts.
+  }
 }
 
 export function resolvePostLoginPageId(realNameVerified: boolean) {

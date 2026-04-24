@@ -1,13 +1,8 @@
-const customerAvatar =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
-const consultantAvatar =
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240";
-const nurseAvatar =
-  "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=240";
-const doctorAvatar =
-  "https://images.pexels.com/photos/5327585/pexels-photo-5327585.jpeg?auto=compress&cs=tinysrgb&w=240";
-const productImage =
-  "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320";
+const customerAvatar = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+const consultantAvatar = "/api/v1/assets/demo/staff/staff-1.png";
+const nurseAvatar = "/api/v1/assets/demo/staff/staff-2.png";
+const doctorAvatar = "/api/v1/assets/demo/avatars/avatar-4.jpg";
+const productImage = "/api/v1/assets/demo/services/service-cleaning.jpg";
 
 const mock = {
   title: "会话",

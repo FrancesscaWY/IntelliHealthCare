@@ -4,7 +4,13 @@ import { getUserAuthSession } from "@/shared/auth/session";
 const lastStoredPhone =
   typeof window === "undefined"
     ? ""
-    : window.localStorage.getItem("ihc:user-web:last-login-phone") || "";
+    : (() => {
+        try {
+          return window.localStorage.getItem("ihc:user-web:last-login-phone") || "";
+        } catch {
+          return "";
+        }
+      })();
 const lastSessionPhone = getUserAuthSession()?.user.phone || lastStoredPhone;
 export const lastLoginPhone = ref(lastSessionPhone);
 const PASSWORD_RESET_VERIFICATION_KEY =
@@ -18,7 +24,11 @@ export interface PasswordResetVerificationState {
 }
 
 function canUseSessionStorage() {
-  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+  try {
+    return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+  } catch {
+    return false;
+  }
 }
 
 function clearInvalidPasswordResetVerification() {
@@ -26,7 +36,11 @@ function clearInvalidPasswordResetVerification() {
     return;
   }
 
-  window.sessionStorage.removeItem(PASSWORD_RESET_VERIFICATION_KEY);
+  try {
+    window.sessionStorage.removeItem(PASSWORD_RESET_VERIFICATION_KEY);
+  } catch {
+    // Ignore storage cleanup failures in restricted browser contexts.
+  }
 }
 
 export function setLastLoginPhone(phone: string) {
@@ -38,11 +52,19 @@ export function setLastLoginPhone(phone: string) {
   }
 
   if (normalizedPhone) {
-    window.localStorage.setItem("ihc:user-web:last-login-phone", normalizedPhone);
+    try {
+      window.localStorage.setItem("ihc:user-web:last-login-phone", normalizedPhone);
+    } catch {
+      // Ignore storage write failures in restricted browser contexts.
+    }
     return;
   }
 
-  window.localStorage.removeItem("ihc:user-web:last-login-phone");
+  try {
+    window.localStorage.removeItem("ihc:user-web:last-login-phone");
+  } catch {
+    // Ignore storage cleanup failures in restricted browser contexts.
+  }
 }
 
 export function savePasswordResetVerificationState(payload: {
@@ -59,10 +81,14 @@ export function savePasswordResetVerificationState(payload: {
     verifiedAt: Date.now()
   };
 
-  window.sessionStorage.setItem(
-    PASSWORD_RESET_VERIFICATION_KEY,
-    JSON.stringify(value)
-  );
+  try {
+    window.sessionStorage.setItem(
+      PASSWORD_RESET_VERIFICATION_KEY,
+      JSON.stringify(value)
+    );
+  } catch {
+    // Ignore storage write failures in restricted browser contexts.
+  }
 }
 
 export function getPasswordResetVerificationState() {
@@ -70,7 +96,13 @@ export function getPasswordResetVerificationState() {
     return null;
   }
 
-  const rawValue = window.sessionStorage.getItem(PASSWORD_RESET_VERIFICATION_KEY);
+  let rawValue = "";
+
+  try {
+    rawValue = window.sessionStorage.getItem(PASSWORD_RESET_VERIFICATION_KEY) || "";
+  } catch {
+    return null;
+  }
 
   if (!rawValue) {
     return null;

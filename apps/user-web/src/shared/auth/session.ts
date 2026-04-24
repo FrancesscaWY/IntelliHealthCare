@@ -19,7 +19,11 @@ export interface UserAuthSession {
 }
 
 function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  try {
+    return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  } catch {
+    return false;
+  }
 }
 
 function isValidSession(value: unknown): value is UserAuthSession {
@@ -43,7 +47,13 @@ function loadUserAuthSession() {
     return null;
   }
 
-  const rawValue = window.localStorage.getItem(USER_AUTH_STORAGE_KEY);
+  let rawValue = "";
+
+  try {
+    rawValue = window.localStorage.getItem(USER_AUTH_STORAGE_KEY) || "";
+  } catch {
+    return null;
+  }
 
   if (!rawValue) {
     return null;
@@ -53,7 +63,11 @@ function loadUserAuthSession() {
     const parsedValue = JSON.parse(rawValue);
     return isValidSession(parsedValue) ? parsedValue : null;
   } catch {
-    window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+    try {
+      window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup failures in restricted browser contexts.
+    }
     return null;
   }
 }
@@ -88,7 +102,11 @@ export function saveUserAuthSession(session: UserAuthSession) {
     return;
   }
 
-  window.localStorage.setItem(USER_AUTH_STORAGE_KEY, JSON.stringify(session));
+  try {
+    window.localStorage.setItem(USER_AUTH_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    // Ignore storage write failures in restricted browser contexts.
+  }
 }
 
 export function clearUserAuthSession() {
@@ -98,7 +116,11 @@ export function clearUserAuthSession() {
     return;
   }
 
-  window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+  } catch {
+    // Ignore storage cleanup failures in restricted browser contexts.
+  }
 }
 
 export function hasUserAuthSession() {

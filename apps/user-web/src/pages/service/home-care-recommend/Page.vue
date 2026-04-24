@@ -1,22 +1,82 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import AiConversationHistorySheet from "@/shared/ai/components/AiConversationHistorySheet.vue";
+import { prepareAiServiceScene } from "@/shared/ai/runtime";
+import {
+  activeAssistantConversationId,
+  assistantConversationHistory,
+  getAiServiceRecommendationResult,
+  requestAssistantTextEntry,
+  requestAssistantVoiceEntry,
+  setActiveAssistantConversation
+} from "@/shared/ai/state";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+
+interface ProjectCard {
+  serviceId: string;
+  title: string;
+  reason: string;
+  imageUrl: string;
+  regionScope: string[];
+  priceLabel?: string;
+}
 
 const STATE_MACHINE_NAME = "State Machine 1";
 const BLINK_TRIGGER_NAME = "blinkTrigger";
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const draft = ref("");
+const isConversationHistoryOpen = ref(false);
+const serviceResult = getAiServiceRecommendationResult("home-care");
 const quickActions = [
   { label: "更多推荐", icon: Editor },
   { label: "商品智选", icon: Commodity },
-  { label: "体检定制", icon: Stethoscope },
+  { label: "体检定制", icon: Stethoscope }
 ];
+
+const projectList = computed<ProjectCard[]>(() => {
+  if (serviceResult.value?.recommendations.length) {
+    return serviceResult.value.recommendations.map((item) => ({
+      serviceId: item.serviceId,
+      title: item.title,
+      reason: item.reason,
+      imageUrl: item.imageUrl,
+      regionScope: item.regionScope,
+      priceLabel: item.priceLabel
+    }));
+  }
+
+  return mock.projects.map((item) => ({
+    serviceId: item.id,
+    title: item.name,
+    reason: item.desc,
+    imageUrl: item.image,
+    regionScope: []
+  }));
+});
+
+const pageIntro = computed(() => {
+  return (
+    serviceResult.value?.healthSummary?.summary ||
+    serviceResult.value?.conclusion ||
+    "已根据您的服务需求，为您筛选出更适合的家政护理项目。您可以先查看推荐理由，再选择需要购买的服务。"
+  );
+});
+
+const summarySignals = computed(() => {
+  return [
+    ...(serviceResult.value?.matchingSignals ?? []),
+    ...(serviceResult.value?.healthSummary?.keyFindings ?? [])
+  ].slice(0, 6);
+});
+
+const bookingPrefill = computed(() => serviceResult.value?.bookingPrefill || null);
+const knowledgeResults = computed(() => serviceResult.value?.knowledgeResults ?? []);
 
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;
@@ -34,7 +94,19 @@ function buyProject() {
 }
 
 function useQuickAction(label: string) {
-  props.showToast(`${label}功能待接入`);
+  if (label === "更多推荐") {
+    props.navigation.navigateTo("service/rehab-recommend-waiting");
+    return;
+  }
+
+  if (label === "商品智选") {
+    props.navigation.navigateTo("home/assistant-chat");
+    return;
+  }
+
+  if (label === "体检定制") {
+    props.navigation.navigateTo("service/home-exam-recommend-waiting");
+  }
 }
 
 function sendMessage() {
@@ -45,13 +117,35 @@ function sendMessage() {
     return;
   }
 
+  requestAssistantTextEntry(text, props.pageEntry.id);
   draft.value = "";
-  props.showToast("消息已发送");
+  props.navigation.navigateTo("home/assistant-chat");
+}
+
+function openVoiceAssistant() {
+  requestAssistantVoiceEntry(props.pageEntry.id);
+  props.navigation.navigateTo("home/assistant-chat");
+}
+
+function openConversationFromHistory(conversationId: string) {
+  setActiveAssistantConversation(conversationId);
+  isConversationHistoryOpen.value = false;
+  props.navigation.navigateTo("home/assistant-chat");
+}
+
+function createConversationFromHistory() {
+  setActiveAssistantConversation("");
+  isConversationHistoryOpen.value = false;
+  props.navigation.navigateTo("home/assistant-chat");
 }
 
 function bindStateMachineInputs() {
   const inputs = riveInstance?.stateMachineInputs(STATE_MACHINE_NAME) ?? [];
-  blinkTrigger = inputs.find((input) => input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger) ?? null;
+  blinkTrigger =
+    inputs.find(
+      (input) =>
+        input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger
+    ) ?? null;
 }
 
 function triggerBlink() {
@@ -75,6 +169,12 @@ function resizeRive() {
 }
 
 onMounted(() => {
+  if (!serviceResult.value) {
+    void prepareAiServiceScene("home-care").catch((error) => {
+      props.showToast(error instanceof Error ? error.message : "AI 推荐加载失败");
+    });
+  }
+
   const canvas = canvasRef.value;
 
   if (!canvas) {
@@ -88,13 +188,13 @@ onMounted(() => {
     autoplay: true,
     layout: new Layout({
       fit: Fit.Contain,
-      alignment: Alignment.Center,
+      alignment: Alignment.Center
     }),
     onLoad: () => {
       resizeRive();
       bindStateMachineInputs();
       scheduleBlink();
-    },
+    }
   });
 
   resizeObserver = new ResizeObserver(resizeRive);
@@ -118,14 +218,31 @@ onBeforeUnmount(() => {
         <button class="assistant-back" type="button" aria-label="返回" @click="goBack">
           <span aria-hidden="true"></span>
         </button>
-        <canvas ref="canvasRef" class="assistant-avatar" width="180" height="140" aria-label="AI 小助手"></canvas>
+        <canvas
+          ref="canvasRef"
+          class="assistant-avatar"
+          width="180"
+          height="140"
+          aria-label="AI 小助手"
+        ></canvas>
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
           <strong>您好！我是豆沙包</strong>
           <strong>这是我为您推荐的项目～</strong>
           <p>推荐仅供参考，您可以根据实际需求继续调整哦</p>
         </div>
-        <button class="more-btn" type="button" @click="props.showToast('更多功能待接入')">更多</button>
+        <button
+          class="history-btn"
+          type="button"
+          aria-label="查看历史对话记录"
+          @click="isConversationHistoryOpen = true"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 7v5l3 2"></path>
+            <path d="M4.5 12a7.5 7.5 0 1 0 2.1-5.22"></path>
+            <path d="M4.5 4.5v4h4"></path>
+          </svg>
+        </button>
       </header>
 
       <section class="project-section" aria-label="项目推荐">
@@ -136,19 +253,43 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="section">
-          <p>
-            已根据您的服务需求，为您筛选出更适合的家政护理项目。您可以先查看推荐理由，再选择需要购买的服务。
-          </p>
+          <p>{{ pageIntro }}</p>
+        </div>
+
+        <div v-if="summarySignals.length" class="signal-section">
+          <span v-for="signal in summarySignals" :key="signal">{{ signal }}</span>
         </div>
 
         <section class="project-card">
-          <article v-for="item in mock.projects" :key="item.id" class="project-item">
-            <img :src="item.image" :alt="item.name" />
+          <article v-for="item in projectList" :key="item.serviceId" class="project-item">
+            <img :src="item.imageUrl" :alt="item.title" />
             <div class="project-info">
-              <h2>{{ item.name }}</h2>
-              <p>{{ item.desc }}</p>
+              <h2>{{ item.title }}</h2>
+              <p>{{ item.reason }}</p>
+              <small v-if="item.priceLabel">参考价：{{ item.priceLabel }}</small>
+              <small v-if="item.regionScope.length">服务区域：{{ item.regionScope.join(" / ") }}</small>
               <button type="button" @click="buyProject">立即购买</button>
             </div>
+          </article>
+        </section>
+
+        <section v-if="bookingPrefill || knowledgeResults.length" class="insight-card">
+          <article v-if="bookingPrefill" class="insight-block">
+            <strong>预约草稿</strong>
+            <p>{{ bookingPrefill.title || "已生成预约建议" }}</p>
+            <span v-if="bookingPrefill.suggestedSlots.length">
+              建议时段：{{ bookingPrefill.suggestedSlots.join("、") }}
+            </span>
+            <span v-if="bookingPrefill.missingFields.length">
+              仍需补充：{{ bookingPrefill.missingFields.join("、") }}
+            </span>
+          </article>
+
+          <article v-if="knowledgeResults.length" class="insight-block">
+            <strong>知识建议</strong>
+            <p v-for="item in knowledgeResults" :key="item.citation.chunkId">
+              {{ item.document.title }}
+            </p>
           </article>
         </section>
       </section>
@@ -163,7 +304,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="message-bar">
-        <button class="voice-btn" type="button" aria-label="语音输入" @click="props.showToast('语音输入待接入')">
+        <button class="voice-btn" type="button" aria-label="语音输入" @click="openVoiceAssistant">
           <span aria-hidden="true"></span>
         </button>
         <button class="camera-btn" type="button" aria-label="拍照或上传图片" @click="props.showToast('图片功能待接入')">
@@ -173,6 +314,15 @@ onBeforeUnmount(() => {
         <button class="send-btn" type="button" @click="sendMessage">发送</button>
       </div>
     </footer>
+
+    <AiConversationHistorySheet
+      :open="isConversationHistoryOpen"
+      :entries="assistantConversationHistory"
+      :active-conversation-id="activeAssistantConversationId"
+      @close="isConversationHistoryOpen = false"
+      @create="createConversationFromHistory"
+      @select="openConversationFromHistory"
+    />
   </section>
 </template>
 
@@ -218,7 +368,7 @@ onBeforeUnmount(() => {
 }
 
 .assistant-back,
-.more-btn,
+.history-btn,
 .project-item button,
 .quick-actions button,
 .voice-btn,
@@ -248,6 +398,31 @@ onBeforeUnmount(() => {
   border-bottom: 3px solid rgba(31, 42, 68, 0.58);
   border-left: 3px solid rgba(31, 42, 68, 0.58);
   transform: rotate(45deg);
+}
+
+.history-btn {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 10px 24px rgba(65, 96, 136, 0.12);
+}
+
+.history-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: rgba(31, 42, 68, 0.78);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .assistant-avatar {
@@ -294,16 +469,6 @@ onBeforeUnmount(() => {
   line-height: 1.35;
 }
 
-.more-btn {
-  grid-column: 3;
-  justify-self: end;
-  margin-top: 5px;
-  padding: 0;
-  color: #2d344b;
-  font-size: 15px;
-  font-weight: 900;
-}
-
 .project-section {
   margin-top: -28px;
 }
@@ -338,7 +503,24 @@ onBeforeUnmount(() => {
   text-align: justify;
 }
 
-.project-card {
+.signal-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.signal-section span {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(117, 214, 223, 0.16);
+  color: #2f89a6;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.project-card,
+.insight-card {
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -350,15 +532,23 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 
-.project-item {
+.insight-card {
+  margin-top: 16px;
+}
+
+.project-item,
+.insight-block {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
   gap: 12px;
-  min-height: 112px;
   padding: 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
+}
+
+.project-item {
+  grid-template-columns: 86px minmax(0, 1fr);
+  min-height: 112px;
 }
 
 .project-item img {
@@ -374,7 +564,8 @@ onBeforeUnmount(() => {
   align-content: start;
 }
 
-.project-info h2 {
+.project-info h2,
+.insight-block strong {
   margin: 0;
   color: #25305a;
   font-size: 15px;
@@ -382,12 +573,23 @@ onBeforeUnmount(() => {
   line-height: 1.35;
 }
 
-.project-info p {
-  margin: 6px 0 10px;
+.project-info p,
+.insight-block p {
+  margin: 6px 0 0;
   color: rgba(63, 75, 99, 0.68);
   font-size: 12px;
   font-weight: 800;
-  line-height: 1.45;
+  line-height: 1.55;
+}
+
+.project-info small,
+.insight-block span {
+  display: block;
+  margin-top: 8px;
+  color: rgba(48, 52, 63, 0.56);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .project-item button {
