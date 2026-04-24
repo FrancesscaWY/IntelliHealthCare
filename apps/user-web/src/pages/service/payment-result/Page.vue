@@ -1,15 +1,60 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getOrderFlowState } from "@/pages/service/order-flow";
+import { useOrderCenter } from "@/pages/service/order-center";
+import { getPaymentDetail } from "@/shared/api/payments";
 
 const props = defineProps<PageComponentProps>();
+const orderFlowState = getOrderFlowState();
+const { selectOrder } = useOrderCenter();
+const paymentStatus = ref(orderFlowState.payment?.status || "PAID");
+const paymentAmount = ref<number | null>(orderFlowState.payment?.amount ?? null);
+
+const paymentStatusText = computed(() => {
+  if (paymentStatus.value === "PAID") {
+    return "支付成功";
+  }
+  if (paymentStatus.value === "PENDING") {
+    return "支付处理中";
+  }
+  return "支付结果待确认";
+});
+
+const paymentDescription = computed(() => {
+  const amountText =
+    typeof paymentAmount.value === "number" ? `订单金额 ¥${paymentAmount.value.toFixed(2)}` : "订单金额待确认";
+  return `${amountText}，请前往订单页查看最新状态`;
+});
 
 function goBack() {
   props.navigation.navigateBack();
 }
 
 function viewOrder() {
+  const createdOrderId = orderFlowState.createdOrder?.orderId || "";
+  if (createdOrderId) {
+    selectOrder(createdOrderId);
+  }
   props.navigation.navigateTo("service/order-detail");
 }
+
+async function loadPaymentDetail() {
+  const paymentId = orderFlowState.payment?.paymentId;
+  if (!paymentId) {
+    return;
+  }
+
+  try {
+    const payment = await getPaymentDetail(paymentId);
+    paymentStatus.value = payment.status;
+    paymentAmount.value = payment.amount;
+  } catch {}
+}
+
+onMounted(() => {
+  void loadPaymentDetail();
+});
 </script>
 
 <template>
@@ -23,8 +68,8 @@ function viewOrder() {
       <div class="success-icon" aria-hidden="true">
         <span class="success-check"></span>
       </div>
-      <h2>支付成功</h2>
-      <p>您的订单已支付成功！</p>
+      <h2>{{ paymentStatusText }}</h2>
+      <p>{{ paymentDescription }}</p>
     </main>
 
     <div class="result-bar">
@@ -126,6 +171,7 @@ function viewOrder() {
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: 0;
+  text-align: center;
 }
 
 .result-bar {

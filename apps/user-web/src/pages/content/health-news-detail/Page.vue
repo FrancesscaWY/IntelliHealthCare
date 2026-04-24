@@ -1,27 +1,149 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { nextTick, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  createHealthNewsComment,
+  favoriteHealthNews,
+  getHealthNewsDetail,
+  likeHealthNews,
+  listHealthNewsComments,
+  shareHealthNews
+} from "@/shared/api/content";
+import fallbackNewsImage from "@/assets/content/health-lecture-hot.jpg";
+import avatarLiu from "@/assets/content/avatar-liu.jpg?inline";
+import { resolveCommentAvatar, resolveNewsHeroImage } from "@/shared/utils/healthNewsMedia";
 import mock from "./mock";
-import { currentUserCommentProfile } from "../comment-mock";
-import { healthNewsDetailTarget } from "../health-news/state";
+import { getCurrentUserCommentProfile, type ContentComment } from "../comment-mock";
+import { healthNewsDetailTarget, selectedHealthNewsId } from "../health-news/state";
 
 const props = defineProps<PageComponentProps>();
 
 const commentsSectionRef = ref<HTMLElement | null>(null);
 const commentInputRef = ref<HTMLInputElement | null>(null);
 
+const articleTitle = ref(mock.title);
+const publishDate = ref(mock.publishDate);
+const heroImage = ref(mock.heroImage);
+const paragraphs = ref([...mock.paragraphs]);
 const liked = ref(false);
 const starred = ref(false);
-const showComposer = ref(false);
-const showEmojiPanel = ref(false);
-const replyTarget = ref<string>("");
 const likeCount = ref(mock.stats.likes);
 const starCount = ref(mock.stats.stars);
 const commentCount = ref(mock.stats.comments);
+const comments = ref<ContentComment[]>([...mock.comments]);
+const showComposer = ref(false);
+const showEmojiPanel = ref(false);
+const replyTarget = ref("");
+const replyCommentId = ref("");
 const commentDraft = ref("");
-const comments = ref([...mock.comments]);
 
-const emojiOptions = ["😀", "😊", "🙂", "😉", "🥰", "👏", "👍", "❤️", "🎉", "🌹", "😄", "🤗"];
+const emojiOptions = ["😀", "😉", "😊", "😄", "👍", "👏", "✨", "🌷"];
+
+function formatDate(value: string | null | undefined) {
+  if (!value) {
+    return "发布时间未知";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `发布时间：${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function applyFallbackImage(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = fallbackNewsImage;
+}
+
+function applyFallbackAvatar(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = avatarLiu;
+}
+
+function mapComments(items: Array<{
+  id: string;
+  author: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  city: string | null;
+  content: string;
+  replyTo?: string;
+  likes: number;
+  liked: boolean;
+  isMine: boolean;
+}>): ContentComment[] {
+  return items.map((item) => ({
+    id: item.id,
+    author: item.author || "匿名用户",
+    avatarUrl: resolveCommentAvatar(item.author || "匿名用户", item.avatarUrl),
+    time: item.createdAt || "刚刚",
+    city: item.city || "未知",
+    content: item.content,
+    replyTo: item.replyTo,
+    likes: item.likes ?? 0,
+    liked: Boolean(item.liked),
+    isMine: Boolean(item.isMine)
+  }));
+}
+
+async function loadArticle() {
+  const newsId = selectedHealthNewsId.value.trim();
+
+  if (!newsId || newsId.startsWith("mock-")) {
+    return;
+  }
+
+  try {
+    const detail = await getHealthNewsDetail(newsId);
+
+    articleTitle.value = detail.title;
+    publishDate.value = formatDate(detail.publishedAt);
+    heroImage.value = resolveNewsHeroImage(detail.newsId || detail.id || newsId, detail.title, detail.heroImage, detail.coverUrl) || mock.heroImage;
+    paragraphs.value = detail.paragraphs?.length ? detail.paragraphs : detail.summary ? [detail.summary] : [...mock.paragraphs];
+    liked.value = false;
+    starred.value = false;
+    likeCount.value = detail.likesCount ?? 0;
+    starCount.value = detail.favoritesCount ?? 0;
+    commentCount.value = detail.commentsCount ?? 0;
+  } catch {
+    props.showToast("资讯详情加载失败，已显示本地示例");
+  }
+}
+
+async function loadComments() {
+  const newsId = selectedHealthNewsId.value.trim();
+
+  if (!newsId || newsId.startsWith("mock-")) {
+    return;
+  }
+
+  try {
+    const response = await listHealthNewsComments(newsId, {
+      page: 1,
+      pageSize: 50
+    });
+
+    comments.value = mapComments(response.list);
+    commentCount.value = response.total;
+  } catch {
+    props.showToast("评论加载失败，已显示本地示例");
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -29,14 +151,66 @@ function goBack() {
   }
 }
 
-function toggleLike() {
-  liked.value = !liked.value;
-  likeCount.value += liked.value ? 1 : -1;
+async function toggleLike() {
+  const newsId = selectedHealthNewsId.value.trim();
+
+  if (!newsId || newsId.startsWith("mock-")) {
+    liked.value = !liked.value;
+    likeCount.value += liked.value ? 1 : -1;
+    return;
+  }
+
+  if (liked.value) {
+    props.showToast("已点赞");
+    return;
+  }
+
+  try {
+    await likeHealthNews(newsId);
+    liked.value = true;
+    likeCount.value += 1;
+  } catch {
+    props.showToast("点赞失败，请稍后再试");
+  }
 }
 
-function toggleStar() {
-  starred.value = !starred.value;
-  starCount.value += starred.value ? 1 : -1;
+async function toggleStar() {
+  const newsId = selectedHealthNewsId.value.trim();
+
+  if (!newsId || newsId.startsWith("mock-")) {
+    starred.value = !starred.value;
+    starCount.value += starred.value ? 1 : -1;
+    return;
+  }
+
+  if (starred.value) {
+    props.showToast("已收藏");
+    return;
+  }
+
+  try {
+    await favoriteHealthNews(newsId);
+    starred.value = true;
+    starCount.value += 1;
+  } catch {
+    props.showToast("收藏失败，请稍后再试");
+  }
+}
+
+async function shareArticle() {
+  const newsId = selectedHealthNewsId.value.trim();
+
+  if (!newsId || newsId.startsWith("mock-")) {
+    props.showToast("分享功能待接入");
+    return;
+  }
+
+  try {
+    await shareHealthNews(newsId);
+    props.showToast("分享记录已更新");
+  } catch {
+    props.showToast("分享失败，请稍后再试");
+  }
 }
 
 function scrollToComments() {
@@ -48,6 +222,7 @@ async function focusCommentInput() {
   await nextTick();
   showComposer.value = true;
   replyTarget.value = "";
+  replyCommentId.value = "";
   commentInputRef.value?.focus();
 }
 
@@ -55,14 +230,16 @@ function openComposer() {
   showComposer.value = true;
   showEmojiPanel.value = false;
   replyTarget.value = "";
+  replyCommentId.value = "";
   void nextTick(() => {
     commentInputRef.value?.focus();
   });
 }
 
-async function replyToComment(author: string) {
+async function replyToComment(item: ContentComment) {
   scrollToComments();
-  replyTarget.value = author;
+  replyTarget.value = item.author;
+  replyCommentId.value = item.id;
   showComposer.value = true;
   showEmojiPanel.value = false;
   await nextTick();
@@ -73,6 +250,7 @@ function closeComposer() {
   showComposer.value = false;
   showEmojiPanel.value = false;
   replyTarget.value = "";
+  replyCommentId.value = "";
 }
 
 function toggleEmojiPanel() {
@@ -111,7 +289,7 @@ function deleteComment(commentId: string) {
   props.showToast("评论已删除");
 }
 
-function submitComment() {
+async function submitComment() {
   const content = commentDraft.value.trim();
 
   if (!content) {
@@ -119,25 +297,49 @@ function submitComment() {
     return;
   }
 
-  comments.value.unshift({
-    id: `comment-${Date.now()}`,
-    author: currentUserCommentProfile.author,
-    avatarUrl: currentUserCommentProfile.avatarUrl,
-    time: "刚刚",
-    city: currentUserCommentProfile.city,
-    content,
-    replyTo: replyTarget.value || undefined,
-    likes: 0,
-    liked: false,
-    isMine: true,
-  });
-  commentDraft.value = "";
-  commentCount.value += 1;
-  closeComposer();
-  props.showToast("评论已发布");
+  const newsId = selectedHealthNewsId.value.trim();
+
+  if (!newsId || newsId.startsWith("mock-")) {
+    const currentUserCommentProfile = getCurrentUserCommentProfile();
+
+    comments.value.unshift({
+      id: `comment-${Date.now()}`,
+      author: currentUserCommentProfile.author,
+      avatarUrl: currentUserCommentProfile.avatarUrl,
+      time: "刚刚",
+      city: currentUserCommentProfile.city,
+      content,
+      replyTo: replyTarget.value || undefined,
+      likes: 0,
+      liked: false,
+      isMine: true
+    });
+    commentDraft.value = "";
+    commentCount.value = comments.value.length;
+    closeComposer();
+    props.showToast("评论已发布");
+    return;
+  }
+
+  try {
+    await createHealthNewsComment(newsId, {
+      parentId: replyCommentId.value || undefined,
+      content
+    });
+    commentDraft.value = "";
+    closeComposer();
+    await loadArticle();
+    await loadComments();
+    props.showToast("评论已发布");
+  } catch {
+    props.showToast("评论发布失败，请稍后再试");
+  }
 }
 
 onMounted(async () => {
+  await loadArticle();
+  await loadComments();
+
   if (healthNewsDetailTarget.value !== "comments") {
     return;
   }
@@ -156,7 +358,7 @@ onMounted(async () => {
           <span class="back-arrow" aria-hidden="true"></span>
         </button>
         <h1>{{ mock.navTitle }}</h1>
-        <button class="nav-btn" type="button" aria-label="分享" @click="props.showToast('分享功能待接入')">
+        <button class="nav-btn" type="button" aria-label="分享" @click="shareArticle">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M14 3h7v7" />
             <path d="M10 14 21 3" />
@@ -166,10 +368,10 @@ onMounted(async () => {
       </header>
 
       <article class="article-card">
-        <h2>{{ mock.title }}</h2>
-        <p class="publish-date">{{ mock.publishDate }}</p>
-        <img class="hero-image" :src="mock.heroImage" :alt="mock.title" draggable="false" />
-        <p v-for="(paragraph, index) in mock.paragraphs" :key="index" class="article-paragraph">{{ paragraph }}</p>
+        <h2>{{ articleTitle }}</h2>
+        <p class="publish-date">{{ publishDate }}</p>
+        <img class="hero-image" :src="heroImage" :alt="articleTitle" draggable="false" @error="applyFallbackImage" />
+        <p v-for="(paragraph, index) in paragraphs" :key="index" class="article-paragraph">{{ paragraph }}</p>
       </article>
 
       <section ref="commentsSectionRef" class="comments-section">
@@ -177,8 +379,8 @@ onMounted(async () => {
           <h3>全部 {{ commentCount }} 条评论</h3>
         </header>
 
-        <article v-for="item in comments" :key="item.id" class="comment-item" @click="replyToComment(item.author)">
-          <img class="comment-avatar" :src="item.avatarUrl" :alt="item.author" draggable="false" />
+        <article v-for="item in comments" :key="item.id" class="comment-item" @click="replyToComment(item)">
+        <img class="comment-avatar" :src="item.avatarUrl" :alt="item.author" draggable="false" @error="applyFallbackAvatar" />
 
           <div class="comment-main">
             <header class="comment-top">
@@ -191,7 +393,7 @@ onMounted(async () => {
               </div>
 
               <div class="comment-actions">
-                <button class="comment-bubble" type="button" aria-label="回复评论" @click.stop="replyToComment(item.author)">
+                <button class="comment-bubble" type="button" aria-label="回复评论" @click.stop="replyToComment(item)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
                   </svg>
@@ -234,14 +436,14 @@ onMounted(async () => {
       </button>
 
       <div class="bottom-actions">
-        <button class="bottom-action" :class="{ 'bottom-action--active': liked }" type="button" @click="toggleLike">
+        <button class="bottom-action bottom-action--like" :class="{ 'bottom-action--active-like': liked }" type="button" @click="toggleLike">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
           </svg>
           <span>{{ likeCount }}</span>
         </button>
 
-        <button class="bottom-action" :class="{ 'bottom-action--active': starred }" type="button" @click="toggleStar">
+        <button class="bottom-action bottom-action--favorite" :class="{ 'bottom-action--active-favorite': starred }" type="button" @click="toggleStar">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
           </svg>
@@ -385,7 +587,7 @@ onMounted(async () => {
 
 .publish-date {
   margin: 10px 0 0;
-  color: #c1c1c6;
+  color: #9fa7b2;
   font-size: 14px;
   font-weight: 600;
 }
@@ -489,11 +691,12 @@ onMounted(async () => {
 }
 
 .comment-like--active {
-  color: #6670f0;
+  color: #e3b341;
 }
 
 .comment-like--active svg,
-.bottom-action--active svg {
+.bottom-action--active-like svg,
+.bottom-action--active-favorite svg {
   fill: currentColor;
 }
 
@@ -505,7 +708,7 @@ onMounted(async () => {
 }
 
 .comment-reply-target {
-  color: #6670f0;
+  color: #e3b341;
 }
 
 .comment-bottom {
@@ -569,12 +772,16 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 0;
-  color: #2f3138;
+  color: #7b8795;
   font-size: 15px;
 }
 
-.bottom-action--active {
-  color: #6670f0;
+.bottom-action--active-like {
+  color: #ef7b72;
+}
+
+.bottom-action--active-favorite {
+  color: #e3b341;
 }
 
 .composer-mask {
@@ -618,78 +825,53 @@ onMounted(async () => {
 }
 
 .composer-input::placeholder {
-  color: #9a9a9a;
+  color: #a8abb2;
+}
+
+.emoji-toggle,
+.composer-send {
+  display: inline-grid;
+  place-items: center;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
 }
 
 .emoji-toggle {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  color: #8b9098;
+  color: #8d929b;
 }
 
 .emoji-toggle svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.9;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .composer-send {
-  height: 38px;
-  padding: 0 16px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #7280f6 0%, #5d67e8 100%);
-  color: #ffffff;
+  min-width: 56px;
+  background: #f2d27a;
+  color: #6e5312;
   font-size: 14px;
   font-weight: 600;
 }
 
 .emoji-panel {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 12px;
-  padding: 10px 4px 0;
+  margin-top: 10px;
+  padding: 4px 2px 0;
 }
 
 .emoji-btn {
-  display: grid;
-  place-items: center;
   height: 40px;
-  border-radius: 10px;
-  background: #f6f6f7;
-  font-size: 22px;
-}
-
-@media (min-width: 561px) {
-  .health-news-detail-page {
-    height: 844px;
-    min-height: 844px;
-  }
-}
-
-@media (max-width: 389px) {
-  .detail-nav,
-  .article-card,
-  .comments-section {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .bottom-bar {
-    padding-right: 14px;
-    padding-left: 14px;
-  }
-
-  .emoji-panel {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 8px;
-  }
+  border-radius: 12px;
+  background: #f5f7f8;
+  font-size: 20px;
 }
 </style>
+

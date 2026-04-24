@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Back, Comment, Like, Male, More, Share, Star } from "@icon-park/vue-next";
-import avatarMe from "@/assets/home/profile/avatar.jpg";
 import coverImage from "@/assets/home/profile/cover.jpg";
 import { loadPublishedProfilePost, type ProfilePost } from "./published-post";
+import { loadUserProfileState, syncUserProfileStateFromApi } from "./profile-store";
 import mock from "./mock";
 
 type InteractiveProfilePost = ProfilePost & {
@@ -14,6 +14,7 @@ type InteractiveProfilePost = ProfilePost & {
 
 const props = defineProps<PageComponentProps>();
 const isFollowing = ref(false);
+const profileState = ref(loadUserProfileState());
 const publishedPost = loadPublishedProfilePost();
 const initialPosts: ProfilePost[] = publishedPost ? [publishedPost, ...mock.posts] : mock.posts;
 const posts = ref<InteractiveProfilePost[]>(
@@ -38,6 +39,16 @@ const profileStats = computed(() =>
 );
 
 const feedCount = computed(() => mock.feedCount + (publishedPost ? 1 : 0));
+const profileAvatar = computed(() => profileState.value.avatarUrl);
+const profileName = computed(() => profileState.value.nickname || mock.profile.name);
+
+onMounted(() => {
+  void syncUserProfileStateFromApi()
+    .then((state) => {
+      profileState.value = state;
+    })
+    .catch(() => {});
+});
 
 function showPendingMessage(label: string) {
   props.showToast(`${label}功能待接入`);
@@ -98,10 +109,10 @@ function imageStyle(src: string, position = "center") {
 
       <div class="profile-card">
         <div class="profile-card__head">
-          <img class="profile-avatar" :src="avatarMe" alt="笑看人生头像" draggable="false" />
+          <img class="profile-avatar" :src="profileAvatar" :alt="`${profileName}头像`" draggable="false" />
           <div class="profile-meta">
             <div class="profile-name-row">
-              <h1>{{ mock.profile.name }}</h1>
+              <h1>{{ profileName }}</h1>
               <span class="profile-gender" aria-label="男">
                 <Male theme="filled" size="14" fill="#57d6b6" />
               </span>
@@ -139,7 +150,7 @@ function imageStyle(src: string, position = "center") {
 
       <article v-for="post in posts" :key="post.id" class="feed-item">
         <div class="feed-item__meta">
-          <img class="feed-item__avatar" :src="avatarMe" :alt="`${post.author}头像`" draggable="false" />
+          <img class="feed-item__avatar" :src="profileAvatar" :alt="`${post.author}头像`" draggable="false" />
           <div>
             <strong>{{ post.author }}</strong>
             <span>{{ post.date }}</span>
