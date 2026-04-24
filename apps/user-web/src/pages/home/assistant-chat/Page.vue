@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import {
   AddOne,
   Camera,
@@ -12,6 +13,7 @@ import {
   Stethoscope,
   Up
 } from "@icon-park/vue-next";
+import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import AiConversationHistorySheet from "@/shared/ai/components/AiConversationHistorySheet.vue";
 import type { AssistantConversationMessage } from "@/shared/api/ai";
 import {
@@ -37,8 +39,12 @@ import {
   selectedAiReportId,
   setActiveAssistantConversation
 } from "@/shared/ai/state";
+import { ensureLocalRiveRuntime } from "@/shared/rive/runtime";
 
 const props = defineProps<PageComponentProps>();
+
+const STATE_MACHINE_NAME = "State Machine 1";
+const BLINK_TRIGGER_NAME = "blinkTrigger";
 
 interface ChatMessage {
   id: string;
@@ -99,6 +105,7 @@ const isConversationHistoryOpen = ref(false);
 const isConversationLoading = ref(false);
 const isSending = ref(false);
 const scrollRef = ref<HTMLElement | null>(null);
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
 const albumInputRef = ref<HTMLInputElement | null>(null);
 const cameraInputRef = ref<HTMLInputElement | null>(null);
 const questionList = computed(
@@ -120,7 +127,13 @@ const latestAiServiceContext = computed(() => {
 });
 
 let voiceRecorder: BrowserVoiceRecorder | null = null;
+let assistantRive: Rive | null = null;
+let assistantBlinkTrigger: StateMachineInput | null = null;
+let assistantBlinkTimer: ReturnType<typeof setTimeout> | null = null;
+let assistantResizeObserver: ResizeObserver | null = null;
 const mediaObjectUrls = new Set<string>();
+
+ensureLocalRiveRuntime();
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -585,6 +598,38 @@ function toggleVoiceRecording() {
   void startVoiceRecording();
 }
 
+function resizeAssistantAvatar() {
+  assistantRive?.resizeDrawingSurfaceToCanvas();
+}
+
+function bindAssistantStateMachineInputs() {
+  const inputs = assistantRive?.stateMachineInputs(STATE_MACHINE_NAME) ?? [];
+  assistantBlinkTrigger =
+    inputs.find(
+      (input) =>
+        input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger
+    ) ?? null;
+}
+
+function clearAssistantBlinkTimer() {
+  if (assistantBlinkTimer) {
+    clearTimeout(assistantBlinkTimer);
+    assistantBlinkTimer = null;
+  }
+}
+
+function scheduleAssistantBlink() {
+  clearAssistantBlinkTimer();
+  assistantBlinkTimer = setTimeout(() => {
+    if (!assistantBlinkTrigger) {
+      bindAssistantStateMachineInputs();
+    }
+
+    assistantBlinkTrigger?.fire();
+    scheduleAssistantBlink();
+  }, 2600 + Math.random() * 2200);
+}
+
 onMounted(() => {
   void (async () => {
     await ensureConversation();
@@ -600,11 +645,40 @@ onMounted(() => {
   })().catch((error) => {
     props.showToast(getErrorMessage(error));
   });
+
+  if (!assistantCanvasRef.value) {
+    return;
+  }
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: STATE_MACHINE_NAME,
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center
+    }),
+    onLoad: () => {
+      resizeAssistantAvatar();
+      bindAssistantStateMachineInputs();
+      scheduleAssistantBlink();
+    }
+  });
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistantAvatar);
+  assistantResizeObserver.observe(assistantCanvasRef.value);
 });
 
 onBeforeUnmount(() => {
   voiceRecorder?.dispose();
   voiceRecorder = null;
+  clearAssistantBlinkTimer();
+  assistantResizeObserver?.disconnect();
+  assistantResizeObserver = null;
+  assistantBlinkTrigger = null;
+  assistantRive?.cleanup();
+  assistantRive = null;
   stopSpeaking();
   mediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
   mediaObjectUrls.clear();
@@ -628,11 +702,10 @@ watch(
         </button>
         <div class="assistant-brand">
           <div class="assistant-avatar" aria-hidden="true">
-            <span class="assistant-avatar__core"></span>
+            <canvas ref="assistantCanvasRef" class="assistant-avatar__canvas" width="56" height="56"></canvas>
           </div>
           <div class="assistant-copy">
             <strong>您好，我是豆沙包</strong>
-            <p>健康问题、报告疑问、服务选择，都可以直接问我~</p>
             <p v-if="voiceEntryHint" class="voice-entry-hint">{{ voiceEntryHint }}</p>
           </div>
         </div>
@@ -783,12 +856,13 @@ watch(
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   box-sizing: border-box;
-  justify-self: center;
-  width: min(402px, calc(100vw - 12px));
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px auto 0;
+  justify-self: stretch;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: none;
+  margin: 0;
   overflow: hidden;
   background: linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
   color: var(--ihc-text-primary);
@@ -872,7 +946,7 @@ watch(
 
 .assistant-brand {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   min-width: 0;
   gap: 8px;
 }
@@ -882,71 +956,37 @@ watch(
   flex: 0 0 auto;
   width: 56px;
   height: 56px;
-  margin: 2px 0 0;
+  margin: 0;
   border-radius: 18px;
-  background:
-    radial-gradient(circle at 28% 28%, rgba(255, 255, 255, 0.98) 0 12%, transparent 13%),
-    radial-gradient(circle at 70% 76%, rgba(255, 255, 255, 0.26) 0 18%, transparent 19%),
-    linear-gradient(145deg, #77d7d8 0%, #8bb9f5 54%, #91dfb0 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 10px 24px rgba(82, 131, 179, 0.14);
+  background: transparent;
+  box-shadow: none;
   overflow: hidden;
 }
 
-.assistant-avatar::before,
-.assistant-avatar::after {
-  position: absolute;
-  content: "";
-  border-radius: 999px;
-}
-
-.assistant-avatar::before {
-  inset: 8px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06));
-}
-
-.assistant-avatar::after {
-  right: 8px;
-  bottom: 9px;
-  width: 12px;
-  height: 12px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.assistant-avatar__core {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 35%, #ffffff 0 20%, rgba(255, 255, 255, 0.48) 21%, transparent 50%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.34));
-  box-shadow:
-    0 0 0 8px rgba(255, 255, 255, 0.15),
-    0 0 0 16px rgba(255, 255, 255, 0.08);
-  transform: translate(-50%, -50%);
-  animation: assistant-avatar-float 3.2s ease-in-out infinite;
+.assistant-avatar__canvas {
+  display: block;
+  width: 56px;
+  height: 56px;
+  transform: scale(1.08);
 }
 
 .assistant-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  min-height: 64px;
+  justify-content: center;
+  align-self: center;
+  min-height: 56px;
   padding-top: 8px;
 }
 
 .assistant-copy strong {
   display: block;
-  margin: 0 0 2px;
+  margin: 0;
   color: var(--ihc-text-primary);
   font-size: 16px;
   font-weight: 500;
-  line-height: 1.2;
+  line-height: 1.25;
   text-wrap: pretty;
 }
 
@@ -1424,7 +1464,6 @@ watch(
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .assistant-avatar__core,
   .assistant-back,
   .header-icon-btn,
   .question-tool-btn,
@@ -1438,17 +1477,6 @@ watch(
   .question-fold-leave-active {
     transition: none;
     animation: none;
-  }
-}
-
-@keyframes assistant-avatar-float {
-  0%,
-  100% {
-    transform: translate(-50%, -50%);
-  }
-
-  50% {
-    transform: translate(-50%, calc(-50% - 2px));
   }
 }
 </style>
