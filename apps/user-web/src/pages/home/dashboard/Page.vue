@@ -1,6 +1,10 @@
-<script setup lang="ts">
-import { ref } from "vue";
+﻿<script setup lang="ts">
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { favoriteHealthNews, likeHealthNews, listHealthNews, shareHealthNews } from "@/shared/api/content";
+import fallbackNewsImage from "@/assets/content/health-lecture-hot.jpg";
+import { healthNewsDetailTarget, selectedHealthNewsId } from "@/pages/content/health-news/state";
+import { normalizeNewsImages } from "@/shared/utils/healthNewsMedia";
 import locationIcon from "@/assets/home/topbar/定位.png";
 import scanIcon from "@/assets/home/topbar/二维码.png";
 import sectionImage from "@/assets/home/sections/img.png";
@@ -9,14 +13,36 @@ import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const searchValue = ref("");
-const articles = ref(
-  mock.articles.map((item, index) => ({
-    ...item,
+
+type DashboardArticle = {
+  id: string;
+  newsId: string;
+  title: string;
+  desc: string;
+  likes: number;
+  stars: number;
+  comments: number;
+  isLiked: boolean;
+  isStarred: boolean;
+  images: string[];
+};
+
+function createFallbackArticles(): DashboardArticle[] {
+  return mock.articles.map((item, index) => ({
     id: `article-${index + 1}`,
+    newsId: `mock-article-${index + 1}`,
+    title: item.title,
+    desc: item.desc,
+    likes: item.likes,
+    stars: item.stars,
+    comments: item.comments,
     isLiked: false,
     isStarred: false,
-  }))
-);
+    images: []
+  }));
+}
+
+const articles = ref<DashboardArticle[]>(createFallbackArticles());
 const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
 const activeFeaturePage = ref(0);
 
@@ -161,7 +187,7 @@ function getFeatureIconMarkup(icon: string) {
 
 function openPage(pageId: string, label?: string) {
   if (!pageId) {
-    props.showToast(`${label || "该"}功能待接入`);
+    props.showToast(`${label || "该功能"}待接入`);
     return;
   }
 
@@ -180,27 +206,135 @@ function openAssistantPanel() {
   props.navigation.navigateTo("home/assistant-chat");
 }
 
-function toggleLike(articleId: string) {
+function openHealthNewsDetail(newsId: string, target: "default" | "comments" = "default") {
+  selectedHealthNewsId.value = newsId;
+  healthNewsDetailTarget.value = target;
+  props.navigation.navigateTo("content/health-news-detail");
+}
+
+function applyFallbackImage(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = fallbackNewsImage;
+}
+
+async function loadHealthNews() {
+  try {
+    const response = await listHealthNews({
+      page: 1,
+      pageSize: 3,
+      sort: "LATEST"
+    });
+
+    if (response.list.length === 0) {
+      articles.value = createFallbackArticles();
+      return;
+    }
+
+    articles.value = response.list.map((item, index) => ({
+      id: item.id || item.newsId || `article-${index + 1}`,
+      newsId: item.newsId || item.id || `article-${index + 1}`,
+      title: item.title,
+      desc: item.summary || "暂无资讯摘要",
+      likes: item.likesCount ?? 0,
+      stars: item.favoritesCount ?? 0,
+      comments: item.commentsCount ?? 0,
+      isLiked: false,
+      isStarred: false,
+      images: normalizeNewsImages(
+        item.newsId || item.id || `article-${index + 1}`,
+        item.title,
+        Array.isArray(item.images) ? item.images : [],
+        item.coverUrl
+      )
+    }));
+  } catch {
+    articles.value = createFallbackArticles();
+  }
+}
+
+async function recordArticleShare(articleId: string) {
   const targetArticle = articles.value.find((item) => item.id === articleId);
 
   if (!targetArticle) {
     return;
   }
 
-  targetArticle.isLiked = !targetArticle.isLiked;
-  targetArticle.likes += targetArticle.isLiked ? 1 : -1;
+  if (targetArticle.newsId.startsWith("mock-article-")) {
+    showAction("分享");
+    return;
+  }
+
+  try {
+    await shareHealthNews(targetArticle.newsId);
+    props.showToast("分享记录已更新");
+  } catch {
+    props.showToast("分享失败，请稍后再试");
+  }
 }
 
-function toggleStar(articleId: string) {
+async function toggleLike(articleId: string) {
   const targetArticle = articles.value.find((item) => item.id === articleId);
 
   if (!targetArticle) {
     return;
   }
 
-  targetArticle.isStarred = !targetArticle.isStarred;
-  targetArticle.stars += targetArticle.isStarred ? 1 : -1;
+  if (targetArticle.isLiked) {
+    props.showToast("已点赞");
+    return;
+  }
+
+  if (targetArticle.newsId.startsWith("mock-article-")) {
+    targetArticle.isLiked = true;
+    targetArticle.likes += 1;
+    return;
+  }
+
+  try {
+    await likeHealthNews(targetArticle.newsId);
+    targetArticle.isLiked = true;
+    targetArticle.likes += 1;
+  } catch {
+    props.showToast("点赞失败，请稍后再试");
+  }
 }
+
+async function toggleStar(articleId: string) {
+  const targetArticle = articles.value.find((item) => item.id === articleId);
+
+  if (!targetArticle) {
+    return;
+  }
+
+  if (targetArticle.isStarred) {
+    props.showToast("已收藏");
+    return;
+  }
+
+  if (targetArticle.newsId.startsWith("mock-article-")) {
+    targetArticle.isStarred = true;
+    targetArticle.stars += 1;
+    return;
+  }
+
+  try {
+    await favoriteHealthNews(targetArticle.newsId);
+    targetArticle.isStarred = true;
+    targetArticle.stars += 1;
+  } catch {
+    props.showToast("收藏失败，请稍后再试");
+  }
+}
+
+onMounted(() => {
+  void loadHealthNews();
+});
 </script>
 
 <template>
@@ -309,19 +443,28 @@ function toggleStar(articleId: string) {
 
         <div class="article-list">
           <article v-for="item in articles" :key="item.id" class="article-card">
-            <section class="article-copy">
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.desc }}</p>
-            </section>
+            <button class="article-entry" type="button" :aria-label="`鏌ョ湅${item.title}`" @click="openHealthNewsDetail(item.newsId)">
+              <section class="article-copy">
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.desc }}</p>
+              </section>
 
-            <div class="article-photos" aria-hidden="true">
-              <span class="article-photo article-photo--fruit"></span>
-              <span class="article-photo article-photo--needle"></span>
-              <span class="article-photo article-photo--food"></span>
-            </div>
+              <div class="article-photos" aria-hidden="true">
+                <template v-if="item.images.length > 0">
+                  <span v-for="(image, index) in item.images" :key="`${item.id}-${index}`" class="article-photo">
+                    <img class="article-photo-image" :src="image" :alt="item.title" draggable="false" @error="applyFallbackImage" />
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="article-photo article-photo--fruit"></span>
+                  <span class="article-photo article-photo--needle"></span>
+                  <span class="article-photo article-photo--food"></span>
+                </template>
+              </div>
+            </button>
 
             <footer class="article-actions">
-              <button class="article-action article-action--share" type="button" aria-label="分享" @click="showAction('分享')">
+              <button class="article-action article-action--share" type="button" aria-label="鍒嗕韩" @click.stop="recordArticleShare(item.id)">
                 <svg class="article-icon article-icon--share" viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="18" cy="5" r="2.7" />
                   <circle cx="6" cy="12" r="2.7" />
@@ -334,7 +477,7 @@ function toggleStar(articleId: string) {
                 class="article-action article-action--like"
                 :class="{ 'article-action--active-like': item.isLiked }"
                 type="button"
-                @click="toggleLike(item.id)"
+                @click.stop="toggleLike(item.id)"
               >
                 <svg class="article-icon article-icon--heart" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
@@ -345,14 +488,14 @@ function toggleStar(articleId: string) {
                 class="article-action article-action--star"
                 :class="{ 'article-action--active-star': item.isStarred }"
                 type="button"
-                @click="toggleStar(item.id)"
+                @click.stop="toggleStar(item.id)"
               >
                 <svg class="article-icon article-icon--star" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
                 </svg>
                 {{ item.stars }}
               </button>
-              <button class="article-action article-action--comment" type="button" @click="showAction('评论')">
+              <button class="article-action article-action--comment" type="button" @click.stop="openHealthNewsDetail(item.newsId, 'comments')">
                 <svg class="article-icon article-icon--comment" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
                 </svg>
@@ -906,6 +1049,18 @@ function toggleStar(articleId: string) {
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 16px 34px rgba(82, 105, 148, 0.065);
+  cursor: pointer;
+}
+
+.article-entry {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  font: inherit;
 }
 
 .article-copy h3 {
@@ -937,6 +1092,13 @@ function toggleStar(articleId: string) {
   overflow: hidden;
   border-radius: 13px;
   background: #eef4f8;
+}
+
+.article-photo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .article-photo--fruit {
@@ -1018,9 +1180,12 @@ function toggleStar(articleId: string) {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #202534;
+  color: #7c8895;
   font-size: 13px;
   font-weight: 800;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .article-action--share {
@@ -1028,11 +1193,11 @@ function toggleStar(articleId: string) {
 }
 
 .article-action--active-like {
-  color: #f05b72;
+  color: #ef7b72;
 }
 
 .article-action--active-star {
-  color: #d8972a;
+  color: #e3b341;
 }
 
 .article-icon {
@@ -1207,3 +1372,4 @@ function toggleStar(articleId: string) {
   }
 }
 </style>
+

@@ -1,38 +1,148 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import mock from './mock'
+import { computed, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import mock from "./mock";
+import { createOrder, previewOrder } from "@/shared/api/orders";
+import { getOrderFlowState, setCreatedOrderSnapshot } from "@/pages/service/order-flow";
+import { useOrderCenter } from "@/pages/service/order-center";
 
-const props = defineProps<PageComponentProps>()
+const props = defineProps<PageComponentProps>();
+const submitting = ref(false);
+const orderFlowState = getOrderFlowState();
+const { selectOrder } = useOrderCenter();
+const previewAmount = ref<{
+  total: number;
+  coupon: number;
+  subtotal: number;
+} | null>(null);
 
-type OrderServiceKey = keyof typeof mock.services
-
-const orderServiceKey = computed<OrderServiceKey>(() => {
-  const stack = props.navigation.getStack()
-
-  if (stack.includes('service/rehab-therapy-detail')) {
-    return 'rehab'
+const orderService = computed(() => {
+  const service = orderFlowState.service;
+  if (service) {
+    return {
+      title: service.title,
+      price: service.price,
+      image: service.image
+    };
   }
 
-  if (stack.includes('service/home-exam-detail')) {
-    return 'exam'
+  return mock.services.homeCare;
+});
+
+const orderPrice = computed(() => {
+  if (previewAmount.value) {
+    return previewAmount.value;
   }
 
-  return 'homeCare'
-})
+  const service = orderFlowState.service;
+  const couponAmount = service?.couponAmount ?? 20;
+  const total = service?.price ?? mock.prices.homeCare.total;
+  const subtotal = Math.max(0, total - couponAmount);
 
-const orderService = computed(() => mock.services[orderServiceKey.value])
-const orderPrice = computed(() => mock.prices[orderServiceKey.value])
+  return {
+    total,
+    coupon: -couponAmount,
+    subtotal
+  };
+});
 
-const goBack = () => {
+const bookingInfo = computed(() => ({
+  address: orderFlowState.booking?.addressText || orderFlowState.service?.addressText || mock.booking.address,
+  time: orderFlowState.booking
+    ? `${orderFlowState.booking.bookingDate} ${orderFlowState.booking.bookingTimeSlot}`
+    : mock.booking.time,
+  phone: orderFlowState.booking?.contactPhone || orderFlowState.service?.contactPhone || mock.booking.phone
+}));
+
+async function loadPreview() {
+  const service = orderFlowState.service;
+  const booking = orderFlowState.booking;
+
+  if (!service || !booking?.addressId) {
+    return;
+  }
+
+  try {
+    const preview = await previewOrder({
+      serviceId: service.serviceId,
+      addressId: booking.addressId,
+      elderId: booking.elderId || undefined,
+      bookingDate: booking.bookingDate || undefined,
+      bookingTimeSlot: booking.bookingTimeSlot || undefined,
+      couponId: booking.couponId || undefined,
+      remark: booking.remark || undefined
+    });
+
+    previewAmount.value = {
+      total: preview.originalAmount,
+      coupon: -preview.discountAmount,
+      subtotal: preview.payableAmount
+    };
+  } catch {
+    previewAmount.value = null;
+  }
+}
+
+function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('service/booking')
+    props.navigation.reLaunch("service/booking");
   }
 }
 
-const submitOrder = () => {
-  props.navigation.navigateTo('service/payment')
+async function submitOrder() {
+  const service = orderFlowState.service;
+  const booking = orderFlowState.booking;
+
+  if (!service) {
+    props.showToast("请先选择服务");
+    props.navigation.reLaunch("service/home-care");
+    return;
+  }
+
+  if (!booking?.addressId || !booking.bookingDate || !booking.bookingTimeSlot) {
+    props.showToast("请先完善预约信息");
+    props.navigation.reLaunch("service/booking");
+    return;
+  }
+
+  if (submitting.value) {
+    return;
+  }
+
+  submitting.value = true;
+
+  try {
+    const createdOrder = await createOrder({
+      serviceId: service.serviceId,
+      addressId: booking.addressId,
+      bookingDate: booking.bookingDate,
+      bookingTimeSlot: booking.bookingTimeSlot,
+      contactName: booking.contactName || undefined,
+      contactPhone: booking.contactPhone || undefined,
+      elderId: booking.elderId || undefined,
+      couponId: booking.couponId || undefined,
+      remark: booking.remark || undefined
+    });
+
+    setCreatedOrderSnapshot({
+      ...createdOrder,
+      createdAt: new Date().toISOString()
+    });
+    selectOrder(createdOrder.orderId);
+
+    props.showToast("订单创建成功");
+    props.navigation.navigateTo("service/payment");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "创建订单失败";
+    props.showToast(message);
+  } finally {
+    submitting.value = false;
+  }
 }
+
+onMounted(() => {
+  void loadPreview();
+});
 </script>
 
 <template>
@@ -59,12 +169,12 @@ const submitOrder = () => {
           </div>
           <div class="price-row">
             <span>优惠券</span>
-            <strong class="discount">{{ orderPrice.coupon }}</strong>
+            <strong class="discount">¥{{ orderPrice.coupon }}</strong>
           </div>
           <div class="divider"></div>
           <div class="price-row subtotal">
             <span>小计</span>
-            <strong>{{ orderPrice.subtotal }}</strong>
+            <strong>¥{{ orderPrice.subtotal }}</strong>
           </div>
         </div>
       </section>
@@ -74,15 +184,15 @@ const submitOrder = () => {
         <dl>
           <div>
             <dt>上门地址</dt>
-            <dd>{{ mock.booking.address }}</dd>
+            <dd>{{ bookingInfo.address }}</dd>
           </div>
           <div>
             <dt>预约时间</dt>
-            <dd>{{ mock.booking.time }}</dd>
+            <dd>{{ bookingInfo.time }}</dd>
           </div>
           <div>
             <dt>联系方式</dt>
-            <dd>{{ mock.booking.phone }}</dd>
+            <dd>{{ bookingInfo.phone }}</dd>
           </div>
         </dl>
       </section>
@@ -99,8 +209,10 @@ const submitOrder = () => {
     </main>
 
     <div class="submit-bar">
-      <div class="total">合计：¥<strong>{{ orderPrice.subtotal }}</strong></div>
-      <button class="submit-button" type="button" @click="submitOrder">提交订单</button>
+      <div class="total">合计：<strong>¥{{ orderPrice.subtotal }}</strong></div>
+      <button class="submit-button" type="button" :disabled="submitting" @click="submitOrder">
+        {{ submitting ? "提交中..." : "提交订单" }}
+      </button>
     </div>
   </div>
 </template>
@@ -117,7 +229,7 @@ const submitOrder = () => {
   box-sizing: border-box;
   background: #ffffff;
   color: #34383f;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -191,7 +303,7 @@ const submitOrder = () => {
 }
 
 .product-info span {
-  color: #006DFF;
+  color: #006dff;
   font-size: 17px;
   font-weight: 700;
 }
@@ -213,12 +325,8 @@ const submitOrder = () => {
 }
 
 .price-row strong {
-  color: #006DFF;
+  color: #006dff;
   font-size: 18px;
-}
-
-.price-row .discount {
-  color: #006DFF;
 }
 
 .divider {
@@ -227,12 +335,8 @@ const submitOrder = () => {
   background: #ededee;
 }
 
-.subtotal {
-  color: #a0a3aa;
-}
-
 .subtotal strong {
-  color: #006DFF;
+  color: #006dff;
   font-size: 24px;
 }
 
@@ -307,7 +411,7 @@ dd {
 }
 
 .total strong {
-  color: #006DFF;
+  color: #006dff;
   font-size: 32px;
   line-height: 1;
 }
@@ -325,5 +429,10 @@ dd {
   font-weight: 700;
   letter-spacing: 0;
   cursor: pointer;
+}
+
+.submit-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

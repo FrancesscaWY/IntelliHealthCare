@@ -1,212 +1,226 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import { AddPicture, MessageEmoji, Microphone, Phone } from '@icon-park/vue-next'
-import mock from './mock'
+import { nextTick, onBeforeUnmount, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import { AddPicture, MessageEmoji, Microphone, Phone } from "@icon-park/vue-next";
+import { uploadAppFile } from "@/shared/api/files";
+import mock from "./mock";
 
 interface ChatMessage {
-  id: number
-  from: 'doctor' | 'me'
-  type: 'text' | 'image' | 'voice'
-  content: string
-  time: string
-  imageUrl?: string
-  audioUrl?: string
+  id: number;
+  from: "doctor" | "me";
+  type: "text" | "image" | "voice";
+  content: string;
+  time: string;
+  imageUrl?: string;
+  audioUrl?: string;
 }
 
-const props = defineProps<PageComponentProps>()
-const draft = ref('')
-const messages = ref<ChatMessage[]>(mock.messages as ChatMessage[])
-const showEmojiPanel = ref(false)
-const showImagePanel = ref(false)
-const isRecording = ref(false)
-const recordingSeconds = ref(0)
-const scrollRef = ref<HTMLElement | null>(null)
-const albumInputRef = ref<HTMLInputElement | null>(null)
-const cameraInputRef = ref<HTMLInputElement | null>(null)
+const props = defineProps<PageComponentProps>();
+const draft = ref("");
+const messages = ref<ChatMessage[]>(mock.messages as ChatMessage[]);
+const showEmojiPanel = ref(false);
+const showImagePanel = ref(false);
+const isRecording = ref(false);
+const isUploadingImage = ref(false);
+const recordingSeconds = ref(0);
+const scrollRef = ref<HTMLElement | null>(null);
+const albumInputRef = ref<HTMLInputElement | null>(null);
+const cameraInputRef = ref<HTMLInputElement | null>(null);
 
-let mediaRecorder: MediaRecorder | null = null
-let mediaStream: MediaStream | null = null
-let audioChunks: Blob[] = []
-let recordingTimer: number | null = null
-let recordingMimeType = 'audio/webm'
+let mediaRecorder: MediaRecorder | null = null;
+let mediaStream: MediaStream | null = null;
+let audioChunks: Blob[] = [];
+let recordingTimer: number | null = null;
+let recordingMimeType = "audio/webm";
 
-const emojiOptions = ['😊', '👍', '🙏', '❤️', '👌', '🌿', '💪', '☀️']
+const emojiOptions = ["😉", "🙏", "😊", "❤️", "👍", "🌶", "🤝", "☀️"];
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('home/message')
+    props.navigation.reLaunch("home/message");
   }
 }
 
 function scrollToBottom() {
   void nextTick(() => {
     if (scrollRef.value) {
-      scrollRef.value.scrollTop = scrollRef.value.scrollHeight
+      scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
     }
-  })
+  });
 }
 
 function sendText() {
-  const content = draft.value.trim()
+  const content = draft.value.trim();
   if (!content) {
-    return
+    return;
   }
 
   messages.value.push({
     id: Date.now(),
-    from: 'me',
-    type: 'text',
+    from: "me",
+    type: "text",
     content,
-    time: '现在',
-  })
-  draft.value = ''
-  showEmojiPanel.value = false
-  scrollToBottom()
+    time: "现在"
+  });
+  draft.value = "";
+  showEmojiPanel.value = false;
+  scrollToBottom();
 }
 
 function appendEmoji(emoji: string) {
-  draft.value += emoji
+  draft.value += emoji;
 }
 
 function getCurrentTime() {
-  const now = new Date()
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
 function openAlbum() {
-  showImagePanel.value = false
-  albumInputRef.value?.click()
+  showImagePanel.value = false;
+  albumInputRef.value?.click();
 }
 
 function openCamera() {
-  showImagePanel.value = false
-  cameraInputRef.value?.click()
+  showImagePanel.value = false;
+  cameraInputRef.value?.click();
 }
 
-function handleImageSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
+async function handleImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
 
   if (!file) {
-    return
+    return;
   }
 
-  const imageUrl = URL.createObjectURL(file)
-  messages.value.push({
-    id: Date.now(),
-    from: 'me',
-    type: 'image',
-    content: file.name || '图片',
-    imageUrl,
-    time: getCurrentTime(),
-  })
-  input.value = ''
-  scrollToBottom()
+  isUploadingImage.value = true;
+
+  try {
+    const uploaded = await uploadAppFile("CHAT_IMAGE", file, {
+      sourcePage: "home/doctor-chat"
+    });
+
+    messages.value.push({
+      id: Date.now(),
+      from: "me",
+      type: "image",
+      content: file.name || "咨询图片",
+      imageUrl: uploaded.url,
+      time: getCurrentTime()
+    });
+    props.showToast("图片已发送");
+    scrollToBottom();
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "图片发送失败");
+  } finally {
+    isUploadingImage.value = false;
+    input.value = "";
+  }
 }
 
 function formatDuration(seconds: number) {
-  return `${Math.max(1, seconds)}"`
+  return `${Math.max(1, seconds)}"`;
 }
 
 function startTimer() {
-  recordingSeconds.value = 0
+  recordingSeconds.value = 0;
   recordingTimer = window.setInterval(() => {
-    recordingSeconds.value += 1
-  }, 1000)
+    recordingSeconds.value += 1;
+  }, 1000);
 }
 
 function stopTimer() {
   if (recordingTimer !== null) {
-    window.clearInterval(recordingTimer)
-    recordingTimer = null
+    window.clearInterval(recordingTimer);
+    recordingTimer = null;
   }
 }
 
 function stopAudioTracks() {
-  mediaStream?.getTracks().forEach((track) => track.stop())
-  mediaStream = null
+  mediaStream?.getTracks().forEach((track) => track.stop());
+  mediaStream = null;
 }
 
 async function startVoiceRecording() {
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-    props.showToast('当前浏览器不支持录音')
-    return
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    props.showToast("当前浏览器不支持录音");
+    return;
   }
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    audioChunks = []
-    mediaRecorder = new MediaRecorder(mediaStream)
-    recordingMimeType = mediaRecorder.mimeType || 'audio/webm'
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(mediaStream);
+    recordingMimeType = mediaRecorder.mimeType || "audio/webm";
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
-        audioChunks.push(event.data)
+        audioChunks.push(event.data);
       }
-    }
+    };
 
     mediaRecorder.onstop = () => {
-      const duration = recordingSeconds.value
-      stopTimer()
-      stopAudioTracks()
-      isRecording.value = false
+      const duration = recordingSeconds.value;
+      stopTimer();
+      stopAudioTracks();
+      isRecording.value = false;
 
       if (!audioChunks.length) {
-        return
+        return;
       }
 
-      const audioBlob = new Blob(audioChunks, { type: recordingMimeType })
-      const audioUrl = URL.createObjectURL(audioBlob)
+      const audioBlob = new Blob(audioChunks, { type: recordingMimeType });
+      const audioUrl = URL.createObjectURL(audioBlob);
       messages.value.push({
         id: Date.now(),
-        from: 'me',
-        type: 'voice',
+        from: "me",
+        type: "voice",
         content: `语音 ${formatDuration(duration)}`,
         audioUrl,
-        time: getCurrentTime(),
-      })
-      scrollToBottom()
-    }
+        time: getCurrentTime()
+      });
+      scrollToBottom();
+    };
 
-    mediaRecorder.start()
-    isRecording.value = true
-    startTimer()
-  } catch (error) {
-    stopTimer()
-    stopAudioTracks()
-    isRecording.value = false
-    props.showToast('无法访问麦克风，请检查权限')
+    mediaRecorder.start();
+    isRecording.value = true;
+    startTimer();
+  } catch {
+    stopTimer();
+    stopAudioTracks();
+    isRecording.value = false;
+    props.showToast("无法访问麦克风，请检查权限");
   }
 }
 
 function stopVoiceRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop()
-    return
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+    return;
   }
 
-  stopTimer()
-  stopAudioTracks()
-  isRecording.value = false
+  stopTimer();
+  stopAudioTracks();
+  isRecording.value = false;
 }
 
 function toggleVoiceRecording() {
   if (isRecording.value) {
-    stopVoiceRecording()
-    return
+    stopVoiceRecording();
+    return;
   }
 
-  void startVoiceRecording()
+  void startVoiceRecording();
 }
 
 onBeforeUnmount(() => {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop()
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
   }
-  stopTimer()
-  stopAudioTracks()
-})
+  stopTimer();
+  stopAudioTracks();
+});
 </script>
 
 <template>
@@ -217,7 +231,7 @@ onBeforeUnmount(() => {
         <img :src="mock.doctor.avatar" :alt="mock.doctor.name" />
         <div>
           <h1>{{ mock.doctor.name }}</h1>
-          <span>{{ mock.doctor.title }} · {{ mock.doctor.status }}</span>
+          <span>{{ mock.doctor.title }} / {{ mock.doctor.status }}</span>
         </div>
       </div>
       <button class="phone-button" type="button" aria-label="电话咨询" @click="props.showToast('电话咨询功能待接入')">
@@ -297,7 +311,7 @@ onBeforeUnmount(() => {
       </div>
 
       <form class="input-row" @submit.prevent="sendText">
-        <input v-model="draft" type="text" placeholder="咨询王医生..." />
+        <input v-model="draft" type="text" :placeholder="isUploadingImage ? '图片上传中...' : '咨询王医生...'" />
         <button type="submit">发送</button>
       </form>
     </footer>
@@ -322,7 +336,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #f5f6f7;
   color: #252939;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 button,

@@ -3,6 +3,7 @@ import type { Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Headset, Help, Local, MedicalFiles, Plan, Share, Star } from '@icon-park/vue-next'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
@@ -20,6 +21,20 @@ const goBack = () => {
 }
 
 const buyNow = () => {
+  setOrderFlowService({
+    type: 'rehab',
+    serviceId: 'srv_rehab_stroke',
+    title: '脑卒中术后康复套餐',
+    price: 1990,
+    image: mock.image,
+    detailPageId: 'service/rehab-therapy-detail',
+    listPageId: 'service/rehab-therapy',
+    couponAmount: 100,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   props.navigation.navigateTo('service/booking')
 }
 </script>

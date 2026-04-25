@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { setHealthDataBackTarget } from "@/pages/health/health-data/source";
 import avatarImage from "@/assets/community/activities/people.png";
 import mock from "./mock";
+import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
+const { ensureReportsLoaded, reportCount, isReportsLoading } = useReportCenter();
 
 const sectionIconMarkup: Record<string, string> = {
   basic: `
@@ -35,8 +38,23 @@ const sectionIconMarkup: Record<string, string> = {
     <path d="M20.5 6.5v4.6H25" />
     <path d="M16.5 13v9" />
     <path d="M12 17.5h9" />
-  `,
+  `
 };
+
+const sections = computed(() =>
+  mock.sections.map((item) =>
+    item.key === "report"
+      ? {
+          ...item,
+          meta: isReportsLoading.value ? "同步中" : `${reportCount.value} 份报告`
+        }
+      : item
+  )
+);
+
+onMounted(() => {
+  void ensureReportsLoaded();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -101,7 +119,7 @@ function getSectionIconMarkup(key: string) {
 
       <section class="menu-list" :aria-label="mock.title">
         <button
-          v-for="item in mock.sections"
+          v-for="item in sections"
           :key="item.key"
           class="menu-item"
           type="button"
