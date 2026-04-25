@@ -27,6 +27,17 @@ const filteredGoods = computed(() =>
   mock.value.goods.filter((item) => !goodsKeyword.value.trim() || item.title.includes(goodsKeyword.value.trim())),
 );
 
+const sessionHeroTitle = computed(() => (mock.value.title.includes("中心") ? mock.value.title : `${mock.value.title}中心`));
+const unreadConversationCount = computed(() =>
+  mock.value.conversations.reduce((total, item) => total + Number(item.unread || 0), 0),
+);
+const sessionSummary = computed(() => [
+  { label: "活跃会话", value: String(mock.value.conversations.length).padStart(2, "0") },
+  { label: "未读消息", value: String(unreadConversationCount.value).padStart(2, "0") },
+  { label: "关联订单", value: String(mock.value.orders.length).padStart(2, "0") },
+  { label: "推荐商品", value: String(mock.value.goods.length).padStart(2, "0") },
+]);
+
 function mapOrderStatus(status?: string) {
   switch (status) {
     case "COMPLETED":
@@ -226,17 +237,38 @@ onMounted(() => {
 
 <template>
   <section class="session-page">
-    <article class="session-shell">
-      <header class="shell-head">
-        <div class="section-head">
-          <span class="section-head__accent"></span>
-          <h1>{{ mock.title }}</h1>
+    <article class="hero-card">
+      <div class="hero-card__main">
+        <div class="hero-card__copy">
+          <h1>{{ sessionHeroTitle }}</h1>
+          <p>统一查看用户咨询、客服响应与关联订单，让消息管理界面与前面看板页面保持一致的轻盈运营风格。</p>
         </div>
+
+        <div class="hero-card__stats">
+          <article v-for="item in sessionSummary" :key="item.label" class="hero-stat">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </div>
+      </div>
+    </article>
+
+    <article class="session-shell surface-card">
+      <header class="shell-head">
+        <div>
+          <h2>实时会话面板 <small>消息、订单、商品推荐联动查看</small></h2>
+        </div>
+        <button type="button" class="ghost-button" @click="finishConversation">结束当前会话</button>
       </header>
 
       <div class="session-layout">
         <aside class="conversation-pane">
-          <div class="conversation-search">
+          <header class="subpanel-head">
+            <h3>会话列表</h3>
+            <span>{{ mock.conversations.length }} 条</span>
+          </header>
+
+          <div class="search-field">
             <input v-model="conversationKeyword" type="text" placeholder="搜索会话" @keydown.enter="searchConversations" />
             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
               <circle cx="9" cy="9" r="5.6" fill="none" stroke="currentColor" stroke-width="1.8" />
@@ -270,8 +302,11 @@ onMounted(() => {
 
         <section class="chat-pane">
           <header class="chat-head">
-            <strong>{{ mock.currentSessionName }}</strong>
-            <button type="button" class="chat-head__action" @click="finishConversation">结束会话</button>
+            <div>
+              <strong>{{ mock.currentSessionName || "当前会话" }}</strong>
+              <span>实时消息流</span>
+            </div>
+            <button type="button" class="ghost-button ghost-button--compact" @click="finishConversation">结束会话</button>
           </header>
 
           <div class="chat-body">
@@ -284,13 +319,12 @@ onMounted(() => {
           </div>
 
           <footer class="chat-input">
-            <input v-model="messageDraft" type="text" placeholder="请输入" @keydown.enter="sendMessage()" />
+            <input v-model="messageDraft" type="text" placeholder="输入消息后按回车发送" @keydown.enter="sendMessage()" />
           </footer>
         </section>
 
         <aside class="detail-pane">
           <header class="detail-tabs">
-            <button type="button" class="detail-tabs__action" @click="finishConversation">结束会话</button>
             <button
               class="detail-tabs__item"
               :class="{ 'detail-tabs__item--active': activeRightTab === 'customer' }"
@@ -310,7 +344,7 @@ onMounted(() => {
           </header>
 
           <template v-if="activeRightTab === 'customer'">
-            <section class="customer-card">
+            <section class="customer-card inner-card">
               <div class="customer-card__top">
                 <img :src="mock.customer.avatar" :alt="mock.customer.name" />
                 <div class="customer-card__identity">
@@ -339,9 +373,12 @@ onMounted(() => {
             </section>
 
             <section class="order-list">
-              <header class="order-list__head">订单列表（{{ mock.orders.length }}）</header>
+              <header class="subpanel-head subpanel-head--compact">
+                <h3>关联订单</h3>
+                <span>{{ mock.orders.length }} 笔</span>
+              </header>
 
-              <article v-for="order in mock.orders" :key="order.id" class="order-card">
+              <article v-for="order in mock.orders" :key="order.id" class="order-card inner-card">
                 <div class="order-card__status">{{ order.status }}</div>
                 <div class="order-card__main">
                   <img :src="order.image" :alt="order.title" />
@@ -351,15 +388,15 @@ onMounted(() => {
                   </div>
                 </div>
                 <div class="order-card__meta">
-                  <span>下单时间: {{ order.time }}</span>
-                  <span>订单金额: {{ order.amount }}</span>
+                  <span>下单时间：{{ order.time }}</span>
+                  <span>订单金额：{{ order.amount }}</span>
                 </div>
               </article>
             </section>
           </template>
 
           <section v-else class="goods-panel">
-            <div class="goods-search">
+            <div class="search-field search-field--compact">
               <input v-model="goodsKeyword" type="text" placeholder="搜索商品" />
               <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
                 <circle cx="9" cy="9" r="5.6" fill="none" stroke="currentColor" stroke-width="1.8" />
@@ -368,7 +405,7 @@ onMounted(() => {
             </div>
 
             <div class="goods-list">
-              <article v-for="item in filteredGoods" :key="item.id" class="goods-item">
+              <article v-for="item in filteredGoods" :key="item.id" class="goods-item inner-card">
                 <img :src="item.image" :alt="item.title" />
                 <div class="goods-item__content">
                   <strong>{{ item.title }}</strong>
@@ -386,47 +423,136 @@ onMounted(() => {
 
 <style scoped>
 .session-page {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+  color: #253244;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+.hero-card,
+.surface-card {
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
+}
+
+.hero-card {
+  overflow: hidden;
+  padding: 20px 22px;
+  background:
+    radial-gradient(circle at top right, rgba(170, 235, 255, 0.34), transparent 24%),
+    radial-gradient(circle at left top, rgba(102, 214, 174, 0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.99), rgba(245, 251, 248, 0.96));
+}
+
+.hero-card__main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.hero-card__copy h1 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.hero-card__copy p {
+  max-width: 720px;
+  margin: 12px 0 0;
+  color: #5d6876;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.hero-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
+  gap: 12px;
+  min-width: 452px;
+}
+
+.hero-stat {
+  padding: 14px 16px;
+  border: 1px solid rgba(214, 233, 227, 0.94);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.hero-stat span {
+  display: block;
+  color: #7b8793;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hero-stat strong {
+  display: block;
+  margin-top: 10px;
+  color: #263244;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .session-shell {
   overflow: hidden;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 6px 20px rgba(59, 103, 82, 0.05);
 }
 
 .shell-head {
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid #eef2ef;
-}
-
-.section-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid #edf4f1;
 }
 
-.section-head__accent {
-  width: 6px;
-  height: 22px;
-  border-radius: 999px;
-  background: #10c89a;
-}
-
-.section-head h1 {
+.shell-head h2,
+.subpanel-head h3 {
   margin: 0;
-  color: #2f3946;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.shell-head small {
+  color: #557c77;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.ghost-button {
+  min-width: 124px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid #dbe9e4;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #33404d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ghost-button--compact {
+  min-width: auto;
+  height: 40px;
 }
 
 .session-layout {
   display: grid;
-  grid-template-columns: 330px minmax(0, 1fr) 420px;
+  grid-template-columns: 320px minmax(0, 1fr) 392px;
   min-height: 780px;
 }
 
@@ -436,45 +562,76 @@ onMounted(() => {
   min-width: 0;
 }
 
+.conversation-pane,
+.chat-pane {
+  border-right: 1px solid #edf4f1;
+}
+
 .conversation-pane {
-  border-right: 1px solid #eef2ef;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: linear-gradient(180deg, rgba(249, 252, 251, 0.9), rgba(255, 255, 255, 0.96));
 }
 
-.conversation-search {
+.subpanel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+}
+
+.subpanel-head span {
+  color: #7f8c98;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.subpanel-head--compact {
+  padding: 0 0 14px;
+}
+
+.search-field {
   position: relative;
-  padding: 18px 16px;
-  border-bottom: 1px solid #eef2ef;
+  margin: 0 18px 16px;
 }
 
-.conversation-search input {
+.search-field input {
   width: 100%;
-  height: 46px;
-  padding: 0 48px 0 18px;
-  border: 1px solid #e6ece9;
-  border-radius: 10px;
+  height: 48px;
+  padding: 0 48px 0 16px;
+  border: 1px solid #e0ebe7;
+  border-radius: 14px;
+  background: #ffffff;
   color: #44515d;
   font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 500;
   outline: none;
 }
 
-.conversation-search input::placeholder {
-  color: #c1c8cf;
+.search-field input::placeholder {
+  color: #b8c1c9;
 }
 
-.conversation-search svg {
+.search-field svg {
   position: absolute;
   top: 50%;
-  right: 30px;
-  width: 22px;
-  height: 22px;
-  color: #c7cdd4;
+  right: 14px;
+  width: 20px;
+  height: 20px;
+  color: #b6c0c7;
   transform: translateY(-50%);
+}
+
+.search-field--compact {
+  margin: 0 0 16px;
 }
 
 .conversation-list {
   display: grid;
+  align-content: start;
+  padding: 0 12px 12px;
+  overflow: auto;
 }
 
 .conversation-item {
@@ -482,15 +639,21 @@ onMounted(() => {
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
-  padding: 18px 20px;
-  border: 0;
-  border-bottom: 1px solid #f1f4f2;
-  background: #ffffff;
+  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
   text-align: left;
 }
 
+.conversation-item + .conversation-item {
+  margin-top: 8px;
+}
+
 .conversation-item--active {
-  background: #fbfbfb;
+  border-color: rgba(130, 215, 189, 0.6);
+  background: linear-gradient(135deg, rgba(233, 251, 244, 0.94), rgba(248, 255, 252, 0.98));
+  box-shadow: 0 12px 28px -24px rgba(66, 184, 132, 0.4);
 }
 
 .conversation-item img {
@@ -515,16 +678,14 @@ onMounted(() => {
 .conversation-item__top strong {
   color: #313b48;
   font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 800;
 }
 
 .conversation-item__top span,
 .conversation-item__bottom span {
-  color: #a8b0b9;
+  color: #8b96a2;
   font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 600;
 }
 
 .conversation-item__bottom {
@@ -549,43 +710,42 @@ onMounted(() => {
   color: #ffffff;
   font-size: 12px;
   font-style: normal;
-  font-weight: 500;
+  font-weight: 800;
 }
 
 .chat-pane {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) 108px;
-  border-right: 1px solid #eef2ef;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: linear-gradient(180deg, rgba(251, 253, 252, 0.72), rgba(255, 255, 255, 0.98));
 }
 
 .chat-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
   padding: 18px 22px;
-  border-bottom: 1px solid #eef2ef;
+  border-bottom: 1px solid #edf4f1;
 }
 
 .chat-head strong {
+  display: block;
   color: #313b48;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-size: 18px;
+  font-weight: 900;
 }
 
-.chat-head__action {
-  border: 0;
-  background: transparent;
-  color: #42d1a6;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+.chat-head span {
+  display: block;
+  margin-top: 6px;
+  color: #7b8793;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .chat-body {
   overflow: auto;
-  padding: 18px 24px 10px;
-  background: #ffffff;
+  padding: 20px 24px 12px;
 }
 
 .chat-timestamp {
@@ -593,17 +753,17 @@ onMounted(() => {
   margin: 0 auto 22px;
   padding: 6px 18px;
   border-radius: 999px;
-  background: #f2f3f5;
-  color: #b6bdc5;
+  background: #eff4f2;
+  color: #9eabb7;
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 700;
 }
 
 .message {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .message--right {
@@ -615,92 +775,100 @@ onMounted(() => {
   height: 44px;
   border-radius: 50%;
   object-fit: cover;
+  box-shadow: 0 8px 18px rgba(76, 120, 108, 0.12);
 }
 
 .message__bubble {
-  max-width: 320px;
+  max-width: 340px;
   padding: 12px 18px;
-  border-radius: 18px;
-  background: #f9f9f9;
+  border-radius: 18px 18px 18px 8px;
+  background: #ffffff;
   color: #3c4652;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.5;
-  box-shadow: 0 8px 22px rgba(61, 83, 73, 0.05);
+  font-weight: 600;
+  line-height: 1.6;
+  box-shadow: 0 10px 24px rgba(61, 83, 73, 0.06);
 }
 
 .message--right .message__bubble {
-  background: #42d1a6;
+  border-radius: 18px 18px 8px 18px;
+  background: linear-gradient(135deg, #5ad1ab, #40bf97);
   color: #ffffff;
 }
 
 .chat-input {
-  border-top: 1px solid #eef2ef;
-  padding: 18px 20px;
+  padding: 18px 20px 20px;
+  border-top: 1px solid #edf4f1;
 }
 
 .chat-input input {
   width: 100%;
-  height: 58px;
-  border: 0;
-  color: #444f5a;
+  height: 56px;
+  padding: 0 18px;
+  border: 1px solid #dfeae6;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #44515d;
   font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 500;
   outline: none;
 }
 
 .chat-input input::placeholder {
-  color: #c1c8cf;
+  color: #bcc5cc;
 }
 
 .detail-pane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(248, 252, 250, 0.88), rgba(255, 255, 255, 0.96));
 }
 
 .detail-tabs {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1fr;
-  border-bottom: 1px solid #eef2ef;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
-.detail-tabs__action,
 .detail-tabs__item {
-  height: 68px;
-  border: 0;
+  height: 44px;
+  border: 1px solid #dfeae6;
+  border-radius: 12px;
   background: #ffffff;
-  color: #353f4b;
+  color: #50606e;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.detail-tabs__action {
-  color: #42d1a6;
+  font-weight: 800;
 }
 
 .detail-tabs__item--active {
-  color: #42d1a6;
-  box-shadow: inset 0 -4px 0 #42d1a6;
+  border-color: rgba(82, 198, 175, 0.5);
+  background: linear-gradient(135deg, rgba(230, 251, 246, 0.98), rgba(255, 255, 255, 0.98));
+  color: #1f8c67;
+}
+
+.inner-card {
+  border: 1px solid #e8f0ed;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(86, 120, 110, 0.05);
 }
 
 .customer-card {
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid #eef2ef;
+  padding: 18px;
 }
 
 .customer-card__top {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
 }
 
 .customer-card__top img {
-  width: 76px;
-  height: 76px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -709,24 +877,24 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .customer-card__identity strong {
   color: #313b48;
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 900;
 }
 
 .customer-card__identity button,
-.order-card__content button {
+.order-card__content button,
+.goods-item__send {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #42d1a6;
+  color: #25a57c;
   font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 800;
 }
 
 .customer-tags {
@@ -745,8 +913,7 @@ onMounted(() => {
   padding: 0 12px;
   border-radius: 10px;
   font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 800;
 }
 
 .customer-tag--green {
@@ -764,53 +931,59 @@ onMounted(() => {
   color: #6c75f5;
 }
 
+.customer-tag--amber {
+  background: #fff7e8;
+  color: #d79b2d;
+}
+
 .customer-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 22px;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.customer-stats div {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(246, 251, 249, 0.96), rgba(255, 255, 255, 0.98));
+  border: 1px solid #eef4f2;
 }
 
 .customer-stats span {
-  color: #a5aeb7;
+  color: #8d99a4;
   font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 700;
 }
 
 .customer-stats strong {
   display: block;
   margin-top: 8px;
-  color: #3a4551;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  color: #32404c;
+  font-size: 18px;
+  font-weight: 900;
 }
 
-.order-list {
-  padding: 16px 24px 24px;
+.order-list,
+.goods-panel {
+  margin-top: 16px;
 }
 
-.order-list__head {
-  color: #313b48;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+.order-card + .order-card,
+.goods-item + .goods-item {
+  margin-top: 12px;
 }
 
 .order-card {
-  margin-top: 16px;
-  border: 1px solid #edf2ef;
-  border-radius: 12px;
   overflow: hidden;
 }
 
 .order-card__status {
-  padding: 14px 16px;
-  background: #fafafa;
-  color: #8b96a2;
+  padding: 12px 16px;
+  background: #f7faf8;
+  color: #7f8b97;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 800;
 }
 
 .order-card__main {
@@ -821,20 +994,24 @@ onMounted(() => {
   padding: 16px;
 }
 
-.order-card__main img {
-  width: 68px;
-  height: 56px;
-  border-radius: 8px;
+.order-card__main img,
+.goods-item img {
+  border-radius: 10px;
   object-fit: cover;
 }
 
-.order-card__content strong {
+.order-card__main img {
+  width: 68px;
+  height: 56px;
+}
+
+.order-card__content strong,
+.goods-item__content strong {
   display: block;
-  color: #4a5561;
+  color: #42505c;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.45;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .order-card__content button {
@@ -843,48 +1020,11 @@ onMounted(() => {
 
 .order-card__meta {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   padding: 0 16px 16px;
-  color: #a0a9b2;
+  color: #8995a0;
   font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-
-.goods-panel {
-  padding: 18px 18px 20px;
-}
-
-.goods-search {
-  position: relative;
-  margin-bottom: 16px;
-}
-
-.goods-search input {
-  width: 100%;
-  height: 46px;
-  padding: 0 48px 0 16px;
-  border: 1px solid #e6ece9;
-  border-radius: 10px;
-  color: #44515d;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  outline: none;
-}
-
-.goods-search input::placeholder {
-  color: #c1c8cf;
-}
-
-.goods-search svg {
-  position: absolute;
-  top: 50%;
-  right: 14px;
-  width: 22px;
-  height: 22px;
-  color: #c7cdd4;
-  transform: translateY(-50%);
+  font-weight: 700;
 }
 
 .goods-list {
@@ -893,18 +1033,15 @@ onMounted(() => {
 
 .goods-item {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) auto;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid #eef2ef;
+  padding: 14px;
 }
 
 .goods-item img {
-  width: 90px;
+  width: 88px;
   height: 68px;
-  border-radius: 8px;
-  object-fit: cover;
 }
 
 .goods-item__content {
@@ -912,12 +1049,6 @@ onMounted(() => {
 }
 
 .goods-item__content strong {
-  display: block;
-  color: #404a55;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.45;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -926,24 +1057,23 @@ onMounted(() => {
 .goods-item__content span {
   display: block;
   margin-top: 10px;
-  color: #3d4651;
+  color: #32404c;
   font-size: 13px;
-  font-weight: 500;
-}
-
-.goods-item__send {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #42d1a6;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 900;
 }
 
 @media (max-width: 1560px) {
+  .hero-card__main {
+    flex-direction: column;
+  }
+
+  .hero-card__stats {
+    min-width: 0;
+    width: 100%;
+  }
+
   .session-layout {
-    grid-template-columns: 300px minmax(0, 1fr) 360px;
+    grid-template-columns: 300px minmax(0, 1fr) 352px;
   }
 }
 
@@ -955,7 +1085,35 @@ onMounted(() => {
   .conversation-pane,
   .chat-pane {
     border-right: 0;
-    border-bottom: 1px solid #eef2ef;
+    border-bottom: 1px solid #edf4f1;
+  }
+}
+
+@media (max-width: 780px) {
+  .hero-card,
+  .shell-head,
+  .detail-pane {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .hero-card__stats,
+  .customer-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shell-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .goods-item {
+    grid-template-columns: 1fr;
+  }
+
+  .goods-item img {
+    width: 100%;
+    height: 160px;
   }
 }
 </style>

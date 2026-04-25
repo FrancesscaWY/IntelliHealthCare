@@ -408,9 +408,8 @@ onBeforeUnmount(() => {
 <template>
   <section class="trade-overview-page user-overview-page">
     <article class="trade-hero">
-      <div class="trade-hero__main">
+        <div class="trade-hero__main">
         <div class="trade-hero__copy">
-          <p class="trade-hero__eyebrow">USER OVERVIEW</p>
           <h1>{{ pageData.title }}</h1>
           <p class="trade-hero__description">{{ pageData.subtitle }}</p>
         </div>
@@ -585,15 +584,6 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-}
-
-.trade-hero__eyebrow {
-  margin: 0 0 8px;
-  color: #4f8a7b;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 .trade-hero h1 {

@@ -26,6 +26,16 @@ const filteredRows = computed(() =>
   }),
 );
 
+const campaignSummary = computed(() => {
+  const rows = pageData.value.rows;
+  return [
+    { label: "消息总数", value: String(rows.length).padStart(2, "0") },
+    { label: "已发送", value: String(rows.filter((row) => row.status === "已发送").length).padStart(2, "0") },
+    { label: "待发送", value: String(rows.filter((row) => row.status === "待发送").length).padStart(2, "0") },
+    { label: "审批中", value: String(rows.filter((row) => row.status === "审批中").length).padStart(2, "0") },
+  ];
+});
+
 function submitSearch() {
   props.showToast(`已筛选 ${filteredRows.value.length} 条消息`);
 }
@@ -147,10 +157,27 @@ onMounted(() => {
 
 <template>
   <section class="mass-message-page">
-    <article class="panel panel--filters">
-      <header class="section-head">
-        <span class="section-head__accent"></span>
-        <h1>{{ pageData.title }}</h1>
+    <article class="hero-card">
+      <div class="hero-card__main">
+        <div class="hero-card__copy">
+          <h1>{{ pageData.title }}</h1>
+          <p>统一管理消息发送节奏、审批状态和触达对象，让群发消息页与前面后台页面保持一致的轻盈运营视觉。</p>
+        </div>
+
+        <div class="hero-card__stats">
+          <article v-for="item in campaignSummary" :key="item.label" class="hero-stat">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel panel--filters surface-card">
+      <header class="panel-head">
+        <div>
+          <h2>筛选条件 <small>按状态和关键词快速检索消息</small></h2>
+        </div>
       </header>
 
       <div class="filters">
@@ -193,11 +220,13 @@ onMounted(() => {
       </div>
     </article>
 
-    <article class="panel panel--table">
+    <article class="panel panel--table surface-card">
       <header class="toolbar">
-        <div></div>
+        <div class="toolbar__copy">
+          <h2>消息列表 <small>当前显示 {{ filteredRows.length }} 条</small></h2>
+        </div>
         <div class="toolbar__actions">
-          <button class="toolbar-button toolbar-button--primary" type="button" @click="openCreatePage">新增</button>
+          <button class="toolbar-button toolbar-button--primary" type="button" @click="openCreatePage">新增消息</button>
           <button class="toolbar-button" type="button" @click="triggerAction('批量操作')">批量操作</button>
         </div>
       </header>
@@ -241,45 +270,119 @@ onMounted(() => {
 .mass-message-page {
   display: grid;
   gap: 18px;
+  width: 100%;
+  min-width: 0;
   font-family: var(--admin-font-family);
-  color: #2f3946;
+  color: #253244;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-.panel {
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 8px 24px rgba(59, 103, 82, 0.05);
+.hero-card,
+.surface-card {
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
+}
+
+.hero-card {
+  overflow: hidden;
+  padding: 20px 22px;
+  background:
+    radial-gradient(circle at top right, rgba(170, 235, 255, 0.3), transparent 24%),
+    radial-gradient(circle at left top, rgba(102, 214, 174, 0.16), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.99), rgba(245, 251, 248, 0.96));
+}
+
+.hero-card__main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.hero-card__copy h1 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.hero-card__copy p {
+  max-width: 720px;
+  margin: 12px 0 0;
+  color: #5d6876;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.hero-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
+  gap: 12px;
+  min-width: 452px;
+}
+
+.hero-stat {
+  padding: 14px 16px;
+  border: 1px solid rgba(214, 233, 227, 0.94);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.hero-stat span {
+  display: block;
+  color: #7b8793;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hero-stat strong {
+  display: block;
+  margin-top: 10px;
+  color: #263244;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .panel--filters {
-  padding: 24px 28px 28px;
+  padding: 20px 22px 22px;
 }
 
 .panel--table {
-  padding: 24px 28px 22px;
+  padding: 20px 22px 22px;
 }
 
-.section-head {
+.panel-head,
+.toolbar__copy {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 28px;
 }
 
-.section-head__accent {
-  width: 8px;
-  height: 30px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #49d3ae 0%, #32c69d 100%);
+.panel-head {
+  margin-bottom: 18px;
 }
 
-.section-head h1 {
+.panel-head h2,
+.toolbar__copy h2 {
   margin: 0;
-  color: #2f3946;
-  font-size: 15px;
-  font-weight: 600;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.panel-head small,
+.toolbar__copy small {
+  color: #557c77;
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .filters {
@@ -319,8 +422,8 @@ onMounted(() => {
   align-items: center;
   min-height: 56px;
   padding: 0 18px;
-  border: 1px solid #e2ebe7;
-  border-radius: 12px;
+  border: 1px solid #dfeae6;
+  border-radius: 14px;
   background: #ffffff;
 }
 
@@ -362,7 +465,7 @@ onMounted(() => {
   width: 56px;
   height: 56px;
   border: 1px solid #dfe7e3;
-  border-radius: 12px;
+  border-radius: 14px;
   background: #ffffff;
   color: #46515d;
 }
@@ -383,6 +486,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
 }
 
@@ -392,27 +496,29 @@ onMounted(() => {
 }
 
 .toolbar-button {
-  min-width: 96px;
-  height: 56px;
+  min-width: 108px;
+  height: 48px;
   padding: 0 20px;
   border: 1px solid #dfe7e3;
-  border-radius: 12px;
+  border-radius: 14px;
   background: #ffffff;
   color: #34404d;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .toolbar-button--primary {
   border-color: #41d1a7;
   background: linear-gradient(135deg, #41d1a7 0%, #35c59b 100%);
   color: #ffffff;
+  box-shadow: 0 14px 28px rgba(60, 201, 159, 0.18);
 }
 
 .table-wrap {
   overflow: hidden;
   border: 1px solid #edf2ef;
   border-radius: 16px;
+  background: #ffffff;
 }
 
 .table-head,
@@ -423,10 +529,10 @@ onMounted(() => {
 
 .table-head {
   min-height: 76px;
-  background: #fafcfa;
+  background: linear-gradient(180deg, #f7fbf9, #fbfdfc);
   color: #2f3946;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .table-head > span {
@@ -445,6 +551,10 @@ onMounted(() => {
   border-top: 1px solid #edf2ef;
 }
 
+.table-row:nth-child(even) {
+  background: rgba(248, 251, 250, 0.72);
+}
+
 .cell {
   display: flex;
   align-items: center;
@@ -460,7 +570,7 @@ onMounted(() => {
 .cell--title {
   color: #42505c;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 800;
 }
 
 .cell--content {
@@ -474,7 +584,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -510,7 +620,7 @@ onMounted(() => {
   border: 0;
   background: transparent;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -523,6 +633,15 @@ onMounted(() => {
 }
 
 @media (max-width: 1380px) {
+  .hero-card__main {
+    flex-direction: column;
+  }
+
+  .hero-card__stats {
+    min-width: 0;
+    width: 100%;
+  }
+
   .filters {
     grid-template-columns: 280px minmax(0, 1fr) auto;
   }
@@ -559,6 +678,10 @@ onMounted(() => {
 
   .toolbar__actions {
     justify-content: flex-end;
+  }
+
+  .hero-card__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
