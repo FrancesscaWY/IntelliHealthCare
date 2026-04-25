@@ -5,13 +5,13 @@ import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { addUploadedReport } = useReportCenter();
+const { addUploadedReport, isUploadingReport } = useReportCenter();
 
 const form = reactive({
   title: "",
   reportDate: "",
   file: null as File | null,
-  fileName: "",
+  fileName: ""
 });
 
 const showUploadSheet = ref(false);
@@ -69,7 +69,7 @@ function handleFileChange(event: Event) {
   input.value = "";
 }
 
-function saveReport() {
+async function saveReport() {
   if (!form.title.trim()) {
     props.showToast("请输入报告名称");
     return;
@@ -85,15 +85,19 @@ function saveReport() {
     return;
   }
 
-  addUploadedReport(form.file, {
-    title: form.title.trim(),
-    reportDate: form.reportDate,
-  });
+  try {
+    await addUploadedReport(form.file, {
+      title: form.title.trim(),
+      reportDate: form.reportDate
+    });
 
-  props.showToast("报告上传成功");
-  window.setTimeout(() => {
-    props.navigation.reLaunch("healthdocs/checkup-reports");
-  }, 220);
+    props.showToast("报告上传成功");
+    window.setTimeout(() => {
+      props.navigation.reLaunch("healthdocs/checkup-reports");
+    }, 220);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "报告上传失败");
+  }
 }
 </script>
 
@@ -138,7 +142,9 @@ function saveReport() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveReport">{{ mock.saveText }}</button>
+      <button class="save-btn" type="button" :disabled="isUploadingReport" @click="saveReport">
+        {{ isUploadingReport ? "上传中..." : mock.saveText }}
+      </button>
     </footer>
 
     <input
@@ -387,6 +393,10 @@ function saveReport() {
   font-size: 16px;
   font-weight: 900;
   letter-spacing: 0;
+}
+
+.save-btn:disabled {
+  opacity: 0.7;
 }
 
 .sheet-mask {

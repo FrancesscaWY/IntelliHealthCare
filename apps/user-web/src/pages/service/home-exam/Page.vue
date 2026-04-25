@@ -4,6 +4,7 @@ import type { PageComponentProps } from '@ihc/page-core/types'
 import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
@@ -22,6 +23,21 @@ const goBack = () => {
 }
 
 const openPackage = () => {
+  const packageItem = packageList.value[0]
+  setOrderFlowService({
+    type: 'exam',
+    serviceId: 'srv_exam_basic',
+    title: packageItem?.title || '长者基础体检套餐',
+    price: packageItem?.price || 399,
+    image: packageItem?.image || '',
+    detailPageId: 'service/home-exam-detail',
+    listPageId: 'service/home-exam',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   props.navigation.navigateTo('service/home-exam-detail')
 }
 
@@ -34,6 +50,21 @@ const resizeAssistant = () => {
 }
 
 onMounted(() => {
+  const packageItem = packageList.value[0]
+  setOrderFlowService({
+    type: 'exam',
+    serviceId: 'srv_exam_basic',
+    title: packageItem?.title || '长者基础体检套餐',
+    price: packageItem?.price || 399,
+    image: packageItem?.image || '',
+    detailPageId: 'service/home-exam-detail',
+    listPageId: 'service/home-exam',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   if (!assistantCanvasRef.value) return
 
   assistantRive = new Rive({

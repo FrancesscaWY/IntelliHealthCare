@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
@@ -13,10 +13,12 @@ import {
   Star,
 } from "@icon-park/vue-next";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import { loadUserProfileState, syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
+const profileState = ref(loadUserProfileState());
 
 let assistantRive: Rive | null = null;
 let assistantResizeObserver: ResizeObserver | null = null;
@@ -87,6 +89,13 @@ function resizeAssistant() {
 }
 
 onMounted(() => {
+  profileState.value = loadUserProfileState();
+  void syncUserProfileStateFromApi()
+    .then((state) => {
+      profileState.value = state;
+    })
+    .catch(() => {});
+
   if (!assistantCanvasRef.value) return;
 
   assistantRive = new Rive({
@@ -105,6 +114,9 @@ onMounted(() => {
   assistantResizeObserver.observe(assistantCanvasRef.value);
 });
 
+const profileAvatar = computed(() => profileState.value.avatarUrl || mock.profile.avatar);
+const profileName = computed(() => profileState.value.nickname || mock.profile.name);
+
 onBeforeUnmount(() => {
   assistantResizeObserver?.disconnect();
   assistantResizeObserver = null;
@@ -121,13 +133,13 @@ onBeforeUnmount(() => {
           <Headset theme="outline" size="22" fill="#1aaeba" />
         </button>
         <div class="profile-main">
-          <img class="avatar" :src="mock.profile.avatar" :alt="mock.profile.name" />
+          <img class="avatar" :src="profileAvatar" :alt="profileName" />
           <button class="homepage-link" type="button" @click="openSubPage(mock.profile.homepagePageId, '个人主页')">
             个人主页 >
           </button>
           <div class="profile-text">
             <div class="name-row">
-              <h1>{{ mock.profile.name }}</h1>
+              <h1>{{ profileName }}</h1>
             </div>
             <span class="level-badge">{{ mock.profile.level }}</span>
           </div>

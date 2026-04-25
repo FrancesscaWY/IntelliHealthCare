@@ -156,6 +156,19 @@
     "legacySources": []
   },
   {
+    "id": "content/health-news-detail",
+    "title": "鍋ュ悍璧勮璇︽儏",
+    "group": "content",
+    "route": "/content/health-news-detail",
+    "owner": "寰呭垎閰?",
+    "status": "implemented",
+    "summary": "璧勮姝ｆ枃銆佸浘鐗囥€佺偣璧炴敹钘忓垎浜笌璇勮浜掑姩璇︽儏椤甸潰銆?",
+    "folderPath": "/apps/user-web/src/pages/content/health-news-detail",
+    "modulePath": "/apps/user-web/src/pages/content/health-news-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-news-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "content/health-lecture",
     "title": "健康讲堂",
     "group": "content",

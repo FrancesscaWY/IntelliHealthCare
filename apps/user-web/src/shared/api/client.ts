@@ -36,20 +36,26 @@ function resolveApiBaseUrl() {
     return envBaseUrl.replace(/\/+$/, "");
   }
 
+  if (import.meta.env.DEV) {
+    return "/api/v1";
+  }
+
   if (typeof window !== "undefined") {
     const { hostname, protocol } = window.location;
-    const isLocalPreview =
-      hostname === "localhost" ||
-      hostname === "127.0.0.1";
+    const isLocalPreview = hostname === "localhost" || hostname === "127.0.0.1";
+    const isHttpsPage = protocol === "https:";
 
-    // 本地开发时优先走 Vite 代理，避免浏览器因 CORS 直接拦截远端接口。
-    if (isLocalPreview && protocol === "http:") {
+    if (isLocalPreview) {
+      return "/api/v1";
+    }
+
+    // Avoid browser mixed-content blocking when the page itself is loaded via HTTPS.
+    if (isHttpsPage && REMOTE_API_ORIGIN.startsWith("http://")) {
       return "/api/v1";
     }
   }
 
-  const normalizedBaseUrl = DEFAULT_API_BASE_URL;
-  return normalizedBaseUrl.replace(/\/+$/, "");
+  return DEFAULT_API_BASE_URL.replace(/\/+$/, "");
 }
 
 function isBodyInit(value: unknown): value is BodyInit {

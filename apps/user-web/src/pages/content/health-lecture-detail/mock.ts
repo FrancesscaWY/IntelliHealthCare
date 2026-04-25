@@ -6,26 +6,26 @@ import { createDefaultComments } from "../comment-mock";
 const mock = {
   heroImage: detailImage,
   videoUrl: detailVideo,
-  title: "老年人如何科学合理地补充维生素？",
-  publishText: "2024年8月24日 11:45 发布 7000播放",
-  summary:
-    "老年人补充维生素是一个重要的健康维护措施，由于老年人身体机能的下降，包括牙齿咀嚼力度和消化功能的降低，容易导致维生素的缺乏。",
-  tags: ["#老年健康", "#健康饮食"],
+  title: "高血压家庭监测与用药管理",
+  publishText: "2026年4月20日发布 · 5次播放",
+  summary: "讲解如何正确测量家庭血压、识别高值和记录用药依从性。",
+  tags: ["#血压管理", "#家庭照护"],
   stats: {
-    likes: 1001,
-    stars: 210,
-    comments: 6,
+    likes: 1,
+    stars: 1,
+    comments: 6
   },
   comments: createDefaultComments(),
   recommendationTitle: "推荐视频",
   recommendation: {
-    id: "recommend-1",
-    title: "老年人如何预防骨质疏松？",
+    id: "lecture_rehab_train",
+    lectureId: "lecture_rehab_train",
+    title: "脑卒中术后居家训练常见误区",
     imageUrl: latestImage,
-    likes: 1001,
-    stars: 210,
-    comments: 6,
-  },
+    likes: 1,
+    stars: 0,
+    comments: 0
+  }
 };
 
 export default mock;

@@ -1,21 +1,166 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import mock from './mock'
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import mock from "./mock";
+import {
+  getOrderFlowState,
+  resetPaymentSnapshot,
+  setPaymentSnapshot
+} from "@/pages/service/order-flow";
+import {
+  confirmPayment,
+  createPayment,
+  getPaymentChannels,
+  type PaymentChannelItem
+} from "@/shared/api/payments";
 
-const props = defineProps<PageComponentProps>()
+const props = defineProps<PageComponentProps>();
 
-const selectedPayment = ref('alipay')
+const PAYMENT_EXPIRE_MS = 15 * 60 * 1000;
 
-const goBack = () => {
+const selectedPayment = ref("ALIPAY");
+const submitting = ref(false);
+const channels = ref<PaymentChannelItem[]>([]);
+const countdownText = ref(mock.remainingTime);
+const orderFlowState = getOrderFlowState();
+
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+const paymentAmount = computed(() => {
+  const createdAmount = orderFlowState.createdOrder?.payableAmount;
+  if (typeof createdAmount === "number") {
+    return createdAmount.toFixed(2);
+  }
+
+  return mock.amount;
+});
+
+const isExpired = computed(() => countdownText.value === "00:00");
+
+const paymentMethods = computed(() => {
+  if (channels.value.length > 0) {
+    return channels.value.map((method) => ({
+      id: method.code,
+      name: method.name,
+      cardNo: undefined,
+      icon:
+        method.code === "ALIPAY"
+          ? mock.methods.find((item) => item.id === "ALIPAY")?.icon
+          : method.code === "WECHAT"
+            ? mock.methods.find((item) => item.id === "WECHAT")?.icon
+            : undefined
+    }));
+  }
+
+  return mock.methods;
+});
+
+function formatCountdown(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function startCountdown() {
+  const createdAt = orderFlowState.createdOrder?.createdAt;
+  if (!createdAt) {
+    countdownText.value = mock.remainingTime;
+    return;
+  }
+
+  const expireAt = new Date(createdAt).getTime() + PAYMENT_EXPIRE_MS;
+  const updateCountdown = () => {
+    const remainingMs = expireAt - Date.now();
+    countdownText.value = formatCountdown(remainingMs);
+
+    if (remainingMs <= 0 && countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  };
+
+  updateCountdown();
+  countdownTimer = setInterval(updateCountdown, 1000);
+}
+
+function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('service/order-confirm')
+    props.navigation.reLaunch("service/order-confirm");
   }
 }
 
-const confirmPay = () => {
-  props.navigation.navigateTo('service/payment-result')
+async function loadChannels() {
+  try {
+    const response = await getPaymentChannels();
+    channels.value = response.list || [];
+    if (channels.value.length > 0) {
+      selectedPayment.value = channels.value[0].code;
+    }
+  } catch {
+    channels.value = [];
+  }
 }
+
+async function confirmPay() {
+  const createdOrderId = orderFlowState.createdOrder?.orderId;
+  if (!createdOrderId) {
+    props.showToast("请先提交订单");
+    props.navigation.reLaunch("service/order-confirm");
+    return;
+  }
+
+  if (isExpired.value) {
+    props.showToast("支付超时，请重新下单");
+    return;
+  }
+
+  if (submitting.value) {
+    return;
+  }
+
+  submitting.value = true;
+
+  try {
+    resetPaymentSnapshot();
+
+    const createdPayment = await createPayment({
+      orderId: createdOrderId,
+      channel: selectedPayment.value
+    });
+
+    const confirmedPayment = await confirmPayment(createdPayment.paymentId);
+
+    setPaymentSnapshot({
+      paymentId: confirmedPayment.paymentId,
+      orderId: confirmedPayment.orderId,
+      channel: selectedPayment.value,
+      amount: confirmedPayment.amount,
+      status: confirmedPayment.status,
+      paidAt: confirmedPayment.paidAt || null
+    });
+
+    props.showToast(confirmedPayment.status === "PAID" ? "支付成功" : "支付状态已更新");
+    props.navigation.navigateTo("service/payment-result");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "支付失败";
+    props.showToast(message);
+  } finally {
+    submitting.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadChannels();
+  startCountdown();
+});
+
+onBeforeUnmount(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+});
 </script>
 
 <template>
@@ -29,10 +174,10 @@ const confirmPay = () => {
       <section class="amount-card">
         <div class="amount-block">
           <span>支付金额</span>
-          <strong><small>¥</small>{{ mock.amount }}</strong>
+          <strong><small>¥</small>{{ paymentAmount }}</strong>
         </div>
         <div class="countdown">
-          支付剩余时间：<span>{{ mock.remainingTime }}</span>
+          支付剩余时间：<span>{{ countdownText }}</span>
         </div>
       </section>
 
@@ -40,11 +185,11 @@ const confirmPay = () => {
         <h2>选择支付方式</h2>
         <div class="method-card">
           <button
-              v-for="method in mock.methods"
-              :key="method.id"
-              class="method-row"
-              type="button"
-              @click="selectedPayment = method.id"
+            v-for="method in paymentMethods"
+            :key="method.id"
+            class="method-row"
+            type="button"
+            @click="selectedPayment = method.id"
           >
             <span class="method-icon" :class="`method-icon--${method.id}`">
               <img v-if="method.icon" :src="method.icon" :alt="method.name" />
@@ -61,7 +206,9 @@ const confirmPay = () => {
     </main>
 
     <div class="pay-bar">
-      <button class="pay-button" type="button" @click="confirmPay">确认支付</button>
+      <button class="pay-button" type="button" :disabled="submitting || isExpired" @click="confirmPay">
+        {{ isExpired ? "支付已超时" : submitting ? "支付中..." : "确认支付" }}
+      </button>
     </div>
   </div>
 </template>
@@ -78,7 +225,7 @@ const confirmPay = () => {
   box-sizing: border-box;
   background: #ffffff;
   color: #34383f;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -140,7 +287,7 @@ const confirmPay = () => {
 .amount-block strong {
   display: block;
   margin-top: 18px;
-  color: #006DFF;
+  color: #006dff;
   font-size: 38px;
   line-height: 1;
   font-weight: 800;
@@ -216,7 +363,7 @@ const confirmPay = () => {
   display: block;
 }
 
-.method-icon--bank {
+.method-icon--BANK {
   background: #d92234;
   color: #fff;
   font-size: 15px;
@@ -281,5 +428,10 @@ const confirmPay = () => {
   font-weight: 700;
   letter-spacing: 0;
   cursor: pointer;
+}
+
+.pay-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

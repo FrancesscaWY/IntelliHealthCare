@@ -43,6 +43,18 @@ export interface CurrentUserResponse {
   roles: string[];
 }
 
+export interface CurrentUserProfileResponse {
+  userId: string;
+  nickname: string | null;
+  realName: string | null;
+  avatar: string | null;
+  phone: string;
+  city: string | null;
+  gender: string | null;
+  birthday: string | null;
+  realNameStatus: string | null;
+}
+
 export interface PrivacyAgreementResponse {
   title: string;
   version: string;
@@ -113,6 +125,12 @@ export function resetPassword(payload: ResetPasswordRequest) {
 
 export function getCurrentUser() {
   return request<CurrentUserResponse>("/app/users/me", {
+    auth: true
+  });
+}
+
+export function getCurrentUserProfile() {
+  return request<CurrentUserProfileResponse>("/app/users/me/profile", {
     auth: true
   });
 }
