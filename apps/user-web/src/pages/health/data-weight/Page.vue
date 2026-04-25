@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { loadWeightSource } from "../measurement-source";
 
 type WeightRecord = {
   date: string;
@@ -10,10 +10,14 @@ type WeightRecord = {
 };
 
 const props = defineProps<PageComponentProps>();
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadWeightSource>>>({
+  list: []
+});
 
 const healthList = computed<WeightRecord[] | null>(() => {
-  if (mock && Array.isArray(mock.list) && mock.list.length > 0) {
-    return mock.list as WeightRecord[];
+  if (pageData.value.list.length > 0) {
+    return pageData.value.list as WeightRecord[];
   }
   return null;
 });
@@ -155,6 +159,18 @@ function goToAddData() {
   sessionStorage.setItem("addReturnPath", "health/data-weight");
   props.navigation?.navigateTo?.("health/add-data");
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadWeightSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -379,6 +395,9 @@ function goToAddData() {
         </section>
       </template>
 
+      <div v-else-if="isLoading" class="error-card">
+        <strong>加载中...</strong>
+      </div>
       <div v-else class="error-card">
         <strong>数据加载失败</strong>
         <p>请检查 `mock.ts` 文件，确保导出了有效的 `list` 数组。</p>

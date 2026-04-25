@@ -1,9 +1,152 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Headset, Share, Star } from '@icon-park/vue-next'
+import {
+  getElderlyCareServiceDetail,
+  getElderlyCareServices,
+  type ServiceCatalogDetail,
+} from '@/shared/api/service-catalog'
+import {
+  extractServiceTexts,
+  normalizeServiceStringArray,
+  readSelectedServiceContext,
+  saveSelectedServiceContext,
+} from '@/shared/service/catalog'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
+const detailData = ref<ServiceCatalogDetail | null>(null)
+
+const title = computed(() => detailData.value?.title || mock.title)
+const subtitle = computed(() => {
+  if (!detailData.value) {
+    return mock.subtitle
+  }
+
+  const tags = normalizeServiceStringArray(detailData.value.tags)
+  return detailData.value.summary || tags.join(' · ') || mock.subtitle
+})
+const priceText = computed(() => `¥ ${Math.round(detailData.value?.price ?? Number.parseInt(mock.price, 10))}起/月`)
+const ratingText = computed(() => (detailData.value?.rating ?? Number(mock.rating)).toFixed(1))
+const reviewCountText = computed(() => {
+  if (detailData.value?.salesVolume) {
+    return `${detailData.value.salesVolume}次服务`
+  }
+
+  return `${mock.ratingCount}人评价`
+})
+const addressText = computed(() => {
+  if (!detailData.value?.institution) {
+    return mock.address
+  }
+
+  return [
+    detailData.value.institution.city,
+    detailData.value.institution.district,
+    detailData.value.institution.address,
+  ]
+    .filter(Boolean)
+    .join(' ')
+})
+const coverUrl = computed(() => detailData.value?.coverUrl || '')
+const tagList = computed(() => {
+  const tags = normalizeServiceStringArray(detailData.value?.tags)
+  return tags.length ? tags : mock.tags
+})
+const baseInfoRows = computed(() => {
+  if (!detailData.value) {
+    return mock.baseInfo
+  }
+
+  const regions = normalizeServiceStringArray(detailData.value.regionScope)
+  const rows = [
+    {
+      label: '服务机构',
+      value: detailData.value.institution?.name || title.value,
+    },
+    {
+      label: '所在城市',
+      value: [detailData.value.institution?.city, detailData.value.institution?.district].filter(Boolean).join(' ') || '待确认',
+    },
+    {
+      label: '详细地址',
+      value: detailData.value.institution?.address || '待确认',
+    },
+  ]
+
+  if (regions.length) {
+    rows.push({
+      label: '覆盖区域',
+      value: regions.join('、'),
+    })
+  }
+
+  return rows
+})
+const serviceCards = computed(() => {
+  const items = normalizeServiceStringArray(detailData.value?.serviceContent)
+
+  if (!items.length) {
+    return mock.services
+  }
+
+  return items.map((item) => ({
+    title: item,
+    desc: detailData.value?.summary || '可联系机构了解该项服务的具体安排和收费标准。',
+  }))
+})
+const facilityRows = computed(() => {
+  if (!detailData.value) {
+    return mock.facilities
+  }
+
+  const rows = []
+  const tags = normalizeServiceStringArray(detailData.value.tags)
+
+  if (tags.length) {
+    rows.push({
+      label: '服务标签',
+      value: tags.join('、'),
+    })
+  }
+
+  if (detailData.value.institution?.rating !== null && detailData.value.institution?.rating !== undefined) {
+    rows.push({
+      label: '机构评分',
+      value: detailData.value.institution.rating.toFixed(1),
+    })
+  }
+
+  rows.push({
+    label: '服务编码',
+    value: detailData.value.code,
+  })
+
+  return rows.length ? rows : mock.facilities
+})
+const detailText = computed(() => {
+  if (!detailData.value) {
+    return mock.detail
+  }
+
+  const snippetText = extractServiceTexts(detailData.value.ragSnippet)[0]
+  const contentText = normalizeServiceStringArray(detailData.value.serviceContent).join('，')
+
+  return detailData.value.summary || snippetText || contentText || mock.detail
+})
+const noticeRows = computed(() => {
+  const texts = extractServiceTexts(detailData.value?.ragSnippet)
+
+  if (!texts.length) {
+    return mock.notice
+  }
+
+  return texts.map((value, index) => ({
+    label: index === 0 ? '参观提醒' : `提醒${index + 1}`,
+    value,
+  }))
+})
 
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
@@ -11,15 +154,57 @@ const goBack = () => {
   }
 }
 
+function persistSelectedService(detail: ServiceCatalogDetail) {
+  saveSelectedServiceContext({
+    categorySlug: 'elderly-care',
+    serviceId: detail.serviceId,
+    title: detail.title,
+    coverUrl: detail.coverUrl,
+    price: detail.price,
+  })
+}
+
+async function resolveServiceId() {
+  const selectedService = readSelectedServiceContext()
+
+  if (selectedService?.categorySlug === 'elderly-care' && selectedService.serviceId.trim()) {
+    return selectedService.serviceId.trim()
+  }
+
+  const services = await getElderlyCareServices()
+  return services.list[0]?.serviceId || ''
+}
+
+async function loadServiceDetail() {
+  try {
+    const serviceId = await resolveServiceId()
+
+    if (!serviceId) {
+      throw new Error('暂无可用养老机构服务')
+    }
+
+    const nextDetail = await getElderlyCareServiceDetail(serviceId)
+    detailData.value = nextDetail
+    persistSelectedService(nextDetail)
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '养老机构详情加载失败')
+  }
+}
+
 const reserveVisit = () => {
   props.showToast('已为您提交参观预约')
 }
+
+onMounted(() => {
+  void loadServiceDetail()
+})
 </script>
 
 <template>
   <div class="elderly-detail-page">
     <section class="hero">
-      <div class="hero-placeholder">
+      <img v-if="coverUrl" class="hero-image" :src="coverUrl" :alt="title" />
+      <div v-else class="hero-placeholder">
         <span>养老机构图片待添加</span>
       </div>
       <div class="hero-mask"></div>
@@ -41,26 +226,26 @@ const reserveVisit = () => {
 
     <main class="detail-panel">
       <section class="summary-section">
-        <h1>{{ mock.title }}</h1>
-        <p class="subtitle">{{ mock.subtitle }}</p>
+        <h1>{{ title }}</h1>
+        <p class="subtitle">{{ subtitle }}</p>
         <div class="price-line">
-          <span class="price">¥ {{ mock.price }}</span>
-          <span class="address">{{ mock.address }}</span>
+          <span class="price">{{ priceText }}</span>
+          <span class="address">{{ addressText }}</span>
         </div>
         <div class="rating-line">
           <span class="stars">★★★★★</span>
-          <strong>{{ mock.rating }}</strong>
-          <span>({{ mock.ratingCount }}人评价)</span>
+          <strong>{{ ratingText }}</strong>
+          <span>({{ reviewCountText }})</span>
         </div>
         <div class="tag-row">
-          <span v-for="tag in mock.tags" :key="tag">{{ tag }}</span>
+          <span v-for="tag in tagList" :key="tag">{{ tag }}</span>
         </div>
       </section>
 
       <section class="content-section">
         <h2>机构信息</h2>
         <dl class="info-list">
-          <div v-for="row in mock.baseInfo" :key="row.label" class="info-row">
+          <div v-for="row in baseInfoRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -70,7 +255,7 @@ const reserveVisit = () => {
       <section class="content-section">
         <h2>服务内容</h2>
         <div class="service-grid">
-          <article v-for="item in mock.services" :key="item.title" class="service-card">
+          <article v-for="item in serviceCards" :key="item.title" class="service-card">
             <strong>{{ item.title }}</strong>
             <p>{{ item.desc }}</p>
           </article>
@@ -80,7 +265,7 @@ const reserveVisit = () => {
       <section class="content-section">
         <h2>服务配置</h2>
         <dl class="info-list">
-          <div v-for="row in mock.facilities" :key="row.label" class="info-row">
+          <div v-for="row in facilityRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -89,13 +274,13 @@ const reserveVisit = () => {
 
       <section class="content-section">
         <h2>机构详情</h2>
-        <p class="detail-text">{{ mock.detail }}</p>
+        <p class="detail-text">{{ detailText }}</p>
       </section>
 
       <section class="content-section">
         <h2>入住须知</h2>
         <dl class="info-list">
-          <div v-for="row in mock.notice" :key="row.label" class="info-row">
+          <div v-for="row in noticeRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -104,8 +289,8 @@ const reserveVisit = () => {
 
       <section class="review-section">
         <div class="review-heading">
-          <h2>用户评价（{{ mock.ratingCount }}）</h2>
-          <span>{{ mock.rating }}</span>
+          <h2>用户评价（{{ reviewCountText }}）</h2>
+          <span>{{ ratingText }}</span>
         </div>
 
         <article v-for="review in mock.reviews" :key="review.id" class="review-card">
@@ -152,6 +337,13 @@ const reserveVisit = () => {
   height: 250px;
   overflow: hidden;
   background: #d8d8d8;
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .hero-placeholder {

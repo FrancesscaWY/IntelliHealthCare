@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
+import { getServiceDetailPageId, readSelectedServiceContext } from '@/shared/service/catalog'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
@@ -11,6 +12,13 @@ const note = ref('')
 
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
+    const selectedService = readSelectedServiceContext()
+
+    if (selectedService) {
+      props.navigation.reLaunch(getServiceDetailPageId(selectedService.categorySlug))
+      return
+    }
+
     props.navigation.reLaunch('service/home-care-detail')
   }
 }

@@ -96,6 +96,8 @@ import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
+import { getHomeCareServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
+import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 
 import {
   Home,
@@ -113,9 +115,21 @@ const props = defineProps<PageComponentProps>()
 const keyword = ref('')
 const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
 
+interface DisplayCareItem {
+  id: string
+  serviceId: string
+  title: string
+  desc: string
+  image: string
+  price: number
+  oldPrice: number
+  sales: number
+  category: string
+}
+
 const serviceList = ref<ServiceItem[]>(mock.serviceList)
-const recommendList = ref<CareItem[]>(mock.recommendList)
-const discountList = ref<CareItem[]>(mock.discountList)
+const recommendList = ref<DisplayCareItem[]>(createMockDisplayCareItems(mock.recommendList))
+const discountList = ref<DisplayCareItem[]>(createMockDisplayCareItems(mock.discountList))
 
 const iconMap: Record<string, any> = {
   life: Home,
@@ -207,6 +221,67 @@ const resizeAssistant = () => {
   assistantRive?.resizeDrawingSurfaceToCanvas()
 }
 
+function createMockDisplayCareItems(items: CareItem[]): DisplayCareItem[] {
+  return items.map((item, index) => ({
+    id: `mock-home-care-${index + 1}`,
+    serviceId: `mock-home-care-${index + 1}`,
+    title: item.title,
+    desc: item.desc || '',
+    image: item.image,
+    price: item.price,
+    oldPrice: item.oldPrice ?? item.price,
+    sales: item.sales ?? 0,
+    category: item.category,
+  }))
+}
+
+function mapServiceItemToDisplayCareItem(item: ServiceCatalogItem): DisplayCareItem {
+  const tags = normalizeServiceStringArray(item.tags)
+
+  return {
+    id: item.serviceId,
+    serviceId: item.serviceId,
+    title: item.title,
+    desc: item.summary || tags.join('、') || item.institution?.name || '',
+    image: item.coverUrl || mock.recommendList[0]?.image || '',
+    price: item.price,
+    oldPrice: item.marketPrice ?? item.price,
+    sales: item.salesVolume,
+    category: tags[0] || item.institution?.name || '家政护理',
+  }
+}
+
+function openServiceDetail(item: DisplayCareItem) {
+  saveSelectedServiceContext({
+    categorySlug: 'home-care',
+    serviceId: item.serviceId,
+    title: item.title,
+    coverUrl: item.image,
+    price: item.price,
+  })
+
+  props.navigation.navigateTo('service/home-care-detail')
+}
+
+async function loadHomeCareServices() {
+  try {
+    const services = await getHomeCareServices()
+
+    if (!services.list.length) {
+      return
+    }
+
+    const nextItems = services.list.map(mapServiceItemToDisplayCareItem)
+    recommendList.value = nextItems
+    discountList.value = nextItems.slice(0, 5).map((item) => ({
+      ...item,
+      oldPrice: item.oldPrice || item.price,
+    }))
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '家政护理加载失败')
+  }
+}
+
 const handleServiceClick = (item: ServiceItem) => {
   if (item.type === 'clean') {
     props.navigation.navigateTo('service/daily-clean')
@@ -216,16 +291,17 @@ const handleServiceClick = (item: ServiceItem) => {
   console.log('点击服务分类：', item.name)
 }
 
-const goDiscountDetail = (_item: CareItem) => {
-  props.navigation.navigateTo('service/home-care-detail')
+const goDiscountDetail = (item: DisplayCareItem) => {
+  openServiceDetail(item)
 }
 
-const goDetail = (item: CareItem) => {
-  console.log('跳转详情：', item.title)
+const goDetail = (item: DisplayCareItem) => {
+  openServiceDetail(item)
 }
 
 onMounted(() => {
   startCountdown()
+  void loadHomeCareServices()
 
   if (!assistantCanvasRef.value) return
 

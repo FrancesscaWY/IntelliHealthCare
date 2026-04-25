@@ -3,9 +3,11 @@ import { computed, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Headset } from '@icon-park/vue-next'
 import mock from './mock'
+import { writeServicePaymentContext } from '@/shared/payment/session'
 
 const props = defineProps<PageComponentProps>()
 type ServiceKey = keyof typeof mock.ordersByService
+type LegacyOrderItem = (typeof mock.ordersByService)[ServiceKey][number]
 
 const activeService = ref<ServiceKey>('therapy')
 const activeTab = ref('all')
@@ -34,8 +36,18 @@ function goBack() {
   }
 }
 
-function handleAction(actionKey: string) {
+function handleAction(actionKey: string, order?: LegacyOrderItem) {
   if (actionKey === 'pay') {
+    if (order) {
+      writeServicePaymentContext({
+        orderNo: `LEGACY-${activeService.value}-${order.id}`,
+        amount: Number(order.price),
+        serviceTitle: order.title,
+        isLegacyPendingOrder: true,
+        legacySource: 'orders/rehab-therapy',
+      })
+    }
+
     props.navigation.navigateTo('service/payment')
     return
   }
@@ -145,7 +157,7 @@ function handleAction(actionKey: string) {
             class="action-button"
             :class="{ primary: action.type === 'primary' }"
             type="button"
-            @click="handleAction(action.key)"
+            @click="handleAction(action.key, order)"
           >
             {{ action.label }}
           </button>

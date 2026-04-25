@@ -7,12 +7,14 @@ import {
   cancelHomeCareOrder,
   deleteHomeCareOrder,
   ensureHomeCareOrders,
+  getHomeCareOrderById,
   getHomeCareOrders,
   getHomeCareOrderStatusLabel,
   setActiveHomeCareOrderId,
   type HomeCareOrder,
   type HomeCareOrderStatus,
 } from "./store";
+import { writeServicePaymentContext } from "@/shared/payment/session";
 
 const props = defineProps<PageComponentProps>();
 
@@ -56,6 +58,18 @@ function openEdit(orderId: string) {
 
 function openPayment(orderId: string) {
   selectOrder(orderId);
+  const order = getHomeCareOrderById(orderId);
+
+  if (order) {
+    writeServicePaymentContext({
+      orderNo: order.orderNo,
+      amount: order.actualAmount,
+      serviceTitle: order.title,
+      isLegacyPendingOrder: true,
+      legacySource: "service/home-care-orders"
+    });
+  }
+
   props.navigation.navigateTo("service/payment");
 }
 
