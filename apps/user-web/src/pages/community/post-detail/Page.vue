@@ -21,6 +21,8 @@ const comments = ref<CommunityCommentItem[]>([]);
 const commentDraft = ref("");
 const loading = ref(false);
 const submittingComment = ref(false);
+const replyParentId = ref<string>("");
+const replyTarget = ref<string>("");
 
 const likeCount = computed(() => post.value?.likes ?? post.value?.likesCount ?? 0);
 const favoriteCount = computed(() => post.value?.stars ?? post.value?.favoritesCount ?? 0);
@@ -64,6 +66,25 @@ function formatCommentTime(value: string) {
   return `${date.getMonth() + 1}月${date.getDate()}日 ${`${date.getHours()}`.padStart(2, "0")}:${`${date.getMinutes()}`.padStart(2, "0")}`;
 }
 
+function isUsablePostComment(comment: CommunityCommentItem) {
+  const authorName = (comment.author || comment.user?.name || "").trim();
+  const text = comment.content.trim();
+
+  if (!authorName || !text) {
+    return false;
+  }
+
+  if (/^post_comment_moc[a-z0-9_]*$/i.test(text)) {
+    return false;
+  }
+
+  if (/codex/i.test(text) || /smoke\s+test/i.test(text)) {
+    return false;
+  }
+
+  return true;
+}
+
 async function loadDetail() {
   if (!postId.value) {
     props.showToast("未找到帖子");
@@ -79,7 +100,7 @@ async function loadDetail() {
     ]);
 
     post.value = detail;
-    comments.value = commentResponse.list;
+    comments.value = commentResponse.list.filter(isUsablePostComment);
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -95,6 +116,27 @@ function goBack() {
 
 function pending(label: string) {
   props.showToast(`${label}功能暂未接入`);
+}
+
+function replyToComment(comment: CommunityCommentItem) {
+  replyParentId.value = comment.commentId;
+  replyTarget.value = comment.author || comment.user?.name || "该用户";
+}
+
+function cancelReply() {
+  replyParentId.value = "";
+  replyTarget.value = "";
+}
+
+function toggleCommentLike(commentId: string) {
+  const target = comments.value.find((comment) => comment.commentId === commentId);
+  if (!target) {
+    return;
+  }
+
+  const nextLiked = !target.liked;
+  target.liked = nextLiked;
+  target.likes = Math.max(0, (target.likes || 0) + (nextLiked ? 1 : -1));
 }
 
 async function handleLike() {
@@ -186,10 +228,12 @@ async function submitComment() {
 
   try {
     await createCommunityPostComment(post.value.postId, {
+      parentId: replyParentId.value || undefined,
       content: commentDraft.value.trim()
     });
 
     commentDraft.value = "";
+    cancelReply();
     await loadDetail();
     props.showToast("评论已发布");
   } catch (error) {
@@ -274,17 +318,34 @@ onMounted(() => {
             <span>{{ comments.length }}条评论</span>
           </div>
 
-          <article v-for="comment in comments" :key="comment.commentId" class="comment-card">
+          <article v-for="comment in comments" :key="comment.commentId" class="comment-card" @click="replyToComment(comment)">
             <img class="comment-avatar" :src="comment.avatarUrl || comment.user?.avatar || ''" :alt="comment.author || comment.user?.name || '评论头像'" />
             <div class="comment-body">
               <div class="comment-top">
-                <strong>{{ comment.author || comment.user?.name }}</strong>
-                <small>{{ formatCommentTime(comment.createdAt) }}</small>
+                <div>
+                  <strong>{{ comment.author || comment.user?.name }}</strong>
+                  <small>{{ formatCommentTime(comment.createdAt) }}</small>
+                </div>
+                <div class="comment-actions">
+                  <button class="comment-bubble" type="button" aria-label="回复评论" @click.stop="replyToComment(comment)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
+                    </svg>
+                  </button>
+                  <button class="comment-like" :class="{ 'comment-like--active': comment.liked }" type="button" @click.stop="toggleCommentLike(comment.commentId)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
+                    </svg>
+                    <span>{{ comment.likes || 0 }}</span>
+                  </button>
+                </div>
               </div>
-              <p>{{ comment.content }}</p>
+              <p>
+                <span v-if="comment.replyTo" class="reply-to">回复 {{ comment.replyTo }}：</span>
+                {{ comment.content }}
+              </p>
               <div class="comment-meta">
                 <span>{{ comment.city || "上海市" }}</span>
-                <span>点赞 {{ comment.likes || 0 }}</span>
               </div>
             </div>
           </article>
@@ -297,7 +358,7 @@ onMounted(() => {
     </main>
 
     <div class="comment-bar">
-      <input v-model="commentDraft" class="comment-input" type="text" placeholder="说点什么吧..." />
+      <input v-model="commentDraft" class="comment-input" type="text" :placeholder="replyTarget ? `回复 ${replyTarget}` : '说点什么吧...'" />
       <button class="send-button" type="button" :disabled="submittingComment" @click="submitComment">
         {{ submittingComment ? "发送中" : "发送" }}
       </button>
@@ -602,6 +663,46 @@ onMounted(() => {
   color: #9b9ea6;
   font-size: 12px;
   font-weight: 700;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #b2b4ba;
+}
+
+.comment-bubble,
+.comment-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.comment-bubble svg,
+.comment-like svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.comment-like--active,
+.reply-to {
+  color: #6872f0;
+}
+
+.comment-like--active svg {
+  fill: currentColor;
 }
 
 .comment-bar {

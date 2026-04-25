@@ -64,6 +64,7 @@ export interface CommunityCommentItem {
   author?: string | null;
   avatarUrl?: string | null;
   city?: string | null;
+  replyTo?: string;
   likes?: number;
   liked?: boolean;
   isMine?: boolean;
