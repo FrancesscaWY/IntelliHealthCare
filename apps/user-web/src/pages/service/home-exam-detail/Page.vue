@@ -3,6 +3,7 @@ import type { Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Calendar, Check, Headset, Hospital, MedicalFiles, Share, Star } from '@icon-park/vue-next'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
@@ -20,6 +21,20 @@ const goBack = () => {
 }
 
 const buyNow = () => {
+  setOrderFlowService({
+    type: 'exam',
+    serviceId: 'srv_exam_basic',
+    title: '长者基础体检套餐',
+    price: 399,
+    image: mock.image,
+    detailPageId: 'service/home-exam-detail',
+    listPageId: 'service/home-exam',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   props.navigation.navigateTo('service/booking')
 }
 </script>

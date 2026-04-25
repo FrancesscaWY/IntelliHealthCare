@@ -105,6 +105,8 @@ onMounted(() => {
           <button type="button" @click="viewAiEvaluation(item.reportId)">AI评估</button>
         </div>
       </article>
+
+      <p v-if="!isReportsLoading && !historyReports.length" class="empty-text">暂无历史报告</p>
     </main>
   </section>
 </template>

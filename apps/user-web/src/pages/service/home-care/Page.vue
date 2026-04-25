@@ -96,6 +96,7 @@ import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 import {
   Home,
@@ -217,14 +218,56 @@ const handleServiceClick = (item: ServiceItem) => {
 }
 
 const goDiscountDetail = (_item: CareItem) => {
+  setOrderFlowService({
+    type: 'homeCare',
+    serviceId: 'srv_home_clean_2h',
+    title: '日常清洁 2小时1人上门服务',
+    price: 298,
+    image: mock.discountList[0]?.image || mock.recommendList[0]?.image || '',
+    detailPageId: 'service/home-care-detail',
+    listPageId: 'service/home-care',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   props.navigation.navigateTo('service/home-care-detail')
 }
 
 const goDetail = (item: CareItem) => {
-  console.log('跳转详情：', item.title)
+  setOrderFlowService({
+    type: 'homeCare',
+    serviceId: 'srv_home_clean_2h',
+    title: item.title || '日常清洁 2小时1人上门服务',
+    price: Number(item.price) || 298,
+    image: item.image,
+    detailPageId: 'service/home-care-detail',
+    listPageId: 'service/home-care',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
+  props.navigation.navigateTo('service/home-care-detail')
 }
 
 onMounted(() => {
+  setOrderFlowService({
+    type: 'homeCare',
+    serviceId: 'srv_home_clean_2h',
+    title: '日常清洁 2小时1人上门服务',
+    price: 298,
+    image: mock.discountList[0]?.image || mock.recommendList[0]?.image || '',
+    detailPageId: 'service/home-care-detail',
+    listPageId: 'service/home-care',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   startCountdown()
 
   if (!assistantCanvasRef.value) return

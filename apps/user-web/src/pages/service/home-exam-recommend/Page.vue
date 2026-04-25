@@ -15,6 +15,7 @@ import {
   setActiveAssistantConversation
 } from "@/shared/ai/state";
 import mock from "./mock";
+import { setOrderFlowService } from "@/pages/service/order-flow";
 
 const props = defineProps<PageComponentProps>();
 
@@ -89,8 +90,22 @@ function goBack() {
   }
 }
 
-function buyProject() {
-  props.navigation.navigateTo("service/payment");
+function buyProject(item: (typeof mock.projects)[number]) {
+  setOrderFlowService({
+    type: "exam",
+    serviceId: "srv_exam_basic",
+    title: item.name,
+    price: 399,
+    image: item.image,
+    detailPageId: "service/home-exam-detail",
+    listPageId: "service/home-exam",
+    couponAmount: 20,
+    addressId: "addr_joy_home",
+    addressText: "上海市上海市浦东新区丁香路168弄12号302",
+    contactName: "王秀琴",
+    contactPhone: "13800138000"
+  });
+  props.navigation.navigateTo("service/booking");
 }
 
 function useQuickAction(label: string) {
@@ -111,7 +126,6 @@ function useQuickAction(label: string) {
 
 function sendMessage() {
   const text = draft.value.trim();
-
   if (!text) {
     props.showToast("请输入内容");
     return;
@@ -176,7 +190,6 @@ onMounted(() => {
   }
 
   const canvas = canvasRef.value;
-
   if (!canvas) {
     return;
   }
@@ -228,8 +241,8 @@ onBeforeUnmount(() => {
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
           <strong>您好！我是豆沙包</strong>
-          <strong>这是我为您推荐的项目～</strong>
-          <p>推荐仅供参考，您可以根据实际需求继续调整哦</p>
+          <strong>这是我为您推荐的项目</strong>
+          <p>推荐仅供参考，您可以根据实际需求继续调整</p>
         </div>
         <button
           class="history-btn"

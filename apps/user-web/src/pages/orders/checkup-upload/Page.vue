@@ -1,8 +1,14 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { useReportCenter } from "@/pages/healthdocs/report-center";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const { addUploadedReport, isUploadingReport } = useReportCenter();
+const albumInputRef = ref<HTMLInputElement | null>(null);
+const cameraInputRef = ref<HTMLInputElement | null>(null);
+const documentInputRef = ref<HTMLInputElement | null>(null);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -10,12 +16,51 @@ function goBack() {
   }
 }
 
-function chooseMethod(title: string) {
-  props.showToast(`${title}功能待接入`);
+function chooseMethod(key: string) {
+  if (key === "upload") {
+    albumInputRef.value?.click();
+    return;
+  }
+
+  if (key === "scan") {
+    cameraInputRef.value?.click();
+    return;
+  }
+
+  documentInputRef.value?.click();
+}
+
+async function submitFile(file: File | null | undefined) {
+  if (!file) {
+    return;
+  }
+
+  try {
+    await addUploadedReport(file, {
+      title: file.name.replace(/\.[^.]+$/, ""),
+      reportDate: new Date().toISOString().slice(0, 10)
+    });
+    props.showToast("报告已加入健康档案");
+    window.setTimeout(() => {
+      props.navigation.reLaunch("orders/checkup-report");
+    }, 250);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "报告上传失败");
+  }
+}
+
+async function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  await submitFile(file);
+
+  if (input) {
+    input.value = "";
+  }
 }
 
 function autofill() {
-  props.showToast("已一键填入演示报告信息");
+  props.navigation.navigateTo("healthdocs/report-upload");
 }
 </script>
 
@@ -31,17 +76,30 @@ function autofill() {
     <main class="upload-scroll">
       <section class="upload-card">
         <h2>选择添加方式</h2>
-        <p>可上传、扫描照片或提交文档，后续可接入识别服务自动解析报告内容。</p>
+        <p>可上传、扫描照片或提交文档，选中的文件会直接走真实文件上传接口并同步到报告中心。</p>
 
-        <button v-for="item in mock.uploadMethods" :key="item.key" class="method-button" type="button" @click="chooseMethod(item.title)">
+        <button
+          v-for="item in mock.uploadMethods"
+          :key="item.key"
+          class="method-button"
+          type="button"
+          :disabled="isUploadingReport"
+          @click="chooseMethod(item.key)"
+        >
           <strong>{{ item.title }}</strong>
           <span>{{ item.desc }}</span>
           <i aria-hidden="true"></i>
         </button>
 
-        <button class="autofill-button" type="button" @click="autofill">一键填入</button>
+        <button class="autofill-button" type="button" :disabled="isUploadingReport" @click="autofill">
+          {{ isUploadingReport ? "上传中..." : "进入完整填写页" }}
+        </button>
       </section>
     </main>
+
+    <input ref="albumInputRef" class="hidden-input" type="file" accept="image/*" @change="handleFileChange" />
+    <input ref="cameraInputRef" class="hidden-input" type="file" accept="image/*" capture="environment" @change="handleFileChange" />
+    <input ref="documentInputRef" class="hidden-input" type="file" accept=".pdf,.doc,.docx,image/*" @change="handleFileChange" />
   </section>
 </template>
 
@@ -171,5 +229,18 @@ function autofill() {
   color: #1f2a44;
   font-size: 17px;
   font-weight: 900;
+}
+
+.method-button:disabled,
+.autofill-button:disabled {
+  opacity: 0.7;
+}
+
+.hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 </style>

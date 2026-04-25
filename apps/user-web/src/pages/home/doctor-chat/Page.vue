@@ -347,7 +347,7 @@ onBeforeUnmount(() => {
         <img :src="mock.doctor.avatar" :alt="mock.doctor.name" />
         <div>
           <h1>{{ mock.doctor.name }}</h1>
-          <span>{{ mock.doctor.title }} · {{ mock.doctor.status }}</span>
+          <span>{{ mock.doctor.title }} / {{ mock.doctor.status }}</span>
         </div>
       </div>
       <button class="phone-button" type="button" aria-label="电话咨询" @click="props.showToast('电话咨询功能待接入')">
@@ -427,7 +427,7 @@ onBeforeUnmount(() => {
       </div>
 
       <form class="input-row" @submit.prevent="sendText">
-        <input v-model="draft" type="text" placeholder="咨询王医生..." />
+        <input v-model="draft" type="text" :placeholder="isUploadingImage ? '图片上传中...' : '咨询王医生...'" />
         <button type="submit">发送</button>
       </form>
     </footer>
@@ -452,7 +452,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #f5f6f7;
   color: #252939;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 button,

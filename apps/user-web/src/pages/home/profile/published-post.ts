@@ -1,6 +1,7 @@
 export type ProfileGalleryItem = {
   src: string;
   position?: string;
+  fileId?: string;
 };
 
 export type ProfilePost = {
