@@ -4,6 +4,10 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { getOrderFlowState, updateOrderFlowBooking } from "@/pages/service/order-flow";
 import { getOrderBookingOptions } from "@/shared/api/orders";
+// import { ref } from 'vue'
+// import type { PageComponentProps } from '@ihc/page-core/types'
+import { getServiceDetailPageId, readSelectedServiceContext } from '@/shared/service/catalog'
+// import mock from './mock'
 
 const props = defineProps<PageComponentProps>();
 const orderFlowState = getOrderFlowState();

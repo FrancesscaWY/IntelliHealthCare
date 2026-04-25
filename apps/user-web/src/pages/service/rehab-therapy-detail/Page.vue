@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Headset, Help, Local, MedicalFiles, Plan, Share, Star } from '@icon-park/vue-next'
+import { getRehabTherapyServiceDetail, getRehabTherapyServices, type ServiceCatalogDetail } from '@/shared/api/service-catalog'
+import {
+  extractServiceTexts,
+  formatServiceDiscountLabel,
+  formatServiceDurationLabel,
+  normalizeServiceStringArray,
+  readSelectedServiceContext,
+  saveSelectedServiceContext,
+} from '@/shared/service/catalog'
 import mock from './mock'
 import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
+const detailData = ref<ServiceCatalogDetail | null>(null)
 
 const flowIconMap: Record<string, Component> = {
   medical: MedicalFiles,
@@ -14,35 +24,143 @@ const flowIconMap: Record<string, Component> = {
   location: Local,
 }
 
+const title = computed(() => detailData.value?.title || mock.title)
+const image = computed(() => detailData.value?.coverUrl || mock.image)
+const priceText = computed(() => `${(detailData.value?.price ?? Number(mock.price)).toFixed(2)}`)
+const discountText = computed(() => {
+  if (!detailData.value) {
+    return mock.discount
+  }
+
+  return formatServiceDiscountLabel(detailData.value.price, detailData.value.marketPrice)
+})
+const ratingText = computed(() => (detailData.value?.rating ?? Number(mock.rating)).toFixed(1))
+const reviewCountText = computed(() => {
+  if (detailData.value?.salesVolume) {
+    return `${detailData.value.salesVolume}次服务`
+  }
+
+  return `${mock.ratingCount}人评论`
+})
+
+const serviceContentRows = computed(() => {
+  if (!detailData.value) {
+    return mock.serviceContent
+  }
+
+  const durationText = formatServiceDurationLabel(detailData.value.durationMinutes)
+  const regions = normalizeServiceStringArray(detailData.value.regionScope)
+  const tags = normalizeServiceStringArray(detailData.value.tags)
+  const contentItems = normalizeServiceStringArray(detailData.value.serviceContent)
+  const rows = []
+
+  if (contentItems.length) {
+    rows.push({ label: '康复内容', value: contentItems.join('、') })
+  }
+
+  if (tags.length) {
+    rows.push({ label: '服务标签', value: tags.join('、') })
+  }
+
+  if (regions.length) {
+    rows.push({ label: '服务区域', value: regions.join('、') })
+  }
+
+  if (durationText) {
+    rows.push({ label: '服务时长', value: durationText })
+  }
+
+  if (detailData.value.institution?.name) {
+    rows.push({ label: '服务机构', value: detailData.value.institution.name })
+  }
+
+  return rows.length ? rows : mock.serviceContent
+})
+
+const detailText = computed(() => {
+  if (!detailData.value) {
+    return mock.detail
+  }
+
+  const snippetText = extractServiceTexts(detailData.value.ragSnippet)[0]
+  const contentText = normalizeServiceStringArray(detailData.value.serviceContent).join('，')
+
+  return detailData.value.summary || snippetText || contentText || mock.detail
+})
+
+const noticeRows = computed(() => {
+  const texts = extractServiceTexts(detailData.value?.ragSnippet)
+
+  if (!texts.length) {
+    return mock.notice
+  }
+
+  return texts.map((value, index) => ({
+    label: index === 0 ? '服务提醒' : `提醒${index + 1}`,
+    value,
+  }))
+})
+
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch('service/rehab-therapy')
   }
 }
 
-const buyNow = () => {
-  setOrderFlowService({
-    type: 'rehab',
-    serviceId: 'srv_rehab_stroke',
-    title: '脑卒中术后康复套餐',
-    price: 1990,
-    image: mock.image,
-    detailPageId: 'service/rehab-therapy-detail',
-    listPageId: 'service/rehab-therapy',
-    couponAmount: 100,
-    addressId: 'addr_joy_home',
-    addressText: '上海市浦东新区丁香路168弄12号302室',
-    contactName: '王秀珍',
-    contactPhone: '13800138000',
+function persistSelectedService(detail: ServiceCatalogDetail) {
+  saveSelectedServiceContext({
+    categorySlug: 'rehab-therapy',
+    serviceId: detail.serviceId,
+    title: detail.title,
+    coverUrl: detail.coverUrl,
+    price: detail.price,
   })
+}
+
+async function resolveServiceId() {
+  const selectedService = readSelectedServiceContext()
+
+  if (selectedService?.categorySlug === 'rehab-therapy' && selectedService.serviceId.trim()) {
+    return selectedService.serviceId.trim()
+  }
+
+  const services = await getRehabTherapyServices()
+  return services.list[0]?.serviceId || ''
+}
+
+async function loadServiceDetail() {
+  try {
+    const serviceId = await resolveServiceId()
+
+    if (!serviceId) {
+      throw new Error('暂无可用康复理疗服务')
+    }
+
+    const nextDetail = await getRehabTherapyServiceDetail(serviceId)
+    detailData.value = nextDetail
+    persistSelectedService(nextDetail)
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '康复理疗详情加载失败')
+  }
+}
+
+const buyNow = () => {
+  if (detailData.value) {
+    persistSelectedService(detailData.value)
+  }
+
   props.navigation.navigateTo('service/booking')
 }
+
+onMounted(() => {
+  void loadServiceDetail()
+})
 </script>
 
 <template>
   <div class="rehab-detail-page">
     <section class="hero">
-      <img class="hero-image" :src="mock.image" :alt="mock.title" />
+      <img class="hero-image" :src="image" :alt="title" />
       <div class="hero-mask"></div><div class="hero-actions">
         <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
         <div class="action-icons">
@@ -61,15 +179,15 @@ const buyNow = () => {
 
     <main class="detail-panel">
       <section class="summary-section">
-        <h1>{{ mock.title }}</h1>
+        <h1>{{ title }}</h1>
         <div class="price-line">
-          <span class="price">¥ {{ mock.price }}</span>
-          <span class="discount">{{ mock.discount }}</span>
+          <span class="price">¥ {{ priceText }}</span>
+          <span class="discount">{{ discountText }}</span>
         </div>
         <div class="rating-line">
           <span class="stars">★★★★★</span>
-          <strong>{{ mock.rating }}</strong>
-          <span>({{ mock.ratingCount }}人评论)</span>
+          <strong>{{ ratingText }}</strong>
+          <span>({{ reviewCountText }})</span>
         </div>
       </section>
 
@@ -91,7 +209,7 @@ const buyNow = () => {
       <section class="content-section">
         <h2>服务内容</h2>
         <dl class="info-list">
-          <div v-for="row in mock.serviceContent" :key="row.label" class="info-row">
+          <div v-for="row in serviceContentRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -112,13 +230,13 @@ const buyNow = () => {
 
       <section class="content-section">
         <h2>服务详情</h2>
-        <p class="detail-text">{{ mock.detail }}</p>
+        <p class="detail-text">{{ detailText }}</p>
       </section>
 
       <section class="content-section">
         <h2>购买须知</h2>
         <dl class="info-list">
-          <div v-for="row in mock.notice" :key="row.label" class="info-row">
+          <div v-for="row in noticeRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -127,8 +245,8 @@ const buyNow = () => {
 
       <section class="review-section">
         <div class="review-heading">
-          <h2>用户评价（{{ mock.ratingCount }}）</h2>
-          <span>4.9</span>
+          <h2>用户评价（{{ reviewCountText }}）</h2>
+          <span>{{ ratingText }}</span>
         </div>
 
         <article v-for="review in mock.reviews" :key="review.id" class="review-card">

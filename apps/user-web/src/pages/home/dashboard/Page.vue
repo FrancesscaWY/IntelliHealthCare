@@ -66,13 +66,6 @@ interface ArticleCardState {
   isStarred: boolean;
 }
 
-const serviceCategoryOrder = ["HOME_CARE", "REHAB_THERAPY", "HOME_EXAM"] as const;
-const serviceCardConfigByCategory = {
-  HOME_CARE: mock.services[0],
-  REHAB_THERAPY: mock.services[1],
-  HOME_EXAM: mock.services[2],
-};
-
 function createArticleState(
   items: Array<{
     title: string;
@@ -111,6 +104,13 @@ function formatServicePrice(price: number) {
 }
 
 function mapServiceEntries(entries: HomeDashboardServiceEntry[]) {
+  const serviceCategoryOrder = ["HOME_CARE", "REHAB_THERAPY", "HOME_EXAM"] as const;
+  const serviceCardConfigByCategory = {
+    HOME_CARE: mock.services[0],
+    REHAB_THERAPY: mock.services[1],
+    HOME_EXAM: mock.services[2],
+  };
+
   return serviceCategoryOrder.flatMap((category) => {
     const entry = entries.find((item) => item.category === category);
 

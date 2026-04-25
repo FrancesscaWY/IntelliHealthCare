@@ -1,8 +1,18 @@
 ﻿<script setup lang="ts">
+import { ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { updateHeartRateSettings } from "@/shared/api/health";
+import { selectedDeviceId } from "../device-center/state";
 
 const props = defineProps<PageComponentProps>();
+
+const items = ref([
+  { key: "all-day-heart-rate", label: "全天心率检测", value: "已关闭" },
+  { key: "high-heart-rate-warning", label: "心率过高提醒", value: "不提醒" },
+  { key: "low-heart-rate-warning", label: "心率过低提醒", value: "不提醒" },
+]);
+
+const isSaving = ref(false);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -10,8 +20,27 @@ function goBack() {
   }
 }
 
-function openSetting(label: string) {
-  props.showToast(`${label}功能待接入`);
+async function openSetting(item: { key: string; label: string; value: string }) {
+  const deviceId = selectedDeviceId.value;
+  if (!deviceId) {
+    props.showToast("设备信息缺失");
+    return;
+  }
+
+  // Toggle the value between common states
+  const newValue = item.value === "已关闭" ? "已开启" : "已关闭";
+
+  try {
+    isSaving.value = true;
+    await updateHeartRateSettings(deviceId, { [item.key]: newValue });
+    item.value = newValue;
+    props.showToast(`${item.label}已${newValue}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "设置失败，请稍后重试";
+    props.showToast(message);
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
@@ -21,17 +50,18 @@ function openSetting(label: string) {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <h1>{{ mock.title }}</h1>
+      <h1>心率设置</h1>
     </header>
 
     <main class="settings-scroll">
       <section class="settings-list" aria-label="心率设置列表">
         <button
-          v-for="item in mock.items"
+          v-for="item in items"
           :key="item.key"
           class="settings-row"
           type="button"
-          @click="openSetting(item.label)"
+          :disabled="isSaving"
+          @click="openSetting(item)"
         >
           <span class="setting-label">{{ item.label }}</span>
           <span class="setting-value">{{ item.value }}</span>

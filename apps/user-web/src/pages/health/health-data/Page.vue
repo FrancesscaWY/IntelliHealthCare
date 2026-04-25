@@ -4,7 +4,7 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import { SetOff } from "@icon-park/vue-next";
 import avatarImage from "@/assets/community/activities/people.png";
 import { syncHealthDeviceItems } from "../device-center/state";
-import mock from "./mock";
+import { loadHealthDataOverviewSource } from "../measurement-source";
 import { takeHealthDataBackTarget } from "./source";
 
 const props = defineProps<PageComponentProps>();
@@ -20,9 +20,27 @@ const metricColorMap: Record<string, string> = {
   stress: "#d9b46a",
 };
 
-type HealthDataItem = (typeof mock.list)[number];
+type HealthDataItem = Awaited<ReturnType<typeof loadHealthDataOverviewSource>>["list"][number];
 
-const dataList = computed<HealthDataItem[]>(() => mock.list);
+const emptyHealthDataItem: HealthDataItem = {
+  date: "",
+  steps: 0,
+  sleep: 0,
+  weight: 0,
+  heartRate: 0,
+  bloodSugar: 0,
+  bloodPressure: "0/0",
+  oxygen: 0,
+  stress: 0
+};
+
+const overviewData = ref<{ list: HealthDataItem[] }>({
+  list: []
+});
+
+const dataList = computed<HealthDataItem[]>(() =>
+  overviewData.value.list.length ? overviewData.value.list : [emptyHealthDataItem]
+);
 const latest = computed(() => dataList.value[dataList.value.length - 1]);
 const previous = computed(() => dataList.value[dataList.value.length - 2] ?? latest.value);
 
@@ -310,7 +328,16 @@ function getDeviceErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
 }
 
+async function loadOverviewData() {
+  try {
+    overviewData.value = await loadHealthDataOverviewSource();
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  }
+}
+
 onMounted(() => {
+  void loadOverviewData();
   void syncHealthDeviceItems()
     .then((items) => {
       deviceCount.value = items.length;

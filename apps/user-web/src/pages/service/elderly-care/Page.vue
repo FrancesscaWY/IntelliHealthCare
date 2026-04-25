@@ -1,22 +1,40 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
+import { getElderlyCareServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
+import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 import mock, { type FilterKey } from './mock'
 
 const props = defineProps<PageComponentProps>()
 
+interface DisplayElderlyCareItem {
+  serviceId: string
+  title: string
+  subtitle: string
+  tags: string[]
+  price: number
+  rating: number | null
+  city: string
+  salesVolume: number
+  coverUrl: string | null
+}
+
 const activeFilter = ref<FilterKey>('popular')
+const isLoading = ref(true)
+const serviceList = ref<DisplayElderlyCareItem[]>(createMockInstitutions())
 
 const institutionList = computed(() => {
+  const list = serviceList.value.length > 0 ? serviceList.value : createMockInstitutions()
+
   if (activeFilter.value === 'price') {
-    return [...mock.institutions].sort((a, b) => a.price - b.price)
+    return [...list].sort((a, b) => a.price - b.price)
   }
 
   if (activeFilter.value === 'rating') {
-    return [...mock.institutions].sort((a, b) => b.rating - a.rating)
+    return [...list].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
   }
 
-  return mock.institutions
+  return [...list].sort((a, b) => b.salesVolume - a.salesVolume)
 })
 
 const goBack = () => {
@@ -25,9 +43,62 @@ const goBack = () => {
   }
 }
 
-const openInstitution = () => {
+function createMockInstitutions(): DisplayElderlyCareItem[] {
+  return mock.institutions.map((item, index) => ({
+    serviceId: `mock-elderly-care-${index + 1}`,
+    title: item.name,
+    subtitle: item.subtitle,
+    tags: item.tags,
+    price: item.price,
+    rating: item.rating,
+    city: item.distance,
+    salesVolume: item.beds,
+    coverUrl: null,
+  }))
+}
+
+function mapServiceItemToInstitution(item: ServiceCatalogItem): DisplayElderlyCareItem {
+  return {
+    serviceId: item.serviceId,
+    title: item.title,
+    subtitle: item.summary || item.institution?.name || '',
+    tags: normalizeServiceStringArray(item.tags),
+    price: item.price,
+    rating: item.rating,
+    city: item.institution?.city || '',
+    salesVolume: item.salesVolume,
+    coverUrl: item.coverUrl,
+  }
+}
+
+const openInstitution = (item: DisplayElderlyCareItem) => {
+  saveSelectedServiceContext({
+    categorySlug: 'elderly-care',
+    serviceId: item.serviceId,
+    title: item.title,
+    coverUrl: item.coverUrl,
+    price: item.price,
+  })
+
   props.navigation.navigateTo('service/elderly-care-detail')
 }
+
+async function loadPageData() {
+  try {
+    const response = await getElderlyCareServices(1, 20)
+    if (response.list.length) {
+      serviceList.value = response.list.map(mapServiceItemToInstitution)
+    }
+  } catch {
+    // fallback to mock data
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadPageData()
+})
 </script>
 
 <template>
@@ -56,23 +127,26 @@ const openInstitution = () => {
       </button>
     </div>
 
-    <section class="institution-grid" aria-label="养老机构列表">
-      <article v-for="item in institutionList" :key="item.id" class="institution-card" @click="openInstitution">
-        <div class="image-placeholder">
+    <div v-if="isLoading" class="loading-state">加载中...</div>
+
+    <section v-else class="institution-grid" aria-label="养老机构列表">
+      <article v-for="item in institutionList" :key="item.serviceId" class="institution-card" @click="openInstitution(item)">
+        <img v-if="item.coverUrl" class="institution-image" :src="item.coverUrl" :alt="item.title" />
+        <div v-else class="image-placeholder">
           <span>图片待添加</span>
         </div>
-        <h2>{{ item.name }}</h2>
+        <h2>{{ item.title }}</h2>
         <p>{{ item.subtitle }}</p>
         <div class="tag-row">
           <span v-for="tag in item.tags" :key="tag" class="institution-tag">{{ tag }}</span>
         </div>
         <div class="meta-row">
           <span class="price">¥{{ item.price }}起</span>
-          <span class="rating">★ {{ item.rating }}</span>
+          <span class="rating">★ {{ item.rating ?? '-' }}</span>
         </div>
         <div class="info-row">
-          <span>{{ item.distance }}</span>
-          <span>余{{ item.beds }}床</span>
+          <span>{{ item.city }}</span>
+          <span>已售{{ item.salesVolume }}</span>
         </div>
       </article>
     </section>
@@ -174,6 +248,14 @@ const openInstitution = () => {
   border-top: 5px solid #d2d4d8;
 }
 
+.loading-state {
+  text-align: center;
+  padding: 60px 0;
+  color: #8d929a;
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .institution-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -205,6 +287,15 @@ const openInstitution = () => {
   color: #8b93a4;
   font-size: 13px;
   font-weight: 700;
+}
+
+.institution-image {
+  width: 100%;
+  height: 158px;
+  display: block;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #eef2f7;
 }
 
 .institution-card h2 {

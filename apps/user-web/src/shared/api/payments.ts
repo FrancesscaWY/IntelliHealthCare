@@ -1,51 +1,55 @@
 import { request } from "@/shared/api/client";
 
-export type PaymentChannelCode = "ALIPAY" | "WECHAT" | string;
+export type PaymentChannel = "WECHAT" | "ALIPAY" | "BALANCE" | "OFFLINE";
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "CLOSED";
 
-export interface PaymentChannelItem {
-  code: PaymentChannelCode;
-  name: string;
-}
-
-export interface PaymentChannelsResponse {
-  list: PaymentChannelItem[];
-}
-
-export interface CreatePaymentRequest {
+export interface CreatePaymentParams {
   orderId: string;
-  channel: PaymentChannelCode;
+  channel: PaymentChannel;
 }
 
-export interface PaymentDetailResponse {
+export interface PaymentChannelOption {
+  channel: PaymentChannel;
+  title: string;
+  enabled: boolean;
+}
+
+export interface PaymentSummary {
   paymentId: string;
-  orderId: string;
+  paymentNo: string;
+  status: PaymentStatus;
   amount: number;
-  status: string;
-  paidAt?: string | null;
+  channel: PaymentChannel;
+}
+
+export interface PaymentDetail extends PaymentSummary {
+  orderId: string;
+  paidAt: string | null;
+  createdAt: string | null;
 }
 
 export function getPaymentChannels() {
-  return request<PaymentChannelsResponse>("/app/payments/channels", {
+  return request<PaymentChannelOption[]>("/app/payments/channels", {
     auth: true
   });
 }
 
-export function createPayment(payload: CreatePaymentRequest) {
-  return request<PaymentDetailResponse>("/app/payments", {
+export function createPayment(body: CreatePaymentParams) {
+  return request<PaymentSummary>("/app/payments", {
     method: "POST",
-    auth: true,
-    body: payload
+    body,
+    auth: true
   });
 }
 
-export function getPaymentDetail(paymentId: string) {
-  return request<PaymentDetailResponse>(`/app/payments/${paymentId}`, {
+export function getPayment(paymentId: string) {
+  return request<PaymentDetail>(`/app/payments/${paymentId}`, {
     auth: true
   });
 }
 
 export function confirmPayment(paymentId: string) {
-  return request<PaymentDetailResponse>(`/app/payments/${paymentId}/confirm`, {
+  return request<PaymentDetail>(`/app/payments/${paymentId}/confirm`, {
     method: "POST",
     auth: true
   });

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watchEffect } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { getHealthDeviceDetail, getHealthDeviceMeasurements, unbindHealthDevice } from "@/shared/api/health";
+import {
+  getHealthDeviceDetail,
+  getHealthDeviceMeasurements,
+  unbindHealthDevice,
+  updateDeviceSettings
+} from "@/shared/api/health";
 import type { HealthDeviceMeasurement } from "@/shared/api/health";
 import mock from "./mock";
 import { getDeviceById, mapHealthDeviceToDeviceItem } from "../device-center/devices";
@@ -20,6 +25,7 @@ const isUnbinding = ref(false);
 const isLoadingDetail = ref(false);
 const measurements = ref<HealthDeviceMeasurement[]>([]);
 const isLoadingMeasurements = ref(false);
+const savingToggles = reactive<Record<string, boolean>>({});
 
 watchEffect(() => {
   imageLoadFailed.value = false;
@@ -88,8 +94,25 @@ function getIconMarkup(type: string) {
   return detailIconMarkup[type] || detailIconMarkup.watch;
 }
 
-function toggleSetting(key: string) {
-  toggleValues[key] = !toggleValues[key];
+async function toggleSetting(key: string) {
+  const deviceId = selectedDeviceId.value;
+  if (!deviceId || savingToggles[key]) {
+    return;
+  }
+
+  const newValue = !toggleValues[key];
+  toggleValues[key] = newValue;
+
+  try {
+    savingToggles[key] = true;
+    await updateDeviceSettings(deviceId, { [key]: newValue });
+  } catch (error) {
+    // Revert on failure
+    toggleValues[key] = !newValue;
+    props.showToast(getDeviceErrorMessage(error));
+  } finally {
+    savingToggles[key] = false;
+  }
 }
 
 function openQuickLink(item: { key: string; label: string }) {
@@ -167,8 +190,7 @@ async function fetchDeviceMeasurements() {
 
   try {
     isLoadingMeasurements.value = true;
-    const res = await getHealthDeviceMeasurements(deviceId);
-    measurements.value = res.list;
+    measurements.value = await getHealthDeviceMeasurements(deviceId);
   } catch (error) {
     props.showToast(getDeviceErrorMessage(error));
   } finally {
@@ -283,6 +305,7 @@ onMounted(() => {
           :key="item.key"
           class="settings-row settings-row--toggle"
           type="button"
+          :disabled="savingToggles[item.key]"
           @click="toggleSetting(item.key)"
         >
           <span>{{ item.label }}</span>
@@ -309,9 +332,9 @@ onMounted(() => {
         <h3 class="measurements-title">最近测量记录</h3>
         <div v-if="isLoadingMeasurements" class="measurements-loading">加载中...</div>
         <ul v-else-if="measurements.length > 0" class="measurements-list">
-          <li v-for="m in measurements" :key="m.measurementId" class="measurement-item">
-            <span class="measurement-type">{{ getMeasurementTypeLabel(m.type) }}</span>
-            <span class="measurement-value">{{ m.value }}{{ m.unit ? m.unit : "" }}</span>
+          <li v-for="m in measurements" :key="m.recordId" class="measurement-item">
+            <span class="measurement-type">{{ getMeasurementTypeLabel(m.metricKey) }}</span>
+            <span class="measurement-value">{{ m.displayValue ?? m.value }}{{ m.unit ? m.unit : "" }}</span>
             <span class="measurement-time">{{ formatMeasurementTime(m.measuredAt) }}</span>
           </li>
         </ul>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { createHealthMedication } from "@/shared/api/health";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -20,6 +21,7 @@ const selectedMinute = ref(3);
 const editingTimeIndex = ref<number | null>(null);
 const frequencies = ["每天", "每隔1天", "每隔2天", "每隔3天", "每隔4天", "每隔5天"];
 const units = ["瓶", "片", "包"];
+const isSaving = ref(false);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -89,11 +91,39 @@ function selectUnit(value: string) {
   closePicker();
 }
 
-function saveMedication() {
-  props.showToast("保存成功");
-  window.setTimeout(() => {
-    props.navigation.reLaunch("health/medication-info");
-  }, 220);
+async function saveMedication() {
+  if (isSaving.value) return;
+
+  if (!form.name.trim()) {
+    props.showToast("请填写药品名称");
+    return;
+  }
+
+  if (!form.dose.trim()) {
+    props.showToast("请填写剂量");
+    return;
+  }
+
+  isSaving.value = true;
+
+  try {
+    await createHealthMedication({
+      name: form.name.trim(),
+      dosage: `${form.dose}${form.unit || ""}`,
+      frequency: form.frequency || "每天",
+      scheduleTimes: form.times.length > 0 ? form.times : undefined,
+      startDate: new Date().toISOString().split("T")[0],
+    });
+
+    props.showToast("保存成功");
+    window.setTimeout(() => {
+      props.navigation.navigateBack();
+    }, 220);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "保存失败");
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
