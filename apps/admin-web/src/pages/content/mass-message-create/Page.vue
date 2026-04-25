@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  createAdminCampaign,
+  getAdminCampaignDetail,
+  getAdminCampaignOptions,
+  updateAdminCampaign,
+} from "@/shared/api/messaging";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const pageData = ref<typeof mock>(mock);
+const editingCampaignId = ref("");
+const campaignStorageKey = "admin:content:selected-campaign-id";
+const selectedUsers = ref<string[]>([...mock.selectedUsers]);
+const selectedProducts = ref<string[]>([...mock.selectedProducts]);
 
 const form = reactive({
   name: "",
@@ -17,14 +29,162 @@ const form = reactive({
 });
 
 const receiverSummary = computed(() =>
-  form.receiverType === "全部用户" ? "当前将发送给全部用户" : `已选择 ${mock.selectedUsers.length} 个用户分组`,
+  form.receiverType === "全部用户" ? "当前将发送给全部用户" : `已选择 ${selectedUsers.value.length} 个用户分组`,
 );
 
 const productSummary = computed(() =>
-  form.insertProductLink ? `已关联 ${mock.selectedProducts.length} 个商品` : "未插入商品链接",
+  form.insertProductLink ? `已关联 ${selectedProducts.value.length} 个商品` : "未插入商品链接",
 );
 
-function saveMessage() {
+const pageTitle = computed(() => (editingCampaignId.value ? "编辑消息" : pageData.value.title));
+
+function readEditingCampaignId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.sessionStorage.getItem(campaignStorageKey) ?? "";
+}
+
+function clearEditingCampaignId() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(campaignStorageKey);
+}
+
+function mapChannelLabelToCode(label: string) {
+  if (label === "短信") {
+    return "SMS";
+  }
+
+  if (label === "会话消息") {
+    return "CONVERSATION";
+  }
+
+  return "SYSTEM";
+}
+
+function mapChannelCodeToLabel(code?: string) {
+  if (code === "SMS") {
+    return "短信";
+  }
+
+  if (code === "CONVERSATION") {
+    return "会话消息";
+  }
+
+  return "系统消息";
+}
+
+function mapCampaignStatusToSendTimeType(status?: string) {
+  if (status === "SCHEDULED") {
+    return pageData.value.sendTimeOptions[1];
+  }
+
+  return pageData.value.sendTimeOptions[0];
+}
+
+function toDateInputParts(value?: string | null) {
+  if (!value) {
+    return {
+      date: "",
+      time: "09:30",
+    };
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return {
+      date: "",
+      time: "09:30",
+    };
+  }
+
+  return {
+    date: parsed.toISOString().slice(0, 10),
+    time: parsed.toISOString().slice(11, 16),
+  };
+}
+
+async function syncPageData() {
+  try {
+    pageData.value = (await getAdminCampaignOptions()) as typeof mock;
+    form.receiverType = pageData.value.receiverOptions[0];
+    form.sendTimeType = pageData.value.sendTimeOptions[0];
+    form.channel = pageData.value.channelOptions[0];
+    selectedUsers.value = [...pageData.value.selectedUsers];
+    selectedProducts.value = [...pageData.value.selectedProducts];
+
+    editingCampaignId.value = readEditingCampaignId();
+
+    if (!editingCampaignId.value) {
+      return;
+    }
+
+    const detail = await getAdminCampaignDetail(editingCampaignId.value);
+    const schedule = toDateInputParts(detail.scheduledAt);
+    const receiverTags = Array.isArray(detail.receiverSnapshot?.tags)
+      ? detail.receiverSnapshot.tags.filter((item: unknown): item is string => typeof item === "string")
+      : [];
+    const productTitles = Array.isArray(detail.productSnapshot)
+      ? detail.productSnapshot
+          .map((item: Record<string, unknown>) => String(item.title ?? "").trim())
+          .filter(Boolean)
+      : [];
+
+    form.name = String(detail.title ?? "");
+    form.receiverType = detail.receiverType === "ALL_USERS" ? pageData.value.receiverOptions[0] : pageData.value.receiverOptions[1];
+    form.insertProductLink = Boolean(detail.insertProductLink);
+    form.sendTimeType = mapCampaignStatusToSendTimeType(detail.status);
+    form.publishDate = schedule.date;
+    form.publishTime = schedule.time;
+    form.content = String(detail.content ?? "");
+    form.channel = mapChannelCodeToLabel(detail.channel);
+    selectedUsers.value = receiverTags.length > 0 ? receiverTags : [...pageData.value.selectedUsers];
+    selectedProducts.value = productTitles.length > 0 ? productTitles : [...pageData.value.selectedProducts];
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "群发消息配置加载失败，已回退到演示数据",
+    });
+  }
+}
+
+function buildPayload() {
+  return {
+    title: form.name.trim(),
+    content: form.content.trim(),
+    channel: mapChannelLabelToCode(form.channel),
+    status: form.sendTimeType === pageData.value.sendTimeOptions[1] ? "SCHEDULED" : "SENT",
+    receiverType: form.receiverType === pageData.value.receiverOptions[0] ? "ALL_USERS" : "SEGMENT",
+    receiverSnapshot:
+      form.receiverType === pageData.value.receiverOptions[0]
+        ? {
+            label: "全部用户",
+          }
+        : {
+            label: "部分用户",
+            tags: selectedUsers.value,
+          },
+    insertProductLink: form.insertProductLink,
+    productSnapshot: form.insertProductLink
+      ? selectedProducts.value.map((title, index) => ({
+          serviceId: `linked-product-${index + 1}`,
+          title,
+        }))
+      : [],
+    scheduledAt:
+      form.sendTimeType === pageData.value.sendTimeOptions[1] && form.publishDate && form.publishTime
+        ? new Date(`${form.publishDate}T${form.publishTime}:00.000Z`).toISOString()
+        : undefined,
+  };
+}
+
+async function saveMessage() {
   if (!form.name.trim()) {
     props.showToast("请输入消息名称");
     return;
@@ -35,10 +195,31 @@ function saveMessage() {
     return;
   }
 
-  props.showToast("消息已保存，当前为演示状态");
+  try {
+    const payload = buildPayload();
+
+    if (editingCampaignId.value) {
+      await updateAdminCampaign(editingCampaignId.value, payload);
+      props.showToast("消息已更新");
+    } else {
+      await createAdminCampaign(payload);
+      props.showToast("消息已创建");
+    }
+
+    clearEditingCampaignId();
+    props.navigation.reLaunch("content/mass-message");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "消息保存失败，请稍后重试",
+    });
+  }
 }
 
 function goBack() {
+  clearEditingCampaignId();
+
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("content/mass-message");
   }
@@ -51,6 +232,10 @@ function chooseUsers() {
 function chooseProducts() {
   props.showToast("选择商品为演示状态");
 }
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -58,7 +243,7 @@ function chooseProducts() {
     <article class="panel">
       <header class="panel-head">
         <span class="panel-head__accent"></span>
-        <h1>{{ mock.title }}</h1>
+        <h1>{{ pageTitle }}</h1>
       </header>
 
       <section class="form-panel">
@@ -76,11 +261,11 @@ function chooseProducts() {
           <div class="form-content form-content--stack">
             <div class="choice-line">
               <label class="radio-item">
-                <input v-model="form.receiverType" type="radio" :value="mock.receiverOptions[0]" />
+                <input v-model="form.receiverType" type="radio" :value="pageData.receiverOptions[0]" />
                 <span>全部用户</span>
               </label>
               <label class="radio-item">
-                <input v-model="form.receiverType" type="radio" :value="mock.receiverOptions[1]" />
+                <input v-model="form.receiverType" type="radio" :value="pageData.receiverOptions[1]" />
                 <span>部分用户</span>
               </label>
               <button v-if="form.receiverType === '部分用户'" class="text-link" type="button" @click="chooseUsers">+ 选择用户</button>
@@ -108,11 +293,11 @@ function chooseProducts() {
           <div class="form-content form-content--stack">
             <div class="choice-line">
               <label class="radio-item">
-                <input v-model="form.sendTimeType" type="radio" :value="mock.sendTimeOptions[0]" />
+                <input v-model="form.sendTimeType" type="radio" :value="pageData.sendTimeOptions[0]" />
                 <span>立即发送</span>
               </label>
               <label class="radio-item">
-                <input v-model="form.sendTimeType" type="radio" :value="mock.sendTimeOptions[1]" />
+                <input v-model="form.sendTimeType" type="radio" :value="pageData.sendTimeOptions[1]" />
                 <span>定时发布</span>
               </label>
             </div>
@@ -141,7 +326,7 @@ function chooseProducts() {
           <span class="form-label">发送方式</span>
           <div class="form-content">
             <div class="choice-line">
-              <label v-for="item in mock.channelOptions" :key="item" class="radio-item">
+              <label v-for="item in pageData.channelOptions" :key="item" class="radio-item">
                 <input v-model="form.channel" type="radio" :value="item" />
                 <span>{{ item }}</span>
               </label>

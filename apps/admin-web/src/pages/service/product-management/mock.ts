@@ -1,9 +1,6 @@
-const houseImage =
-  "https://images.pexels.com/photos/4108279/pexels-photo-4108279.jpeg?auto=compress&cs=tinysrgb&w=240";
-const examImage =
-  "https://images.pexels.com/photos/8460043/pexels-photo-8460043.jpeg?auto=compress&cs=tinysrgb&w=240";
-const rehabImage =
-  "https://images.pexels.com/photos/7089401/pexels-photo-7089401.jpeg?auto=compress&cs=tinysrgb&w=240";
+const houseImage = "/api/v1/assets/demo/services/service-home-care.png";
+const examImage = "/api/v1/assets/demo/services/service-home-visit.png";
+const rehabImage = "/api/v1/assets/demo/services/service-rehab.png";
 
 const commonMeta = {
   updater: "李明明",

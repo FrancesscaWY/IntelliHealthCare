@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type AfterSaleRow } from "./mock";
+import { getAdminAfterSales } from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed, { replaceAfterSaleRows, type AfterSaleRow } from "./mock";
 import { afterSaleDetailStorageKey } from "../after-sale-detail/mock";
 import { orderDetailStorageKey } from "../order-list/mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
 
 const minRefund = ref("");
 const maxRefund = ref("");
@@ -13,28 +16,40 @@ const startDate = ref("2023-03-01");
 const endDate = ref("2023-03-31");
 const keyword = ref("");
 const activeStatus = ref("全部");
-const listRefreshTick = ref(0);
-
-function refreshRows() {
-  listRefreshTick.value += 1;
-}
-
-onMounted(refreshRows);
-onActivated(refreshRows);
-
 const filteredRows = computed(() =>
-  (listRefreshTick.value,
-  mock.rows.filter((row) => {
+  mock.value.rows.filter((row) => {
     const matchesStatus = activeStatus.value === "全部" || row.status === activeStatus.value;
     const matchesKeyword =
       !keyword.value.trim() || `${row.orderNo}${row.afterSaleNo}${row.title}`.includes(keyword.value.trim());
     const matchesMin = !minRefund.value || Number(row.refundAmount) >= Number(minRefund.value);
     const matchesMax = !maxRefund.value || Number(row.refundAmount) <= Number(maxRefund.value);
-    return matchesStatus && matchesKeyword && matchesMin && matchesMax;
-  })),
+    const appliedDate = row.appliedAt.slice(0, 10);
+    const matchesDate = (!startDate.value || appliedDate >= startDate.value) && (!endDate.value || appliedDate <= endDate.value);
+    return matchesStatus && matchesKeyword && matchesMin && matchesMax && matchesDate;
+  }),
 );
 
-function searchRows() {
+async function syncPageData() {
+  try {
+    const response = (await getAdminAfterSales({
+      page: 1,
+      pageSize: 100,
+      status: activeStatus.value !== "全部" ? activeStatus.value : undefined,
+      keyword: keyword.value.trim() || undefined,
+    })) as typeof mockSeed;
+    mock.value = response;
+    replaceAfterSaleRows(response.rows);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "售后管理列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function searchRows() {
+  await syncPageData();
   props.showToast(`已筛选 ${filteredRows.value.length} 条售后记录`);
 }
 
@@ -45,6 +60,7 @@ function resetFilters() {
   endDate.value = "2023-03-31";
   keyword.value = "";
   activeStatus.value = "全部";
+  void syncPageData();
   props.showToast("筛选条件已重置");
 }
 
@@ -75,12 +91,20 @@ function triggerAction(label: string, row?: AfterSaleRow) {
   }
 
   if (label === "订单详情") {
-    navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, row.orderNo);
+    navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, row.orderId || row.orderNo);
     return;
   }
 
   props.showToast(`${label}：${row.afterSaleNo}`);
 }
+
+onMounted(() => {
+  void syncPageData();
+});
+
+onActivated(() => {
+  void syncPageData();
+});
 </script>
 
 <template>

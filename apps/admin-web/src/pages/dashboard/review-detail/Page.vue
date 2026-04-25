@@ -1,20 +1,103 @@
 <script setup lang="ts">
+import { onActivated, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import {
+  getAdminStaffApplicationDetail,
+  reviewAdminStaffApplication,
+} from "@/shared/api/catalog";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
+const reviewDetailStorageKey = "admin:dashboard:selected-application-id";
+const applicationId = ref("");
+
+function readApplicationId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.sessionStorage.getItem(reviewDetailStorageKey) ?? "";
+}
+
+async function syncPageData() {
+  applicationId.value = readApplicationId();
+
+  if (!applicationId.value) {
+    return;
+  }
+
+  try {
+    mock.value = (await getAdminStaffApplicationDetail(applicationId.value)) as typeof mockSeed;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "审核详情加载失败，已回退到演示数据",
+    });
+  }
+}
 
 function goBack() {
   props.navigation.reLaunch("dashboard/review-management");
 }
 
-function rejectReview() {
-  props.showToast("已驳回该服务人员审核申请");
+async function rejectReview() {
+  if (!applicationId.value) {
+    props.showToast("当前审核记录不存在");
+    return;
+  }
+
+  try {
+    await reviewAdminStaffApplication(applicationId.value, {
+      status: "REJECTED",
+    });
+    mock.value = {
+      ...mock.value,
+      status: "已驳回",
+    };
+    props.showToast("已驳回该服务人员审核申请");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "驳回审核失败，请稍后重试",
+    });
+  }
 }
 
-function approveReview() {
-  props.showToast("已通过该服务人员审核申请");
+async function approveReview() {
+  if (!applicationId.value) {
+    props.showToast("当前审核记录不存在");
+    return;
+  }
+
+  try {
+    await reviewAdminStaffApplication(applicationId.value, {
+      status: "APPROVED",
+    });
+    mock.value = {
+      ...mock.value,
+      status: "已通过",
+    };
+    props.showToast("已通过该服务人员审核申请");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "审核通过失败，请稍后重试",
+    });
+  }
 }
+
+onMounted(() => {
+  void syncPageData();
+});
+
+onActivated(() => {
+  void syncPageData();
+});
 </script>
 
 <template>

@@ -1,16 +1,227 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import {
+  endAdminConversation,
+  getAdminConversationDetail,
+  getAdminConversations,
+  sendAdminConversationMessage,
+} from "@/shared/api/messaging";
+import { handleAdminPageError } from "@/shared/api/error";
+import { orderDetailStorageKey } from "../order-list/mock";
+import mockSeed from "./mock";
+
+type RightTab = "customer" | "goods";
+type CustomerTagTone = "green" | "red" | "violet" | "amber";
 
 const props = defineProps<PageComponentProps>();
-
-const activeRightTab = ref<"customer" | "goods">("customer");
+const mock = ref<typeof mockSeed>(mockSeed);
+const activeRightTab = ref<RightTab>("customer");
 const goodsKeyword = ref("");
+const conversationKeyword = ref("");
+const messageDraft = ref("");
+const activeConversationId = ref("");
+const customerTagTones: CustomerTagTone[] = ["green", "red", "violet", "amber"];
 
 const filteredGoods = computed(() =>
-  mock.goods.filter((item) => !goodsKeyword.value.trim() || item.title.includes(goodsKeyword.value.trim())),
+  mock.value.goods.filter((item) => !goodsKeyword.value.trim() || item.title.includes(goodsKeyword.value.trim())),
 );
+
+function mapOrderStatus(status?: string) {
+  switch (status) {
+    case "COMPLETED":
+      return "已完成";
+    case "IN_SERVICE":
+    case "SCHEDULED":
+      return "服务中";
+    case "CANCELLED":
+      return "已关闭";
+    case "AFTER_SALE":
+      return "售后中";
+    default:
+      return status || "待处理";
+  }
+}
+
+function buildCustomerTags(tags: unknown) {
+  return Array.isArray(tags)
+    ? tags
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((label, index) => ({
+          label,
+          tone: customerTagTones[index % customerTagTones.length],
+        }))
+    : [];
+}
+
+async function syncConversationDetail(conversationId: string) {
+  try {
+    const detail = await getAdminConversationDetail(conversationId);
+    activeConversationId.value = conversationId;
+    mock.value = {
+      ...mock.value,
+      title: String(detail.title ?? mock.value.title),
+      currentSessionName: String(detail.currentSessionName ?? ""),
+      messages: Array.isArray(detail.messages)
+        ? detail.messages.map((item: Record<string, unknown>) => ({
+            id: String(item.id ?? ""),
+            side: item.side === "left" ? "left" : "right",
+            text: String(item.text ?? ""),
+            avatar: String(item.avatar ?? ""),
+          }))
+        : [],
+      customer: detail.customer
+        ? {
+            name: String(detail.customer.name ?? ""),
+            avatar: String(detail.customer.avatar ?? ""),
+            tags: buildCustomerTags(detail.customer.tags),
+            orderCount: Number(detail.customer.orderCount ?? 0),
+            amount: String(detail.customer.amount ?? "0.00"),
+          }
+        : mock.value.customer,
+      orders: Array.isArray(detail.orders)
+        ? detail.orders.map((item: Record<string, unknown>) => ({
+            id: String(item.id ?? ""),
+            status: mapOrderStatus(String(item.status ?? "")),
+            title: String(item.title ?? ""),
+            image: String(item.image ?? ""),
+            time: String(item.time ?? ""),
+            amount: String(item.amount ?? ""),
+          }))
+        : [],
+      goods: Array.isArray(detail.goods)
+        ? detail.goods.map((item: Record<string, unknown>) => ({
+            id: String(item.id ?? ""),
+            title: String(item.title ?? ""),
+            image: String(item.image ?? ""),
+            price: String(item.price ?? ""),
+          }))
+        : [],
+      conversations: mock.value.conversations.map((item) => ({
+        ...item,
+        active: item.id === conversationId,
+      })),
+    };
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "会话详情加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function syncConversationList() {
+  try {
+    const response = await getAdminConversations({
+      page: 1,
+      pageSize: 50,
+      keyword: conversationKeyword.value.trim() || undefined,
+    });
+    const conversations: Array<{
+      id: string;
+      name: string;
+      preview: string;
+      time: string;
+      unread: number;
+      avatar: string;
+      active: boolean;
+    }> = Array.isArray(response.conversations)
+      ? response.conversations.map((item: Record<string, unknown>) => ({
+          id: String(item.id ?? ""),
+          name: String(item.name ?? ""),
+          preview: String(item.preview ?? ""),
+          time: String(item.time ?? ""),
+          unread: Number(item.unread ?? 0),
+          avatar: String(item.avatar ?? ""),
+          active: false,
+        }))
+      : [];
+
+    mock.value = {
+      ...mock.value,
+      title: String(response.title ?? mock.value.title),
+      conversations,
+    };
+
+    const nextConversationId =
+      activeConversationId.value && conversations.some((item) => item.id === activeConversationId.value)
+        ? activeConversationId.value
+        : conversations[0]?.id ?? "";
+
+    if (nextConversationId) {
+      await syncConversationDetail(nextConversationId);
+    }
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "会话列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function searchConversations() {
+  await syncConversationList();
+}
+
+async function openConversation(conversationId: string) {
+  await syncConversationDetail(conversationId);
+}
+
+async function sendMessage(content?: string) {
+  const currentConversationId = activeConversationId.value;
+  const nextContent = (content ?? messageDraft.value).trim();
+
+  if (!currentConversationId || !nextContent) {
+    return;
+  }
+
+  try {
+    await sendAdminConversationMessage(currentConversationId, {
+      contentType: "TEXT",
+      content: nextContent,
+    });
+    messageDraft.value = "";
+    await syncConversationDetail(currentConversationId);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "消息发送失败，请稍后重试",
+    });
+  }
+}
+
+async function finishConversation() {
+  if (!activeConversationId.value) {
+    return;
+  }
+
+  try {
+    await endAdminConversation(activeConversationId.value);
+    props.showToast("会话已结束");
+    await syncConversationList();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "结束会话失败，请稍后重试",
+    });
+  }
+}
+
+function openOrderDetail(orderId: string) {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(orderDetailStorageKey, orderId);
+  }
+
+  props.navigation.navigateTo("dashboard/order-detail");
+}
+
+onMounted(() => {
+  void syncConversationList();
+});
 </script>
 
 <template>
@@ -26,7 +237,7 @@ const filteredGoods = computed(() =>
       <div class="session-layout">
         <aside class="conversation-pane">
           <div class="conversation-search">
-            <input type="text" placeholder="搜索会话" />
+            <input v-model="conversationKeyword" type="text" placeholder="搜索会话" @keydown.enter="searchConversations" />
             <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
               <circle cx="9" cy="9" r="5.6" fill="none" stroke="currentColor" stroke-width="1.8" />
               <path d="m13.3 13.3 4 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" />
@@ -40,6 +251,7 @@ const filteredGoods = computed(() =>
               class="conversation-item"
               :class="{ 'conversation-item--active': item.active }"
               type="button"
+              @click="openConversation(item.id)"
             >
               <img :src="item.avatar" :alt="item.name" />
               <div class="conversation-item__body">
@@ -59,7 +271,7 @@ const filteredGoods = computed(() =>
         <section class="chat-pane">
           <header class="chat-head">
             <strong>{{ mock.currentSessionName }}</strong>
-            <button type="button" class="chat-head__action" @click="props.showToast('结束会话功能为演示状态')">结束会话</button>
+            <button type="button" class="chat-head__action" @click="finishConversation">结束会话</button>
           </header>
 
           <div class="chat-body">
@@ -72,13 +284,13 @@ const filteredGoods = computed(() =>
           </div>
 
           <footer class="chat-input">
-            <input type="text" placeholder="请输入" />
+            <input v-model="messageDraft" type="text" placeholder="请输入" @keydown.enter="sendMessage()" />
           </footer>
         </section>
 
         <aside class="detail-pane">
           <header class="detail-tabs">
-            <button type="button" class="detail-tabs__action" @click="props.showToast('结束会话功能为演示状态')">结束会话</button>
+            <button type="button" class="detail-tabs__action" @click="finishConversation">结束会话</button>
             <button
               class="detail-tabs__item"
               :class="{ 'detail-tabs__item--active': activeRightTab === 'customer' }"
@@ -135,7 +347,7 @@ const filteredGoods = computed(() =>
                   <img :src="order.image" :alt="order.title" />
                   <div class="order-card__content">
                     <strong>{{ order.title }}</strong>
-                    <button type="button">订单详情</button>
+                    <button type="button" @click="openOrderDetail(order.id)">订单详情</button>
                   </div>
                 </div>
                 <div class="order-card__meta">
@@ -162,7 +374,7 @@ const filteredGoods = computed(() =>
                   <strong>{{ item.title }}</strong>
                   <span>￥{{ item.price }}</span>
                 </div>
-                <button type="button" class="goods-item__send" @click="props.showToast(`已发送商品：${item.title}`)">发送</button>
+                <button type="button" class="goods-item__send" @click="sendMessage(`为您推荐服务：${item.title} ￥${item.price}`)">发送</button>
               </article>
             </div>
           </section>

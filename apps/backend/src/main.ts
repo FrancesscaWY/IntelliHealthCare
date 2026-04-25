@@ -1,6 +1,7 @@
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import "reflect-metadata";
 import { bootstrapDatabase } from "./common/bootstrap/database-bootstrap";
@@ -10,6 +11,7 @@ import { enhanceSwaggerDocument } from "./common/http/swagger-document-enhancer"
 import { AllExceptionsFilter } from "./common/http/all-exceptions.filter";
 import { ApiResponseInterceptor } from "./common/http/api-response.interceptor";
 import { SwaggerTagDefinitions } from "./common/http/swagger-tags";
+import { resolveBackendPublicDir } from "./common/utils/backend-paths";
 
 let databaseBootstrap: DatabaseBootstrapResult | null = null;
 
@@ -621,7 +623,7 @@ async function bootstrap() {
   const logger = new Logger("Bootstrap");
   databaseBootstrap = await bootstrapDatabase(logger);
   const { AppModule } = await import("./app.module");
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true
   });
 
@@ -642,6 +644,9 @@ async function bootstrap() {
   app.enableCors({
     origin: corsOrigins,
     credentials: true
+  });
+  app.useStaticAssets(resolveBackendPublicDir(), {
+    prefix: `${normalizedApiPrefix}/assets`
   });
   app.setGlobalPrefix(apiPrefix);
   app.useGlobalPipes(

@@ -100,6 +100,7 @@ type SecondaryNavItem = {
 
 const isAuthPage = computed(() => activePage.value?.group === "auth");
 const activePageId = computed(() => activePage.value?.id || "");
+const shellModeClass = computed(() => (isAuthPage.value ? "admin-shell--auth" : `admin-shell--${config.mode}`));
 
 const resolvedComponent = computed(() => {
   if (!activePage.value || activeComponentPageId.value !== activePage.value.id) {
@@ -484,18 +485,19 @@ onBeforeUnmount(() => {
   <main
     class="admin-shell"
     :class="[
-      `admin-shell--${config.mode}`,
+      shellModeClass,
       {
-        'admin-shell--auth': isAuthPage,
-        'admin-shell--sidebar-collapsed': config.mode === 'app' && isSidebarCollapsed,
+        'admin-shell--sidebar-collapsed': !isAuthPage && config.mode === 'app' && isSidebarCollapsed,
       },
     ]"
   >
     <template v-if="isAuthPage">
       <section class="auth-stage">
-        <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
-        <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
-        <section v-else class="empty-state">当前没有可加载的页面，请检查页面清单配置。</section>
+        <div class="auth-stage__content">
+          <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
+          <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
+          <section v-else class="empty-state">当前没有可加载的页面，请检查页面清单配置。</section>
+        </div>
       </section>
     </template>
 
@@ -668,6 +670,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .admin-shell {
   display: grid;
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
 }
 
@@ -697,14 +701,29 @@ onBeforeUnmount(() => {
 }
 
 .admin-shell--auth {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100svh;
   background: #ffffff;
 }
 
 .auth-stage {
-  display: grid;
+  display: flex;
+  justify-content: center;
   width: 100%;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100svh;
+  overflow-x: hidden;
+}
+
+.auth-stage__content {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
 }
 
 .rail {
@@ -1261,10 +1280,13 @@ onBeforeUnmount(() => {
   background: #ff7b75;
 }
 
-.content {
+.admin-content {
   min-width: 0;
+  min-height: 0;
   padding: 26px 28px 16px;
   background: #f0fdf9;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .empty-state {
@@ -1284,7 +1306,7 @@ onBeforeUnmount(() => {
     padding-left: 20px;
   }
 
-  .content {
+  .admin-content {
     padding-right: 20px;
     padding-left: 20px;
   }
@@ -1318,7 +1340,7 @@ onBeforeUnmount(() => {
     padding: 16px;
   }
 
-  .content {
+  .admin-content {
     padding: 16px;
   }
 

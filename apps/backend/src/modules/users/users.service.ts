@@ -6,8 +6,16 @@ import {
 } from "@nestjs/common";
 import { UserType } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
-import { paginate, toDateString, toDateTimeString, toNumber } from "../../common/utils/serializers";
+import {
+  ensureArray,
+  paginate,
+  toDateString,
+  toDateTimeString,
+  toNumber
+} from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { resolveCuratedNewsMedia } from "../content/content-curated-news";
+import { extractPublishedContentMeta } from "../content/content-metadata";
 
 interface AddressInput {
   label?: string;
@@ -31,6 +39,19 @@ interface MessageSettingsState {
   communityNotice: boolean;
   smsEnabled: boolean;
 }
+
+type PublishedArticlePreviewInput = {
+  id: string;
+  slug: string | null;
+  title: string;
+  summary: string | null;
+  coverUrl: string | null;
+  authorName: string | null;
+  sourceName: string | null;
+  content: unknown;
+  publishedAt: Date | string | null;
+  tags: unknown;
+};
 
 @Injectable()
 export class UsersService {
@@ -289,10 +310,24 @@ export class UsersService {
 
     const reviews = await this.prismaService.orderReview.findMany({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        orderId: true,
+        score: true,
+        tags: true,
+        content: true,
+        createdAt: true,
         order: {
-          include: {
-            service: true
+          select: {
+            orderNo: true,
+            service: {
+              select: {
+                id: true,
+                title: true,
+                category: true,
+                coverUrl: true
+              }
+            }
           }
         }
       },
@@ -305,7 +340,7 @@ export class UsersService {
         orderId: item.orderId,
         orderNo: item.order.orderNo,
         score: item.score,
-        tags: item.tags,
+        tags: ensureArray<string>(item.tags),
         content: item.content,
         createdAt: toDateTimeString(item.createdAt),
         service: {
@@ -562,7 +597,7 @@ export class UsersService {
       }),
       this.prismaService.article.findMany({
         where: { status: "PUBLISHED" },
-        orderBy: [{ sortOrder: "asc" }, { publishedAt: "desc" }],
+        orderBy: [{ sortOrder: "desc" }, { publishedAt: "desc" }],
         take: 3
       }),
       this.prismaService.diseaseKnowledge.findMany({
@@ -607,12 +642,7 @@ export class UsersService {
         title: item.title,
         summary: item.summary
       })),
-      recommendedArticles: articles.map((item) => ({
-        articleId: item.id,
-        title: item.title,
-        summary: item.summary,
-        coverUrl: item.coverUrl
-      }))
+      recommendedArticles: articles.map((item) => this.buildPublishedArticlePreview(item))
     };
   }
 
@@ -733,13 +763,21 @@ export class UsersService {
         summary: item.summary,
         coverUrl: item.coverUrl
       })),
-      ...articles.map((item) => ({
-        targetType: "article",
-        targetId: item.id,
-        title: item.title,
-        summary: item.summary,
-        coverUrl: item.coverUrl
-      })),
+      ...articles.map((item) => {
+        const preview = this.buildPublishedArticlePreview(item);
+
+        return {
+          targetType: "article",
+          targetId: item.id,
+          title: preview.title,
+          summary: preview.summary,
+          coverUrl: preview.coverUrl,
+          sourceName: preview.sourceName,
+          sourceUrl: preview.sourceUrl,
+          publishedAt: preview.publishedAt,
+          imageAlt: preview.imageAlt
+        };
+      }),
       ...diseases.map((item) => ({
         targetType: "disease",
         targetId: item.id,
@@ -757,6 +795,34 @@ export class UsersService {
     ];
 
     return paginate(list, page, pageSize);
+  }
+
+  private buildPublishedArticlePreview(article: PublishedArticlePreviewInput) {
+    const meta = extractPublishedContentMeta(article.content, article.coverUrl);
+    const curated = resolveCuratedNewsMedia(article);
+    const sourceName = curated?.sourceName ?? article.sourceName ?? meta.sourceName;
+    const sourceUrl = curated?.sourceUrl ?? meta.sourceUrl;
+    const sourceTitle = curated?.sourceTitle ?? meta.sourceTitle;
+
+    return {
+      articleId: article.id,
+      title: curated?.title ?? sourceTitle ?? article.title,
+      summary:
+        curated?.summary ??
+        curated?.sourceDescription ??
+        meta.sourceDescription ??
+        article.summary,
+      coverUrl: curated?.coverUrl ?? article.coverUrl,
+      imageAlt: curated?.imageAlt ?? meta.imageAlt,
+      authorName: curated?.authorName ?? article.authorName ?? sourceName,
+      sourceName,
+      sourceUrl,
+      sourceTitle,
+      publishedAt: toDateTimeString(article.publishedAt),
+      sourcePublishedAt: curated?.sourcePublishedAt ?? meta.sourcePublishedAt,
+      readingMinutes: curated?.readingMinutes ?? meta.readingMinutes,
+      tags: ensureArray<string>(article.tags)
+    };
   }
 
   private async resolvePrimaryHealthUserId(user: AuthenticatedUser) {

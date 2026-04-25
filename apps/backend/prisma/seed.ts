@@ -54,6 +54,12 @@ const prisma = new PrismaClient();
 
 const dt = (value: string) => new Date(value);
 const CDN = "https://cdn.intellihealthcare.demo";
+const CURATED_ASSET_BASE = "/api/v1/assets/curated";
+const PEXELS_IMAGE_BASE_URL = "https://images.pexels.com/photos";
+
+function buildPexelsImageUrl(photoId: string) {
+  return `${PEXELS_IMAGE_BASE_URL}/${photoId}/pexels-photo-${photoId}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+}
 
 const ids = {
   roles: {
@@ -145,9 +151,13 @@ const ids = {
   },
   recipes: {
     oatMilk: "recipe_oat_milk",
+    shrimpEgg: "recipe_shrimp_egg",
     steamedFish: "recipe_steamed_fish",
+    chickenQuinoa: "recipe_chicken_quinoa",
     pumpkinPorridge: "recipe_pumpkin_porridge",
+    tofuMushroom: "recipe_tofu_mushroom",
     broccoliSalad: "recipe_broccoli_salad",
+    yogurtFruitCup: "recipe_yogurt_fruit_cup",
   },
   selfTests: {
     diabetes: "selftest_diabetes",
@@ -193,6 +203,7 @@ const ids = {
     rehab: "report_rehab_done",
     service: "report_service_home",
     checkup: "report_checkup_exam",
+    checkupJoy: "report_checkup_joy_followup",
   },
   files: {
     joyAvatar: "file_avatar_joy",
@@ -1225,7 +1236,7 @@ async function main() {
         durationMinutes: 120,
         rating: "4.80",
         salesVolume: 1260,
-        coverUrl: `${CDN}/services/home-clean.jpg`,
+        coverUrl: buildPexelsImageUrl("8055825"),
         tags: ["上门服务", "家庭清洁", "可预约周末"],
         regionScope: ["浦东新区", "徐汇区", "杨浦区"],
         serviceContent: ["地面清洁", "卧室整理", "厨房基础清洁", "卫生间基础保洁"],
@@ -1243,7 +1254,7 @@ async function main() {
         durationMinutes: 240,
         rating: "4.70",
         salesVolume: 380,
-        coverUrl: `${CDN}/services/accompany-doctor.jpg`,
+        coverUrl: buildPexelsImageUrl("8413217"),
         tags: ["陪诊", "家属代办", "病历协助"],
         regionScope: ["浦东新区", "长宁区", "杨浦区"],
         serviceContent: ["挂号协助", "陪同问诊", "检查陪同", "取药协助"],
@@ -1262,7 +1273,7 @@ async function main() {
         durationMinutes: 180,
         rating: "4.90",
         salesVolume: 420,
-        coverUrl: `${CDN}/services/rehab-stroke.jpg`,
+        coverUrl: buildPexelsImageUrl("6922186"),
         tags: ["脑血管疾病", "运动疗法", "家庭康复"],
         regionScope: ["浦东新区", "长宁区"],
         serviceContent: ["初次评估", "康复训练", "家庭动作指导", "随访报告"],
@@ -1281,7 +1292,7 @@ async function main() {
         durationMinutes: 150,
         rating: "4.70",
         salesVolume: 210,
-        coverUrl: `${CDN}/services/rehab-knee.jpg`,
+        coverUrl: buildPexelsImageUrl("30483052"),
         tags: ["关节康复", "步态训练", "居家训练"],
         regionScope: ["浦东新区", "徐汇区"],
         serviceContent: ["疼痛评估", "关节活动度训练", "肌力训练", "居家计划"],
@@ -1300,7 +1311,7 @@ async function main() {
         durationMinutes: 90,
         rating: "4.60",
         salesVolume: 520,
-        coverUrl: `${CDN}/services/exam-basic.jpg`,
+        coverUrl: buildPexelsImageUrl("18870282"),
         tags: ["基础筛查", "上门采样", "快速出报告"],
         regionScope: ["浦东新区", "杨浦区", "长宁区"],
         serviceContent: ["基础采样", "生命体征检查", "心电图", "报告上传"],
@@ -1319,7 +1330,7 @@ async function main() {
         durationMinutes: 120,
         rating: "4.90",
         salesVolume: 268,
-        coverUrl: `${CDN}/services/exam-chronic.jpg`,
+        coverUrl: buildPexelsImageUrl("8413217"),
         tags: ["慢病管理", "医生复核", "趋势解读"],
         regionScope: ["浦东新区", "杨浦区"],
         serviceContent: ["糖化血红蛋白", "肾功能", "血脂", "医生解读"],
@@ -1338,7 +1349,7 @@ async function main() {
         durationMinutes: 43200,
         rating: "4.90",
         salesVolume: 68,
-        coverUrl: `${CDN}/services/qingsong-room.jpg`,
+        coverUrl: buildPexelsImageUrl("14532311"),
         tags: ["医养结合", "双人间", "康复护理"],
         regionScope: ["上海市"],
         serviceContent: ["24小时照护", "营养餐", "康复活动", "家属探视"],
@@ -1357,7 +1368,7 @@ async function main() {
         durationMinutes: 28800,
         rating: "4.80",
         salesVolume: 52,
-        coverUrl: `${CDN}/services/nuanyang-daycare.jpg`,
+        coverUrl: buildPexelsImageUrl("18509799"),
         tags: ["日间照料", "助餐", "文娱活动"],
         regionScope: ["上海市杨浦区"],
         serviceContent: ["日间陪护", "午餐", "康乐活动", "接送协调"],
@@ -1700,40 +1711,85 @@ async function main() {
         id: ids.recipes.oatMilk,
         code: "BREAKFAST_OAT_MILK",
         title: "燕麦牛奶碗",
-        summary: "适合作为控糖早餐，含复合碳水和优质蛋白。",
+        summary: "适合作为控糖早餐，也能作为上午加餐，含复合碳水和优质蛋白。",
         mealType: DietMealType.BREAKFAST,
         calories: 320,
-        tags: ["低糖早餐", "高纤维"],
+        tags: ["低糖早餐", "高纤维", "饱腹感"],
         ingredients: ["燕麦40克", "纯牛奶200毫升", "蓝莓50克", "核桃仁10克"],
-        steps: ["燕麦加牛奶小火煮5分钟", "盛出后加入蓝莓和核桃仁"],
-        coverUrl: `${CDN}/diet/oat-milk.jpg`,
-        suitableFor: ["血糖管理", "早餐"],
+        steps: ["燕麦加牛奶小火煮5分钟", "关火后焖2分钟", "盛出后加入蓝莓和核桃仁"],
+        coverUrl: buildPexelsImageUrl("4725729"),
+        suitableFor: ["血糖管理", "早餐", "加餐"],
+        createdAt: dt("2026-04-01T08:20:00Z"),
+      },
+      {
+        id: ids.recipes.shrimpEgg,
+        code: "BREAKFAST_SHRIMP_EGG",
+        title: "虾仁蒸蛋",
+        summary: "鲜嫩易吞咽，早餐或午餐补充优质蛋白都合适。",
+        mealType: DietMealType.BREAKFAST,
+        calories: 268,
+        tags: ["高蛋白", "少油", "软嫩"],
+        ingredients: ["鸡蛋2个", "鲜虾80克", "温水150毫升", "香葱5克"],
+        steps: ["鲜虾去壳去虾线后焯水备用", "鸡蛋打散加温水和少量盐", "蛋液过筛后放入虾仁蒸10分钟", "出锅后撒葱花即可"],
+        coverUrl: buildPexelsImageUrl("6740517"),
+        suitableFor: ["早餐", "午餐", "术后恢复"],
+        createdAt: dt("2026-04-03T09:10:00Z"),
       },
       {
         id: ids.recipes.steamedFish,
         code: "LUNCH_STEAMED_FISH",
         title: "清蒸鲈鱼配杂粮饭",
-        summary: "高蛋白低脂午餐，适合高血压和康复期长者。",
+        summary: "高蛋白低脂午餐，晚餐也能轻负担补充营养。",
         mealType: DietMealType.LUNCH,
         calories: 460,
-        tags: ["高蛋白", "低脂"],
+        tags: ["高蛋白", "低脂", "清淡"],
         ingredients: ["鲈鱼150克", "糙米饭80克", "西兰花100克"],
         steps: ["鲈鱼清蒸10分钟", "搭配糙米饭和焯水西兰花"],
-        coverUrl: `${CDN}/diet/steamed-fish.jpg`,
-        suitableFor: ["高血压", "康复期"],
+        coverUrl: buildPexelsImageUrl("8983415"),
+        suitableFor: ["午餐", "晚餐", "高血压", "康复期"],
+        createdAt: dt("2026-04-05T11:40:00Z"),
+      },
+      {
+        id: ids.recipes.chickenQuinoa,
+        code: "LUNCH_CHICKEN_QUINOA",
+        title: "鸡丝藜麦饭",
+        summary: "均衡午餐搭配，主食、蛋白和蔬菜比例更适合长者日常控制总热量。",
+        mealType: DietMealType.LUNCH,
+        calories: 438,
+        tags: ["均衡午餐", "控油", "高纤"],
+        ingredients: ["鸡胸肉120克", "藜麦70克", "南瓜60克", "西兰花80克"],
+        steps: ["藜麦提前浸泡后煮熟", "鸡胸肉煮熟撕成细丝", "南瓜蒸软切块", "与西兰花一同装盘，淋少量橄榄油"],
+        coverUrl: buildPexelsImageUrl("8286788"),
+        suitableFor: ["午餐", "康复期", "控制总热量"],
+        createdAt: dt("2026-04-08T11:10:00Z"),
       },
       {
         id: ids.recipes.pumpkinPorridge,
         code: "DINNER_PUMPKIN_PORRIDGE",
         title: "南瓜小米粥",
-        summary: "晚餐口感温和，适合消化功能一般的长者。",
+        summary: "晚餐口感温和，也适合作为早餐主食搭配鸡蛋。",
         mealType: DietMealType.DINNER,
         calories: 280,
-        tags: ["易消化", "晚餐"],
+        tags: ["易消化", "暖胃", "低负担"],
         ingredients: ["小米50克", "南瓜120克", "清水适量"],
         steps: ["小米与南瓜同煮25分钟", "煮至软烂即可"],
-        coverUrl: `${CDN}/diet/pumpkin-porridge.jpg`,
-        suitableFor: ["晚餐", "胃口一般"],
+        coverUrl: buildPexelsImageUrl("704569"),
+        suitableFor: ["晚餐", "早餐", "胃口一般"],
+        createdAt: dt("2026-04-10T18:00:00Z"),
+      },
+      {
+        id: ids.recipes.tofuMushroom,
+        code: "DINNER_TOFU_MUSHROOM",
+        title: "菌菇豆腐煲",
+        summary: "植物蛋白更足，晚餐清淡但不寡淡，适合需要控脂的长者。",
+        mealType: DietMealType.DINNER,
+        calories: 296,
+        tags: ["植物蛋白", "低脂", "补钙"],
+        ingredients: ["北豆腐180克", "香菇80克", "金针菇60克", "胡萝卜30克"],
+        steps: ["豆腐切块焯水去豆腥味", "菌菇和胡萝卜翻炒出香味", "加半碗清水炖煮6分钟", "放入豆腐后小火煨至入味"],
+        coverUrl: buildPexelsImageUrl("5835353"),
+        suitableFor: ["晚餐", "控脂", "补钙"],
+        createdAt: dt("2026-04-12T18:20:00Z"),
       },
       {
         id: ids.recipes.broccoliSalad,
@@ -1742,11 +1798,26 @@ async function main() {
         summary: "适合午后加餐或轻晚餐，补充蛋白和膳食纤维。",
         mealType: DietMealType.SNACK,
         calories: 240,
-        tags: ["低脂", "轻食"],
+        tags: ["低脂", "轻食", "高纤"],
         ingredients: ["鸡胸肉80克", "西兰花100克", "玉米粒30克"],
         steps: ["鸡胸煮熟切片", "西兰花焯水后拌入玉米粒"],
-        coverUrl: `${CDN}/diet/broccoli-salad.jpg`,
-        suitableFor: ["减脂", "控制总热量"],
+        coverUrl: buildPexelsImageUrl("13630358"),
+        suitableFor: ["加餐", "晚餐", "减脂", "控制总热量"],
+        createdAt: dt("2026-04-14T15:10:00Z"),
+      },
+      {
+        id: ids.recipes.yogurtFruitCup,
+        code: "SNACK_YOGURT_FRUIT_CUP",
+        title: "酸奶水果杯",
+        summary: "少糖清爽的午后加餐，口感轻盈，也适合作为早餐补充水果。",
+        mealType: DietMealType.SNACK,
+        calories: 168,
+        tags: ["少糖", "补能", "清爽"],
+        ingredients: ["无糖酸奶150克", "苹果80克", "蓝莓40克", "奇亚籽5克"],
+        steps: ["苹果切丁后与蓝莓分层放入杯中", "加入无糖酸奶", "表面撒少量奇亚籽即可"],
+        coverUrl: buildPexelsImageUrl("1029582"),
+        suitableFor: ["加餐", "早餐", "补充维生素"],
+        createdAt: dt("2026-04-16T15:30:00Z"),
       },
     ],
   });
@@ -1754,13 +1825,53 @@ async function main() {
   await prisma.dietRecord.createMany({
     data: [
       {
-        id: "diet_joy_0419_breakfast",
+        id: "diet_joy_0418_breakfast",
         userId: ids.users.joy,
         recipeId: ids.recipes.oatMilk,
         mealType: DietMealType.BREAKFAST,
         foods: [{ name: "燕麦牛奶碗", amount: "1份" }, { name: "水煮蛋", amount: "1个" }],
-        totalCalories: 360,
-        macros: { carb: "42.1克", protein: "18.6克", fat: "11.2克" },
+        totalCalories: 328,
+        macros: { carb: "38.4克", protein: "16.8克", fat: "9.6克" },
+        eatenAt: dt("2026-04-18T08:08:00Z"),
+      },
+      {
+        id: "diet_joy_0418_lunch",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.chickenQuinoa,
+        mealType: DietMealType.LUNCH,
+        foods: [{ name: "鸡丝藜麦饭", amount: "1份" }, { name: "清炒时蔬", amount: "120克" }],
+        totalCalories: 568,
+        macros: { carb: "62.2克", protein: "28.4克", fat: "15.3克" },
+        eatenAt: dt("2026-04-18T12:18:00Z"),
+      },
+      {
+        id: "diet_joy_0418_snack",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.yogurtFruitCup,
+        mealType: DietMealType.SNACK,
+        foods: [{ name: "酸奶水果杯", amount: "1杯" }],
+        totalCalories: 146,
+        macros: { carb: "18.2克", protein: "6.1克", fat: "3.4克" },
+        eatenAt: dt("2026-04-18T15:32:00Z"),
+      },
+      {
+        id: "diet_joy_0418_dinner",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.tofuMushroom,
+        mealType: DietMealType.DINNER,
+        foods: [{ name: "菌菇豆腐煲", amount: "1份" }, { name: "小米饭", amount: "半碗" }],
+        totalCalories: 322,
+        macros: { carb: "28.6克", protein: "18.0克", fat: "12.2克" },
+        eatenAt: dt("2026-04-18T18:12:00Z"),
+      },
+      {
+        id: "diet_joy_0419_breakfast",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.shrimpEgg,
+        mealType: DietMealType.BREAKFAST,
+        foods: [{ name: "虾仁蒸蛋", amount: "1盅" }, { name: "南瓜小米粥", amount: "180克" }],
+        totalCalories: 356,
+        macros: { carb: "32.0克", protein: "21.8克", fat: "10.4克" },
         eatenAt: dt("2026-04-19T08:12:00Z"),
       },
       {
@@ -1776,7 +1887,7 @@ async function main() {
       {
         id: "diet_joy_0419_snack",
         userId: ids.users.joy,
-        recipeId: ids.recipes.broccoliSalad,
+        recipeId: ids.recipes.yogurtFruitCup,
         mealType: DietMealType.SNACK,
         foods: [{ name: "蓝莓水果杯", amount: "90克" }],
         totalCalories: 120,
@@ -1802,6 +1913,116 @@ async function main() {
         totalCalories: 310,
         macros: { carb: "36.8克", protein: "14.0克", fat: "8.5克" },
         eatenAt: dt("2026-04-20T08:20:00Z"),
+      },
+      {
+        id: "diet_joy_0420_lunch",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.chickenQuinoa,
+        mealType: DietMealType.LUNCH,
+        foods: [{ name: "鸡丝藜麦饭", amount: "1份" }, { name: "蒸南瓜", amount: "80克" }],
+        totalCalories: 488,
+        macros: { carb: "50.6克", protein: "26.3克", fat: "12.8克" },
+        eatenAt: dt("2026-04-20T12:22:00Z"),
+      },
+      {
+        id: "diet_joy_0420_snack",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.yogurtFruitCup,
+        mealType: DietMealType.SNACK,
+        foods: [{ name: "苹果切片", amount: "150克" }],
+        totalCalories: 132,
+        macros: { carb: "31.2克", protein: "0.4克", fat: "0.3克" },
+        eatenAt: dt("2026-04-20T15:18:00Z"),
+      },
+      {
+        id: "diet_joy_0420_dinner",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.tofuMushroom,
+        mealType: DietMealType.DINNER,
+        foods: [{ name: "菌菇豆腐煲", amount: "1份" }, { name: "凉拌菠菜", amount: "80克" }],
+        totalCalories: 348,
+        macros: { carb: "24.6克", protein: "20.1克", fat: "13.7克" },
+        eatenAt: dt("2026-04-20T18:16:00Z"),
+      },
+      {
+        id: "diet_joy_0422_breakfast",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.shrimpEgg,
+        mealType: DietMealType.BREAKFAST,
+        foods: [{ name: "虾仁蒸蛋", amount: "1盅" }, { name: "全麦吐司", amount: "2片" }],
+        totalCalories: 342,
+        macros: { carb: "29.4克", protein: "23.0克", fat: "11.8克" },
+        eatenAt: dt("2026-04-22T08:10:00Z"),
+      },
+      {
+        id: "diet_joy_0422_lunch",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.steamedFish,
+        mealType: DietMealType.LUNCH,
+        foods: [{ name: "清蒸鲈鱼", amount: "150克" }, { name: "杂粮饭", amount: "90克" }, { name: "芦笋", amount: "100克" }],
+        totalCalories: 520,
+        macros: { carb: "49.8克", protein: "33.1克", fat: "14.4克" },
+        eatenAt: dt("2026-04-22T12:28:00Z"),
+      },
+      {
+        id: "diet_joy_0422_snack",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.broccoliSalad,
+        mealType: DietMealType.SNACK,
+        foods: [{ name: "西兰花鸡胸沙拉", amount: "1份" }],
+        totalCalories: 158,
+        macros: { carb: "10.2克", protein: "15.8克", fat: "4.9克" },
+        eatenAt: dt("2026-04-22T15:36:00Z"),
+      },
+      {
+        id: "diet_joy_0422_dinner",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.tofuMushroom,
+        mealType: DietMealType.DINNER,
+        foods: [{ name: "菌菇豆腐煲", amount: "1份" }, { name: "南瓜泥", amount: "90克" }],
+        totalCalories: 304,
+        macros: { carb: "22.6克", protein: "18.7克", fat: "10.8克" },
+        eatenAt: dt("2026-04-22T18:08:00Z"),
+      },
+      {
+        id: "diet_joy_0424_breakfast",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.oatMilk,
+        mealType: DietMealType.BREAKFAST,
+        foods: [{ name: "燕麦牛奶碗", amount: "1份" }, { name: "香蕉半根", amount: "60克" }],
+        totalCalories: 336,
+        macros: { carb: "44.2克", protein: "13.6克", fat: "9.4克" },
+        eatenAt: dt("2026-04-24T08:06:00Z"),
+      },
+      {
+        id: "diet_joy_0424_lunch",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.chickenQuinoa,
+        mealType: DietMealType.LUNCH,
+        foods: [{ name: "鸡丝藜麦饭", amount: "1份" }, { name: "清炒西兰花", amount: "100克" }],
+        totalCalories: 552,
+        macros: { carb: "57.1克", protein: "29.2克", fat: "16.4克" },
+        eatenAt: dt("2026-04-24T12:20:00Z"),
+      },
+      {
+        id: "diet_joy_0424_snack",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.yogurtFruitCup,
+        mealType: DietMealType.SNACK,
+        foods: [{ name: "酸奶水果杯", amount: "1杯" }],
+        totalCalories: 168,
+        macros: { carb: "21.4克", protein: "6.6克", fat: "4.2克" },
+        eatenAt: dt("2026-04-24T15:26:00Z"),
+      },
+      {
+        id: "diet_joy_0424_dinner",
+        userId: ids.users.joy,
+        recipeId: ids.recipes.pumpkinPorridge,
+        mealType: DietMealType.DINNER,
+        foods: [{ name: "南瓜小米粥", amount: "220克" }, { name: "凉拌黄瓜", amount: "100克" }],
+        totalCalories: 298,
+        macros: { carb: "36.8克", protein: "6.0克", fat: "4.9克" },
+        eatenAt: dt("2026-04-24T18:02:00Z"),
       },
     ],
   });
@@ -2380,6 +2601,7 @@ async function main() {
         content: "治疗师会根据母亲当天状态调整训练强度，讲解也很耐心。",
         isVisible: true,
         isPinned: true,
+        createdAt: dt("2026-04-12T12:06:00Z"),
       },
       {
         id: "review_exam_done",
@@ -2390,6 +2612,29 @@ async function main() {
         content: "上门流程顺畅，第二天就能看到报告和医生建议。",
         isVisible: true,
         isPinned: false,
+        createdAt: dt("2026-04-16T18:20:00Z"),
+      },
+      {
+        id: "review_home_done",
+        orderId: ids.orders.homeDone,
+        userId: ids.users.joy,
+        score: 5,
+        tags: ["阿姨守时", "清洁细致", "沟通顺畅"],
+        content: "阿姨上门前先确认了重点区域，厨房清洁得很干净，做完还提醒我检查窗户。",
+        isVisible: true,
+        isPinned: false,
+        createdAt: dt("2026-04-18T12:28:00Z"),
+      },
+      {
+        id: "review_after_sale",
+        orderId: ids.orders.afterSale,
+        userId: ids.users.wanglan,
+        score: 3,
+        tags: ["流程还算顺畅", "沟通需加强", "排队说明不足"],
+        content: "陪诊整体还算负责，但门诊排队和取药等待时间解释不够及时，所以后来提交了售后反馈。",
+        isVisible: true,
+        isPinned: false,
+        createdAt: dt("2026-04-18T09:02:00Z"),
       },
     ],
   });
@@ -2522,6 +2767,22 @@ async function main() {
         attachment: [{ fileId: ids.files.examPdf, fileName: "checkup-report-20260416.pdf" }],
         reviewedAt: dt("2026-04-17T09:00:00Z"),
         publishedAt: dt("2026-04-17T09:15:00Z"),
+      },
+      {
+        id: ids.reports.checkupJoy,
+        archiveId: ids.archives.joy,
+        authorStaffId: ids.staff.wangyiming,
+        type: ReportType.CHECKUP,
+        status: ReportStatus.PUBLISHED,
+        title: "血压血糖月度随访体检报告",
+        summary: {
+          conclusion: "晨起血压有波动，空腹血糖控制较上月改善，但晚餐后血糖仍需关注。",
+          highlights: ["晨起血压 146/94 mmHg", "空腹血糖 6.8 mmol/L", "糖化血红蛋白 6.6%"],
+          advice: ["继续低盐低糖饮食", "晚餐后增加15分钟步行", "两周后复测晨起血压并同步给医生"],
+        },
+        attachment: [{ fileId: ids.files.examPdf, fileName: "checkup-report-20260422.pdf" }],
+        reviewedAt: dt("2026-04-22T09:00:00Z"),
+        publishedAt: dt("2026-04-22T09:15:00Z"),
       },
     ],
   });
@@ -2667,7 +2928,7 @@ async function main() {
         senderId: ids.users.assistant,
         type: NotificationType.CONTENT,
         title: "健康讲堂上新",
-        content: "《高血压家庭监测与用药管理》已上线，可随时回看。",
+        content: "《讲堂导读：家庭血压监测和服药依从性》已上线，可随时查看。",
         metadata: { lectureId: ids.lectures.bp },
         createdAt: dt("2026-04-20T05:40:00Z"),
       },
@@ -2761,60 +3022,193 @@ async function main() {
     data: [
       {
         id: ids.articles.salt,
-        slug: "low-salt-diet-for-seniors",
-        title: "高血压长者如何把控每日盐摄入",
-        summary: "从厨房调味、外卖选择和看懂营养标签三个角度，帮助长者稳定控制盐分摄入。",
-        coverUrl: `${CDN}/content/article-salt.jpg`,
-        authorName: "健康管理组",
-        sourceName: "智诊康养",
+        slug: "home-blood-pressure-routine-for-older-adults",
+        title: "家庭血压总反复？先把晨起测压、控盐和药盒管理做扎实",
+        summary: "结合 MedlinePlus 与 WHO 的公开资料，整理适合长者和家属一起执行的家庭控压重点。",
+        coverUrl: buildPexelsImageUrl("4975654"),
+        authorName: "康养内容策展组",
+        sourceName: "MedlinePlus",
         status: ContentStatus.PUBLISHED,
         sortOrder: 10,
         content: {
+          sourceName: "MedlinePlus",
+          sourceUrl: "https://medlineplus.gov/highbloodpressure.html",
+          sourceTitle: "High Blood Pressure | Hypertension | MedlinePlus",
+          sourceDescription: "High blood pressure develops when blood flows through arteries at higher than normal pressures. It increases the risk for heart disease and stroke.",
+          readingMinutes: 6,
+          imageAlt: "长者在家中测量血压并记录读数",
+          gallery: [
+            {
+              url: buildPexelsImageUrl("4975654"),
+              alt: "长者在家中使用电子血压计测量血压",
+              caption: "把固定测压、低盐饮食和药盒复核放到同一张家庭管理表里，更容易坚持。",
+              credit: "Pexels / Gustavo Fring"
+            }
+          ],
           sections: [
-            { title: "为什么要控盐", paragraphs: ["高盐饮食会让血压更容易波动，尤其对已有高血压病史的长者影响更明显。"] },
-            { title: "日常可操作方法", paragraphs: ["做饭用量勺控制盐量，减少酱油、蚝油和腌制菜。", "外卖优先选择少油少盐备注。"] },
+            {
+              title: "家庭测压为什么比偶尔门诊更有价值",
+              paragraphs: [
+                "很多长者在医院里血压会偏高，回到家后又恢复原状。比起偶尔测一次，更关键的是连续记录晨起、晚间和服药前后的趋势。",
+                "把日期、时间、收缩压、舒张压、心率和当天是否漏服药记在同一张表上，医生更容易判断是波动、白大衣效应，还是方案需要调整。"
+              ]
+            },
+            {
+              title: "厨房控盐要从高钠调味料和加工食品下手",
+              paragraphs: [
+                "真正让盐摄入失控的，往往不是饭桌上那一勺盐，而是酱油、豆瓣酱、腌菜、午餐肉和外卖浓汤。",
+                "家里做饭时可以先减少一半复合调味料，再用葱姜蒜、醋、柠檬汁和香菇提味。采购时优先看每100克钠含量，不只看“减盐”字样。"
+              ]
+            },
+            {
+              title: "什么时候该尽快复诊",
+              paragraphs: [
+                "如果连续多天家庭血压都明显高于平时，或同时伴有头痛、胸闷、气短、肢体无力等不适，就不能只靠在家观察。",
+                "对已经在服药的长者来说，漏服、擅自停药、把多种药混放在一起，都是导致血压忽高忽低的常见原因。建议把药盒整理、家庭测压和复诊提醒一起做。"
+              ]
+            }
+          ],
+          references: [
+            {
+              title: "High Blood Pressure | Hypertension | MedlinePlus",
+              url: "https://medlineplus.gov/highbloodpressure.html",
+              sourceName: "MedlinePlus"
+            },
+            {
+              title: "Hypertension",
+              url: "https://www.who.int/news-room/fact-sheets/detail/hypertension",
+              sourceName: "World Health Organization"
+            }
           ],
         },
-        tags: ["高血压", "饮食管理"],
-        publishedAt: dt("2026-04-18T09:00:00Z"),
+        tags: ["高血压", "家庭监测", "低盐饮食"],
+        publishedAt: dt("2026-04-22T09:00:00Z"),
       },
       {
         id: ids.articles.fall,
-        slug: "home-fall-prevention",
-        title: "居家防跌倒这6件事必须提前准备",
-        summary: "从照明、地面、防滑和夜间起床路线四个环节降低长者跌倒风险。",
-        coverUrl: `${CDN}/content/article-fall.jpg`,
-        authorName: "护理站A组",
-        sourceName: "智诊康养",
+        slug: "older-adult-fall-prevention-checklist",
+        title: "老年跌倒预防别只盯地滑：力量训练、视力复查和药物复盘都要跟上",
+        summary: "结合 CDC 老年跌倒预防建议，把居家环境、用药检查和日常训练三类措施拆成了家庭版清单。",
+        coverUrl: buildPexelsImageUrl("775417"),
+        authorName: "康养内容策展组",
+        sourceName: "Centers for Disease Control and Prevention",
         status: ContentStatus.PUBLISHED,
         sortOrder: 9,
         content: {
+          sourceUrl: "https://www.cdc.gov/falls/index.html",
+          sourceTitle: "About Older Adult Fall Prevention | Older Adult Fall Prevention | CDC",
+          sourceDescription: "Learn how you can reduce your chance of falling or help a loved one prevent falls.",
+          readingMinutes: 5,
+          imageAlt: "社区中长者在步行训练时互相照看",
+          gallery: [
+            {
+              url: buildPexelsImageUrl("775417"),
+              alt: "两位长者在公园慢走锻炼",
+              caption: "跌倒风险往往来自多个小问题叠加，家庭环境、药物和步态要一起看。",
+              credit: "Pexels / Matthias Zomer"
+            }
+          ],
           sections: [
-            { title: "先看最危险的区域", paragraphs: ["卫生间、床边和夜间通往厕所的路线，是最需要优先处理的三个区域。"] },
-            { title: "改造建议", paragraphs: ["铺设防滑垫，安装夜灯和扶手，鞋底选择防滑材质。"] },
+            {
+              title: "先找最容易被忽略的高风险点",
+              paragraphs: [
+                "卫生间、床边、夜间去厕所的路线、玄关换鞋区和厨房转身空间，是很多家庭里最容易出事的地方。",
+                "如果长者最近走路变慢、起身需要扶一下、脚步开始拖、转弯时明显不稳，就说明不能只靠“慢一点”来解决问题。"
+              ]
+            },
+            {
+              title: "真正有效的措施是环境、身体和用药一起做",
+              paragraphs: [
+                "居家改造包括夜灯、防滑垫、扶手、常用物品放到伸手可及的位置，以及把松动地垫和门槛绊脚点处理掉。",
+                "身体方面要关注下肢力量、平衡训练、鞋底磨损、视力变化；用药方面要复核是否存在让人头晕、嗜睡或低血压的药物组合。"
+              ]
+            },
+            {
+              title: "家属每周复盘一次会比临时提醒更有用",
+              paragraphs: [
+                "与其每天反复提醒“慢一点”，不如每周固定复盘一次：最近有没有差点跌倒、有没有在洗澡或起夜时站不稳、有没有新加药。",
+                "只要出现一次跌倒、两次以上“差点跌倒”，或者近期明显不敢出门走路，就应该尽快安排线下评估。"
+              ]
+            }
+          ],
+          references: [
+            {
+              title: "About Older Adult Fall Prevention | Older Adult Fall Prevention | CDC",
+              url: "https://www.cdc.gov/falls/index.html",
+              sourceName: "CDC"
+            },
+            {
+              title: "Falls: MedlinePlus",
+              url: "https://medlineplus.gov/falls.html",
+              sourceName: "MedlinePlus"
+            }
           ],
         },
-        tags: ["跌倒预防", "居家安全"],
-        publishedAt: dt("2026-04-17T10:00:00Z"),
+        tags: ["跌倒预防", "居家安全", "步态训练"],
+        publishedAt: dt("2026-04-21T10:00:00Z"),
       },
       {
         id: ids.articles.sleep,
-        slug: "sleep-quality-for-elders",
-        title: "睡眠不好时，先别急着加药",
-        summary: "结合老年人常见睡眠问题，整理睡前习惯和卧室环境调整建议。",
-        coverUrl: `${CDN}/content/article-sleep.jpg`,
-        authorName: "医生顾问团",
-        sourceName: "智诊康养",
+        slug: "sleep-routine-checklist-for-older-adults",
+        title: "总是睡不实，不一定先加药：先排查午睡、起夜和卧室光线",
+        summary: "参考 MedlinePlus 睡眠障碍资料，把更适合长者先尝试的睡眠管理步骤做成了家庭版清单。",
+        coverUrl: buildPexelsImageUrl("8865662"),
+        authorName: "康养内容策展组",
+        sourceName: "MedlinePlus",
         status: ContentStatus.PUBLISHED,
         sortOrder: 8,
         content: {
+          sourceUrl: "https://medlineplus.gov/sleepdisorders.html",
+          sourceTitle: "Sleep Disorders | MedlinePlus",
+          sourceDescription: "Getting a good sleep is vital to your health, but many Americans don't get enough. Learn about sleep disorders, treatments, and good sleep habits.",
+          readingMinutes: 5,
+          imageAlt: "夜间安静卧室中的助眠场景",
+          gallery: [
+            {
+              url: buildPexelsImageUrl("8865662"),
+              alt: "长者在安静卧室中侧卧休息",
+              caption: "对很多长者来说，睡眠问题往往和白天作息、起夜频率以及卧室环境同时相关。",
+              credit: "Pexels / RDNE Stock project"
+            }
+          ],
           sections: [
-            { title: "常见原因", paragraphs: ["午睡过长、晚饭过晚、夜间起夜和情绪焦虑都可能影响睡眠。"] },
-            { title: "先做这些调整", paragraphs: ["保持固定上床时间，下午后减少浓茶咖啡，卧室尽量安静和遮光。"] },
+            {
+              title: "很多睡不实不是单一原因造成的",
+              paragraphs: [
+                "午睡时间太长、晚饭太晚、睡前刷手机、夜间起夜频繁、晚上喝浓茶、卧室太亮或太热，都会让长者更容易浅睡和醒得早。",
+                "如果最近还伴随情绪低落、慢病波动、疼痛加重或新换药，更要先把这些因素排查清楚。"
+              ]
+            },
+            {
+              title: "先把睡前两小时的节奏固定下来",
+              paragraphs: [
+                "把上床时间固定，睡前两小时尽量不吃大餐、不做剧烈运动，也避免把白天的焦虑和家务拖到临睡前处理。",
+                "下午以后减少浓茶、咖啡和含糖提神饮料；卧室尽量安静、偏暗、温度稳定，夜灯亮度只保留到足够安全起夜即可。"
+              ]
+            },
+            {
+              title: "哪些情况需要把睡眠问题当成疾病线索",
+              paragraphs: [
+                "如果长期打鼾明显、睡着后憋醒、白天困倦到影响走路和吃饭，或者睡不好已经影响情绪和记忆，就不能只靠助眠习惯调整。",
+                "家属可以先记录一周睡眠日志，包括入睡时间、醒来次数、午睡时长和是否起夜，为后续就医提供更有用的信息。"
+              ]
+            }
+          ],
+          references: [
+            {
+              title: "Sleep Disorders | MedlinePlus",
+              url: "https://medlineplus.gov/sleepdisorders.html",
+              sourceName: "MedlinePlus"
+            },
+            {
+              title: "Healthy Aging: MedlinePlus",
+              url: "https://medlineplus.gov/healthyaging.html",
+              sourceName: "MedlinePlus"
+            }
           ],
         },
-        tags: ["睡眠", "作息管理"],
-        publishedAt: dt("2026-04-16T14:30:00Z"),
+        tags: ["睡眠", "作息管理", "老年健康"],
+        publishedAt: dt("2026-04-20T14:30:00Z"),
       },
     ],
   });
@@ -2823,54 +3217,133 @@ async function main() {
     data: [
       {
         id: ids.lectures.bp,
-        slug: "blood-pressure-home-monitoring",
-        title: "高血压家庭监测与用药管理",
-        summary: "讲解如何正确测量家庭血压、识别高值和记录用药依从性。",
-        speakerName: "王奕铭",
-        speakerTitle: "康复科主治医师",
-        coverUrl: `${CDN}/content/lecture-bp.jpg`,
-        videoUrl: "https://video.intellihealthcare.demo/lecture-bp.mp4",
-        durationMinutes: 28,
+        slug: "guide-home-blood-pressure-monitoring",
+        title: "讲堂导读：家庭血压测量的正确方法",
+        summary: "基于央视网全国高血压日科普视频，讲清家庭血压测量前准备、标准姿势和日常记录要点。",
+        speakerName: "李海霞",
+        speakerTitle: "中国中医科学院广安门医院心血管科副主任、主任医师",
+        coverUrl: buildPexelsImageUrl("8088856"),
+        videoUrl: "https://videos.pexels.com/video-files/8088985/8088985-uhd_2732_1440_24fps.mp4",
+        durationMinutes: 2,
         status: ContentStatus.PUBLISHED,
         content: {
-          outline: ["正确测量血压", "家庭记录方法", "高值处置建议"],
-          highlights: ["晨起与晚间固定时段测量更有比较价值。"],
+          sourceName: "央视网",
+          sourceUrl: "https://news.cctv.com/2023/10/08/ARTIYL5x8otjzdVlWtJ8y6wZ231008.shtml",
+          sourceTitle: "【够科普】99秒！教您测量血压的正确方法",
+          sourceDescription: "央视网全国高血压日中文科普短视频，介绍家庭血压测量方法、测量次数与注意事项。",
+          watchUrl: "https://news.cctv.com/2023/10/08/ARTIYL5x8otjzdVlWtJ8y6wZ231008.shtml",
+          watchLabel: "查看央视原始视频",
+          readingMinutes: 2,
+          imageAlt: "家庭血压测量视频封面图",
+          gallery: [
+            {
+              url: buildPexelsImageUrl("8088856"),
+              alt: "两位长者在家中检查血压",
+              caption: "视频围绕家庭血压测量方法、测量次数与天数展开中文科普。",
+              credit: "Pexels / cottonbro studio"
+            }
+          ],
+          outline: ["测量前先安静休息并避开进食、运动和情绪波动", "坐姿、手臂高度与袖带位置都要按标准执行", "固定早晚时段连续记录，更容易判断真实趋势"],
+          highlights: ["家庭测压最怕“想起来才测”，固定时间、固定体位、固定设备比单次数字更重要。"],
+          references: [
+            {
+              title: "【够科普】99秒！教您测量血压的正确方法",
+              url: "https://news.cctv.com/2023/10/08/ARTIYL5x8otjzdVlWtJ8y6wZ231008.shtml",
+              sourceName: "央视网"
+            },
+            {
+              title: "基层医疗卫生机构高血压防治管理标准（WS/T 872—2025）",
+              url: "https://www.nhc.gov.cn/fzs/c100048/202509/2f3f7cce449145f8b361e70b3ed4ae9a/files/WS%20T%20872%E2%80%942025-20250930105429913.pdf",
+              sourceName: "国家卫生健康委员会"
+            }
+          ]
         },
-        publishedAt: dt("2026-04-20T05:30:00Z"),
+        publishedAt: dt("2026-04-22T05:30:00Z"),
       },
       {
         id: ids.lectures.rehab,
-        slug: "stroke-rehab-home-training",
-        title: "脑卒中术后居家训练常见误区",
-        summary: "帮助家属理解训练节奏、疼痛界限和辅助器具使用。",
-        speakerName: "周明",
-        speakerTitle: "康复治疗师",
-        coverUrl: `${CDN}/content/lecture-rehab.jpg`,
-        videoUrl: "https://video.intellihealthcare.demo/lecture-rehab.mp4",
+        slug: "guide-healthy-ageing-functional-ability",
+        title: "讲堂导读：健康老龄化的核心是维持功能",
+        summary: "围绕 WHO 的健康老龄化资料，讲清长者家庭管理里最容易被忽略的“功能保持”思路。",
+        speakerName: "康养内容策展组",
+        speakerTitle: "官方资料导读",
+        coverUrl: buildPexelsImageUrl("775417"),
+        videoUrl: "https://videos.pexels.com/video-files/4806686/4806686-uhd_2560_1440_30fps.mp4",
         durationMinutes: 36,
         status: ContentStatus.PUBLISHED,
         content: {
-          outline: ["训练前评估", "动作幅度控制", "常见错误纠正"],
-          highlights: ["康复训练不是越用力越好，要以动作质量为先。"],
+          sourceName: "World Health Organization",
+          sourceUrl: "https://www.who.int/news-room/fact-sheets/detail/ageing-and-health",
+          sourceTitle: "Ageing and health",
+          sourceDescription: "WHO fact sheet on ageing, common health conditions and healthy ageing response.",
+          watchUrl: "https://www.who.int/news-room/fact-sheets/detail/ageing-and-health",
+          watchLabel: "查看原始资料",
+          readingMinutes: 7,
+          imageAlt: "健康老龄化导读封面图",
+          gallery: [
+            {
+              url: buildPexelsImageUrl("775417"),
+              alt: "两位长者在公园步道上慢走",
+              caption: "很多家庭把注意力都放在某一项异常指标，却忽略了走路、转移、吃饭和社交能力的持续下降。",
+              credit: "Pexels / Matthias Zomer"
+            }
+          ],
+          outline: ["什么叫功能保持", "慢病管理为何要和运动社交一起看", "家属怎么做每周复盘"],
+          highlights: ["健康老龄化不是单项指标漂亮，而是长者还能稳定完成日常生活并保持参与感。"],
+          references: [
+            {
+              title: "Ageing and health",
+              url: "https://www.who.int/news-room/fact-sheets/detail/ageing-and-health",
+              sourceName: "World Health Organization"
+            },
+            {
+              title: "Healthy Aging: MedlinePlus",
+              url: "https://medlineplus.gov/healthyaging.html",
+              sourceName: "MedlinePlus"
+            }
+          ]
         },
-        publishedAt: dt("2026-04-18T16:00:00Z"),
+        publishedAt: dt("2026-04-21T16:00:00Z"),
       },
       {
         id: ids.lectures.nutrition,
-        slug: "senior-nutrition-weekly-plan",
-        title: "长者一周营养搭配思路",
-        summary: "围绕控盐、控糖和优质蛋白摄入，给出简单可执行的一周搭配方案。",
-        speakerName: "营养师 陈若宁",
-        speakerTitle: "注册营养师",
-        coverUrl: `${CDN}/content/lecture-nutrition.jpg`,
-        videoUrl: "https://video.intellihealthcare.demo/lecture-nutrition.mp4",
+        slug: "guide-healthy-ageing-lifestyle-routine",
+        title: "讲堂导读：健康老龄化中的饮食、运动与慢病管理",
+        summary: "基于 MedlinePlus Healthy Aging 资料，梳理出更适合家庭照护场景的一周管理框架。",
+        speakerName: "康养内容策展组",
+        speakerTitle: "官方资料导读",
+        coverUrl: buildPexelsImageUrl("11583653"),
+        videoUrl: "https://videos.pexels.com/video-files/8107720/8107720-uhd_1440_2732_25fps.mp4",
         durationMinutes: 24,
         status: ContentStatus.PUBLISHED,
         content: {
-          outline: ["早餐搭配", "午晚餐比例", "加餐选择"],
-          highlights: ["多样化摄入比追求单一保健食材更重要。"],
+          sourceName: "MedlinePlus",
+          sourceUrl: "https://medlineplus.gov/healthyaging.html",
+          sourceTitle: "Healthy Aging: MedlinePlus",
+          sourceDescription: "Healthy lifestyle and chronic condition management can help people live more independently later in life.",
+          watchUrl: "https://medlineplus.gov/healthyaging.html",
+          watchLabel: "查看原始资料",
+          readingMinutes: 6,
+          imageAlt: "健康老龄化生活方式导读封面图",
+          gallery: [
+            {
+              url: buildPexelsImageUrl("11583653"),
+              alt: "摆放在桌面的水果燕麦早餐",
+              caption: "真正可持续的家庭管理，不是短期冲刺，而是饮食、活动、用药和复诊节奏都能长期执行。",
+              credit: "Pexels / Ella Olsson"
+            }
+          ],
+          outline: ["一周生活节奏怎么排", "饮食和运动谁都不能单独做", "慢病管理怎样避免三天热度"],
+          highlights: ["对长者家庭来说，比“吃什么最补”更重要的是每天都能执行的生活节奏。"],
+          references: [
+            {
+              title: "Healthy Aging: MedlinePlus",
+              url: "https://medlineplus.gov/healthyaging.html",
+              sourceName: "MedlinePlus"
+            }
+          ]
         },
-        publishedAt: dt("2026-04-17T08:40:00Z"),
+        publishedAt: dt("2026-04-20T08:40:00Z"),
       },
     ],
   });
@@ -2942,10 +3415,10 @@ async function main() {
 
   await prisma.communityTopic.createMany({
     data: [
-      { id: ids.topics.scenery, title: "#沿路风景", coverUrl: `${CDN}/community/topic-scenery.jpg`, participantCount: 208000, tone: "blue" },
-      { id: ids.topics.food, title: "#晒晒你的美食", coverUrl: `${CDN}/community/topic-food.jpg`, participantCount: 33000, tone: "yellow" },
-      { id: ids.topics.sunset, title: "#分享你的落日", coverUrl: `${CDN}/community/topic-sunset.jpg`, participantCount: 149000, tone: "orange" },
-      { id: ids.topics.photo, title: "#摄影大赛", coverUrl: `${CDN}/community/topic-photo.jpg`, participantCount: 14000, tone: "purple" },
+      { id: ids.topics.scenery, title: "#晨练打卡", coverUrl: buildPexelsImageUrl("775417"), participantCount: 208000, tone: "blue" },
+      { id: ids.topics.food, title: "#低盐餐桌", coverUrl: buildPexelsImageUrl("18476165"), participantCount: 33000, tone: "yellow" },
+      { id: ids.topics.sunset, title: "#晚风散步", coverUrl: buildPexelsImageUrl("13659778"), participantCount: 149000, tone: "orange" },
+      { id: ids.topics.photo, title: "#社区活动记录", coverUrl: buildPexelsImageUrl("7445404"), participantCount: 14000, tone: "purple" },
     ],
   });
 
@@ -2956,9 +3429,13 @@ async function main() {
         authorId: ids.users.caicai,
         topicId: ids.topics.food,
         status: CommunityPostStatus.PUBLISHED,
-        content: "分享一下喜欢做又简单的菜，今天晚饭刚好有阳光照进厨房。",
-        images: [`${CDN}/community/cook-1.jpg`, `${CDN}/community/cook-2.jpg`, `${CDN}/community/cook-3.jpg`],
-        tagLabel: "晒晒你的美食",
+        content: "给爸妈做了份低盐晚餐，豆腐、青菜和蒸南瓜一起上桌，饭前顺手测了血压，今天数字比上周平稳不少。",
+        images: [
+          buildPexelsImageUrl("18476165"),
+          buildPexelsImageUrl("15779235"),
+          buildPexelsImageUrl("15913456")
+        ],
+        tagLabel: "低盐餐桌",
         likesCount: 1010,
         favoritesCount: 88,
         commentsCount: 201,
@@ -2970,9 +3447,12 @@ async function main() {
         authorId: ids.users.wanfeng,
         topicId: ids.topics.sunset,
         status: CommunityPostStatus.PUBLISHED,
-        content: "散步时遇到很漂亮的天空，落日把云染成橘色，心情也慢慢安静下来。",
-        images: [`${CDN}/community/sunset-1.jpg`, `${CDN}/community/beach-1.jpg`],
-        tagLabel: "分享你的落日",
+        content: "晚饭后陪妈妈慢慢走了两圈，天边那点橘色刚好落在小区楼顶上。最近把散步节奏放慢，她反而更愿意每天出门了。",
+        images: [
+          buildPexelsImageUrl("13659778"),
+          buildPexelsImageUrl("8953853")
+        ],
+        tagLabel: "晚风散步",
         likesCount: 520,
         favoritesCount: 42,
         commentsCount: 96,
@@ -2984,9 +3464,12 @@ async function main() {
         authorId: ids.users.qingzhi,
         topicId: ids.topics.scenery,
         status: CommunityPostStatus.PUBLISHED,
-        content: "今天沿着河边慢慢走，路边的树影和风都刚刚好，随手拍了几张很喜欢。",
-        images: [`${CDN}/community/river-1.jpg`, `${CDN}/community/river-2.jpg`],
-        tagLabel: "沿路风景",
+        content: "早上沿着河边走了三千多步，膝盖没有前阵子那么紧了。康复老师说先把节奏稳住，不追求速度，这两天确实舒服很多。",
+        images: [
+          buildPexelsImageUrl("775417"),
+          buildPexelsImageUrl("13659778")
+        ],
+        tagLabel: "晨练打卡",
         likesCount: 430,
         favoritesCount: 36,
         commentsCount: 74,
@@ -2998,9 +3481,12 @@ async function main() {
         authorId: ids.users.qingzhi,
         topicId: ids.topics.food,
         status: CommunityPostStatus.PUBLISHED,
-        content: "家常菜不用复杂，青菜、豆腐和一点酱汁就能很香，适合晚饭轻轻松松吃。",
-        images: [`${CDN}/community/light-meal-1.jpg`, `${CDN}/community/light-meal-2.jpg`],
-        tagLabel: "晒晒你的美食",
+        content: "中午给奶奶做了清淡一点的便当，青菜、豆腐和玉米分量刚好，少放调味料以后反而更能吃出食材本身的味道。",
+        images: [
+          buildPexelsImageUrl("15779235"),
+          buildPexelsImageUrl("18476165")
+        ],
+        tagLabel: "低盐餐桌",
         likesCount: 688,
         favoritesCount: 59,
         commentsCount: 128,
@@ -3012,9 +3498,13 @@ async function main() {
         authorId: ids.users.qingzhi,
         topicId: ids.topics.photo,
         status: CommunityPostStatus.PUBLISHED,
-        content: "参加摄影大赛的第一组照片，想把清晨的光、路边的花和安静的街角都留下来。",
-        images: [`${CDN}/community/photo-1.jpg`, `${CDN}/community/photo-2.jpg`, `${CDN}/community/photo-3.jpg`],
-        tagLabel: "摄影大赛",
+        content: "今天社区园艺活动挺热闹，大家一边修枝一边聊天。给邻居阿姨拍了几张照片，她说最近愿意多下楼活动，心情也跟着轻松不少。",
+        images: [
+          buildPexelsImageUrl("7445404"),
+          buildPexelsImageUrl("8953853"),
+          buildPexelsImageUrl("1337308")
+        ],
+        tagLabel: "社区活动记录",
         likesCount: 904,
         favoritesCount: 82,
         commentsCount: 156,
@@ -3026,12 +3516,12 @@ async function main() {
 
   await prisma.communityComment.createMany({
     data: [
-      { id: "comment_1", postId: ids.posts.lightMeal, userId: ids.users.caicai, content: "这个配色看起来就很有食欲，晚餐这样吃很舒服。", createdAt: dt("2026-04-20T07:20:00Z") },
-      { id: "comment_2", postId: ids.posts.lightMeal, userId: ids.users.joy, content: "看起来清淡又不寡淡，我也想试试豆腐这个做法。", createdAt: dt("2026-04-20T07:28:00Z") },
-      { id: "comment_3", postId: ids.posts.sunset, userId: ids.users.wanglan, content: "颜色太温柔了，像春天的海边。", createdAt: dt("2026-04-20T07:56:00Z") },
-      { id: "comment_4", postId: ids.posts.photoContest, userId: ids.users.wanfeng, content: "第三张构图很好，很适合投稿比赛。", createdAt: dt("2026-04-20T07:06:00Z") },
-      { id: "comment_5", postId: ids.posts.photoContest, userId: ids.users.qingzhi, parentId: "comment_4", content: "谢谢夸奖，我也最喜欢第三张。", createdAt: dt("2026-04-20T07:08:00Z") },
-      { id: "comment_6", postId: ids.posts.kitchen, userId: ids.users.wanfeng, content: "阳光照进厨房的感觉太治愈了。", createdAt: dt("2026-04-20T08:08:00Z") },
+      { id: "comment_1", postId: ids.posts.lightMeal, userId: ids.users.caicai, content: "这种配餐看着清淡，但颜色和分量都很舒服，长辈一般更愿意吃。", createdAt: dt("2026-04-20T07:20:00Z") },
+      { id: "comment_2", postId: ids.posts.lightMeal, userId: ids.users.joy, content: "我也在试着少放调味料，豆腐这样做看起来很不错。", createdAt: dt("2026-04-20T07:28:00Z") },
+      { id: "comment_3", postId: ids.posts.sunset, userId: ids.users.wanglan, content: "这种慢慢走的节奏特别好，坚持下来比一次走很久更重要。", createdAt: dt("2026-04-20T07:56:00Z") },
+      { id: "comment_4", postId: ids.posts.photoContest, userId: ids.users.wanfeng, content: "社区活动有照片记录真的很好，家里长辈愿意参与就已经很难得了。", createdAt: dt("2026-04-20T07:06:00Z") },
+      { id: "comment_5", postId: ids.posts.photoContest, userId: ids.users.qingzhi, parentId: "comment_4", content: "是的，她回家后还一直说下次活动想继续报名。", createdAt: dt("2026-04-20T07:08:00Z") },
+      { id: "comment_6", postId: ids.posts.kitchen, userId: ids.users.wanfeng, content: "血压记录和做饭放在一起管理，这个习惯很值得学。", createdAt: dt("2026-04-20T08:08:00Z") },
     ],
   });
 
@@ -3056,7 +3546,7 @@ async function main() {
         status: ActivityStatus.ONGOING,
         fee: "20.00",
         location: "海滨社区文化活动中心",
-        coverUrl: `${CDN}/activities/photography.jpg`,
+        coverUrl: buildPexelsImageUrl("7445404"),
         startAt: dt("2026-04-16T09:00:00Z"),
         endAt: dt("2026-05-02T17:00:00Z"),
         signupDeadline: dt("2026-04-25T23:59:59Z"),
@@ -3079,7 +3569,7 @@ async function main() {
         status: ActivityStatus.ONGOING,
         fee: "20.00",
         location: "第一海水浴场",
-        coverUrl: `${CDN}/activities/seaside-walk.jpg`,
+        coverUrl: buildPexelsImageUrl("13659778"),
         startAt: dt("2026-04-16T08:30:00Z"),
         endAt: dt("2026-05-02T12:00:00Z"),
         signupDeadline: dt("2026-04-22T23:59:59Z"),
@@ -3102,7 +3592,7 @@ async function main() {
         status: ActivityStatus.UPCOMING,
         fee: "0.00",
         location: "桂花社区活动室",
-        coverUrl: `${CDN}/activities/photo-salon.jpg`,
+        coverUrl: buildPexelsImageUrl("1337308"),
         startAt: dt("2026-04-24T14:00:00Z"),
         endAt: dt("2026-04-24T16:30:00Z"),
         signupDeadline: dt("2026-04-23T18:00:00Z"),
@@ -3124,7 +3614,7 @@ async function main() {
         status: ActivityStatus.UPCOMING,
         fee: "15.00",
         location: "海天步道南段",
-        coverUrl: `${CDN}/activities/coast-walk.jpg`,
+        coverUrl: buildPexelsImageUrl("775417"),
         startAt: dt("2026-04-27T09:00:00Z"),
         endAt: dt("2026-04-27T11:30:00Z"),
         signupDeadline: dt("2026-04-25T18:00:00Z"),
@@ -3262,7 +3752,7 @@ async function main() {
         targetType: FootprintTargetType.SERVICE,
         targetId: ids.services.homeClean,
         title: "日常清洁 2小时1人上门服务",
-        coverUrl: `${CDN}/services/home-clean.jpg`,
+        coverUrl: buildPexelsImageUrl("8055825"),
         metadata: { price: "¥298" },
         viewedAt: dt("2026-04-20T06:40:00Z"),
       },
@@ -3272,7 +3762,7 @@ async function main() {
         targetType: FootprintTargetType.ACTIVITY,
         targetId: ids.activities.photography,
         title: "桂花小区老年摄影大赛火热进行中",
-        coverUrl: `${CDN}/activities/photography.jpg`,
+        coverUrl: buildPexelsImageUrl("7445404"),
         metadata: { time: "2026.04.16~2026.05.02", location: "海滨社区文化活动中心", fee: "20元" },
         viewedAt: dt("2026-04-20T06:12:00Z"),
       },
@@ -3282,7 +3772,7 @@ async function main() {
         targetType: FootprintTargetType.SERVICE,
         targetId: ids.services.rehabStroke,
         title: "脑卒中术后康复套餐",
-        coverUrl: `${CDN}/services/rehab-stroke.jpg`,
+        coverUrl: buildPexelsImageUrl("6922186"),
         metadata: { price: "¥1990" },
         viewedAt: dt("2026-04-20T07:58:00Z"),
       },
@@ -3292,7 +3782,7 @@ async function main() {
         targetType: FootprintTargetType.SERVICE,
         targetId: ids.services.elderlyQingsong,
         title: "青松颐养中心 医养结合双人间",
-        coverUrl: `${CDN}/services/qingsong-room.jpg`,
+        coverUrl: buildPexelsImageUrl("14532311"),
         metadata: { price: "¥5200/月" },
         viewedAt: dt("2026-04-20T08:42:00Z"),
       },
@@ -3337,7 +3827,7 @@ async function main() {
         userId: ids.users.qingzhi,
         targetType: ContentTargetType.ARTICLE,
         targetId: ids.articles.salt,
-        content: "低盐调味这个建议很实用，家里已经开始改了。",
+        content: "把家庭测压和低盐饮食放到同一张记录表里，这个思路很实用。",
         createdAt: dt("2026-04-20T07:08:00Z"),
       },
       {
@@ -3345,7 +3835,7 @@ async function main() {
         userId: ids.users.joy,
         targetType: ContentTargetType.ARTICLE,
         targetId: ids.articles.salt,
-        content: "看完后准备把酱油也换成减盐款。",
+        content: "准备先从酱油和腌菜下手，家里真正高钠的还是这些调味料。",
         createdAt: dt("2026-04-20T07:18:00Z"),
       },
       {
@@ -3353,7 +3843,7 @@ async function main() {
         userId: ids.users.wanglan,
         targetType: ContentTargetType.LECTURE,
         targetId: ids.lectures.bp,
-        content: "讲家庭血压记录那段特别清楚，方便家属照着做。",
+        content: "家庭血压记录那段讲得很清楚，家属照着做就能落地。",
         createdAt: dt("2026-04-20T07:28:00Z"),
       },
       {
@@ -3361,7 +3851,7 @@ async function main() {
         userId: ids.users.liyuan,
         targetType: ContentTargetType.LECTURE,
         targetId: ids.lectures.bp,
-        content: "如果能补一个测量前准备清单就更完整了。",
+        content: "如果能再补一个测量前注意事项清单，长辈自己执行会更方便。",
         createdAt: dt("2026-04-20T07:38:00Z"),
       },
     ],

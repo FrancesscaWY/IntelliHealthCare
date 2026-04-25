@@ -10,10 +10,12 @@ import {
   UseGuards
 } from "@nestjs/common";
 import { InstitutionType } from "@prisma/client";
+import { Type } from "class-transformer";
 import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -129,6 +131,64 @@ class InstitutionUpsertDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @ApiPropertyOptional({
+    description: "封面文件名。",
+    example: "institution-cover-1.jpg"
+  })
+  @IsOptional()
+  @IsString()
+  coverName?: string;
+
+  @ApiPropertyOptional({
+    description: "营业时间。",
+    example: "08:00-20:00"
+  })
+  @IsOptional()
+  @IsString()
+  businessHours?: string;
+
+  @ApiPropertyOptional({
+    description: "分享次数。",
+    example: 100
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  shareCount?: number;
+
+  @ApiPropertyOptional({
+    description: "收藏次数。",
+    example: 35
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  favoriteCount?: number;
+
+  @ApiPropertyOptional({
+    description: "发布模式。",
+    example: "immediate"
+  })
+  @IsOptional()
+  @IsString()
+  publishMode?: string;
+
+  @ApiPropertyOptional({
+    description: "定时发布日期。",
+    example: "2026-04-24"
+  })
+  @IsOptional()
+  @IsString()
+  publishDate?: string;
+
+  @ApiPropertyOptional({
+    description: "定时发布时间。",
+    example: "12:00"
+  })
+  @IsOptional()
+  @IsString()
+  publishTime?: string;
 }
 
 class BatchInstitutionDeleteDto {
