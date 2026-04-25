@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { SetOff } from "@icon-park/vue-next";
 import avatarImage from "@/assets/community/activities/people.png";
+import { syncHealthDeviceItems } from "../device-center/state";
 import mock from "./mock";
 import { takeHealthDataBackTarget } from "./source";
 
@@ -134,6 +135,12 @@ const scoreLabel = computed(() => {
 });
 
 const addDevicePageId = "health/add-device-placeholder";
+const deviceCount = ref(3);
+const linkedDevices = ref([
+  { id: "watch-alpha", name: "智能手表 A" },
+  { id: "watch-beta", name: "智能手表 B" },
+  { id: "watch-gamma", name: "智能手表 C" }
+]);
 
 const profileSummary = computed(() => ({
   name: "张爱清",
@@ -141,7 +148,7 @@ const profileSummary = computed(() => ({
   age: 65,
   height: 172,
   weight: latest.value.weight.toFixed(1),
-  deviceCount: 3,
+  deviceCount: deviceCount.value,
 }));
 
 const healthAlerts = computed(() =>
@@ -152,7 +159,7 @@ const healthAlerts = computed(() =>
     .map((item) => `${item.label}偏高`)
 );
 
-const linkedDevices = [
+const linkedDevicesFallback = [
   { id: "watch-alpha", name: "智能手表 A" },
   { id: "watch-beta", name: "智能手表 B" },
   { id: "watch-gamma", name: "智能手表 C" },
@@ -298,6 +305,24 @@ function goToAddDevice() {
     props.navigation.navigateTo(addDevicePageId);
   }
 }
+
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
+}
+
+onMounted(() => {
+  void syncHealthDeviceItems()
+    .then((items) => {
+      deviceCount.value = items.length;
+      linkedDevices.value = items.slice(0, 4).map((item) => ({
+        id: item.id,
+        name: item.name
+      }));
+    })
+    .catch((error) => {
+      props.showToast(getDeviceErrorMessage(error));
+    });
+});
 </script>
 
 <template>

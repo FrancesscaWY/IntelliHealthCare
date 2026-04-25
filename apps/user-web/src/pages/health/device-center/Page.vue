@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
-import { selectedDeviceId } from "./state";
+import { currentDeviceItems, selectDevice, syncHealthDeviceItems } from "./state";
 
 const props = defineProps<PageComponentProps>();
+const deviceItems = computed(() => currentDeviceItems.value);
 
 const deviceIconMarkup: Record<string, string> = {
   watch: `
@@ -46,14 +48,24 @@ function addDevice() {
   props.navigation.navigateTo("health/device-add");
 }
 
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
+}
+
 function openDevice(id: string) {
-  selectedDeviceId.value = id;
+  selectDevice(id);
   props.navigation.navigateTo("health/device-detail");
 }
 
 function getDeviceIconMarkup(type: string) {
   return deviceIconMarkup[type] || deviceIconMarkup.watch;
 }
+
+onMounted(() => {
+  void syncHealthDeviceItems().catch((error) => {
+    props.showToast(getDeviceErrorMessage(error));
+  });
+});
 </script>
 
 <template>
@@ -73,26 +85,30 @@ function getDeviceIconMarkup(type: string) {
     </header>
 
     <main class="device-scroll">
-      <button
-        v-for="item in mock.devices"
-        :key="item.id"
-        class="device-card"
-        type="button"
-        @click="openDevice(item.id)"
-      >
-        <span class="device-icon-wrap" :style="{ background: item.halo, color: item.color }" aria-hidden="true">
-          <svg viewBox="0 0 32 32" focusable="false">
-            <g v-html="getDeviceIconMarkup(item.type)"></g>
-          </svg>
-        </span>
+      <template v-if="deviceItems.length">
+        <button
+          v-for="item in deviceItems"
+          :key="item.id"
+          class="device-card"
+          type="button"
+          @click="openDevice(item.id)"
+        >
+          <span class="device-icon-wrap" :style="{ background: item.halo, color: item.color }" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <g v-html="getDeviceIconMarkup(item.type)"></g>
+            </svg>
+          </span>
 
-        <span class="device-copy">
-          <strong>{{ item.name }}</strong>
-          <small>{{ item.status }}</small>
-        </span>
+          <span class="device-copy">
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.status }}</small>
+          </span>
 
-        <span class="device-arrow" aria-hidden="true"></span>
-      </button>
+          <span class="device-arrow" aria-hidden="true"></span>
+        </button>
+      </template>
+
+      <div v-else class="device-empty">暂无已绑定设备</div>
     </main>
   </section>
 </template>
@@ -203,6 +219,19 @@ function getDeviceIconMarkup(type: string) {
 
 .device-card:first-child {
   margin-top: 0;
+}
+
+.device-empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  margin-top: 12px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #9a9fa8;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 14px 34px rgba(31, 40, 58, 0.04);
 }
 
 .device-icon-wrap {

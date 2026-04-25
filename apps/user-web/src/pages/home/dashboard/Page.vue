@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { favoriteHealthNews, likeHealthNews, listHealthNews, shareHealthNews } from "@/shared/api/content";
@@ -8,6 +8,13 @@ import { normalizeNewsImages } from "@/shared/utils/healthNewsMedia";
 import locationIcon from "@/assets/home/topbar/定位.png";
 import scanIcon from "@/assets/home/topbar/二维码.png";
 import sectionImage from "@/assets/home/sections/img.png";
+import {
+  getHomeDashboard,
+  type HomeDashboardArticle,
+  type HomeDashboardServiceEntry,
+} from "@/shared/api/home";
+import { addSearchHistory, getGlobalSearch } from "@/shared/api/search";
+import { saveGlobalSearchState } from "@/shared/search/session";
 import FloatingAssistant from "./FloatingAssistant.vue";
 import mock from "./mock";
 
@@ -45,6 +52,119 @@ function createFallbackArticles(): DashboardArticle[] {
 const articles = ref<DashboardArticle[]>(createFallbackArticles());
 const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
 const activeFeaturePage = ref(0);
+const isSubmittingSearch = ref(false);
+
+interface ArticleCardState {
+  id: string;
+  title: string;
+  desc: string;
+  likes: number;
+  stars: number;
+  comments: number;
+  coverUrl: string | null;
+  isLiked: boolean;
+  isStarred: boolean;
+}
+
+const serviceCategoryOrder = ["HOME_CARE", "REHAB_THERAPY", "HOME_EXAM"] as const;
+const serviceCardConfigByCategory = {
+  HOME_CARE: mock.services[0],
+  REHAB_THERAPY: mock.services[1],
+  HOME_EXAM: mock.services[2],
+};
+
+function createArticleState(
+  items: Array<{
+    title: string;
+    desc: string;
+    likes: number;
+    stars: number;
+    comments: number;
+    coverUrl?: string | null;
+  }>
+): ArticleCardState[] {
+  return items.map((item, index) => ({
+    ...item,
+    id: `article-${index + 1}`,
+    coverUrl: item.coverUrl ?? null,
+    isLiked: false,
+    isStarred: false,
+  }));
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "\u9996\u9875\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5";
+}
+
+function getSearchErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "搜索失败，请稍后重试";
+}
+
+function formatServicePrice(price: number) {
+  if (!Number.isFinite(price) || price <= 0) {
+    return "";
+  }
+
+  return Number.isInteger(price)
+    ? `\u00A5${price}\u8D77`
+    : `\u00A5${price.toFixed(2)}\u8D77`;
+}
+
+function mapServiceEntries(entries: HomeDashboardServiceEntry[]) {
+  return serviceCategoryOrder.flatMap((category) => {
+    const entry = entries.find((item) => item.category === category);
+
+    if (!entry) {
+      return [];
+    }
+
+    const config = serviceCardConfigByCategory[category];
+    return [
+      {
+        ...config,
+        desc: formatServicePrice(entry.price) || config.desc,
+      },
+    ];
+  });
+}
+
+function mapRecommendedArticles(items: HomeDashboardArticle[]) {
+  return createArticleState(
+    items.map((item, index) => ({
+      title: item.title,
+      desc: item.summary || mock.articles[index]?.desc || "",
+      likes: mock.articles[index]?.likes ?? 0,
+      stars: mock.articles[index]?.stars ?? 0,
+      comments: mock.articles[index]?.comments ?? 0,
+      coverUrl: item.coverUrl,
+    }))
+  );
+}
+
+async function loadDashboard() {
+  try {
+    const dashboard = await getHomeDashboard();
+    const nextServiceCards = mapServiceEntries(dashboard.serviceEntries);
+
+    homeCity.value = dashboard.city || mock.city;
+    serviceCards.value = nextServiceCards.length ? nextServiceCards : [...mock.services];
+    healthReminder.value = dashboard.healthReminder
+      ? {
+          ...mock.reminder,
+          title: dashboard.healthReminder.title,
+          detail: dashboard.healthReminder.content,
+        }
+      : {
+          ...mock.reminder,
+          title: "\u5065\u5EB7\u63D0\u9192",
+          detail: "\u6682\u672A\u751F\u6210\u4ECA\u65E5\u63D0\u9192",
+        };
+    hotDiseases.value = dashboard.hotDiseases.map((item) => item.title);
+    articles.value = mapRecommendedArticles(dashboard.recommendedArticles);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -185,6 +305,10 @@ function getFeatureIconMarkup(icon: string) {
   return featureIconMarkup[icon] || featureIconMarkup.chart;
 }
 
+function openSearchPage() {
+  props.navigation.navigateTo("home/search");
+}
+
 function openPage(pageId: string, label?: string) {
   if (!pageId) {
     props.showToast(`${label || "该功能"}待接入`);
@@ -196,6 +320,41 @@ function openPage(pageId: string, label?: string) {
 
 function applyTag(tag: string) {
   searchValue.value = tag;
+  void submitSearch(tag);
+}
+
+async function submitSearch(keyword = searchValue.value) {
+  const normalizedKeyword = keyword.trim();
+
+  if (!normalizedKeyword) {
+    openSearchPage();
+    return;
+  }
+
+  if (isSubmittingSearch.value) {
+    return;
+  }
+
+  try {
+    isSubmittingSearch.value = true;
+    searchValue.value = normalizedKeyword;
+
+    const result = await getGlobalSearch(normalizedKeyword, 1, 10);
+    saveGlobalSearchState({
+      keyword: normalizedKeyword,
+      list: result.list,
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+      hasMore: result.hasMore
+    });
+    void addSearchHistory(normalizedKeyword).catch(() => undefined);
+    openSearchPage();
+  } catch (error) {
+    props.showToast(getSearchErrorMessage(error));
+  } finally {
+    isSubmittingSearch.value = false;
+  }
 }
 
 function showAction(label: string) {
@@ -343,7 +502,7 @@ onMounted(() => {
       <header class="home-topbar">
         <button class="location-btn" type="button" @click="openPage('home/location-select', '选择地区')">
           <img class="location-icon" :src="locationIcon" alt="定位" draggable="false" />
-          <span>{{ mock.city }}</span>
+          <span>{{ homeCity }}</span>
           <span class="location-caret" aria-hidden="true"></span>
         </button>
 
@@ -354,14 +513,26 @@ onMounted(() => {
           <button class="search-scan-btn" type="button" aria-label="扫一扫" @click="showAction('扫一扫')">
             <img :src="scanIcon" alt="扫一扫" draggable="false" />
           </button>
-          <button class="search-field" type="button" @click="openPage('home/search', '搜索')">
-            <span class="search-placeholder">搜索服务 / 疾病 / 资讯等</span>
+          <button class="search-field" type="button" @click="openSearchPage">
+            <span class="search-placeholder" :class="{ 'search-placeholder--active': searchValue }">
+              {{ searchValue || "搜索服务 / 疾病 / 资讯等" }}
+            </span>
           </button>
-          <button class="search-submit" type="button" @click="openPage('home/search', '搜索')">搜索</button>
+          <button class="search-submit" type="button" @click="submitSearch()">
+            {{ isSubmittingSearch ? "搜索中" : "搜索" }}
+          </button>
         </div>
 
         <div class="search-tags">
-          <button v-for="tag in mock.searchTags" :key="tag" type="button" @click="applyTag(tag)">{{ tag }}</button>
+          <button
+            v-for="tag in mock.searchTags"
+            :key="tag"
+            type="button"
+            :class="{ 'search-tag--active': tag === searchValue }"
+            @click="applyTag(tag)"
+          >
+            {{ tag }}
+          </button>
         </div>
 
         <div class="section-image-box">
@@ -372,7 +543,7 @@ onMounted(() => {
 
 
       <section class="service-grid" aria-label="上门服务">
-        <button v-for="item in mock.services" :key="item.key" class="service-card" type="button" @click="openPage(item.pageId, item.title)">
+        <button v-for="item in serviceCards" :key="item.key" class="service-card" type="button" @click="openPage(item.pageId, item.title)">
           <span class="service-icon" :class="`service-icon--${item.key}`" aria-hidden="true">
             <img :src="item.icon" :alt="item.title" draggable="false" />
           </span>
@@ -420,9 +591,9 @@ onMounted(() => {
         <div class="reminder-content">
           <strong>
             <span class="bell-icon" aria-hidden="true"></span>
-            {{ mock.reminder.title }}
+            {{ healthReminder.title }}
           </strong>
-          <p>{{ mock.reminder.detail }}</p>
+          <p>{{ healthReminder.detail }}</p>
         </div>
       </section>
 
@@ -436,7 +607,7 @@ onMounted(() => {
         </header>
 
         <div class="disease-list">
-          <button v-for="item in mock.diseases" :key="item" type="button" class="disease-pill" @click="openPage('content/disease-guide', item)">
+          <button v-for="item in hotDiseases" :key="item" type="button" class="disease-pill" @click="openPage('content/disease-guide', item)">
             {{ item }}
           </button>
         </div>
@@ -683,6 +854,10 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.search-placeholder--active {
+  color: #4d5563;
+}
+
 .search-submit {
   flex: 0 0 72px;
   height: 30px;
@@ -711,6 +886,12 @@ onMounted(() => {
   color: #8f95a2;
   font-size: 12px;
   font-weight: 800;
+}
+
+.search-tags button.search-tag--active {
+  border-color: rgba(117, 214, 223, 0.8);
+  background: rgba(117, 214, 223, 0.18);
+  color: #4d5563;
 }
 
 .section-image-box {
@@ -1079,19 +1260,18 @@ onMounted(() => {
   line-height: 1.75;
 }
 
-.article-photos {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+.article-cover-wrap {
   margin-top: 13px;
 }
 
-.article-photo {
-  position: relative;
-  height: 81px;
-  overflow: hidden;
+.article-cover {
+  display: block;
+  width: 100%;
+  height: 168px;
   border-radius: 13px;
+  object-fit: cover;
   background: #eef4f8;
+  user-select: none;
 }
 
 .article-photo-image {
