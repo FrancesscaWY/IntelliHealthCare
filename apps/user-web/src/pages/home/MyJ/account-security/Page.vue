@@ -1,8 +1,49 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getCurrentUserSecurity, type CurrentUserSecurityResponse } from "@/shared/api/auth";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const security = ref<CurrentUserSecurityResponse | null>(null);
+
+const socialMap = new Map(mock.socials.map((item) => [item.key, item]));
+const visibleSocials = computed(() =>
+  (security.value?.thirdPartyBindings || [])
+    .map((binding) => {
+      const fallback = socialMap.get(binding.provider);
+
+      if (!fallback) {
+        return null;
+      }
+
+      return {
+        ...fallback,
+        status: binding.bound ? "已绑定" : "未绑定",
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+);
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function maskPhone(phone: string) {
+  if (!phone) {
+    return mock.phone;
+  }
+
+  return phone.replace(/^(\d{3})\d{4}(\d{4})$/, "+86 $1***$2");
+}
+
+async function loadSecurity() {
+  try {
+    security.value = await getCurrentUserSecurity();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -13,6 +54,10 @@ function goBack() {
 function showPending(label: string) {
   props.showToast(`${label}功能待接入`);
 }
+
+onMounted(() => {
+  void loadSecurity();
+});
 </script>
 
 <template>
@@ -28,12 +73,12 @@ function showPending(label: string) {
       <section class="panel">
         <button class="basic-row" type="button" @click="showPending('手机号')">
           <span class="row-label">手机号码</span>
-          <span class="row-value">{{ mock.phone }}</span>
+          <span class="row-value">{{ maskPhone(security?.phone || "") }}</span>
           <span class="row-arrow" aria-hidden="true"></span>
         </button>
         <button class="basic-row" type="button" @click="showPending('登录密码')">
           <span class="row-label">登录密码</span>
-          <span class="row-value">{{ mock.passwordLabel }}</span>
+          <span class="row-value">{{ security?.hasPassword ? mock.passwordLabel : "未设置" }}</span>
           <span class="row-arrow" aria-hidden="true"></span>
         </button>
       </section>
@@ -42,7 +87,7 @@ function showPending(label: string) {
         <p class="section-label">{{ mock.socialTitle }}</p>
         <section class="panel">
           <button
-            v-for="item in mock.socials"
+            v-for="item in visibleSocials"
             :key="item.key"
             class="social-row"
             type="button"
@@ -199,4 +244,3 @@ function showPending(label: string) {
   object-fit: contain;
 }
 </style>
-

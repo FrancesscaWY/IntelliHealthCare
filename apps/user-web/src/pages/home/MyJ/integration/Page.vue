@@ -1,12 +1,64 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getUserPoints, type UserPointsRecord } from "@/shared/api/auth";
 import mock, { type IntegrationTabKey } from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const activeTab = ref<IntegrationTabKey>("income");
+const currentPoints = ref(mock.currentPoints);
+const records = ref<UserPointsRecord[]>([]);
+const loading = ref(false);
 
-const visibleRecords = computed(() => mock.records.filter((record) => record.type === activeTab.value));
+const visibleRecords = computed(() =>
+  records.value
+    .filter((record) => (activeTab.value === "income" ? record.delta >= 0 : record.delta < 0))
+    .map((record) => ({
+      id: record.pointId,
+      type: record.delta >= 0 ? "income" : "expense",
+      title: record.title,
+      time: formatDateTime(record.createdAt),
+      amount: `${record.delta >= 0 ? "+" : ""}${record.delta}`,
+    })),
+);
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\//g, "-");
+}
+
+async function loadPoints() {
+  loading.value = true;
+
+  try {
+    const response = await getUserPoints({ page: 1, pageSize: 20 });
+    currentPoints.value = response.summary.balance;
+    records.value = response.records.list;
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
+}
 
 function goBack() {
   props.navigation.reLaunch("home/mine");
@@ -15,6 +67,10 @@ function goBack() {
 function selectTab(tab: IntegrationTabKey) {
   activeTab.value = tab;
 }
+
+onMounted(() => {
+  void loadPoints();
+});
 </script>
 
 <template>
@@ -34,7 +90,7 @@ function selectTab(tab: IntegrationTabKey) {
       <section class="points-card">
         <div class="points-main">
           <span class="points-label">当前积分</span>
-          <strong>{{ mock.currentPoints }}</strong>
+          <strong>{{ currentPoints }}</strong>
         </div>
       </section>
 
@@ -56,6 +112,7 @@ function selectTab(tab: IntegrationTabKey) {
         </header>
 
         <div class="record-list">
+          <p v-if="!visibleRecords.length && loading" class="record-empty">加载中...</p>
           <article v-for="record in visibleRecords" :key="record.id" class="record-row">
             <div class="record-copy">
               <h3>{{ record.title }}</h3>
@@ -65,6 +122,7 @@ function selectTab(tab: IntegrationTabKey) {
               {{ record.amount }}
             </strong>
           </article>
+          <p v-if="!visibleRecords.length && !loading" class="record-empty">暂无积分明细</p>
         </div>
       </section>
     </main>
@@ -284,5 +342,13 @@ function selectTab(tab: IntegrationTabKey) {
 
 .record-amount--expense {
   color: #8d9487;
+}
+
+.record-empty {
+  margin: 0;
+  padding: 28px 0;
+  color: #b7bdb0;
+  font-size: 14px;
+  text-align: center;
 }
 </style>

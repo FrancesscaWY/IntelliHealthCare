@@ -1,4 +1,4 @@
-import feedMain from "@/assets/home/profile/feed-main.jpg";
+﻿import feedMain from "@/assets/home/profile/feed-main.jpg";
 import feedThumb1 from "@/assets/home/profile/feed-thumb-1.jpg";
 import feedThumb2 from "@/assets/home/profile/feed-thumb-2.jpg";
 import type { ProfilePost } from "./published-post";
@@ -39,8 +39,9 @@ const mock = {
     gender: "male",
     stats: [
       { label: "关注", value: "24" },
-      { label: "粉丝", value: "333" },
-      { label: "获赞", value: "6006" },
+      { label: "收藏", value: "86" },
+      { label: "点赞", value: "333" },
+      { label: "足迹", value: "1254" },
     ],
   },
   feedCount: 200,

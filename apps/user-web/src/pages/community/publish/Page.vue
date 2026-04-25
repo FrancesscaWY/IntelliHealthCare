@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { AtSign, Close, LocalTwo, Pound } from "@icon-park/vue-next";
 import blossomCover from "@/assets/community/publish/blossom.jpg";
 import { savePublishedProfilePost } from "@/pages/home/profile/published-post";
+import { getCurrentUserProfile } from "@/shared/api/auth";
+import { createCommunityPost, getCommunityTopics, type CommunityTopicItem } from "@/shared/api/community";
 import { uploadAppFile } from "@/shared/api/files";
-import mock from "./mock";
 
 type UploadImage = {
   id: string;
@@ -13,7 +14,11 @@ type UploadImage = {
   fileId?: string;
 };
 
-type VisibilityOption = (typeof mock.visibilityOptions)[number];
+type VisibilityOption = {
+  key: "public" | "private";
+  label: string;
+  description: string;
+};
 
 const MAX_UPLOAD_IMAGES = 6;
 
@@ -21,14 +26,42 @@ const props = defineProps<PageComponentProps>();
 const fileInput = ref<HTMLInputElement | null>(null);
 const title = ref("");
 const content = ref("");
-const visibility = ref<VisibilityOption>(mock.visibilityOptions[0]);
+const visibility = ref<VisibilityOption>({
+  key: "public",
+  label: "公开",
+  description: "所有人可见"
+});
 const showVisibilityPanel = ref(false);
 const uploadedImages = ref<UploadImage[]>([]);
 const isUploadingImages = ref(false);
+const isSubmitting = ref(false);
+const topics = ref<CommunityTopicItem[]>([]);
+const topicIndex = ref(0);
+const currentUserName = ref("我");
 
-const canSubmit = computed(() => title.value.trim().length > 0 && content.value.trim().length > 0);
+const visibilityOptions: VisibilityOption[] = [
+  { key: "public", label: "公开", description: "所有人可见" }
+];
+
+const selectedTopic = computed(() => topics.value[topicIndex.value] || null);
+const canSubmit = computed(() => buildSubmitContent().length > 0 && !isSubmitting.value);
 const remainingImageSlots = computed(() => Math.max(MAX_UPLOAD_IMAGES - uploadedImages.value.length, 0));
 const canAddMoreImages = computed(() => remainingImageSlots.value > 0);
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function buildSubmitContent() {
+  const trimmedTitle = title.value.trim();
+  const trimmedContent = content.value.trim();
+
+  if (trimmedTitle && trimmedContent) {
+    return `${trimmedTitle}\n${trimmedContent}`;
+  }
+
+  return trimmedTitle || trimmedContent;
+}
 
 function goBack() {
   showVisibilityPanel.value = false;
@@ -41,6 +74,23 @@ function goBack() {
 function triggerUpload() {
   if (!isUploadingImages.value) {
     fileInput.value?.click();
+  }
+}
+
+async function loadTopics() {
+  try {
+    topics.value = await getCommunityTopics();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function loadCurrentUser() {
+  try {
+    const profile = await getCurrentUserProfile();
+    currentUserName.value = profile.nickname || profile.realName || "我";
+  } catch {
+    currentUserName.value = "我";
   }
 }
 
@@ -77,8 +127,7 @@ async function handleFileChange(event: Event) {
     uploadedImages.value = [...uploadedImages.value, ...nextImages].slice(0, MAX_UPLOAD_IMAGES);
     props.showToast(`已上传 ${nextImages.length} 张图片`);
   } catch (error) {
-    console.error("upload image failed", error);
-    props.showToast(error instanceof Error ? error.message : "图片上传失败，请重试");
+    props.showToast(getErrorMessage(error));
   } finally {
     isUploadingImages.value = false;
     target.value = "";
@@ -86,11 +135,6 @@ async function handleFileChange(event: Event) {
 
   if (rawFiles.length > selectedFiles.length) {
     props.showToast(`最多可添加 ${MAX_UPLOAD_IMAGES} 张图片`);
-    return;
-  }
-
-  if (uploadedImages.value.length >= MAX_UPLOAD_IMAGES) {
-    props.showToast(`已添加 ${MAX_UPLOAD_IMAGES} 张图片`);
   }
 }
 
@@ -107,43 +151,70 @@ function toggleVisibilityPanel() {
   showVisibilityPanel.value = !showVisibilityPanel.value;
 }
 
+function cycleTopic() {
+  if (!topics.value.length) {
+    props.showToast("暂无可选话题");
+    return;
+  }
+
+  topicIndex.value = (topicIndex.value + 1) % topics.value.length;
+  props.showToast(`已选择话题 ${selectedTopic.value?.title}`);
+}
+
 function formatPostDate() {
   const now = new Date();
   return `${now.getMonth() + 1}月${now.getDate()}日`;
 }
 
-function submitPost() {
-  if (!title.value.trim()) {
-    props.showToast("请输入标题");
-    return;
-  }
+async function submitPost() {
+  const submitContent = buildSubmitContent();
 
-  if (!content.value.trim()) {
+  if (!submitContent) {
     props.showToast("请输入内容");
     return;
   }
 
-  savePublishedProfilePost({
-    id: `published-${Date.now()}`,
-    author: "笑看人生",
-    date: formatPostDate(),
-    title: title.value.trim(),
-    content: content.value.trim(),
-    likes: 0,
-    favorites: 0,
-    comments: 0,
-    gallery: uploadedImages.value.map((item) => ({
-      src: item.src,
-      position: "center",
-      fileId: item.fileId
-    }))
-  });
+  isSubmitting.value = true;
 
-  props.showToast(`${visibility.value.label}发布成功`);
-  window.setTimeout(() => {
-    props.navigation.reLaunch("home/profile");
-  }, 300);
+  try {
+    await createCommunityPost({
+      topicId: selectedTopic.value?.topicId,
+      tagLabel: selectedTopic.value?.title.replace(/^#/, ""),
+      content: submitContent,
+      images: uploadedImages.value.map((item) => item.src)
+    });
+
+    savePublishedProfilePost({
+      id: `published-${Date.now()}`,
+      author: currentUserName.value,
+      date: formatPostDate(),
+      title: title.value.trim(),
+      content: content.value.trim() || submitContent,
+      likes: 0,
+      favorites: 0,
+      comments: 0,
+      gallery: uploadedImages.value.map((item) => ({
+        src: item.src,
+        position: "center",
+        fileId: item.fileId
+      }))
+    });
+
+    props.showToast(`${visibility.value.label}发布成功`);
+    window.setTimeout(() => {
+      props.navigation.reLaunch("community/circle");
+    }, 300);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    isSubmitting.value = false;
+  }
 }
+
+onMounted(() => {
+  void loadTopics();
+  void loadCurrentUser();
+});
 </script>
 
 <template>
@@ -159,7 +230,7 @@ function submitPost() {
           type="button"
           @click.stop="submitPost"
         >
-          发布
+          {{ isSubmitting ? "发布中" : "发布" }}
         </button>
       </header>
 
@@ -201,41 +272,45 @@ function submitPost() {
       </section>
 
       <section class="publish-editor">
-        <input v-model="title" class="publish-title" type="text" :placeholder="mock.placeholders.title" />
+        <input v-model="title" class="publish-title" type="text" placeholder="输入标题" />
         <div class="editor-divider"></div>
-        <textarea v-model="content" class="publish-content" :placeholder="mock.placeholders.content"></textarea>
+        <textarea v-model="content" class="publish-content" placeholder="输入内容"></textarea>
       </section>
 
       <footer class="publish-footer">
         <div class="publish-toolbar">
-          <button type="button" class="toolbar-icon" aria-label="提及" @click.stop="props.showToast('提及功能待接入')">
+          <button type="button" class="toolbar-icon" aria-label="提及" @click.stop="props.showToast('提及功能暂未接入')">
             <AtSign theme="outline" size="20" fill="#2f3237" />
           </button>
-          <button type="button" class="toolbar-icon" aria-label="话题" @click.stop="props.showToast('话题功能待接入')">
+          <button type="button" class="toolbar-icon" aria-label="话题" @click.stop="cycleTopic">
             <Pound theme="outline" size="20" fill="#2f3237" />
           </button>
-          <button type="button" class="toolbar-icon" aria-label="位置" @click.stop="props.showToast('位置功能待接入')">
+          <button type="button" class="toolbar-icon" aria-label="位置" @click.stop="props.showToast('位置功能暂未接入')">
             <LocalTwo theme="outline" size="20" fill="#2f3237" />
           </button>
         </div>
 
-        <div class="visibility">
-          <button type="button" class="visibility-button" @click.stop="toggleVisibilityPanel">
-            {{ visibility.label }}
-          </button>
+        <div class="footer-meta">
+          <span v-if="selectedTopic" class="topic-pill">{{ selectedTopic.title }}</span>
 
-          <div v-if="showVisibilityPanel" class="visibility-panel" @click.stop>
-            <button
-              v-for="option in mock.visibilityOptions"
-              :key="option.key"
-              class="visibility-option"
-              :class="{ 'visibility-option--active': option.key === visibility.key }"
-              type="button"
-              @click="handleVisibilitySelect(option)"
-            >
-              <strong>{{ option.label }}</strong>
-              <span>{{ option.description }}</span>
+          <div class="visibility">
+            <button type="button" class="visibility-button" @click.stop="visibilityOptions.length > 1 && toggleVisibilityPanel()">
+              {{ visibility.label }}
             </button>
+
+            <div v-if="showVisibilityPanel" class="visibility-panel" @click.stop>
+              <button
+                v-for="option in visibilityOptions"
+                :key="option.key"
+                class="visibility-option"
+                :class="{ 'visibility-option--active': option.key === visibility.key }"
+                type="button"
+                @click="handleVisibilitySelect(option)"
+              >
+                <strong>{{ option.label }}</strong>
+                <span>{{ option.description }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </footer>
@@ -308,15 +383,6 @@ function submitPost() {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  transition:
-    transform 160ms ease,
-    opacity 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.publish-button:active {
-  transform: translateY(1px);
-  box-shadow: 0 7px 18px rgba(101, 112, 240, 0.2);
 }
 
 .publish-button--disabled {
@@ -522,6 +588,25 @@ function submitPost() {
   border-radius: 50%;
   background: #f8f9fb;
   box-shadow: inset 0 0 0 1px rgba(47, 50, 55, 0.04);
+}
+
+.footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topic-pill {
+  max-width: 140px;
+  overflow: hidden;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eef1ff;
+  color: #5d6df0;
+  font-size: 12px;
+  line-height: 32px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .visibility {

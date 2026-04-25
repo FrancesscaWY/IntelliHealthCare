@@ -49,7 +49,6 @@ function resolveApiBaseUrl() {
       return "/api/v1";
     }
 
-    // Avoid browser mixed-content blocking when the page itself is loaded via HTTPS.
     if (isHttpsPage && REMOTE_API_ORIGIN.startsWith("http://")) {
       return "/api/v1";
     }
@@ -103,7 +102,7 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
     });
   } catch {
     throw new ApiClientError(
-      `无法连接后端接口，请检查 API 地址 ${resolveApiBaseUrl()}，并确认后端已启动或当前请求未被浏览器跨域/协议策略拦截`
+      `无法连接后端接口，请检查 API 地址 ${resolveApiBaseUrl()}，并确认后端已启动或当前请求未被浏览器跨域或协议策略拦截`
     );
   }
 

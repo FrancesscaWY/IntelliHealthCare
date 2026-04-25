@@ -1,12 +1,34 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import { Like, Share, Star } from '@icon-park/vue-next'
-import mock from './mock'
+import { computed, onMounted, ref, watch } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import { Like, Share, Star } from "@icon-park/vue-next";
+import {
+  favoriteCommunityPost,
+  getCommunityPosts,
+  getCommunityTopics,
+  likeCommunityPost,
+  shareCommunityPost,
+  type CommunityPostItem,
+  type CommunityTopicItem
+} from "@/shared/api/community";
 
-const props = defineProps<PageComponentProps>()
-const likedPostIds = ref(new Set<number>())
-const starredPostIds = ref(new Set<number>())
+type FeedTabKey = "following" | "recommended" | "latest";
+
+const props = defineProps<PageComponentProps>();
+
+const feedTabs: Array<{ key: FeedTabKey; label: string }> = [
+  { key: "following", label: "关注" },
+  { key: "recommended", label: "推荐" },
+  { key: "latest", label: "最新" }
+];
+
+const bottomTabs = [
+  { key: "home", label: "首页", pageId: "home/dashboard" },
+  { key: "circle", label: "生活圈", pageId: "community/circle" },
+  { key: "publish", label: "", pageId: "community/publish" },
+  { key: "message", label: "消息", pageId: "home/message" },
+  { key: "mine", label: "我的", pageId: "home/mine" }
+];
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -23,73 +45,199 @@ const navIconMarkup: Record<string, string> = {
   mine: `
     <circle cx="24" cy="16.7" r="7.3" />
     <path d="M10.2 39.2c1.45-7.3 6.05-11.2 13.8-11.2s12.35 3.9 13.8 11.2" />
-  `,
-}
+  `
+};
 
-const activeTab = ref('推荐')
+const activeTab = ref<FeedTabKey>("recommended");
+const selectedTopicId = ref("");
+const topics = ref<CommunityTopicItem[]>([]);
+const posts = ref<CommunityPostItem[]>([]);
+const loadingTopics = ref(false);
+const loadingPosts = ref(false);
 
-const posts = computed(() => {
-  if (activeTab.value === '关注') {
-    return [mock.posts[1]]
-  }
+const creators = computed(() => {
+  const unique = new Map<string, { userId: string; name: string; avatar: string | null }>();
 
-  if (activeTab.value === '最新') {
-    return [...mock.posts].reverse()
-  }
+  posts.value.forEach((post) => {
+    const author = post.author;
+    if (!author?.userId || unique.has(author.userId)) {
+      return;
+    }
 
-  return mock.posts
-})
+    unique.set(author.userId, author);
+  });
 
-function pending(label: string) {
-  props.showToast(`${label}功能待接入`)
-}
+  return Array.from(unique.values()).slice(0, 5);
+});
 
-function openPostDetail(postId: number) {
-  if (typeof window !== 'undefined') {
-    window.sessionStorage.setItem('circlePostId', String(postId))
-  }
-
-  props.navigation.navigateTo('community/post-detail')
-}
-
-function toggleLike(postId: number) {
-  const next = new Set(likedPostIds.value)
-
-  next.has(postId) ? next.delete(postId) : next.add(postId)
-  likedPostIds.value = next
-}
-
-function toggleStar(postId: number) {
-  const next = new Set(starredPostIds.value)
-
-  next.has(postId) ? next.delete(postId) : next.add(postId)
-  starredPostIds.value = next
-}
-
-function isLiked(postId: number) {
-  return likedPostIds.value.has(postId)
-}
-
-function isStarred(postId: number) {
-  return starredPostIds.value.has(postId)
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
 }
 
 function getNavIconMarkup(key: string) {
-  return navIconMarkup[key] || navIconMarkup.home
+  return navIconMarkup[key] || navIconMarkup.home;
 }
 
 function getNavGradientId(key: string) {
-  return `tab-gradient-${key}`
+  return `tab-gradient-${key}`;
+}
+
+function formatTopicCount(value: number) {
+  if (value >= 10000) {
+    return `正在加入 ${(value / 10000).toFixed(1)}w`;
+  }
+
+  return `正在加入 ${value}`;
+}
+
+function formatPostTime(value?: string | null, createdAt?: string) {
+  if (value) {
+    return value;
+  }
+
+  if (!createdAt) {
+    return "";
+  }
+
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return createdAt;
+  }
+
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function updatePost(postId: string, updater: (current: CommunityPostItem) => CommunityPostItem) {
+  posts.value = posts.value.map((item) => (item.postId === postId ? updater(item) : item));
+}
+
+function pending(label: string) {
+  props.showToast(`${label}功能暂未接入`);
+}
+
+async function loadTopics() {
+  loadingTopics.value = true;
+
+  try {
+    topics.value = await getCommunityTopics();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loadingTopics.value = false;
+  }
+}
+
+async function loadPosts() {
+  loadingPosts.value = true;
+
+  try {
+    const response = await getCommunityPosts({
+      page: 1,
+      pageSize: 20,
+      feedType: activeTab.value,
+      topicId: selectedTopicId.value || undefined
+    });
+    posts.value = response.list;
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loadingPosts.value = false;
+  }
+}
+
+function toggleTopic(topicId: string) {
+  selectedTopicId.value = selectedTopicId.value === topicId ? "" : topicId;
+}
+
+function openPostDetail(postId: string) {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem("circlePostId", postId);
+  }
+
+  props.navigation.navigateTo("community/post-detail");
+}
+
+async function handleLike(post: CommunityPostItem) {
+  const nextLiked = !post.liked;
+
+  updatePost(post.postId, (current) => ({
+    ...current,
+    liked: nextLiked,
+    likes: Math.max(0, (current.likes ?? current.likesCount ?? 0) + (nextLiked ? 1 : -1))
+  }));
+
+  try {
+    if (!post.liked) {
+      await likeCommunityPost(post.postId);
+    }
+  } catch (error) {
+    updatePost(post.postId, (current) => ({
+      ...current,
+      liked: post.liked,
+      likes: post.likes ?? post.likesCount ?? 0
+    }));
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function handleFavorite(post: CommunityPostItem) {
+  const nextFavorited = !post.favorited;
+
+  updatePost(post.postId, (current) => ({
+    ...current,
+    favorited: nextFavorited,
+    stars: Math.max(0, (current.stars ?? current.favoritesCount ?? 0) + (nextFavorited ? 1 : -1))
+  }));
+
+  try {
+    if (!post.favorited) {
+      await favoriteCommunityPost(post.postId);
+    }
+  } catch (error) {
+    updatePost(post.postId, (current) => ({
+      ...current,
+      favorited: post.favorited,
+      stars: post.stars ?? post.favoritesCount ?? 0
+    }));
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function handleShare(post: CommunityPostItem) {
+  updatePost(post.postId, (current) => ({
+    ...current,
+    shares: (current.shares ?? current.sharesCount ?? 0) + 1
+  }));
+
+  try {
+    await shareCommunityPost(post.postId);
+    props.showToast("已记录分享");
+  } catch (error) {
+    updatePost(post.postId, (current) => ({
+      ...current,
+      shares: post.shares ?? post.sharesCount ?? 0
+    }));
+    props.showToast(getErrorMessage(error));
+  }
 }
 
 function openPage(pageId: string, label?: string) {
   if (!pageId) {
-    props.showToast(`${label || '该'}功能待接入`)
-    return
+    props.showToast(`${label || "该"}功能暂未接入`);
+    return;
   }
 
-  props.navigation.navigateTo(pageId)
+  props.navigation.navigateTo(pageId);
 }
+
+watch([activeTab, selectedTopicId], () => {
+  void loadPosts();
+});
+
+onMounted(() => {
+  void loadTopics();
+  void loadPosts();
+});
 </script>
 
 <template>
@@ -97,29 +245,38 @@ function openPage(pageId: string, label?: string) {
     <main class="circle-scroll">
       <nav class="feed-tabs" aria-label="生活圈栏目">
         <button
-          v-for="item in mock.feedTabs"
-          :key="item"
+          v-for="item in feedTabs"
+          :key="item.key"
           class="feed-tab"
-          :class="{ active: activeTab === item }"
+          :class="{ active: activeTab === item.key }"
           type="button"
-          @click="activeTab = item"
+          @click="activeTab = item.key"
         >
-          {{ item }}
+          {{ item.label }}
         </button>
       </nav>
 
       <section class="topic-grid" aria-label="热门话题">
-        <button v-for="topic in mock.topics" :key="topic.id" class="topic-card" type="button" @click="pending(topic.title)">
-          <img class="topic-image" :src="topic.image" :alt="topic.title" />
+        <button
+          v-for="topic in topics"
+          :key="topic.topicId"
+          class="topic-card"
+          :class="{ 'topic-card--active': selectedTopicId === topic.topicId }"
+          type="button"
+          @click="toggleTopic(topic.topicId)"
+        >
+          <img class="topic-image" :src="topic.coverUrl" :alt="topic.title" />
           <div class="topic-copy">
             <strong>{{ topic.title }}</strong>
             <div class="topic-meta">
               <span>HOT</span>
-              <em>{{ topic.count }}</em>
+              <em>{{ formatTopicCount(topic.participantCount) }}</em>
             </div>
           </div>
         </button>
       </section>
+
+      <p v-if="loadingTopics" class="state-text">热门话题加载中...</p>
 
       <div class="topic-dots" aria-hidden="true">
         <span></span>
@@ -127,53 +284,74 @@ function openPage(pageId: string, label?: string) {
       </div>
 
       <section class="post-list" aria-label="动态列表">
-        <article v-for="post in posts" :key="post.id" class="post-card" role="button" tabindex="0" @click="openPostDetail(post.id)">
+        <p v-if="loadingPosts" class="state-text">帖子加载中...</p>
+
+        <article
+          v-for="post in posts"
+          :key="post.postId"
+          class="post-card"
+          role="button"
+          tabindex="0"
+          @click="openPostDetail(post.postId)"
+        >
           <header class="post-header">
-            <img class="post-avatar" :src="post.avatar" :alt="post.author" />
+            <img class="post-avatar" :src="post.author?.avatar || post.avatar || ''" :alt="post.author?.name || post.authorName || '用户头像'" />
             <div class="post-author">
               <div>
-                <strong>{{ post.author }}</strong>
-                <span>{{ post.badge }}</span>
+                <strong>{{ post.author?.name || post.authorName }}</strong>
+                <span v-if="post.badge || post.tagLabel">{{ post.badge || post.tagLabel }}</span>
               </div>
-              <small>{{ post.time }}</small>
+              <small>{{ formatPostTime(post.time, post.createdAt) }}</small>
             </div>
             <button class="follow-button" type="button" @click.stop="pending('关注')">+ 关注</button>
-            <button class="more-button" type="button" aria-label="更多" @click.stop="pending('更多')">···</button>
+            <button class="more-button" type="button" aria-label="更多" @click.stop="pending('更多')">...</button>
           </header>
 
-          <div class="post-images" :class="{ 'post-images--double': post.images.length === 2 }">
+          <div v-if="post.images.length" class="post-images" :class="{ 'post-images--double': post.images.length === 2 }">
             <img v-for="image in post.images" :key="image" :src="image" :alt="post.content" />
           </div>
 
           <p class="post-content">{{ post.content }}</p>
 
-          <button class="tag-chip" type="button" @click.stop="pending(post.tag)">
+          <button v-if="post.tag || post.topic?.title" class="tag-chip" type="button" @click.stop="toggleTopic(post.topic?.topicId || '')">
             <span></span>
-            {{ post.tag }}
+            {{ post.tag || post.topic?.title }}
           </button>
 
           <footer class="post-actions">
-            <button class="post-action-button" :class="{ active: isStarred(post.id) }" type="button" @click.stop="toggleStar(post.id)">
-              <Star :theme="isStarred(post.id) ? 'filled' : 'outline'" size="22" :fill="isStarred(post.id) ? '#f2c94c' : '#454952'" />
-              {{ post.stars }}
+            <button
+              class="post-action-button"
+              :class="{ active: post.favorited }"
+              type="button"
+              @click.stop="handleFavorite(post)"
+            >
+              <Star :theme="post.favorited ? 'filled' : 'outline'" size="22" :fill="post.favorited ? '#f2c94c' : '#454952'" />
+              {{ post.stars ?? post.favoritesCount ?? 0 }}
             </button>
-            <button class="post-action-button" :class="{ active: isLiked(post.id) }" type="button" @click.stop="toggleLike(post.id)">
-              <Like :theme="isLiked(post.id) ? 'filled' : 'outline'" size="22" :fill="isLiked(post.id) ? '#f45d76' : '#454952'" />
-              {{ post.likes }}
+            <button
+              class="post-action-button"
+              :class="{ active: post.liked }"
+              type="button"
+              @click.stop="handleLike(post)"
+            >
+              <Like :theme="post.liked ? 'filled' : 'outline'" size="22" :fill="post.liked ? '#f45d76' : '#454952'" />
+              {{ post.likes ?? post.likesCount ?? 0 }}
             </button>
-            <button class="post-action-button" type="button" @click.stop="pending('转发')">
+            <button class="post-action-button" type="button" @click.stop="handleShare(post)">
               <Share theme="outline" size="22" fill="#454952" />
-              {{ post.shares }}
+              {{ post.shares ?? post.sharesCount ?? 0 }}
             </button>
           </footer>
         </article>
+
+        <p v-if="!loadingPosts && !posts.length" class="state-text">暂无帖子内容</p>
       </section>
 
-      <section class="creator-section">
+      <section v-if="creators.length" class="creator-section">
         <h2>达人推荐</h2>
         <div class="creator-list">
-          <button v-for="creator in mock.creators" :key="creator.id" class="creator-card" type="button" @click="pending(creator.name)">
-            <img :src="creator.avatar" :alt="creator.name" />
+          <button v-for="creator in creators" :key="creator.userId" class="creator-card" type="button" @click="pending(creator.name)">
+            <img :src="creator.avatar || ''" :alt="creator.name" />
             <span>{{ creator.name }}</span>
           </button>
         </div>
@@ -182,12 +360,12 @@ function openPage(pageId: string, label?: string) {
 
     <nav class="home-tabbar" aria-label="底部导航">
       <button
-        v-for="item in mock.tabs"
+        v-for="item in bottomTabs"
         :key="item.key"
         class="tab-item"
         :class="[
           `tab-item--${item.key}`,
-          { 'tab-item--active': item.key === 'circle', 'tab-item--publish': item.key === 'publish' },
+          { 'tab-item--active': item.key === 'circle', 'tab-item--publish': item.key === 'publish' }
         ]"
         type="button"
         @click="openPage(item.pageId, item.label || '发布')"
@@ -233,7 +411,7 @@ function openPage(pageId: string, label?: string) {
     radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
     linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
   color: #24372e;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .circle-scroll {
@@ -270,12 +448,10 @@ function openPage(pageId: string, label?: string) {
 
 .feed-tab {
   padding: 0;
-  border: 0;
   background: transparent;
   color: #9fa2a8;
   font-size: 20px;
   font-weight: 800;
-  letter-spacing: 0;
   cursor: pointer;
 }
 
@@ -298,10 +474,12 @@ function openPage(pageId: string, label?: string) {
   gap: 9px;
   align-items: center;
   padding: 0;
-  border: 0;
-  background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.topic-card--active {
+  opacity: 0.8;
 }
 
 .topic-image {
@@ -407,6 +585,7 @@ function openPage(pageId: string, label?: string) {
   display: block;
   border-radius: 50%;
   object-fit: cover;
+  background: #f2f4f7;
 }
 
 .post-author {
@@ -457,7 +636,6 @@ function openPage(pageId: string, label?: string) {
 
 .more-button {
   padding: 0;
-  border: 0;
   background: transparent;
   color: #c4c6cc;
   font-size: 18px;
@@ -497,7 +675,6 @@ function openPage(pageId: string, label?: string) {
   align-items: center;
   gap: 5px;
   padding: 0 10px;
-  border: 0;
   border-radius: 13px;
   background: rgba(255, 255, 255, 0.81);
   color: #012db6;
@@ -524,8 +701,6 @@ function openPage(pageId: string, label?: string) {
   align-items: center;
   gap: 6px;
   padding: 0;
-  border: 0;
-  background: transparent;
   color: #454952;
   font-size: 12px;
   font-weight: 800;
@@ -539,6 +714,7 @@ function openPage(pageId: string, label?: string) {
 .post-action-button:first-child.active {
   color: #f2c94c;
 }
+
 
 .creator-section {
   margin-top: 14px;
@@ -570,8 +746,6 @@ function openPage(pageId: string, label?: string) {
   justify-items: center;
   gap: 8px;
   padding: 0;
-  border: 0;
-  background: transparent;
   cursor: pointer;
 }
 
@@ -582,6 +756,7 @@ function openPage(pageId: string, label?: string) {
   border: 2px solid #f2c94c;
   border-radius: 50%;
   object-fit: cover;
+  background: #f2f4f7;
 }
 
 .creator-card span {
@@ -593,6 +768,14 @@ function openPage(pageId: string, label?: string) {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.state-text {
+  margin: 0;
+  padding: 18px 0;
+  color: #96a0ab;
+  font-size: 13px;
+  text-align: center;
 }
 
 .home-tabbar {

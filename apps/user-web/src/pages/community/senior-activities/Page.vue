@@ -1,16 +1,84 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { getCommunityActivities, type CommunityActivityItem } from "@/shared/api/community";
 import { selectedSeniorActivityId } from "./state";
 
 type TabKey = "hot" | "latest";
 
 const props = defineProps<PageComponentProps>();
 const activeTab = ref<TabKey>("hot");
-const tabs = mock.tabs as ReadonlyArray<{ key: TabKey; label: string }>;
+const activities = ref<CommunityActivityItem[]>([]);
+const loading = ref(false);
 
-const visibleActivities = computed(() => mock.activities[activeTab.value]);
+const tabs: ReadonlyArray<{ key: TabKey; label: string }> = [
+  { key: "hot", label: "热门活动" },
+  { key: "latest", label: "最新发布" }
+];
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function resolveTypeKey(category: string) {
+  return category.includes("户外") ? "outdoor" : "culture";
+}
+
+function resolveStatusText(status: string) {
+  if (status === "ONGOING") {
+    return "进行中";
+  }
+
+  if (status === "ENDED") {
+    return "已结束";
+  }
+
+  if (status === "CANCELLED") {
+    return "已取消";
+  }
+
+  return "未开始";
+}
+
+function resolveStatusKey(status: string) {
+  if (status === "ONGOING") {
+    return "ongoing";
+  }
+
+  return "upcoming";
+}
+
+function formatDateRange(item: CommunityActivityItem) {
+  if (item.time) {
+    return item.time;
+  }
+
+  const start = new Date(item.startAt);
+  const end = new Date(item.endAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${item.startAt}~${item.endAt}`;
+  }
+
+  const format = (date: Date) => `${date.getFullYear()}.${`${date.getMonth() + 1}`.padStart(2, "0")}.${`${date.getDate()}`.padStart(2, "0")}`;
+  return `${format(start)}~${format(end)}`;
+}
+
+async function loadActivities() {
+  loading.value = true;
+
+  try {
+    const response = await getCommunityActivities({
+      sort: activeTab.value,
+      page: 1,
+      pageSize: 20
+    });
+    activities.value = response.list;
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -20,12 +88,17 @@ function goBack() {
 
 function selectTab(tab: TabKey) {
   activeTab.value = tab;
+  void loadActivities();
 }
 
 function openActivity(activityId: string) {
   selectedSeniorActivityId.value = activityId;
   props.navigation.navigateTo("community/senior-activity-detail");
 }
+
+onMounted(() => {
+  void loadActivities();
+});
 </script>
 
 <template>
@@ -34,7 +107,7 @@ function openActivity(activityId: string) {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <h1>{{ mock.title }}</h1>
+      <h1>老年活动</h1>
     </header>
 
     <main class="activities-scroll">
@@ -51,29 +124,33 @@ function openActivity(activityId: string) {
         </button>
       </section>
 
-      <section class="activity-list">
+      <p v-if="loading" class="state-text">活动加载中...</p>
+
+      <section v-else class="activity-list">
         <article
-          v-for="item in visibleActivities"
-          :key="item.id"
+          v-for="item in activities"
+          :key="item.activityId"
           class="activity-card"
           role="button"
           tabindex="0"
-          @click="openActivity(item.id)"
-          @keydown.enter="openActivity(item.id)"
+          @click="openActivity(item.activityId)"
+          @keydown.enter="openActivity(item.activityId)"
         >
           <div class="activity-cover-wrap">
-            <img class="activity-cover" :src="item.image" :alt="item.title" draggable="false" />
-            <span class="status-badge" :class="`status-badge--${item.statusKey}`">{{ item.status }}</span>
+            <img class="activity-cover" :src="item.coverUrl || item.image || ''" :alt="item.title" draggable="false" />
+            <span class="status-badge" :class="`status-badge--${resolveStatusKey(item.status)}`">{{ resolveStatusText(item.status) }}</span>
           </div>
 
           <div class="activity-copy">
-            <span class="type-tag" :class="`type-tag--${item.typeKey}`">{{ item.type }}</span>
+            <span class="type-tag" :class="`type-tag--${resolveTypeKey(item.category)}`">{{ item.category }}</span>
             <h2>{{ item.title }}</h2>
-            <p>时间：{{ item.time }}</p>
+            <p>时间：{{ formatDateRange(item) }}</p>
             <p>地点：{{ item.location }}</p>
-            <p>费用：{{ item.price }}</p>
+            <p>费用：{{ item.price || (item.fee ? `${item.fee}元` : "免费") }}</p>
           </div>
         </article>
+
+        <p v-if="!activities.length" class="state-text">暂无活动内容</p>
       </section>
     </main>
   </section>
@@ -255,6 +332,14 @@ function openActivity(activityId: string) {
   font-size: 12px;
   font-weight: 400;
   line-height: 1.45;
+}
+
+.state-text {
+  margin: 0;
+  padding: 28px 0;
+  color: #a0a4ad;
+  font-size: 13px;
+  text-align: center;
 }
 
 @media (min-width: 561px) {
