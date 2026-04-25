@@ -146,8 +146,16 @@ function getIndexPosition(value: number, min: number, max: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) props.navigation.navigateTo("health/health-data");
-  else window.history.back();
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
+    return;
+  }
+
+  window.history.back();
 }
 
 function goToAddData() {

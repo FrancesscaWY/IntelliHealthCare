@@ -6,6 +6,7 @@ type RingItem = {
   label: string;
   value: number;
   color: string;
+  highlightColor?: string;
 };
 
 type TableColumn = {
@@ -22,6 +23,9 @@ type Config = {
   chartTitle: string;
   totalLabel: string;
   total: number;
+  chartHeight?: number;
+  chartRadius?: readonly [string, string];
+  chartCenter?: readonly [string, string];
   items: ReadonlyArray<RingItem>;
   columns: ReadonlyArray<TableColumn>;
   rows: ReadonlyArray<Record<string, string | number>>;
@@ -46,53 +50,97 @@ function renderChart() {
 
   chart.value.setOption(
     {
-      animationDuration: 500,
-      title: {
-        text: `${props.config.total}`,
-        subtext: props.config.totalLabel,
-        left: "center",
-        top: "34%",
-        itemGap: 10,
-        textStyle: {
-          color: "#2f3946",
-          fontSize: 26,
-          fontWeight: 600,
-        },
-        subtextStyle: {
-          color: "#96a0ab",
-          fontSize: 12,
-          fontWeight: 400,
-        },
-      },
+      animationDuration: 650,
       tooltip: {
         trigger: "item",
         backgroundColor: "rgba(255,255,255,0.96)",
-        borderColor: "#e5efea",
+        borderColor: "#dfeeea",
         borderWidth: 1,
+        padding: [9, 12],
         textStyle: {
           color: "#2f3946",
           fontSize: 12,
+          fontWeight: 700,
         },
-        formatter: "{b}：{c}",
+        formatter(params: unknown) {
+          const record = params as { marker?: string; name?: string; value?: number };
+          const total = props.config.total || 1;
+          const value = record.value ?? 0;
+          const percent = `${((value / total) * 100).toFixed(1).replace(/\.0$/, "")}%`;
+          return `${record.marker || ""}${record.name || ""}<br/>${value} (${percent})`;
+        },
       },
+      graphic: [
+        {
+          type: "text",
+          left: "center",
+          top: "44%",
+          style: {
+            text: `${props.config.total}`,
+            fill: "#23302e",
+            fontSize: 20,
+            fontWeight: 900,
+            align: "center",
+          },
+        },
+        {
+          type: "text",
+          left: "center",
+          top: "57%",
+          style: {
+            text: props.config.totalLabel,
+            fill: "#41515e",
+            fontSize: 12,
+            fontWeight: 800,
+            align: "center",
+          },
+        },
+      ],
       series: [
         {
+          name: props.config.chartTitle,
           type: "pie",
-          radius: ["58%", "78%"],
-          center: ["50%", "48%"],
+          radius: props.config.chartRadius || ["68%", "100%"],
+          center: props.config.chartCenter || ["50%", "52%"],
+          avoidLabelOverlap: false,
           label: { show: false },
           labelLine: { show: false },
           itemStyle: {
-            borderColor: "#ffffff",
-            borderWidth: 4,
+            borderColor: "transparent",
+            borderWidth: 0,
           },
           data: props.config.items.map((item) => ({
             name: item.label,
             value: item.value,
             itemStyle: {
-              color: item.color,
+              color: {
+                type: "linear" as const,
+                x: 0,
+                y: 0,
+                x2: 1,
+                y2: 1,
+                colorStops: [
+                  { offset: 0, color: item.highlightColor || item.color },
+                  { offset: 1, color: item.color },
+                ],
+              },
+              shadowBlur: 14,
+              shadowColor: `${item.color}80`,
+              shadowOffsetY: 6,
             },
           })),
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 24,
+              shadowOffsetY: 8,
+            },
+            label: {
+              show: true,
+              fontSize: 36,
+              fontWeight: "bold",
+              color: "#1f7b70",
+            },
+          },
         },
       ],
     },
@@ -153,7 +201,7 @@ onBeforeUnmount(() => {
         <button class="card-toolbar__button" type="button" @click="trigger('导出')">导出</button>
       </div>
 
-      <div ref="chartRef" class="ring-chart"></div>
+      <div ref="chartRef" class="ring-chart" :style="{ height: `${config.chartHeight || 420}px` }"></div>
 
       <div class="ring-legend">
         <span v-for="item in config.items" :key="item.label" class="ring-legend__item">
@@ -209,7 +257,6 @@ onBeforeUnmount(() => {
 }
 
 .ring-chart {
-  height: 420px;
   margin-top: 6px;
 }
 
@@ -218,8 +265,8 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 18px 32px;
-  margin-top: -6px;
-  margin-bottom: 20px;
+  margin-top: -18px;
+  margin-bottom: 10px;
 }
 
 .ring-legend__item {
@@ -231,9 +278,10 @@ onBeforeUnmount(() => {
 }
 
 .ring-legend__item i {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
 }
 
 .ring-legend__item strong {
@@ -243,6 +291,6 @@ onBeforeUnmount(() => {
 }
 
 .ring-table {
-  margin-top: 8px;
+  margin-top: 0;
 }
 </style>

@@ -6,6 +6,12 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 
 type RangeKey = (typeof mock.rangeOptions)[number]["key"];
+type DistributionItem = {
+  label: string;
+  value: number;
+  color: string;
+  highlightColor?: string;
+};
 
 const props = defineProps<PageComponentProps>();
 
@@ -163,65 +169,143 @@ function createLineOption(): EChartsOption {
 function createRingOption(
   title: string,
   total: number,
-  items: ReadonlyArray<{ label: string; value: number; color: string }>,
+  items: ReadonlyArray<DistributionItem>,
+  centerText: string,
+  centerSubtext: string,
 ): EChartsOption {
+  const ringData = items.map((item) => {
+    const baseColor = item.color;
+    const highlightColor = item.highlightColor || item.color;
+
+    return {
+      name: item.label,
+      value: item.value,
+      itemStyle: {
+        color: {
+          type: "linear" as const,
+          x: 0,
+          y: 0,
+          x2: 1,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: highlightColor },
+            { offset: 1, color: baseColor },
+          ],
+        },
+        shadowBlur: 14,
+        shadowColor: `${baseColor}80`,
+        shadowOffsetY: 6,
+      },
+      emphasis: {
+        itemStyle: {
+          color: {
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "#ffffff" },
+              { offset: 0.42, color: highlightColor },
+              { offset: 1, color: baseColor },
+            ],
+          },
+          shadowBlur: 24,
+          shadowColor: `${baseColor}a8`,
+          shadowOffsetY: 8,
+        },
+      },
+    };
+  });
+
   return {
-    animationDuration: 500,
+    animationDuration: 650,
+    color: items.map((item) => item.color),
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(255,255,255,0.96)",
-      borderColor: "#e5efea",
+      borderColor: "#dfeeea",
       borderWidth: 1,
+      padding: [9, 12],
       textStyle: {
         color: "#2f3946",
         fontSize: 12,
+        fontWeight: 700,
       },
-      formatter: "{b}：{c}",
-    },
-    title: {
-      text: `${total}`,
-      subtext: "用户总数",
-      left: "center",
-      top: "35%",
-      itemGap: 10,
-      textStyle: {
-        color: "#2f3946",
-        fontSize: 26,
-        fontWeight: 600,
-      },
-      subtextStyle: {
-        color: "#98a2ad",
-        fontSize: 12,
-        fontWeight: 400,
+      formatter(params: unknown) {
+        const record = params as { name?: string; value?: number; marker?: string };
+        const value = record.value ?? 0;
+        return `${record.marker || ""}${record.name || ""}<br/>${formatCount(value)} (${formatPercent(value, total)})`;
       },
     },
+    graphic: [
+      {
+        type: "text",
+        left: "center",
+        top: "44%",
+        style: {
+          text: centerText,
+          fill: "#23302e",
+          fontSize: 20,
+          fontWeight: 900,
+          align: "center",
+        },
+      },
+      {
+        type: "text",
+        left: "center",
+        top: "57%",
+        style: {
+          text: centerSubtext,
+          fill: "#41515e",
+          fontSize: 12,
+          fontWeight: 800,
+          align: "center",
+        },
+      },
+    ],
     series: [
       {
         name: title,
         type: "pie",
-        radius: ["60%", "78%"],
-        center: ["50%", "48%"],
+        radius: ["68%", "100%"],
+        center: ["50%", "52%"],
         avoidLabelOverlap: false,
+        itemStyle: {
+          borderWidth: 0,
+          borderColor: "transparent",
+        },
         label: {
           show: false,
+          position: "center",
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 36,
+            fontWeight: "bold",
+            color: "#1f7b70",
+          },
         },
         labelLine: {
           show: false,
         },
-        itemStyle: {
-          borderColor: "#ffffff",
-          borderWidth: 4,
-        },
-        data: items.map((item) => ({
-          name: item.label,
-          value: item.value,
-          itemStyle: {
-            color: item.color,
-          },
-        })),
+        data: ringData,
       },
     ],
   };
+}
+
+function formatCount(value: number) {
+  return value.toLocaleString("zh-CN");
+}
+
+function formatPercent(value: number, total: number) {
+  if (!total) {
+    return "0%";
+  }
+
+  return `${((value / total) * 100).toFixed(1).replace(/\.0$/, "")}%`;
 }
 
 function renderCharts() {
@@ -235,6 +319,8 @@ function renderCharts() {
       activePeriod.value.ageDistribution.title,
       activePeriod.value.ageDistribution.total,
       activePeriod.value.ageDistribution.items,
+      formatCount(activePeriod.value.ageDistribution.total),
+      "在册用户",
     ),
     true,
   );
@@ -243,6 +329,8 @@ function renderCharts() {
       activePeriod.value.genderDistribution.title,
       activePeriod.value.genderDistribution.total,
       activePeriod.value.genderDistribution.items,
+      formatCount(activePeriod.value.genderDistribution.total),
+      "用户总数",
     ),
     true,
   );
@@ -366,18 +454,21 @@ onBeforeUnmount(() => {
             </div>
           </header>
 
-          <div ref="ageChartEl" class="chart-card__canvas chart-card__canvas--ring"></div>
+          <div class="ring-panel">
+            <div ref="ageChartEl" class="chart-card__canvas chart-card__canvas--ring"></div>
 
-          <div class="ring-legend">
-            <span
-              v-for="item in activePeriod.ageDistribution.items"
-              :key="item.label"
-              class="ring-legend__item"
-            >
-              <i :style="{ backgroundColor: item.color }"></i>
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </span>
+            <div class="side-legend">
+              <div
+                v-for="item in activePeriod.ageDistribution.items"
+                :key="item.label"
+                class="side-legend__row"
+              >
+                <i :style="{ backgroundColor: item.color }"></i>
+                <span>{{ item.label }}</span>
+                <strong>{{ formatCount(item.value) }}</strong>
+                <em>({{ formatPercent(item.value, activePeriod.ageDistribution.total) }})</em>
+              </div>
+            </div>
           </div>
         </article>
 
@@ -389,18 +480,21 @@ onBeforeUnmount(() => {
             </div>
           </header>
 
-          <div ref="genderChartEl" class="chart-card__canvas chart-card__canvas--ring"></div>
+          <div class="ring-panel">
+            <div ref="genderChartEl" class="chart-card__canvas chart-card__canvas--ring"></div>
 
-          <div class="ring-legend ring-legend--compact">
-            <span
-              v-for="item in activePeriod.genderDistribution.items"
-              :key="item.label"
-              class="ring-legend__item"
-            >
-              <i :style="{ backgroundColor: item.color }"></i>
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </span>
+            <div class="side-legend">
+              <div
+                v-for="item in activePeriod.genderDistribution.items"
+                :key="item.label"
+                class="side-legend__row"
+              >
+                <i :style="{ backgroundColor: item.color }"></i>
+                <span>{{ item.label }}</span>
+                <strong>{{ formatCount(item.value) }}</strong>
+                <em>({{ formatPercent(item.value, activePeriod.genderDistribution.total) }})</em>
+              </div>
+            </div>
           </div>
         </article>
       </section>
@@ -637,7 +731,7 @@ onBeforeUnmount(() => {
 }
 
 .chart-card__canvas--ring {
-  height: 320px;
+  height: 210px;
 }
 
 .chart-note {
@@ -662,36 +756,49 @@ onBeforeUnmount(() => {
   gap: 14px;
 }
 
-.ring-legend {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px 24px;
-  margin-top: -8px;
+.ring-panel {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.96fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
 }
 
-.ring-legend--compact {
-  gap: 14px 28px;
+.side-legend {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
 }
 
-.ring-legend__item {
-  display: inline-flex;
+.side-legend__row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  color: #697580;
-  font-size: 12px;
+  color: #5d6876;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
-.ring-legend__item i {
-  width: 12px;
-  height: 12px;
+.side-legend__row i {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
 }
 
-.ring-legend__item strong {
-  color: #394754;
-  font-size: 12px;
-  font-weight: 500;
+.side-legend__row span {
+  overflow: hidden;
+  color: #495765;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-legend__row strong,
+.side-legend__row em {
+  color: #697483;
+  font-style: normal;
+  white-space: nowrap;
 }
 
 @media (max-width: 1180px) {
@@ -707,6 +814,15 @@ onBeforeUnmount(() => {
 
   .chart-card__tools {
     flex-wrap: wrap;
+  }
+
+  .ring-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .side-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
   }
 }
 
@@ -733,6 +849,10 @@ onBeforeUnmount(() => {
   .date-range {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .side-legend {
+    grid-template-columns: 1fr;
   }
 }
 </style>

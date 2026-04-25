@@ -61,6 +61,16 @@ const mock = {
   ],
   chats: [
     {
+      id: 4,
+      title: '在线客服',
+      desc: '订单进度、报告流转、到家服务都可咨询',
+      date: '刚刚',
+      count: 1,
+      icon: 'service',
+      tone: 'mint',
+      pageId: 'home/customer-service-chat',
+    },
+    {
       id: 3,
       title: '王医生',
       desc: '可以咨询用药、康复和日常健康问题',

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
+import { Camera, Commodity, Editor, Headset, Stethoscope } from "@icon-park/vue-next";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 
@@ -29,6 +29,7 @@ const quickActions = [
   { label: "报告解读", icon: Editor },
   { label: "商品智选", icon: Commodity },
   { label: "体检定制", icon: Stethoscope },
+  { label: "在线客服", icon: Headset, pageId: "home/customer-service-chat" },
 ];
 const draft = ref("");
 const messages = ref<ChatMessage[]>([]);
@@ -114,8 +115,13 @@ function changeQuestions() {
   props.showToast("已为你换一批问题");
 }
 
-function useQuickAction(action: string) {
-  props.showToast(`${action}功能待接入`);
+function useQuickAction(action: { label: string; pageId?: string }) {
+  if (action.pageId) {
+    props.navigation.navigateTo(action.pageId);
+    return;
+  }
+
+  props.showToast(`${action.label}功能待接入`);
 }
 
 function sendMessage() {
@@ -383,7 +389,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="quick-actions">
-        <button v-for="item in quickActions" :key="item.label" type="button" @click="useQuickAction(item.label)">
+        <button v-for="item in quickActions" :key="item.label" type="button" @click="useQuickAction(item)">
           <component :is="item.icon" theme="outline" size="16" fill="currentColor" aria-hidden="true" />
           {{ item.label }}
         </button>
@@ -812,8 +818,8 @@ onBeforeUnmount(() => {
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
   margin-bottom: 12px;
 }
 
@@ -827,7 +833,7 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.8);
   box-shadow: 0 8px 18px rgba(52, 87, 126, 0.06);
   color: #364055;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 

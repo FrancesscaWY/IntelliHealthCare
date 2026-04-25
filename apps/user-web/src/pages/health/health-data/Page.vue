@@ -272,6 +272,10 @@ function getNavigateKey(key: string) {
 }
 
 function goBack() {
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
   const backTarget = takeHealthDataBackTarget();
 
   if (backTarget) {
@@ -286,9 +290,7 @@ function goBack() {
     }
   }
 
-  if (!props.navigation?.navigateBack?.()) {
-    props.navigation?.reLaunch?.("home/dashboard");
-  }
+  props.navigation?.reLaunch?.("home/dashboard");
 }
 
 function goToAddDevice() {

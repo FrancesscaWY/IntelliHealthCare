@@ -60,9 +60,12 @@ const iconMarkup: Record<string, string> = {
 };
 
 const shanghaiMapName = "shanghai";
+const excludedShanghaiDistricts = new Set([
+  "崇明区",
+]);
 const shanghaiMapGeoJson = {
   ...shanghaiGeoJson,
-  features: shanghaiGeoJson.features.filter((feature) => feature.properties?.name !== "崇明区"),
+  features: shanghaiGeoJson.features.filter((feature) => !excludedShanghaiDistricts.has(feature.properties?.name ?? "")),
 };
 
 echarts.registerMap(shanghaiMapName, shanghaiMapGeoJson as Parameters<typeof echarts.registerMap>[1]);
@@ -85,6 +88,24 @@ function renderIcon(name: string) {
   return iconMarkup[name] || iconMarkup.users;
 }
 
+function buildSparkArea(points: string, baseline = 38) {
+  const normalizedPoints = points.trim().split(/\s+/);
+  const firstPoint = normalizedPoints[0];
+  const lastPoint = normalizedPoints[normalizedPoints.length - 1];
+
+  if (!firstPoint || !lastPoint) {
+    return points;
+  }
+
+  const [firstX] = firstPoint.split(",");
+  const [lastX] = lastPoint.split(",");
+  return `${firstX},${baseline} ${points} ${lastX},${baseline}`;
+}
+
+function getSparkGradientId(index: number) {
+  return `metric-spark-gradient-${index}`;
+}
+
 function getChartInstance(target: HTMLElement | null, current: ECharts | null) {
   if (!target) {
     return null;
@@ -98,8 +119,18 @@ function createRingOption(
   items: ChartItem[],
   centerText: string,
   centerSubtext: string,
-  rounded = false,
+  options: {
+    glossy?: boolean;
+    roundedCaps?: boolean;
+    whiteBorder?: boolean;
+  } = {},
 ): EChartsOption {
+  const {
+    glossy = false,
+    roundedCaps = false,
+    whiteBorder = false,
+  } = options;
+
   const ringData = items.map((item) => {
     const baseColor = item.color;
     const highlightColor = item.highlightColor || item.color;
@@ -108,9 +139,9 @@ function createRingOption(
       name: item.label,
       value: item.value,
       itemStyle: {
-        color: rounded
+        color: glossy
           ? {
-              type: "linear",
+              type: "linear" as const,
               x: 0,
               y: 0,
               x2: 1,
@@ -121,15 +152,15 @@ function createRingOption(
               ],
             }
           : baseColor,
-        shadowBlur: rounded ? 14 : 0,
-        shadowColor: rounded ? `${baseColor}80` : "transparent",
-        shadowOffsetY: rounded ? 6 : 0,
+        shadowBlur: glossy ? 14 : 0,
+        shadowColor: glossy ? `${baseColor}80` : "transparent",
+        shadowOffsetY: glossy ? 6 : 0,
       },
-      emphasis: rounded
+      emphasis: glossy
         ? {
             itemStyle: {
               color: {
-                type: "linear",
+                type: "linear" as const,
                 x: 0,
                 y: 0,
                 x2: 1,
@@ -193,7 +224,7 @@ function createRingOption(
           fill: "#23302e",
           fontSize: 19,
           fontWeight: 900,
-          textAlign: "center",
+          align: "center",
         },
       },
       {
@@ -205,7 +236,7 @@ function createRingOption(
           fill: "#41515e",
           fontSize: 12,
           fontWeight: 800,
-          textAlign: "center",
+          align: "center",
         },
       },
     ],
@@ -217,9 +248,9 @@ function createRingOption(
         center: ["50%", "52%"],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: rounded ? 10 : 0,
-          borderWidth: 2,
-          borderColor: "rgba(255, 255, 255, 0.9)",
+          borderRadius: roundedCaps ? 10 : 0,
+          borderWidth: whiteBorder ? 2 : 0,
+          borderColor: whiteBorder ? "rgba(255, 255, 255, 0.9)" : "transparent",
         },
         label: {
           show: false,
@@ -409,12 +440,12 @@ function createMapOption(): EChartsOption {
         },
         itemStyle: {
           areaColor: "#dff8f2",
-          borderColor: "rgba(255,255,255,0.96)",
+          borderColor: "rgb(242,244,242)",
           borderWidth: 2,
-          shadowBlur: 22,
-          shadowColor: "rgba(42, 112, 143, 0.28)",
+          shadowBlur: 5,
+          shadowColor: "rgba(183,237,204,0.67)",
           shadowOffsetX: 0,
-          shadowOffsetY: 5,
+          shadowOffsetY: 0,
         },
         emphasis: {
           label: {
@@ -425,12 +456,12 @@ function createMapOption(): EChartsOption {
           },
           itemStyle: {
             areaColor: "#91e2b2",
-            borderColor: "rgba(255,255,255,0.96)",
-            borderWidth: 2.4,
-            shadowBlur: 28,
-            shadowColor: "rgba(42, 112, 143, 0.36)",
+            borderColor: "rgba(255,255,255,0.92)",
+            borderWidth: 2,
+            shadowBlur: 24,
+            shadowColor: "rgba(170, 235, 255, 0.42)",
             shadowOffsetX: 0,
-            shadowOffsetY: 6,
+            shadowOffsetY: 0,
           },
         },
         data: mock.mapPoints,
@@ -482,9 +513,15 @@ function renderCharts() {
   trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
   mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
 
-  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次", true), true);
-  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户", true), true);
-  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好", true), true);
+  const plainRingStyle = {
+    glossy: true,
+    roundedCaps: false,
+    whiteBorder: false,
+  };
+
+  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次", plainRingStyle), true);
+  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户", plainRingStyle), true);
+  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好", plainRingStyle), true);
   trendChart.value?.setOption(createTrendOption(), true);
   mapChart.value?.setOption(createMapOption(), true);
 }
@@ -528,7 +565,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="overview-dashboard">
     <section class="metric-grid" aria-label="核心指标">
-      <article v-for="item in mock.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
+      <article v-for="(item, index) in mock.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
         <span class="metric-icon" aria-hidden="true">
           <svg viewBox="0 0 44 44" focusable="false">
             <g v-html="renderIcon(item.icon)"></g>
@@ -543,6 +580,13 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <svg class="metric-spark" viewBox="0 0 96 38" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient :id="getSparkGradientId(index)" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="currentColor" stop-opacity="0.34" />
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0.04" />
+            </linearGradient>
+          </defs>
+          <polygon :points="buildSparkArea(item.spark)" :fill="`url(#${getSparkGradientId(index)})`" />
           <polyline :points="item.spark" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </article>
@@ -840,6 +884,9 @@ onBeforeUnmount(() => {
 
 .map-panel {
   grid-area: map;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .age-panel {
@@ -1032,7 +1079,7 @@ onBeforeUnmount(() => {
   min-height: 488px;
   overflow: hidden;
   border-radius: 10px;
-  background: #ffffff;
+  background: transparent;
 }
 
 .map-center {
