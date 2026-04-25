@@ -14,6 +14,110 @@ const barRef = ref<HTMLElement | null>(null);
 const lineChart = shallowRef<echarts.ECharts | null>(null);
 const barChart = shallowRef<echarts.ECharts | null>(null);
 
+const metricTones = ["mint", "blue", "rose", "teal", "amber", "pink"] as const;
+const overviewItems = mock.overviewRows.flat();
+const spotlightSeries = mock.spotlightCharts;
+
+function buildSparkPoints(values: readonly number[], width = 150, height = 44) {
+  if (!values.length) {
+    return "";
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  return values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * width;
+      const y = height - ((value - min) / range) * (height - 10) - 5;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function buildSparkArea(points: string, width = 150, height = 44) {
+  const normalized = points.trim().split(/\s+/);
+  const firstPoint = normalized[0];
+  const lastPoint = normalized[normalized.length - 1];
+
+  if (!firstPoint || !lastPoint) {
+    return "";
+  }
+
+  const [firstX] = firstPoint.split(",");
+  const [lastX] = lastPoint.split(",");
+  return `${firstX},${height} ${points} ${lastX},${height}`;
+}
+
+function getOverviewItem(label: string) {
+  return overviewItems.find((item) => item.label === label);
+}
+
+const topMetricItems = computed(() => [
+  { ...(getOverviewItem("浏览量") || { label: "浏览量", value: "--" }), tone: metricTones[0] },
+  { ...(getOverviewItem("访客量") || { label: "访客量", value: "--" }), tone: metricTones[1] },
+  { ...(getOverviewItem("退款订单数") || { label: "退款订单数", value: "--" }), tone: metricTones[2] },
+  { ...(getOverviewItem("退款金额（元）") || { label: "退款金额（元）", value: "--" }), tone: metricTones[4] },
+  { ...(getOverviewItem("退款率") || { label: "退款率", value: "--" }), tone: metricTones[3] },
+]);
+
+const spotlightMetricItems = computed(() =>
+  [
+    {
+      ...(getOverviewItem("支付金额（元）") || { label: "支付金额（元）", value: "--" }),
+      label: "支付金额(元)",
+      note: "重点成交金额",
+      tone: "amber" as const,
+      lineColor: "#f1b24b",
+      lineGlow: "rgba(241, 178, 75, 0.22)",
+      series: spotlightSeries.paymentAmount,
+    },
+    {
+      ...(getOverviewItem("支付订单数") || { label: "支付订单数", value: "--" }),
+      label: "订单数",
+      note: "已支付订单总量",
+      tone: "mint" as const,
+      lineColor: "#55c9b4",
+      lineGlow: "rgba(85, 201, 180, 0.22)",
+      series: spotlightSeries.orderCount,
+    },
+  ].map((item, index) => {
+    const points = buildSparkPoints(item.series.values);
+
+    return {
+      ...item,
+      gradientId: `trade-spotlight-gradient-${index}`,
+      points,
+      areaPoints: buildSparkArea(points),
+      axisLabels: [
+        item.series.labels[0],
+        item.series.labels[Math.floor(item.series.labels.length / 2)],
+        item.series.labels[item.series.labels.length - 1],
+      ],
+    };
+  }),
+);
+
+// 暂不展示的交易核心指标，先保留数据定义，后续需要时可直接恢复。
+// const hiddenMetricItems = [
+//   getOverviewItem("下单人数"),
+//   getOverviewItem("下单笔数"),
+//   getOverviewItem("下单金额（元）"),
+//   getOverviewItem("支付人数"),
+//   getOverviewItem("客单价（元）"),
+// ];
+
+const funnelSummary = computed(() => {
+  const primary = mock.funnel[0];
+  const secondary = mock.funnel[mock.funnel.length - 1];
+
+  return {
+    primary: primary?.label || "访客",
+    secondary: secondary?.label || "退款",
+  };
+});
+
 function buildLineOption() {
   const { labels, values, legend, highlightIndex } = pageData.value.lineChart;
   const maxValue = Math.max(...values);
@@ -21,19 +125,21 @@ function buildLineOption() {
   return {
     animationDuration: 500,
     grid: {
-      top: 24,
-      right: 18,
-      bottom: 30,
-      left: 44,
+      top: 20,
+      right: 14,
+      bottom: 28,
+      left: 42,
     },
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(255,255,255,0.96)",
-      borderColor: "#e5efea",
+      borderColor: "#dfeeea",
       borderWidth: 1,
+      padding: [10, 12],
       textStyle: {
         color: "#2f3946",
         fontSize: 12,
+        fontWeight: 700,
       },
       formatter(params: unknown) {
         const records = (Array.isArray(params) ? params : [params]) as Array<{ axisValueLabel?: string; value?: number }>;
@@ -47,29 +153,29 @@ function buildLineOption() {
       boundaryGap: false,
       axisLine: { lineStyle: { color: "#edf2ef" } },
       axisTick: { show: false },
-      axisLabel: { color: "#93a0ac", fontSize: 12, margin: 14 },
+      axisLabel: { color: "#7a8490", fontSize: 12, fontWeight: 700, margin: 14 },
     },
     yAxis: {
       type: "value",
       min: 0,
       max: Math.ceil(maxValue * 1.2),
       splitNumber: 6,
-      axisLabel: { color: "#93a0ac", fontSize: 12 },
+      axisLabel: { color: "#7a8490", fontSize: 12, fontWeight: 700 },
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: "rgba(213, 226, 220, 0.7)" } },
+      splitLine: { lineStyle: { color: "#edf3f1" } },
     },
     series: [
       {
         type: "bar",
         data: values.map((value, index) => (index === highlightIndex ? value : 0)),
-        barWidth: 30,
+        barWidth: 28,
         z: 1,
         silent: true,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: "rgba(65, 209, 167, 0.2)" },
-            { offset: 1, color: "rgba(65, 209, 167, 0.95)" },
+            { offset: 0, color: "rgba(84, 195, 154, 0.22)" },
+            { offset: 1, color: "rgba(84, 195, 154, 0.92)" },
           ]),
           borderRadius: [10, 10, 0, 0],
         },
@@ -80,22 +186,29 @@ function buildLineOption() {
         data: values,
         smooth: true,
         symbol: "circle",
-        symbolSize: 10,
+        symbolSize: 9,
+        z: 3,
         lineStyle: {
-          width: 4,
-          color: "#41d1a7",
+          width: 3,
+          color: "#42b884",
         },
         itemStyle: {
-          color: "#ffffff",
-          borderColor: "#41d1a7",
-          borderWidth: 4,
+          color: "#42b884",
+          borderColor: "#ffffff",
+          borderWidth: 2,
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "rgba(84, 195, 154, 0.34)" },
+            { offset: 1, color: "rgba(84, 195, 154, 0.04)" },
+          ]),
         },
         markLine: {
           silent: true,
           symbol: "none",
           label: { show: false },
           lineStyle: {
-            color: "#41d1a7",
+            color: "#42b884",
             width: 2,
             type: "dashed",
           },
@@ -112,19 +225,21 @@ function buildBarOption() {
   return {
     animationDuration: 500,
     grid: {
-      top: 24,
-      right: 18,
-      bottom: 30,
-      left: 44,
+      top: 20,
+      right: 14,
+      bottom: 34,
+      left: 42,
     },
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(255,255,255,0.96)",
-      borderColor: "#e5efea",
+      borderColor: "#dfeeea",
       borderWidth: 1,
+      padding: [10, 12],
       textStyle: {
         color: "#2f3946",
         fontSize: 12,
+        fontWeight: 700,
       },
     },
     xAxis: {
@@ -132,31 +247,40 @@ function buildBarOption() {
       data: labels,
       axisLine: { lineStyle: { color: "#edf2ef" } },
       axisTick: { show: false },
-      axisLabel: { color: "#93a0ac", fontSize: 12, margin: 14 },
+      axisLabel: {
+        color: "#7a8490",
+        fontSize: 11,
+        fontWeight: 700,
+        margin: 14,
+        interval: 0,
+      },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "#93a0ac", fontSize: 12 },
+      axisLabel: { color: "#7a8490", fontSize: 12, fontWeight: 700 },
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: "rgba(213, 226, 220, 0.7)" } },
+      splitLine: { lineStyle: { color: "#edf3f1" } },
     },
     series: [
       {
         name: legend,
         type: "bar",
-        barWidth: 72,
+        barWidth: 44,
         data: values.map((value, index) => ({
           value,
           itemStyle: {
             color:
               index === highlightIndex
                 ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    { offset: 0, color: "#41d1a7" },
-                    { offset: 1, color: "#39c89e" },
+                    { offset: 0, color: "#91e2b2" },
+                    { offset: 1, color: "#4dbc8c" },
                   ])
-                : "#45cdab",
-            borderRadius: [0, 0, 0, 0],
+                : new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                    { offset: 0, color: "#cdeee1" },
+                    { offset: 1, color: "#7fd6b0" },
+                  ]),
+            borderRadius: [10, 10, 0, 0],
           },
         })),
         label: {
@@ -164,6 +288,7 @@ function buildBarOption() {
           position: "top",
           color: "#2f3946",
           fontSize: 12,
+          fontWeight: 800,
           formatter(params: { value: number }) {
             return params.value === values[highlightIndex] ? `${params.value}` : "";
           },
@@ -246,14 +371,29 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
+
+        <button class="date-range date-range--hero" type="button" @click="trigger('日期筛选')">
+          <span class="date-range__label">{{ mock.filterLabel }}</span>
+          <strong>{{ mock.rangeLabel }}</strong>
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+          </svg>
+        </button>
       </div>
     </article>
 
-    <article class="analysis-card analysis-card--content">
-      <div class="section-heading">
-        <div>
-          <h2>交易概况</h2>
-        </div>
+    <section class="metrics-panel" aria-label="交易核心指标">
+      <header class="metrics-panel__head">
+        <h2>交易核心指标</h2>
+      </header>
+
+      <div class="metric-grid">
+        <article v-for="item in topMetricItems" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
+          <div class="metric-copy">
+            <strong>{{ item.value }}</strong>
+            <h2>{{ item.label }}</h2>
+          </div>
+        </article>
       </div>
 
       <section class="overview-grid">
@@ -264,7 +404,6 @@ onBeforeUnmount(() => {
               <strong>{{ item.value }}</strong>
             </div>
           </div>
-        </div>
 
         <div class="funnel-panel">
           <div v-for="item in pageData.funnel" :key="item.label" class="funnel-segment">
@@ -272,8 +411,20 @@ onBeforeUnmount(() => {
               {{ item.label }}
             </div>
           </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="trade-grid">
+      <article class="panel funnel-panel">
+        <header class="panel-head">
+          <h2>交易转化漏斗 <small>（链路概览）</small></h2>
+        </header>
+
+        <div class="funnel-summary">
+          <strong>{{ funnelSummary.primary }}</strong>
+          <span>到 {{ funnelSummary.secondary }} 的交易层级转化</span>
         </div>
-      </section>
 
       <section class="chart-section">
         <div class="section-heading">
@@ -282,12 +433,18 @@ onBeforeUnmount(() => {
             <p>（元）</p>
           </div>
         </div>
+      </article>
+
+      <article class="panel chart-panel">
+        <header class="panel-head">
+          <h2>{{ mock.lineChart.title }} <small>（元）</small></h2>
+        </header>
         <div ref="lineRef" class="chart-box chart-box--line"></div>
         <div class="chart-legend">
           <span class="chart-legend__dot"></span>
           <span>{{ pageData.lineChart.legend }}</span>
         </div>
-      </section>
+      </article>
 
       <section class="chart-section">
         <div class="section-heading">
@@ -301,15 +458,122 @@ onBeforeUnmount(() => {
           <span class="chart-legend__dot"></span>
           <span>{{ pageData.barChart.legend }}</span>
         </div>
-      </section>
-    </article>
+      </article>
+    </section>
   </section>
 </template>
 
-<style scoped src="../_shared/analysis-ui.css"></style>
-
 <style scoped>
-.filter-field__icon--calendar {
+.trade-overview-page {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  color: #253244;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
+.trade-hero,
+.metrics-panel,
+.metric-card,
+.spotlight-card,
+.panel {
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
+}
+
+.trade-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(170, 235, 255, 0.34), transparent 26%),
+    radial-gradient(circle at left top, rgba(102, 214, 174, 0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 251, 248, 0.96));
+}
+
+.trade-hero::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -52px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(95, 224, 186, 0.2), rgba(95, 224, 186, 0));
+  pointer-events: none;
+}
+
+.trade-hero__main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.trade-hero__eyebrow {
+  margin: 0 0 8px;
+  color: #4f8a7b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.trade-hero h1 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.trade-hero__description {
+  max-width: 680px;
+  margin: 12px 0 0;
+  color: #5d6876;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(218, 236, 231, 0.95);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #43515d;
+}
+
+.date-range--hero {
+  flex: none;
+  min-width: 288px;
+  justify-content: space-between;
+  align-self: center;
+  box-shadow: 0 6px 18px rgba(66, 122, 116, 0.08);
+}
+
+.date-range__label {
+  color: #8b96a1;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.date-range strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.date-range svg {
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -317,105 +581,355 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
-.overview-grid {
+.metrics-panel {
+  padding: 16px;
+}
+
+.metrics-panel__head {
+  margin-bottom: 12px;
+}
+
+.metrics-panel__head h2 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.metric-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.45fr);
-  gap: 0;
-  margin-bottom: 34px;
-  background: #e8f8f2;
-  border-radius: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  position: relative;
+  min-height: 94px;
+  padding: 14px 16px;
   overflow: hidden;
 }
 
-.overview-panel {
-  display: grid;
+.metric-card::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  bottom: -16px;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 16%, #ffffff), transparent 72%);
 }
 
-.overview-row {
-  display: grid;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.88);
+.metric-card--mint {
+  --tone: #4dbc8c;
 }
 
-.overview-row:last-child {
-  border-bottom: 0;
+.metric-card--blue {
+  --tone: #5aaef5;
 }
 
-.overview-item {
-  padding: 24px 38px 20px;
+.metric-card--rose {
+  --tone: #ff7f98;
 }
 
-.overview-item span {
+.metric-card--teal {
+  --tone: #43bfa8;
+}
+
+.metric-card--amber {
+  --tone: #ffa63d;
+}
+
+.metric-card--pink {
+  --tone: #ff7f9b;
+}
+
+.metric-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.metric-copy h2 {
+  margin: 8px 0 0;
+  color: #55616f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.metric-copy strong {
   display: block;
-  color: #8aa09a;
-  font-size: 12px;
+  color: #263244;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.overview-item strong {
+.spotlight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.spotlight-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 154px;
+  align-items: center;
+  gap: 14px;
+  overflow: hidden;
+  min-height: 124px;
+  padding: 18px;
+}
+
+.spotlight-card::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -18px;
+  width: 98px;
+  height: 98px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 18%, #ffffff), transparent 72%);
+}
+
+.spotlight-card--mint {
+  --tone: #4dbc8c;
+}
+
+.spotlight-card--amber {
+  --tone: #ffa63d;
+}
+
+.spotlight-card__copy {
+  position: relative;
+  z-index: 1;
+}
+
+.spotlight-card__copy span {
+  color: #5d6876;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.spotlight-card__copy strong {
   display: block;
   margin-top: 10px;
-  color: #2f3946;
-  font-size: 22px;
-  font-weight: 500;
+  color: #263244;
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.funnel-panel {
-  display: grid;
-  align-content: stretch;
-  padding: 0 12px 0 0;
-  background: linear-gradient(180deg, rgba(232, 248, 242, 0.96) 0%, rgba(223, 247, 238, 0.84) 100%);
+.spotlight-card__copy p {
+  margin: 10px 0 0;
+  color: var(--tone);
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.funnel-segment {
+.spotlight-card__chart {
+  position: relative;
+  z-index: 1;
+  width: 154px;
+  justify-self: end;
+}
+
+.spotlight-card__chart svg {
+  display: block;
+  width: 100%;
+  height: 46px;
+  overflow: visible;
+  filter: drop-shadow(0 10px 14px var(--chart-glow, rgba(84, 195, 154, 0.12)));
+}
+
+.spotlight-card__axis {
   display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.88);
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
 }
 
-.funnel-segment:last-child {
-  border-bottom: 0;
+.spotlight-card__axis span {
+  color: #8a96a3;
+  font-size: 10px;
+  font-weight: 700;
 }
 
-.funnel-segment__shape {
+.trade-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.panel-head small {
+  color: #557c77;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.funnel-summary {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(244, 251, 247, 0.98), rgba(255, 255, 255, 0.96));
+}
+
+.funnel-summary strong {
+  color: #263244;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.funnel-summary span {
+  color: #697483;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.funnel-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.funnel-row {
+  display: grid;
+  gap: 8px;
+}
+
+.funnel-row__label {
+  color: #4f5b68;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.funnel-row__track {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 122px;
-  color: #ffffff;
-  font-size: 17px;
-  font-weight: 600;
-  clip-path: polygon(15% 0, 100% 0, 85% 100%, 0 100%);
+  height: 16px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #edf7f2;
 }
 
-.chart-section + .chart-section {
-  margin-top: 26px;
+.funnel-row__bar {
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: 0 8px 20px rgba(77, 188, 140, 0.14);
+}
+
+.chart-panel {
+  display: grid;
+  align-content: start;
 }
 
 .chart-box {
   width: 100%;
 }
 
-.chart-box--line {
-  height: 440px;
-}
-
+.chart-box--line,
 .chart-box--bar {
-  height: 440px;
+  height: 360px;
 }
 
 .chart-legend {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 4px auto 0;
+  margin: 6px auto 0;
   color: #64707b;
   font-size: 12px;
+  font-weight: 800;
 }
 
 .chart-legend__dot {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #41d1a7;
+  background: linear-gradient(135deg, #91e2b2, #4dbc8c);
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
+}
+
+@media (max-width: 1280px) {
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .spotlight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spotlight-card {
+    grid-template-columns: minmax(0, 1fr) 140px;
+  }
+
+  .spotlight-card__chart {
+    width: 140px;
+  }
+
+  .trade-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .trade-hero__main {
+    flex-direction: column;
+  }
+
+  .date-range--hero,
+  .metric-grid {
+    width: 100%;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spotlight-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .spotlight-card__chart {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .spotlight-card__chart svg {
+    height: 54px;
+  }
+
+  .spotlight-card__copy strong {
+    font-size: 34px;
+  }
+
+  .chart-box--line,
+  .chart-box--bar {
+    height: 300px;
+  }
 }
 </style>

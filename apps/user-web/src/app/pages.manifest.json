@@ -780,6 +780,19 @@
     "legacySources": []
   },
   {
+    "id": "home/customer-service-chat",
+    "title": "在线客服",
+    "group": "home",
+    "route": "/home/customer-service-chat",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "客服聊天页，承接我的页、消息页和 AI 助手中的人工客服咨询入口。",
+    "folderPath": "/apps/user-web/src/pages/home/customer-service-chat",
+    "modulePath": "/apps/user-web/src/pages/home/customer-service-chat/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/customer-service-chat/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/doctor-chat",
     "title": "医生咨询",
     "group": "home",

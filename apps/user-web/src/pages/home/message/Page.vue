@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import type { Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Comment, Like, Mail, MedicalFiles, Message, Remind, SpeakerOne, Star, User } from '@icon-park/vue-next'
+import { Comment, Headset, Like, Mail, MedicalFiles, Message, Remind, SpeakerOne, Star, User } from '@icon-park/vue-next'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
@@ -35,6 +35,7 @@ const iconMap: Record<string, Component> = {
   like: Like,
   order: Star,
   assistant: SpeakerOne,
+  service: Headset,
   mail: Mail,
   message: Message,
 }

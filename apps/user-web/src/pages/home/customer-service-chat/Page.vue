@@ -1,20 +1,12 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { AddPicture, MessageEmoji, Microphone, Phone } from "@icon-park/vue-next";
-import { uploadUserFile } from "@/shared/api/files";
-import {
-  createDoctorConversation,
-  listConversationMessages,
-  markConversationAsRead,
-  sendConversationMessage
-} from "@/shared/api/messaging";
-import { BrowserVoiceRecorder, type VoiceCaptureResult } from "@/shared/ai/voice";
+import { AddPicture, Camera, Headset, Microphone, Phone } from "@icon-park/vue-next";
 import mock from "./mock";
 
 interface ChatMessage {
-  id: string;
-  from: "doctor" | "me";
+  id: number;
+  from: "service" | "me";
   type: "text" | "image" | "voice";
   content: string;
   time: string;
@@ -24,42 +16,37 @@ interface ChatMessage {
 
 const props = defineProps<PageComponentProps>();
 const draft = ref("");
-const messages = ref<ChatMessage[]>([]);
-const showEmojiPanel = ref(false);
+const messages = ref<ChatMessage[]>(mock.messages as ChatMessage[]);
 const showImagePanel = ref(false);
 const isRecording = ref(false);
 const recordingSeconds = ref(0);
-const currentConversationId = ref("");
 const scrollRef = ref<HTMLElement | null>(null);
 const albumInputRef = ref<HTMLInputElement | null>(null);
 const cameraInputRef = ref<HTMLInputElement | null>(null);
+
+let mediaRecorder: MediaRecorder | null = null;
+let mediaStream: MediaStream | null = null;
+let audioChunks: Blob[] = [];
+let recordingTimer: number | null = null;
+let recordingMimeType = "audio/webm";
 const mediaObjectUrls = new Set<string>();
-
-let voiceRecorder: BrowserVoiceRecorder | null = null;
-
-const emojiOptions = ["😊", "👍", "🙏", "❤️", "👌", "🌿", "💪", "☀️"];
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('home/message')
+    props.navigation.reLaunch("home/message");
   }
 }
 
 function scrollToBottom() {
   void nextTick(() => {
     if (scrollRef.value) {
-      scrollRef.value.scrollTop = scrollRef.value.scrollHeight
+      scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
     }
-  })
+  });
 }
 
 function fillDraft(question: string) {
-  draft.value = question
-}
-
-function getCurrentTime() {
-  const now = new Date()
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  draft.value = question;
 }
 
 function getCurrentTime() {
@@ -67,156 +54,33 @@ function getCurrentTime() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
-function formatMessageTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return getCurrentTime();
-  }
-
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "消息发送失败，请稍后重试";
-}
-
-function mapConversationMessage(item: {
-  messageId: string;
-  from: "me" | "doctor";
-  contentType: "TEXT" | "IMAGE" | "AUDIO";
-  content: string;
-  createdAt: string;
-}) {
-  return {
-    id: item.messageId,
-    from: item.from,
-    type:
-      item.contentType === "AUDIO"
-        ? "voice"
-        : item.contentType === "IMAGE"
-          ? "image"
-          : "text",
-    content:
-      item.contentType === "AUDIO"
-        ? "语音消息"
-        : item.contentType === "IMAGE"
-          ? "图片"
-          : item.content,
-    time: formatMessageTime(item.createdAt),
-    imageUrl: item.contentType === "IMAGE" ? item.content : undefined,
-    audioUrl: item.contentType === "AUDIO" ? item.content : undefined
-  } satisfies ChatMessage;
-}
-
-async function ensureConversation() {
-  if (currentConversationId.value) {
-    return currentConversationId.value;
-  }
-
-  const conversation = await createDoctorConversation();
-  currentConversationId.value = conversation.conversationId;
-  return conversation.conversationId;
-}
-
-async function loadConversation() {
-  const conversationId = await ensureConversation();
-  const pageData = await listConversationMessages(conversationId, {
-    page: 1,
-    pageSize: 100
-  });
-
-  messages.value = pageData.list.map(mapConversationMessage);
-  await markConversationAsRead(conversationId);
-  scrollToBottom();
-}
-
-function appendEmoji(emoji: string) {
-  draft.value += emoji;
-}
-
-async function sendText() {
+function sendText() {
   const content = draft.value.trim();
+
   if (!content) {
+    props.showToast("请输入您想咨询的问题");
     return;
   }
 
-  let optimisticMessage: ChatMessage | null = null;
-
-  try {
-    const conversationId = await ensureConversation();
-    optimisticMessage = {
-      id: `text-${Date.now()}`,
-      from: "me",
-      type: "text",
-      content,
-      time: getCurrentTime()
-    };
-
-    messages.value.push(optimisticMessage);
-    draft.value = "";
-    showEmojiPanel.value = false;
-    scrollToBottom();
-
-    const response = await sendConversationMessage(conversationId, {
-      contentType: "TEXT",
-      content
-    });
-    optimisticMessage.id = response.messageId;
-    optimisticMessage.time = formatMessageTime(response.createdAt);
-  } catch (error) {
-    if (optimisticMessage) {
-      messages.value = messages.value.filter((item) => item.id !== optimisticMessage?.id);
-    }
-    draft.value = content;
-    props.showToast(getErrorMessage(error));
-  }
+  messages.value.push({
+    id: Date.now(),
+    from: "me",
+    type: "text",
+    content,
+    time: getCurrentTime(),
+  });
+  draft.value = "";
+  scrollToBottom();
 }
 
 function openAlbum() {
-  showImagePanel.value = false
-  albumInputRef.value?.click()
+  showImagePanel.value = false;
+  albumInputRef.value?.click();
 }
 
 function openCamera() {
-  showImagePanel.value = false
-  cameraInputRef.value?.click()
-}
-
-async function sendImageFile(file: File, localUrl: string) {
-  const conversationId = await ensureConversation();
-  const optimisticMessage: ChatMessage = {
-    id: `image-${Date.now()}`,
-    from: "me",
-    type: "image",
-    content: file.name || "图片",
-    imageUrl: localUrl,
-    time: getCurrentTime()
-  };
-
-  messages.value.push(optimisticMessage);
-  scrollToBottom();
-
-  try {
-    const uploadedImage = await uploadUserFile({
-      category: "CHAT_IMAGE",
-      file,
-      metadata: {
-        sourcePageId: props.pageEntry.id
-      }
-    });
-    const response = await sendConversationMessage(conversationId, {
-      contentType: "IMAGE",
-      content: uploadedImage.url
-    });
-
-    optimisticMessage.id = response.messageId;
-    optimisticMessage.time = formatMessageTime(response.createdAt);
-    optimisticMessage.imageUrl = response.content;
-  } catch (error) {
-    messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
-    props.showToast(getErrorMessage(error));
-  }
+  showImagePanel.value = false;
+  cameraInputRef.value?.click();
 }
 
 function handleImageSelected(event: Event) {
@@ -229,144 +93,162 @@ function handleImageSelected(event: Event) {
 
   const imageUrl = URL.createObjectURL(file);
   mediaObjectUrls.add(imageUrl);
-  void sendImageFile(file, imageUrl).catch((error) => {
-    props.showToast(getErrorMessage(error));
+  messages.value.push({
+    id: Date.now(),
+    from: "me",
+    type: "image",
+    content: file.name || "图片",
+    imageUrl,
+    time: getCurrentTime(),
   });
   input.value = "";
+  scrollToBottom();
 }
 
 function formatDuration(seconds: number) {
-  return `${Math.max(1, seconds)}"`
+  return `${Math.max(1, seconds)}"`;
 }
 
-async function sendVoiceCapture(capture: VoiceCaptureResult) {
-  const conversationId = await ensureConversation();
-  const optimisticMessage: ChatMessage = {
-    id: `voice-${Date.now()}`,
-    from: "me",
-    type: "voice",
-    content: `语音 ${formatDuration(capture.durationSeconds)}`,
-    audioUrl: capture.objectUrl,
-    time: getCurrentTime()
-  };
+function startTimer() {
+  recordingSeconds.value = 0;
+  recordingTimer = window.setInterval(() => {
+    recordingSeconds.value += 1;
+  }, 1000);
+}
 
-  messages.value.push(optimisticMessage);
-  scrollToBottom();
-
-  try {
-    const uploadedAudio = await uploadUserFile({
-      category: "CHAT_AUDIO",
-      file: capture.file,
-      metadata: {
-        durationSeconds: capture.durationSeconds,
-        transcript: capture.transcript || null,
-        sourcePageId: props.pageEntry.id
-      }
-    });
-    const response = await sendConversationMessage(conversationId, {
-      contentType: "AUDIO",
-      content: uploadedAudio.url
-    });
-
-    optimisticMessage.id = response.messageId;
-    optimisticMessage.time = formatMessageTime(response.createdAt);
-    optimisticMessage.audioUrl = response.content;
-  } catch (error) {
-    messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
-    props.showToast(getErrorMessage(error));
+function stopTimer() {
+  if (recordingTimer !== null) {
+    window.clearInterval(recordingTimer);
+    recordingTimer = null;
   }
 }
 
+function stopAudioTracks() {
+  mediaStream?.getTracks().forEach((track) => track.stop());
+  mediaStream = null;
+}
+
 async function startVoiceRecording() {
-  if (!BrowserVoiceRecorder.isRecordingSupported()) {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
     props.showToast("当前浏览器不支持录音");
     return;
   }
 
   try {
-    voiceRecorder = new BrowserVoiceRecorder({
-      onTick: (seconds) => {
-        recordingSeconds.value = seconds;
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(mediaStream);
+    recordingMimeType = mediaRecorder.mimeType || "audio/webm";
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
       }
-    });
-    await voiceRecorder.start();
+    };
+
+    mediaRecorder.onstop = () => {
+      const duration = recordingSeconds.value;
+      stopTimer();
+      stopAudioTracks();
+      isRecording.value = false;
+
+      if (!audioChunks.length) {
+        return;
+      }
+
+      const audioBlob = new Blob(audioChunks, { type: recordingMimeType });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      mediaObjectUrls.add(audioUrl);
+      messages.value.push({
+        id: Date.now(),
+        from: "me",
+        type: "voice",
+        content: `语音 ${formatDuration(duration)}`,
+        audioUrl,
+        time: getCurrentTime(),
+      });
+      scrollToBottom();
+    };
+
+    mediaRecorder.start();
     isRecording.value = true;
-  } catch {
-    voiceRecorder?.dispose();
-    voiceRecorder = null;
+    showImagePanel.value = false;
+    startTimer();
+  } catch (error) {
+    stopTimer();
+    stopAudioTracks();
     isRecording.value = false;
-    recordingSeconds.value = 0;
     props.showToast("无法访问麦克风，请检查权限");
   }
 }
 
-async function stopVoiceRecording() {
-  if (!voiceRecorder) {
-    isRecording.value = false;
-    recordingSeconds.value = 0;
+function stopVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
     return;
   }
 
+  stopTimer();
+  stopAudioTracks();
   isRecording.value = false;
-  const recorder = voiceRecorder;
-  voiceRecorder = null;
-  const capture = await recorder.stop();
-  recordingSeconds.value = 0;
-
-  if (!capture) {
-    return;
-  }
-
-  mediaObjectUrls.add(capture.objectUrl);
-  try {
-    await sendVoiceCapture(capture);
-  } catch (error) {
-    props.showToast(getErrorMessage(error));
-  }
 }
 
 function toggleVoiceRecording() {
   if (isRecording.value) {
-    void stopVoiceRecording();
+    stopVoiceRecording();
     return;
   }
 
-  void startVoiceRecording()
+  void startVoiceRecording();
 }
 
-onMounted(() => {
-  void loadConversation().catch((error) => {
-    props.showToast(getErrorMessage(error));
-  });
-});
-
 onBeforeUnmount(() => {
-  voiceRecorder?.dispose();
-  voiceRecorder = null;
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+
+  stopTimer();
+  stopAudioTracks();
   mediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
   mediaObjectUrls.clear();
 });
 </script>
 
 <template>
-  <section class="doctor-chat-page">
+  <section class="service-chat-page">
     <header class="chat-header">
       <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
-      <div class="doctor-info">
-        <img :src="mock.doctor.avatar" :alt="mock.doctor.name" />
+      <div class="service-info">
+        <img :src="mock.service.avatar" :alt="mock.service.name" />
         <div>
-          <h1>{{ mock.doctor.name }}</h1>
-          <span>{{ mock.doctor.title }} · {{ mock.doctor.status }}</span>
+          <h1>{{ mock.service.name }}</h1>
+          <span>{{ mock.service.title }} · {{ mock.service.status }}</span>
         </div>
       </div>
-      <button class="phone-button" type="button" aria-label="电话咨询" @click="props.showToast('电话咨询功能待接入')">
+      <button class="phone-button" type="button" aria-label="电话客服" @click="props.showToast('电话客服功能待接入')">
         <Phone theme="outline" size="22" fill="#2c4159" />
       </button>
     </header>
 
     <main ref="scrollRef" class="chat-scroll">
+      <section class="service-summary">
+        <div class="summary-badge">
+          <Headset theme="outline" size="16" fill="currentColor" />
+          人工客服
+        </div>
+        <strong>订单安排、报告服务可以在这里处理</strong>
+        <p>如果您已经在和 AI 助手沟通，也可以继续在这里由人工客服跟进。</p>
+
+        <div class="tip-grid">
+          <article v-for="item in mock.serviceTips" :key="item.label" class="tip-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </article>
+        </div>
+      </section>
+
       <section class="quick-card">
-        <h2>常问问题</h2>
+        <h2>常见咨询</h2>
         <div class="quick-list">
           <button v-for="question in mock.quickQuestions" :key="question" type="button" @click="fillDraft(question)">
             {{ question }}
@@ -380,7 +262,7 @@ onBeforeUnmount(() => {
         class="message-row"
         :class="{ mine: message.from === 'me' }"
       >
-        <img v-if="message.from === 'doctor'" class="bubble-avatar" :src="mock.doctor.avatar" :alt="mock.doctor.name" />
+        <img v-if="message.from === 'service'" class="bubble-avatar" :src="mock.service.avatar" :alt="mock.service.name" />
         <div class="bubble-wrap">
           <div class="bubble" :class="`bubble--${message.type}`">
             <template v-if="message.type === 'image'">
@@ -430,7 +312,7 @@ onBeforeUnmount(() => {
         >
           <Camera theme="outline" size="23" fill="currentColor" aria-hidden="true" />
         </button>
-        <input v-model="draft" type="text" placeholder="咨询王医生..." @keyup.enter="sendText" />
+        <input v-model="draft" type="text" placeholder="请输入您想咨询的订单或服务问题..." @keyup.enter="sendText" />
         <button class="send-btn" type="button" @click="sendText">发送</button>
       </div>
     </footer>
@@ -441,7 +323,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.doctor-chat-page {
+.service-chat-page {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
@@ -449,7 +331,7 @@ onBeforeUnmount(() => {
   min-height: min(874px, calc(100vh - 36px));
   max-height: 874px;
   margin: -18px 0;
-  padding-top: 16px;
+  padding-top: 14px;
   box-sizing: border-box;
   transform: translateX(-50%);
   overflow: hidden;
@@ -471,7 +353,6 @@ input {
 }
 
 .chat-header {
-  height: 58px;
   display: grid;
   grid-template-columns: 34px 1fr 36px;
   gap: 10px;
@@ -490,7 +371,7 @@ input {
   line-height: 30px;
 }
 
-.doctor-info {
+.service-info {
   min-width: 0;
   display: grid;
   grid-template-columns: 42px 1fr;
@@ -498,25 +379,23 @@ input {
   align-items: center;
   padding: 10px 12px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 14px 28px rgba(61, 103, 152, 0.08);
 }
 
-.doctor-info img {
+.service-info img {
   width: 42px;
   height: 42px;
   border-radius: 50%;
   object-fit: cover;
 }
 
-.doctor-info h1 {
+.service-info h1 {
   margin: 0 0 4px;
   color: #25305a;
   font-size: 17px;
   font-weight: 900;
 }
 
-.doctor-info span {
+.service-info span {
   display: block;
   overflow: hidden;
   color: rgba(78, 91, 117, 0.72);
@@ -534,8 +413,8 @@ input {
 }
 
 .chat-scroll {
-  height: calc(100% - 188px);
-  padding: 12px 18px 18px;
+  height: calc(100% - 182px);
+  padding: 14px 18px 18px;
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: none;
@@ -545,9 +424,82 @@ input {
   display: none;
 }
 
-.quick-card {
-  padding: 14px;
+.service-summary {
   margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 16px 34px rgba(61, 103, 152, 0.08);
+}
+
+.summary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(117, 214, 223, 0.18);
+  color: #1b8f9a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.summary-badge :deep(.i-icon) {
+  display: block;
+}
+
+.service-summary > strong {
+  display: block;
+  margin-top: 12px;
+  color: #25305a;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.service-summary > p {
+  margin: 8px 0 0;
+  color: rgba(78, 91, 117, 0.72);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.65;
+}
+
+.tip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tip-card {
+  min-width: 0;
+  padding: 12px 10px;
+  border-radius: 16px;
+  background: rgba(247, 252, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(117, 214, 223, 0.12);
+}
+
+.tip-card span {
+  display: block;
+  color: rgba(78, 91, 117, 0.68);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tip-card strong {
+  display: block;
+  margin-top: 6px;
+  color: #25305a;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.quick-card {
+  margin-bottom: 16px;
+  padding: 14px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 12px 24px rgba(31, 40, 58, 0.05);
@@ -622,7 +574,7 @@ input {
 .mine .bubble {
   border-radius: 16px 16px 6px 16px;
   background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
-  color: #fff;
+  color: #ffffff;
 }
 
 .bubble--image,
@@ -714,7 +666,7 @@ input {
 }
 
 .voice-btn.recording {
-  color: #ffffff;
+u  color: #ffffff;
 }
 
 .voice-btn.recording span {
@@ -755,7 +707,7 @@ input {
   height: 8px;
   border-radius: 999px;
   background: #596575;
-  content: '';
+  content: "";
 }
 
 .voice-btn span::before {
@@ -787,11 +739,11 @@ input {
 .message-bar input {
   min-width: 0;
   border: 0;
-  outline: 0;
   background: transparent;
   color: #2d344b;
   font-size: 13px;
   font-weight: 800;
+  outline: 0;
 }
 
 .message-bar input::placeholder {

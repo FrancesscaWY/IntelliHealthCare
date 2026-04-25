@@ -795,7 +795,7 @@ watch(
       </div>
 
       <div class="quick-actions">
-        <button v-for="item in quickActions" :key="item.label" type="button" @click="useQuickAction(item.label)">
+        <button v-for="item in quickActions" :key="item.label" type="button" @click="useQuickAction(item)">
           <component :is="item.icon" theme="outline" size="16" fill="currentColor" aria-hidden="true" />
           {{ item.label }}
         </button>

@@ -1,6 +1,6 @@
 const genderItems = [
-  { label: "男", value: 540, color: "#41d1a7" },
-  { label: "女", value: 460, color: "#ff6f67" },
+  { label: "男", value: 540, color: "#91e2b2", highlightColor: "#a8edea" },
+  { label: "女", value: 460, color: "#ffb6b8", highlightColor: "#fed6e3" },
 ] as const;
 
 const total = genderItems.reduce((sum, item) => sum + item.value, 0);
@@ -13,6 +13,9 @@ const mock = {
   chartTitle: "用户性别构成",
   totalLabel: "用户总数",
   total,
+  chartHeight: 280,
+  chartRadius: ["48%", "72%"],
+  chartCenter: ["50%", "44%"],
   items: genderItems,
   columns: [
     { key: "index", label: "序号", align: "center" },

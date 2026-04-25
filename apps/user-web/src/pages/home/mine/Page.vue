@@ -80,6 +80,10 @@ function openCheckupHistory() {
   props.navigation.navigateTo("orders/checkup-history");
 }
 
+function openSupportChat() {
+  openSubPage("home/customer-service-chat", "客服");
+}
+
 function resizeAssistant() {
   assistantRive?.resizeDrawingSurfaceToCanvas();
 }
@@ -125,7 +129,7 @@ onBeforeUnmount(() => {
   <section class="mine-page">
     <main class="mine-scroll">
       <header class="profile-header">
-        <button class="support-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
+        <button class="support-button" type="button" aria-label="客服" @click="openSupportChat">
           <Headset theme="outline" size="22" fill="#1aaeba" />
         </button>
         <div class="profile-main">

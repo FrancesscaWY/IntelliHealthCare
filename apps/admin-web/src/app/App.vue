@@ -877,8 +877,11 @@ onBeforeUnmount(() => {
   grid-column: 2;
   display: grid;
   align-content: start;
+  min-width: 0;
+  width: 100%;
   background: #ffffff;
   border-right: 1px solid #edf3ef;
+  overflow-x: hidden;
   overflow-y: auto;
   transition:
     opacity 0.18s ease,
@@ -889,6 +892,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   min-height: 50px;
+  min-width: 0;
   padding: 0 18px;
   border-bottom: 1px solid #edf3ef;
   color: #2f3946;
@@ -900,11 +904,13 @@ onBeforeUnmount(() => {
 .subnav__list {
   display: grid;
   gap: 4px;
+  min-width: 0;
   padding: 14px 12px 20px;
 }
 
 .subnav__section {
   margin-top: 12px;
+  min-width: 0;
   padding: 8px 6px 10px;
   color: #2f3946;
   font-size: 12px;
@@ -919,6 +925,7 @@ onBeforeUnmount(() => {
 .subnav__item {
   width: 100%;
   min-height: 42px;
+  min-width: 0;
   padding: 11px 14px;
   border: 0;
   border-radius: 10px;
