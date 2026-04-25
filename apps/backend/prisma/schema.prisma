@@ -233,6 +233,20 @@ enum NotificationType {
   FOLLOW
 }
 
+enum AdminMessageCampaignStatus {
+  DRAFT
+  SCHEDULED
+  REVIEWING
+  SENT
+  WITHDRAWN
+}
+
+enum AdminMessageCampaignChannel {
+  SYSTEM
+  SMS
+  CONVERSATION
+}
+
 enum ContentStatus {
   DRAFT
   PUBLISHED
@@ -278,6 +292,10 @@ enum FileCategory {
   CHAT_AUDIO
   CONTENT_COVER
   ACTIVITY_BANNER
+  ADMIN_AVATAR
+  ADMIN_DOCUMENT
+  INSTITUTION_COVER
+  SERVICE_COVER
 }
 
 enum StaffRole {
@@ -294,6 +312,12 @@ enum StaffStatus {
   OFF_DUTY
   LEAVE
   DISABLED
+}
+
+enum StaffApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum ShiftStatus {
@@ -762,6 +786,23 @@ model Staff {
   authoredReports    Report[]        @relation("ReportAuthor")
 }
 
+model StaffApplication {
+  id             String                 @id @default(cuid())
+  staffId        String                 @unique
+  status         StaffApplicationStatus @default(PENDING)
+  channel        String?
+  rewardEnabled  Boolean                @default(false)
+  note           String?
+  attachments    Json?
+  reviewerUserId String?
+  reviewRemark   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([status, createdAt])
+}
+
 model StaffSchedule {
   id            String      @id @default(cuid())
   staffId       String
@@ -944,10 +985,15 @@ model OrderReview {
   score     Int
   tags      Json?
   content   String?
+  isVisible Boolean  @default(true)
+  isPinned  Boolean  @default(false)
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   order     Order    @relation(fields: [orderId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([isVisible, isPinned, deletedAt])
 }
 
 model Report {
@@ -1042,6 +1088,27 @@ model NotificationRecipient {
 
   @@id([notificationId, userId])
   @@index([userId, isRead])
+}
+
+model AdminMessageCampaign {
+  id                String                      @id @default(cuid())
+  title             String
+  content           String
+  status            AdminMessageCampaignStatus  @default(DRAFT)
+  channel           AdminMessageCampaignChannel
+  receiverType      String
+  receiverSnapshot  Json?
+  insertProductLink Boolean                     @default(false)
+  productSnapshot   Json?
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  withdrawnAt       DateTime?
+  createdByUserId   String?
+  updatedByUserId   String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  @@index([status, createdAt])
 }
 
 model Article {

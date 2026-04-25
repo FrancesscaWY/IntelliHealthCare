@@ -1,946 +1,1325 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
-import { getDashboardOverview } from "@/shared/api/workbench";
-import type { DashboardOverviewResponse } from "@/shared/api/workbench";
-import { clearAdminAuthSession } from "@/shared/auth/session";
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import * as echarts from "echarts";
+import type { ECharts, EChartsOption } from "echarts";
+import shanghaiGeoJson from "@/assets/map/shanghai.json";
 import mock from "./mock";
 
-const props = defineProps<PageComponentProps>();
-const overview = ref<DashboardOverviewResponse | null>(null);
-const displayStats = computed(() => {
-  const currentOverview = overview.value;
+type ChartItem = {
+  label: string;
+  value: number;
+  color: string;
+  highlightColor?: string;
+  count?: string;
+  percent?: string;
+};
 
-  if (!currentOverview) {
-    return mock.stats;
-  }
-
-  const labels = ["长者档案总数", "工单总量", "订单总量", "报告总量"];
-  const values = [
-    currentOverview.elderCount,
-    currentOverview.workOrderCount,
-    currentOverview.orderCount,
-    currentOverview.reportCount
-  ];
-
-  return mock.stats.map((item, index) => ({
-    ...item,
-    label: labels[index] ?? item.label,
-    value: String(values[index] ?? item.value),
-    compareLabel: index === 0 ? "待处理预警" : "联调状态",
-    compareValue: index === 0 ? `${currentOverview.openAlertCount}` : "已接通",
-    compareTone: "positive" as const
-  }));
-});
-
-const quickIcons: Record<string, string> = {
+const iconMarkup: Record<string, string> = {
   users: `
-    <circle cx="18.5" cy="18" r="5.4" />
-    <path d="M10.8 31.4c1.1-4.3 4.5-6.8 8.4-6.8 1.7 0 3.3.4 4.6 1.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-    <path d="M29 18.8h8.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-    <path d="M29 24.7h6.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+    <circle cx="19" cy="15.5" r="5.2" />
+    <path d="M9.6 34.8c1.3-7.2 5.2-10.9 11.8-10.9 5.9 0 9.6 3.1 11.2 9.3" />
+    <circle cx="31.7" cy="18" r="3.6" opacity=".72" />
+    <path d="M31.4 28.2c3.8.2 6.3 2 7.4 5.3" opacity=".72" />
   `,
-  report: `
-    <path d="M16.2 11.6h10.6l5.4 5.3v19H16.2a2 2 0 0 1-2-2v-20.3a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2.2" />
-    <path d="M26.8 11.6v5.8h5.4" fill="none" stroke="currentColor" stroke-width="2.2" />
-    <path d="M19.6 24.2h8.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-    <path d="M19.6 29.8h8.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+  heart: `
+    <path d="M22 35.8S8.8 28.4 8.8 17.8c0-4.8 3.7-8.2 8.1-8.2 2.7 0 4.5 1.2 5.1 2.4.7-1.2 2.5-2.4 5.2-2.4 4.4 0 8 3.4 8 8.2 0 10.6-13.2 18-13.2 18Z" />
+    <path d="M12.5 22.4h6.2l2.2-5.4 3.9 10.1 2.4-4.7h4.4" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
   `,
-  message: `
-    <path d="M11.4 14.6h25.2v18.6H18.4L11.4 38V14.6Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" />
-    <path d="m15 18.8 9 6.8 9-6.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+  shield: `
+    <path d="M22 7.8 35 12v9.5c0 8.4-5.6 13.1-13 16.7C14.6 34.6 9 29.9 9 21.5V12l13-4.2Z" />
+    <path d="m17.4 22 3.1 3.1 6.2-7.1" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
   `,
-  database: `
-    <ellipse cx="24" cy="15.8" rx="10.1" ry="4.4" fill="none" stroke="currentColor" stroke-width="2.2" />
-    <path d="M13.9 15.8v12.8c0 2.4 4.5 4.4 10.1 4.4 5.6 0 10.1-2 10.1-4.4V15.8" fill="none" stroke="currentColor" stroke-width="2.2" />
-    <path d="M13.9 22.4c0 2.4 4.5 4.4 10.1 4.4 5.6 0 10.1-2 10.1-4.4" fill="none" stroke="currentColor" stroke-width="2.2" />
+  building: `
+    <path d="M11.5 36.5V12l15.4-4.6v29.1" />
+    <path d="M26.9 18.8h8.6v17.7" opacity=".72" />
+    <path d="M16.2 16.2h3.1M16.2 23h3.1M16.2 29.8h3.1" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" />
   `,
-  file: `
-    <path d="M16.4 11.8h10.2l5.5 5.3v18.8H16.4a2 2 0 0 1-2-2V13.8a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2.2" />
-    <path d="M26.6 11.8v5.8h5.5" fill="none" stroke="currentColor" stroke-width="2.2" />
-    <path d="M19.4 24h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-    <path d="M19.4 29.6h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+  staff: `
+    <circle cx="17" cy="15" r="5.2" />
+    <circle cx="31.4" cy="16.6" r="4" opacity=".72" />
+    <path d="M7.8 35.2c1.2-7 4.9-10.6 11.1-10.6s9.9 3.6 11.1 10.6" />
+    <path d="M29.4 27.4c4.6.3 7.6 2.8 8.8 7.5" opacity=".72" />
   `,
-  refresh: `
-    <path d="M16.4 18.2A10 10 0 0 1 34 15.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-    <path d="m33 11.8 1 3.8-3.8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="M31.6 29.7A10 10 0 0 1 14 32.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-    <path d="m15 36.2-1-3.8 3.8-.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+  warning: `
+    <path d="M22 7.5 39 36.2H5L22 7.5Z" />
+    <path d="M22 17.2v9.4M22 31.8h.1" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" />
   `,
-  star: `
-    <path d="m24 12.2 3.5 7.2 8 1.1-5.8 5.5 1.3 7.9-7-3.8-7 3.8 1.3-7.9-5.8-5.5 8-1.1 3.5-7.2Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" />
+  elder: `
+    <circle cx="22" cy="14.2" r="6" />
+    <path d="M10.8 36c1.5-7.5 5.2-11.3 11.2-11.3S31.7 28.5 33.2 36" />
+    <path d="M34 15.4v8.8M29.6 19.8h8.8" opacity=".72" />
   `,
-  send: `
-    <path d="m13.4 14.5 21.8 9.4-21.8 9.7 4.3-9.7-4.3-9.4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" />
-    <path d="M17.5 24h8.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+  medicine: `
+    <path d="M13.5 30.5 30.5 13.5a6 6 0 1 1 8.5 8.5L22 39a6 6 0 1 1-8.5-8.5Z" />
+    <path d="m21.8 22.2 8 8" opacity=".76" />
+  `,
+  bed: `
+    <path d="M8 15.5v21M8 27h29.5a4 4 0 0 1 4 4v5.5" />
+    <path d="M8 23.5h12.5v-6.2H12a4 4 0 0 0-4 4v2.2Z" />
   `,
 };
 
-const pieStyle = computed(() => {
-  const segments = mock.serviceOrderShare
-    .map((item, index, list) => {
-      const start = list.slice(0, index).reduce((sum, current) => sum + current.value, 0);
-      const end = start + item.value;
-      return `${item.color} ${start}% ${end}%`;
-    })
-    .join(", ");
+const shanghaiMapName = "shanghai";
+const shanghaiMapGeoJson = {
+  ...shanghaiGeoJson,
+  features: shanghaiGeoJson.features.filter((feature) => feature.properties?.name !== "崇明区"),
+};
 
-  return { background: `conic-gradient(${segments})` };
-});
+echarts.registerMap(shanghaiMapName, shanghaiMapGeoJson as Parameters<typeof echarts.registerMap>[1]);
 
-const trendMax = computed(() => Math.max(...mock.trend.values));
-const trendMin = computed(() => Math.min(...mock.trend.values));
+const serviceChartEl = ref<HTMLElement | null>(null);
+const ageChartEl = ref<HTMLElement | null>(null);
+const healthChartEl = ref<HTMLElement | null>(null);
+const trendChartEl = ref<HTMLElement | null>(null);
+const mapChartEl = ref<HTMLElement | null>(null);
 
-function metricPoints(values: number[], width = 148, height = 82, padding = 6) {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = Math.max(max - min, 1);
+const serviceChart = shallowRef<ECharts | null>(null);
+const ageChart = shallowRef<ECharts | null>(null);
+const healthChart = shallowRef<ECharts | null>(null);
+const trendChart = shallowRef<ECharts | null>(null);
+const mapChart = shallowRef<ECharts | null>(null);
 
-  return values
-    .map((value, index) => {
-      const x = padding + (index * (width - padding * 2)) / Math.max(values.length - 1, 1);
-      const y = height - padding - ((value - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
+let resizeObserver: ResizeObserver | null = null;
+
+function renderIcon(name: string) {
+  return iconMarkup[name] || iconMarkup.users;
 }
 
-function metricArea(values: number[]) {
-  const points = metricPoints(values).split(" ");
-  const first = points[0]?.split(",") || ["0", "82"];
-  const last = points[points.length - 1]?.split(",") || ["148", "82"];
-  return `M ${first[0]} 76 L ${points.map((point) => point.replace(",", " ")).join(" L ")} L ${last[0]} 76 Z`;
-}
-
-function trendPoint(index: number, value: number, width = 1128, height = 336, paddingX = 62, paddingY = 18) {
-  const x = paddingX + (index * (width - paddingX * 2)) / Math.max(mock.trend.values.length - 1, 1);
-  const range = Math.max(trendMax.value - trendMin.value, 1);
-  const y = height - paddingY - ((value - trendMin.value) / range) * (height - paddingY * 2);
-  return { x, y };
-}
-
-const trendPoints = computed(() => mock.trend.values.map((value, index) => trendPoint(index, value)));
-const trendPolyline = computed(() => trendPoints.value.map((point) => `${point.x},${point.y}`).join(" "));
-const trendArea = computed(() => {
-  const first = trendPoints.value[0];
-  const last = trendPoints.value[trendPoints.value.length - 1];
-  return `M ${first.x} 318 L ${trendPoints.value.map((point) => `${point.x} ${point.y}`).join(" L ")} L ${last.x} 318 Z`;
-});
-const highlightPoint = computed(() => trendPoints.value[mock.trend.highlightIndex] || trendPoints.value[0]);
-
-function compareClass(tone: string) {
-  return tone === "negative" ? "metric__delta-value--negative" : "metric__delta-value--positive";
-}
-
-function openQuickEntry(entry: { title: string; pageId?: string }) {
-  if (entry.pageId) {
-    props.navigation.reLaunch(entry.pageId);
-    return;
+function getChartInstance(target: HTMLElement | null, current: ECharts | null) {
+  if (!target) {
+    return null;
   }
 
-  props.showToast(`${entry.title}功能正在接入中。`);
+  return current || echarts.init(target);
+}
+
+function createRingOption(
+  name: string,
+  items: ChartItem[],
+  centerText: string,
+  centerSubtext: string,
+  rounded = false,
+): EChartsOption {
+  const ringData = items.map((item) => {
+    const baseColor = item.color;
+    const highlightColor = item.highlightColor || item.color;
+
+    return {
+      name: item.label,
+      value: item.value,
+      itemStyle: {
+        color: rounded
+          ? {
+              type: "linear",
+              x: 0,
+              y: 0,
+              x2: 1,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: highlightColor },
+                { offset: 1, color: baseColor },
+              ],
+            }
+          : baseColor,
+        shadowBlur: rounded ? 14 : 0,
+        shadowColor: rounded ? `${baseColor}80` : "transparent",
+        shadowOffsetY: rounded ? 6 : 0,
+      },
+      emphasis: rounded
+        ? {
+            itemStyle: {
+              color: {
+                type: "linear",
+                x: 0,
+                y: 0,
+                x2: 1,
+                y2: 1,
+                colorStops: [
+                  { offset: 0, color: "#ffffff" },
+                  { offset: 0.42, color: highlightColor },
+                  { offset: 1, color: baseColor },
+                ],
+              },
+              shadowBlur: 24,
+              shadowColor: `${baseColor}a8`,
+              shadowOffsetY: 8,
+            },
+          }
+        : undefined,
+    };
+  });
+
+  return {
+    animationDuration: 650,
+    color: items.map((item) => item.color),
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(255,255,255,0.96)",
+      borderColor: "#dfeeea",
+      borderWidth: 1,
+      padding: [9, 12],
+      textStyle: {
+        color: "#2f3946",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+      formatter(params: unknown) {
+        const record = params as { marker?: string; name?: string; value?: number };
+        const item = items.find((chartItem) => chartItem.label === record.name);
+        const detail = item?.count ? `${item.count} (${item.percent})` : item?.percent || `${record.value}`;
+        return `${record.marker || ""}${record.name || ""}<br/>${detail}`;
+      },
+    },
+    legend: {
+      show: false,
+      top: "5%",
+      left: "center",
+      itemWidth: 10,
+      itemHeight: 10,
+      icon: "circle",
+      textStyle: {
+        color: "#5f6b78",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+    },
+    graphic: [
+      {
+        type: "text",
+        left: "center",
+        top: "44%",
+        style: {
+          text: centerText,
+          fill: "#23302e",
+          fontSize: 19,
+          fontWeight: 900,
+          textAlign: "center",
+        },
+      },
+      {
+        type: "text",
+        left: "center",
+        top: "56%",
+        style: {
+          text: centerSubtext,
+          fill: "#41515e",
+          fontSize: 12,
+          fontWeight: 800,
+          textAlign: "center",
+        },
+      },
+    ],
+    series: [
+      {
+        name,
+        type: "pie",
+        radius: ["68%", "100%"],
+        center: ["50%", "52%"],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: rounded ? 10 : 0,
+          borderWidth: 2,
+          borderColor: "rgba(255, 255, 255, 0.9)",
+        },
+        label: {
+          show: false,
+          position: "center",
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 40,
+            fontWeight: "bold",
+            color: "#1f7b70",
+          },
+        },
+        labelLine: {
+          show: false,
+        },
+        data: ringData,
+      },
+    ],
+  };
+}
+
+function createTrendOption(): EChartsOption {
+  return {
+    animationDuration: 650,
+    grid: {
+      top: 18,
+      right: 12,
+      bottom: 28,
+      left: 38,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(255,255,255,0.96)",
+      borderColor: "#dfeeea",
+      borderWidth: 1,
+      textStyle: {
+        color: "#2f3946",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+      formatter(params: unknown) {
+        const normalized = Array.isArray(params) ? params : [params];
+        const item = normalized[0] as { axisValueLabel?: string; value?: number };
+        return `${item.axisValueLabel || ""}<br/>服务人次：${item.value ?? "--"}`;
+      },
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: mock.serviceTrend.labels,
+      axisLine: {
+        lineStyle: {
+          color: "#edf3f1",
+        },
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: "#7a8490",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      splitNumber: 5,
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: "#7a8490",
+        fontSize: 12,
+        fontWeight: 700,
+        formatter(value: number) {
+          return `${Math.round(value / 1000)}K`;
+        },
+      },
+      splitLine: {
+        lineStyle: {
+          color: "#edf3f1",
+        },
+      },
+    },
+    series: [
+      {
+        name: "服务人次",
+        type: "line",
+        data: mock.serviceTrend.values,
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 9,
+        lineStyle: {
+          width: 3,
+          color: "#42b884",
+        },
+        itemStyle: {
+          color: "#42b884",
+          borderColor: "#ffffff",
+          borderWidth: 2,
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "rgba(84, 195, 154, 0.34)" },
+            { offset: 1, color: "rgba(84, 195, 154, 0.04)" },
+          ]),
+        },
+      },
+    ],
+  };
+}
+
+function createMapOption(): EChartsOption {
+  const values = mock.mapPoints.map((item) => item.value);
+  const mapLayout = {
+    roam: false,
+    zoom: 1,
+    aspectScale: 0.86,
+    top: -18,
+    bottom: -28,
+    left: -22,
+    right: -22,
+  };
+  const centerPointData = mock.mapPoints.map((item) => ({
+    name: item.name,
+    value: [...item.coordinate, item.value],
+  }));
+
+  return {
+    animationDuration: 650,
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(255,255,255,0.96)",
+      borderColor: "#dfeeea",
+      borderWidth: 1,
+      padding: [9, 12],
+      textStyle: {
+        color: "#2f3946",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+      formatter(params: unknown) {
+        const record = params as { name?: string; value?: number | number[] };
+        const value = Array.isArray(record.value) ? record.value[2] : record.value;
+        return `${record.name || ""}<br/>服务人次：${value ?? 0}`;
+      },
+    },
+    geo: {
+      map: shanghaiMapName,
+      ...mapLayout,
+      silent: true,
+      itemStyle: {
+        areaColor: "transparent",
+        borderColor: "transparent",
+      },
+      emphasis: {
+        disabled: true,
+      },
+    },
+    visualMap: {
+      show: false,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      seriesIndex: 0,
+      inRange: {
+        color: ["#dff8f2", "#aee7d7", "#75d2bd", "#ffb7c2"],
+      },
+    },
+    series: [
+      {
+        name: "区域服务热力图",
+        type: "map",
+        map: shanghaiMapName,
+        ...mapLayout,
+        zlevel: 2,
+        z: 10,
+        label: {
+          show: true,
+          color: "#31504c",
+          fontSize: 11,
+          fontWeight: 800,
+        },
+        itemStyle: {
+          areaColor: "#dff8f2",
+          borderColor: "rgba(255,255,255,0.96)",
+          borderWidth: 2,
+          shadowBlur: 22,
+          shadowColor: "rgba(42, 112, 143, 0.28)",
+          shadowOffsetX: 0,
+          shadowOffsetY: 5,
+        },
+        emphasis: {
+          label: {
+            show: true,
+            color: "#1f6f67",
+            fontSize: 12,
+            fontWeight: 900,
+          },
+          itemStyle: {
+            areaColor: "#91e2b2",
+            borderColor: "rgba(255,255,255,0.96)",
+            borderWidth: 2.4,
+            shadowBlur: 28,
+            shadowColor: "rgba(42, 112, 143, 0.36)",
+            shadowOffsetX: 0,
+            shadowOffsetY: 6,
+          },
+        },
+        data: mock.mapPoints,
+      },
+      {
+        name: "区域中心点",
+        type: "effectScatter",
+        coordinateSystem: "geo",
+        zlevel: 3,
+        z: 20,
+        symbol: "circle",
+        symbolSize: 9,
+        showEffectOn: "render",
+        rippleEffect: {
+          brushType: "stroke",
+          color: "rgba(222, 249, 255, 0.86)",
+          period: 3.4,
+          scale: 4.2,
+        },
+        label: {
+          show: false,
+        },
+        itemStyle: {
+          color: "#f8fdff",
+          borderColor: "rgba(180, 241, 255, 1)",
+          borderWidth: 2.5,
+          shadowBlur: 16,
+          shadowColor: "rgb(170,235,255)",
+        },
+        emphasis: {
+          scale: 1.3,
+          itemStyle: {
+            color: "#d8f8ff",
+            borderColor: "#ffffff",
+            shadowBlur: 22,
+            shadowColor: "rgba(170, 235, 255, 0.88)",
+          },
+        },
+        data: centerPointData,
+      },
+    ],
+  };
+}
+
+function renderCharts() {
+  serviceChart.value = getChartInstance(serviceChartEl.value, serviceChart.value);
+  ageChart.value = getChartInstance(ageChartEl.value, ageChart.value);
+  healthChart.value = getChartInstance(healthChartEl.value, healthChart.value);
+  trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
+  mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
+
+  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次", true), true);
+  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户", true), true);
+  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好", true), true);
+  trendChart.value?.setOption(createTrendOption(), true);
+  mapChart.value?.setOption(createMapOption(), true);
+}
+
+function resizeCharts() {
+  serviceChart.value?.resize();
+  ageChart.value?.resize();
+  healthChart.value?.resize();
+  trendChart.value?.resize();
+  mapChart.value?.resize();
 }
 
 onMounted(async () => {
-  try {
-    overview.value = await getDashboardOverview();
-  } catch (error) {
-    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+  await nextTick();
+  renderCharts();
 
-    if (status === 401 || status === 403) {
-      clearAdminAuthSession();
-      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
-      props.navigation.reLaunch("auth/login");
-      return;
+  resizeObserver = new ResizeObserver(() => {
+    resizeCharts();
+  });
+
+  [serviceChartEl.value, ageChartEl.value, healthChartEl.value, trendChartEl.value, mapChartEl.value].forEach((target) => {
+    if (target) {
+      resizeObserver?.observe(target);
     }
+  });
 
-    props.showToast(error instanceof Error ? error.message : "后台首页加载失败");
-  }
+  window.addEventListener("resize", resizeCharts);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  window.removeEventListener("resize", resizeCharts);
+  serviceChart.value?.dispose();
+  ageChart.value?.dispose();
+  healthChart.value?.dispose();
+  trendChart.value?.dispose();
+  mapChart.value?.dispose();
 });
 </script>
 
 <template>
-  <section class="overview">
-    <header class="overview__greeting">
-      <span class="overview__emoji">👋</span>
-      <div>
-        <h1>{{ mock.greeting }}</h1>
-        <p v-if="overview" class="overview__subtitle">当前待处理预警 {{ overview.openAlertCount }} 条</p>
-      </div>
-    </header>
-
-    <section class="metrics">
-      <article v-for="item in displayStats" :key="item.label" class="metric">
-        <div class="metric__main">
-          <p class="metric__label">{{ item.label }}</p>
-          <strong class="metric__value">{{ item.value }}</strong>
-          <div class="metric__delta">
-            <span>{{ item.compareLabel }}</span>
-            <strong :class="compareClass(item.compareTone)">{{ item.compareValue }}</strong>
-          </div>
-        </div>
-
-        <div class="metric__chart">
-          <svg v-if="item.chartType === 'area'" viewBox="0 0 148 82" preserveAspectRatio="none">
-            <defs>
-              <linearGradient :id="`metricGradient-${item.label}`" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" :stop-color="item.chartColor" stop-opacity="0.5" />
-                <stop offset="100%" :stop-color="item.chartColor" stop-opacity="0" />
-              </linearGradient>
-            </defs>
-            <path :d="metricArea(item.values)" :fill="`url(#metricGradient-${item.label})`" />
-            <polyline :points="metricPoints(item.values)" fill="none" :stroke="item.chartColor" stroke-width="3" />
+  <section class="overview-dashboard">
+    <section class="metric-grid" aria-label="核心指标">
+      <article v-for="item in mock.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
+        <span class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 44 44" focusable="false">
+            <g v-html="renderIcon(item.icon)"></g>
           </svg>
-
-          <svg v-else viewBox="0 0 148 82" preserveAspectRatio="none">
-            <rect
-              v-for="(value, index) in item.values"
-              :key="`${item.label}-${index}`"
-              :x="10 + index * 24"
-              :y="82 - value"
-              width="14"
-              :height="value"
-              rx="3.5"
-              :fill="item.chartColor"
-              :fill-opacity="item.label === '新增动态数量' && index >= item.values.length - 2 ? 0.18 : 1"
-            />
-          </svg>
+        </span>
+        <div class="metric-copy">
+          <h2>{{ item.label }}</h2>
+          <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
+          <p>
+            {{ item.compareLabel }}
+            <em>{{ item.direction === "down" ? "↓" : "↑" }} {{ item.rate }}</em>
+          </p>
         </div>
+        <svg class="metric-spark" viewBox="0 0 96 38" preserveAspectRatio="none" aria-hidden="true">
+          <polyline :points="item.spark" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
       </article>
     </section>
 
-    <section class="row row--middle">
-      <article class="panel panel--quick">
-        <header class="panel__head">
-          <span class="panel__accent"></span>
-          <h2>快捷入口</h2>
+    <section class="dashboard-grid">
+      <article class="panel service-panel">
+        <header class="panel-head">
+          <h2>服务类型分布 <small>（本月）</small></h2>
         </header>
-
-        <div class="quick-grid">
-          <button v-for="entry in mock.quickEntries" :key="entry.title" class="quick-grid__item" type="button" @click="openQuickEntry(entry)">
-            <span class="quick-grid__icon" :class="`quick-grid__icon--${entry.tone}`">
-              <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
-                <g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" v-html="quickIcons[entry.icon]"></g>
-              </svg>
-            </span>
-            <span class="quick-grid__label">{{ entry.title }}</span>
-          </button>
+        <div class="ring-with-list">
+          <div ref="serviceChartEl" class="echart echart--ring"></div>
+          <div class="side-legend side-legend--service">
+            <div v-for="item in mock.serviceTypes" :key="item.label" class="side-legend__row">
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+              <em>({{ item.percent }})</em>
+            </div>
+          </div>
         </div>
       </article>
 
-      <article class="panel">
-        <header class="panel__head">
-          <span class="panel__accent"></span>
+      <article class="panel map-panel">
+        <header class="panel-head">
+          <h2>区域服务热力图 <small>（服务人次）</small></h2>
+        </header>
+        <div ref="mapChartEl" class="echart echart--map map-chart-hook"></div>
+      </article>
+
+      <article class="panel age-panel">
+        <header class="panel-head">
+          <h2>用户年龄结构 <small>（在册用户）</small></h2>
+        </header>
+        <div class="ring-with-list">
+          <div ref="ageChartEl" class="echart echart--ring"></div>
+          <div class="side-legend side-legend--service">
+            <div v-for="item in mock.ageGroups" :key="item.label" class="side-legend__row">
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+              <em>({{ item.percent }})</em>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel trend-panel">
+        <header class="panel-head">
+          <h2>服务趋势 <small>（近7天）</small></h2>
+        </header>
+        <div class="trend-chart">
+          <div ref="trendChartEl" class="echart echart--trend"></div>
+          <strong>{{ mock.serviceTrend.current }}</strong>
+        </div>
+      </article>
+
+      <article class="panel health-panel">
+        <header class="panel-head">
+          <h2>健康状态分布 <small>（状态占比）</small></h2>
+        </header>
+        <div class="ring-with-list">
+          <div ref="healthChartEl" class="echart echart--ring"></div>
+          <div class="side-legend side-legend--service">
+            <div v-for="item in mock.healthStatus" :key="item.label" class="side-legend__row">
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+              <em>({{ item.percent }})</em>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel satisfaction-panel">
+        <header class="panel-head">
           <h2>用户标签分布</h2>
         </header>
-
-        <div class="bars">
-          <div v-for="item in mock.tagDistribution" :key="item.label" class="bars__item">
-            <span class="bars__label">{{ item.label }}</span>
-            <div class="bars__track">
-              <span class="bars__fill" :style="{ width: `${(item.value / item.max) * 100}%` }"></span>
+        <div class="satisfaction-layout">
+          <div class="satisfaction-score">
+            <strong>{{ mock.userTags.total }}<small>人</small></strong>
+            <span>标签总数</span>
+          </div>
+          <div class="satisfaction-bars">
+            <div v-for="item in mock.userTags.items" :key="item.label">
+              <span>{{ item.label }}</span>
+              <i><b :style="{ width: item.value }"></b></i>
+              <em>{{ item.count }}</em>
             </div>
-            <strong class="bars__value">{{ item.value }}</strong>
           </div>
         </div>
       </article>
 
-      <article class="panel">
-        <header class="panel__head">
-          <span class="panel__accent"></span>
-          <h2>各服务类型商品订单量占比</h2>
+      <article class="panel alert-panel">
+        <header class="panel-head">
+          <h2>预警提醒 <small>（今日）</small></h2>
         </header>
+        <div class="alert-grid">
+          <article v-for="item in mock.alerts" :key="item.label" class="alert-card" :class="`alert-card--${item.tone}`">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 44 44" focusable="false">
+                <g v-html="renderIcon(item.icon)"></g>
+              </svg>
+            </span>
+            <p>{{ item.label }}</p>
+            <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
+            <em>{{ item.compare }}</em>
+          </article>
+        </div>
+      </article>
 
-        <div class="pie-card">
-          <div class="pie-card__chart" :style="pieStyle"></div>
-
-          <div class="pie-card__legend">
-            <div v-for="item in mock.serviceOrderShare" :key="item.label" class="pie-card__legend-item">
-              <span class="pie-card__dot" :style="{ background: item.color }"></span>
-              <span class="pie-card__legend-label">{{ item.label }}</span>
-              <strong class="pie-card__legend-value">{{ item.value }}%</strong>
-            </div>
+      <article class="panel workload-panel">
+        <header class="panel-head">
+          <h2>支付榜商品排行TOP5</h2>
+        </header>
+        <div class="workload-list">
+          <div v-for="item in mock.workloadTop" :key="item.rank">
+            <strong>{{ item.rank }}</strong>
+            <span>{{ item.name }}</span>
+            <i><b :style="{ width: item.rate }"></b></i>
+            <em>{{ item.rate }}</em>
           </div>
         </div>
       </article>
     </section>
-
-    <article class="panel panel--trend">
-      <header class="panel__head">
-        <span class="panel__accent"></span>
-        <h2>用户趋势统计</h2>
-      </header>
-
-      <div class="trend">
-        <div class="trend__y">
-          <span>3500</span>
-          <span>3000</span>
-          <span>2500</span>
-          <span>2000</span>
-        </div>
-
-        <div class="trend__canvas">
-          <svg viewBox="0 0 1128 336" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="trendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stop-color="#42d1a6" stop-opacity="0.42" />
-                <stop offset="100%" stop-color="#42d1a6" stop-opacity="0.04" />
-              </linearGradient>
-            </defs>
-
-            <line v-for="lineIndex in 4" :key="lineIndex" x1="62" x2="1066" :y1="44 + (lineIndex - 1) * 74" :y2="44 + (lineIndex - 1) * 74" stroke="#edf0ef" stroke-width="1" />
-            <rect :x="highlightPoint.x - 19" y="18" width="38" height="300" fill="#42d1a6" fill-opacity="0.2" />
-            <line :x1="highlightPoint.x" :x2="highlightPoint.x" y1="18" y2="318" stroke="#42d1a6" stroke-width="3" stroke-dasharray="8 6" />
-            <path :d="trendArea" fill="url(#trendGradient)" />
-            <polyline :points="trendPolyline" fill="none" stroke="#42d1a6" stroke-width="4" />
-
-            <g v-for="(point, index) in trendPoints" :key="mock.trend.labels[index]">
-              <circle :cx="point.x" :cy="point.y" r="6.2" fill="#ffffff" stroke="#42d1a6" stroke-width="4" />
-            </g>
-          </svg>
-
-          <div class="trend__tooltip" :style="{ left: `${(highlightPoint.x / 1128) * 100}%`, top: `${(highlightPoint.y / 336) * 100}%` }">
-            {{ mock.trend.highlightValue }}
-          </div>
-
-          <div class="trend__x">
-            <span v-for="label in mock.trend.labels" :key="label">{{ label }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="trend__legend">
-        <span class="trend__legend-dot"></span>
-        <span>{{ mock.trend.legend }}</span>
-      </div>
-    </article>
-
-    <section class="row row--bottom">
-      <article class="panel">
-        <header class="panel__head">
-          <span class="panel__accent"></span>
-          <h2>支付榜TOP5商品排行</h2>
-        </header>
-
-        <div class="table">
-          <div class="table__head table__head--product">
-            <span>序号</span>
-            <span>商品信息</span>
-            <span>支付订单数</span>
-          </div>
-
-          <div v-for="item in mock.productRanking" :key="item.rank" class="table__row table__row--product">
-            <span class="table__rank">{{ item.rank }}</span>
-            <div class="table__product">
-              <img :src="mock.productImage" alt="商品图片" />
-              <strong>{{ item.title }}</strong>
-            </div>
-            <span class="table__number">{{ item.orders }}</span>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <header class="panel__head">
-          <span class="panel__accent"></span>
-          <h2>服务人员业绩TOP5排行</h2>
-        </header>
-
-        <div class="table">
-          <div class="table__head table__head--staff">
-            <span>序号</span>
-            <span>个人信息</span>
-            <span>服务类型</span>
-            <span>服务工单数</span>
-          </div>
-
-          <div v-for="item in mock.staffRanking" :key="item.rank" class="table__row table__row--staff">
-            <span class="table__rank">{{ item.rank }}</span>
-            <div class="table__staff">
-              <img :src="mock.staffAvatar" alt="人员头像" />
-              <strong>{{ item.name }}</strong>
-            </div>
-            <span class="table__type">{{ item.category }}</span>
-            <span class="table__number">{{ item.orders }}</span>
-          </div>
-        </div>
-      </article>
-    </section>
-
-    <footer class="overview__footer">Copyright © DaisyAxure All Rights Reserved</footer>
   </section>
 </template>
 
 <style scoped>
-.overview {
+.overview-dashboard {
+  --mint: #4fbf91;
+  --green-deep: #1f7b70;
+  --blue: #5aaef5;
+  --rose: #ff7f98;
+  --amber: #ffa63d;
+  --yellow: #ffc531;
   display: grid;
-  gap: 30px;
-  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.overview__greeting {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #313c49;
-}
-
-.overview__emoji {
-  font-size: 24px;
-}
-
-.overview__greeting h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.overview__subtitle {
-  margin: 6px 0 0;
-  color: #6d7884;
-  font-size: 13px;
-}
-
-.metrics,
-.row {
-  display: grid;
-  gap: 26px;
-}
-
-.metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.row--middle {
-  grid-template-columns: 0.96fr 0.97fr 0.97fr;
-}
-
-.row--bottom {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.metric,
-.panel {
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 6px 20px rgba(59, 103, 82, 0.05);
-}
-
-.metric {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 124px;
-  align-items: center;
-  gap: 10px;
-  min-height: 146px;
-  padding: 18px 18px 16px;
-}
-
-.metric__main {
-  min-width: 0;
-}
-
-.metric__label {
-  margin: 0;
-  color: #b0bac4;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-
-.metric__value {
-  display: block;
-  margin-top: 8px;
-  color: #313844;
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.metric__delta {
-  display: inline-flex;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 5px 9px;
-  border-radius: 8px;
-  background: #f7f7f7;
-  color: #a3aab1;
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.metric__delta-value--positive {
-  color: #10c89a;
-}
-
-.metric__delta-value--negative {
-  color: #ff7b75;
-}
-
-.metric__chart {
-  width: 110px;
-  height: 60px;
-  justify-self: end;
-  margin-right: -10px;
-}
-
-.metric__chart svg {
+  gap: 16px;
   width: 100%;
-  height: 100%;
+  min-width: 0;
+  color: #253244;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card,
 .panel {
-  padding: 28px;
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
 }
 
-.panel--quick {
-  min-height: 312px;
-  padding: 20px 18px 18px;
-}
-
-.panel--trend {
-  min-height: 470px;
-  padding-bottom: 24px;
-}
-
-.panel__head {
-  display: flex;
+.metric-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
   align-items: center;
-  gap: 14px;
-  margin-bottom: 28px;
+  min-height: 106px;
+  padding: 14px 14px 12px;
+  overflow: hidden;
 }
 
-.panel__accent {
-  width: 8px;
-  height: 30px;
-  border-radius: 999px;
-  background: #10c89a;
-}
-
-.panel__head h2 {
-  margin: 0;
-  color: #2f3946;
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.row--middle > .panel {
-  min-height: 312px;
-  padding: 20px 18px 18px;
-}
-
-.row--middle .panel__head {
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.row--middle .panel__accent {
-  width: 6px;
-  height: 22px;
-}
-
-.row--middle .panel__head h2 {
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px 6px;
-  padding-top: 0;
-}
-
-.quick-grid__item {
-  display: grid;
-  justify-items: center;
-  gap: 7px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #313b48;
-}
-
-.quick-grid__icon {
+.metric-icon {
   display: grid;
   place-items: center;
   width: 56px;
   height: 56px;
   border-radius: 50%;
+  background: color-mix(in srgb, var(--tone) 14%, #ffffff);
+  color: var(--tone);
 }
 
-.quick-grid__icon svg {
-  width: 28px;
-  height: 28px;
+.metric-icon svg,
+.alert-card svg {
+  width: 38px;
+  height: 38px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
 }
 
-.quick-grid__icon--mint {
-  background: rgba(16, 200, 154, 0.16);
-  color: #10c89a;
+.metric-card--mint {
+  --tone: #4dbc8c;
 }
 
-.quick-grid__icon--amber {
-  background: rgba(255, 216, 106, 0.2);
-  color: #ffc94f;
+.metric-card--blue {
+  --tone: #5aaef5;
 }
 
-.quick-grid__icon--rose {
-  background: rgba(255, 123, 117, 0.18);
-  color: #ff7b75;
+.metric-card--rose {
+  --tone: #ff7f98;
 }
 
-.quick-grid__icon--violet {
-  background: rgba(104, 112, 245, 0.18);
-  color: #6870f5;
+.metric-card--teal {
+  --tone: #43bfa8;
 }
 
-.quick-grid__icon--blue {
-  background: rgba(81, 143, 255, 0.18);
-  color: #528eff;
+.metric-card--pink {
+  --tone: #ff7f9b;
 }
 
-.quick-grid__icon--teal {
-  background: rgba(66, 209, 166, 0.18);
-  color: #42d1a6;
+.metric-copy h2 {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-.quick-grid__icon--yellow {
-  background: rgba(255, 213, 87, 0.18);
-  color: #ffc94f;
+.metric-copy strong {
+  display: block;
+  margin-top: 8px;
+  color: #263244;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.quick-grid__icon--salmon {
-  background: rgba(255, 111, 106, 0.18);
-  color: #ff6f6a;
-}
-
-.quick-grid__label {
+.metric-copy strong small {
+  margin-left: 6px;
+  color: #4d5868;
   font-size: 13px;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
+  font-weight: 900;
 }
 
-.bars {
-  display: grid;
-  gap: 18px;
-  padding-top: 2px;
+.metric-copy p {
+  margin: 10px 0 0;
+  color: #697483;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.bars__item {
+.metric-copy em {
+  margin-left: 6px;
+  color: var(--tone);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.metric-spark {
+  position: absolute;
+  right: 12px;
+  bottom: 7px;
+  width: 62px;
+  height: 24px;
+  color: var(--tone);
+  opacity: 0.82;
+}
+
+.dashboard-grid {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: minmax(0, 25.5%) minmax(0, 46%) minmax(0, 28.5%);
+  grid-template-rows: 250px 228px 228px;
+  grid-template-areas:
+    "service map age"
+    "trend map health"
+    "satisfaction alert workload";
   gap: 12px;
 }
 
-.bars__label,
-.bars__value {
-  color: #778594;
-  font-size: 13px;
-  font-weight: 400;
+.panel {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
   line-height: 1.2;
-  letter-spacing: 0.01em;
 }
 
-.bars__track {
-  position: relative;
-  height: 6px;
-  border-radius: 999px;
-  background: #d9f5ed;
+.panel-head small {
+  color: #557c77;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-.bars__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: inherit;
-  background: #10c89a;
+.service-panel {
+  grid-area: service;
 }
 
-.pie-card {
+.map-panel {
+  grid-area: map;
+}
+
+.age-panel {
+  grid-area: age;
+}
+
+.trend-panel {
+  grid-area: trend;
+}
+
+.health-panel {
+  grid-area: health;
+}
+
+.satisfaction-panel {
+  grid-area: satisfaction;
+}
+
+.alert-panel {
+  grid-area: alert;
+}
+
+.workload-panel {
+  grid-area: workload;
+}
+
+.echart {
+  width: 100%;
+  min-width: 0;
+}
+
+.echart--ring {
+  height: 100%;
+  min-height: 176px;
+}
+
+.echart--trend {
+  width: 100%;
+  height: 168px;
+}
+
+.ring-with-list {
   display: grid;
-  grid-template-columns: 188px minmax(0, 1fr);
+  grid-template-columns: minmax(132px, 0.92fr) minmax(0, 1fr);
   align-items: center;
-  gap: 14px;
-  min-height: 234px;
+  gap: 12px;
+  height: calc(100% - 34px);
 }
 
-.pie-card__chart {
-  width: 176px;
-  height: 176px;
+.side-legend {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.side-legend__row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  color: #5d6876;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.side-legend--service .side-legend__row {
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+}
+
+.side-legend__row i {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  justify-self: center;
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
 }
 
-.pie-card__legend {
+.side-legend__row span {
+  overflow: hidden;
+  color: #495765;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-legend__row strong,
+.side-legend__row em {
+  color: #697483;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.donut-layout {
+  display: grid;
+  grid-template-columns: minmax(148px, 0.9fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: calc(100% - 34px);
+}
+
+.donut-layout--side {
+  grid-template-columns: minmax(150px, 0.92fr) minmax(0, 1fr);
+}
+
+.donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 162px;
+  height: 162px;
+  justify-self: center;
+  border-radius: 50%;
+}
+
+.donut--service {
+  width: 186px;
+  height: 186px;
+}
+
+.donut::after {
+  position: absolute;
+  inset: 33px;
+  content: "";
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(224, 238, 236, 0.9);
+}
+
+.donut div {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+}
+
+.donut strong {
+  color: #1f7b70;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.donut span {
+  color: #41515e;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.legend {
   display: grid;
   gap: 14px;
 }
 
-.pie-card__legend-item {
+.legend-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
-  color: #6f7d8b;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: 0.01em;
+  gap: 9px;
+  color: #596574;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-.pie-card__dot {
+.legend--side .legend-row {
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+}
+
+.legend-row i {
   width: 10px;
   height: 10px;
   border-radius: 50%;
 }
 
-.pie-card__legend-value {
-  color: #3d4653;
-  font-weight: 500;
+.legend-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.trend {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 18px;
+.legend-row strong,
+.legend-row em {
+  color: #697483;
+  font-style: normal;
+  font-weight: 900;
 }
 
-.trend__y {
-  display: grid;
-  align-content: start;
-  gap: 47px;
-  padding-top: 42px;
-  color: #9aa7b4;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-
-.trend__canvas {
+.map-chart-hook {
   position: relative;
+  height: calc(100% - 36px);
+  min-height: 488px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #ffffff;
 }
 
-.trend__canvas svg {
-  width: 100%;
-  height: 336px;
+.map-center {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 142px;
+  height: 142px;
+  border: 10px solid rgba(147, 230, 219, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 12px rgba(90, 200, 190, 0.13);
+  transform: translate(-50%, -50%);
 }
 
-.trend__x {
+.map-center strong {
+  color: #1f7b70;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.map-center span {
+  margin-top: -24px;
+  color: #41515e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.map-point {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  color: #263244;
+  transform: translate(-50%, -50%);
+}
+
+.map-point span {
+  color: #46615e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.map-point strong {
+  margin-top: 3px;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.map-point i {
+  display: block;
+  width: 34px;
+  height: 12px;
+  margin-top: 6px;
+  border: 3px solid rgba(255, 255, 255, 0.88);
+  border-radius: 50%;
+  box-shadow: 0 0 16px rgba(120, 222, 210, 0.86);
+}
+
+.trend-chart {
+  position: relative;
+  height: calc(100% - 34px);
+}
+
+.trend-chart > strong {
+  position: absolute;
+  right: 2px;
+  top: 12px;
+  color: #459d78;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.trend-labels {
   display: flex;
   justify-content: space-between;
-  padding: 12px 20px 0 54px;
-  color: #9aa7b4;
+  color: #7a8490;
   font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 900;
 }
 
-.trend__tooltip {
-  position: absolute;
-  transform: translate(-50%, 12px);
-  padding: 7px 14px;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #313844;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  box-shadow: 0 8px 18px rgba(80, 104, 91, 0.1);
-}
-
-.trend__legend {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 8px;
-  color: #788594;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-
-.trend__legend-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #10c89a;
-}
-
-.table {
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: 1px solid #eef2f0;
-  border-radius: 16px;
-}
-
-.table__head,
-.table__row {
+.satisfaction-layout {
   display: grid;
-  align-items: center;
-}
-
-.table__head {
-  min-height: 66px;
-  padding: 0 16px;
-  background: #fafafa;
-  color: #313b48;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.table__head--product,
-.table__row--product {
-  grid-template-columns: 70px minmax(0, 1fr) 150px;
-  min-width: 560px;
-}
-
-.table__head--staff,
-.table__row--staff {
-  grid-template-columns: 70px minmax(0, 1.15fr) 1fr 148px;
-  min-width: 680px;
-}
-
-.table__row {
-  min-height: 92px;
-  padding: 0 16px;
-  border-top: 1px solid #f0f2f1;
-  background: #ffffff;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-}
-
-.table__rank {
-  color: #ffc33d;
-  font-size: 16px;
-  font-weight: 500;
-  text-align: center;
-}
-
-.table__product,
-.table__staff {
-  display: flex;
+  grid-template-columns: 112px minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  min-width: max-content;
+  height: calc(100% - 34px);
 }
 
-.table__product img {
-  width: 88px;
-  height: 58px;
-  border-radius: 16px;
-  object-fit: cover;
+.satisfaction-score {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
 }
 
-.table__staff img {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  object-fit: cover;
+.satisfaction-score strong {
+  color: #1f7b70;
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.table__product strong,
-.table__staff strong {
-  color: #313b48;
+.satisfaction-score small {
+  font-size: 17px;
+}
+
+.satisfaction-score span {
+  color: #4c5967;
   font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  flex: none;
+  font-weight: 900;
 }
 
-.table__type,
-.table__number {
-  color: #3d4653;
-  font-size: 14px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+.satisfaction-bars {
+  display: grid;
+  gap: 7px;
 }
 
-.overview__footer {
-  padding-bottom: 6px;
-  color: #c4cbc8;
+.satisfaction-bars div {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  color: #5d6876;
   font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-weight: 900;
+}
+
+.satisfaction-bars i,
+.workload-list i {
+  margin-top: 10px;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7f6f1;
+}
+
+.satisfaction-bars i {
+  margin-top: 0;
+  height: 7px;
+}
+
+.satisfaction-bars b,
+.workload-list b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #78d9b8, #52c896);
+}
+
+.alert-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  height: calc(100% - 36px);
+}
+
+.alert-card {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--alert) 18%, #ffffff);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--alert) 5%, #ffffff);
+}
+
+.alert-card--rose {
+  --alert: #ff6d86;
+}
+
+.alert-card--amber {
+  --alert: #ffa63d;
+}
+
+.alert-card--yellow {
+  --alert: #ffc531;
+}
+
+.alert-card--blue {
+  --alert: #59aef5;
+}
+
+.alert-card span {
+  color: var(--alert);
+}
+
+.alert-card p {
+  margin: 0;
+  color: #515d6b;
+  font-size: 14px;
+  font-weight: 900;
   text-align: center;
 }
 
-@media (max-width: 1380px) {
-  .metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .row--middle,
-  .row--bottom {
-    grid-template-columns: 1fr;
-  }
+.alert-card strong {
+  color: var(--alert);
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-@media (max-width: 1200px) {
-  .quick-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pie-card {
-    grid-template-columns: 1fr;
-    justify-items: center;
-  }
-
-  .trend {
-    grid-template-columns: 1fr;
-  }
-
-  .trend__y {
-    display: none;
-  }
+.alert-card small {
+  margin-left: 5px;
+  font-size: 14px;
 }
 
-@media (max-width: 720px) {
-  .metrics {
+.alert-card em {
+  color: #687482;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.workload-list {
+  margin-top: 20px;
+  display: grid;
+  gap: 8px;
+  height: calc(100% - 34px);
+  align-content: center;
+}
+
+.workload-list div {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 116px 40px;
+  align-items: center;
+  gap: 5px;
+}
+
+.workload-list strong {
+  color: #ffad2f;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.workload-list span {
+  overflow: hidden;
+  color: #4f5b68;
+  font-size: 14px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workload-list b {
+  background: linear-gradient(90deg, #ff91a5, #ff6f8e);
+}
+
+.workload-list em {
+  color: #5d6876;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+@media (max-width: 780px) {
+  .metric-grid,
+  .satisfaction-layout,
+  .ring-with-list,
+  .alert-grid {
     grid-template-columns: 1fr;
   }
 
-  .metric {
+  .metric-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .dashboard-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas:
+      "service"
+      "map"
+      "age"
+      "trend"
+      "health"
+      "satisfaction"
+      "alert"
+      "workload";
   }
 
-  .table__head,
-  .table__row {
-    padding: 0 10px;
-  }
-
-  .table__head--product,
-  .table__row--product {
-    grid-template-columns: 52px minmax(0, 1fr) 90px;
-  }
-
-  .table__head--staff,
-  .table__row--staff {
-    grid-template-columns: 52px minmax(0, 1fr) 0.9fr 90px;
-  }
-
-  .table__product img {
-    width: 62px;
-    height: 42px;
-  }
-
-  .table__staff img {
-    width: 42px;
-    height: 42px;
+  .map-chart-hook {
+    min-height: 460px;
   }
 }
 </style>

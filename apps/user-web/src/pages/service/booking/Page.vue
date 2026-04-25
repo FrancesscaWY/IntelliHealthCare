@@ -1,23 +1,126 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import mock from './mock'
+import { computed, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import mock from "./mock";
+import { getOrderFlowState, updateOrderFlowBooking } from "@/pages/service/order-flow";
+import { getOrderBookingOptions } from "@/shared/api/orders";
 
-const props = defineProps<PageComponentProps>()
+const props = defineProps<PageComponentProps>();
+const orderFlowState = getOrderFlowState();
 
-const selectedDay = ref(1)
-const selectedTime = ref('9:00')
-const note = ref('')
+const currentService = computed(() => orderFlowState.service);
+const bookingDraft = computed(() => orderFlowState.booking);
 
-const goBack = () => {
-  if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('service/home-care-detail')
+const selectedDay = ref("");
+const selectedTime = ref("");
+const note = ref(bookingDraft.value?.remark || "");
+const availableDates = ref<Array<{ date: string; timeSlots: string[] }>>([]);
+const displayAddress = ref(
+  bookingDraft.value?.addressText || currentService.value?.addressText || mock.address
+);
+const currentAddressId = ref(
+  bookingDraft.value?.addressId || currentService.value?.addressId || "addr_joy_home"
+);
+const currentContactName = ref(
+  bookingDraft.value?.contactName || currentService.value?.contactName || "王秀珍"
+);
+const currentContactPhone = ref(
+  bookingDraft.value?.contactPhone || currentService.value?.contactPhone || "13800138000"
+);
+
+const activeDate = computed(
+  () => availableDates.value.find((item) => item.date === selectedDay.value) || null
+);
+const visibleDates = computed(() => {
+  if (availableDates.value.length > 0) {
+    return availableDates.value;
+  }
+
+  return mock.days.map((day) => ({
+    date: `2026-04-${String(day).padStart(2, "0")}`,
+    timeSlots: mock.timeSlots.map((slot) => slot.label)
+  }));
+});
+const visibleTimeSlots = computed(
+  () => activeDate.value?.timeSlots || mock.timeSlots.map((slot) => slot.label)
+);
+
+function formatDayLabel(dateText: string) {
+  const day = Number(dateText.split("-").pop() || "1");
+  return String(day);
+}
+
+async function loadBookingOptions() {
+  try {
+    const response = await getOrderBookingOptions(currentService.value?.serviceId);
+    availableDates.value = response.availableDates || [];
+
+    const defaultAddress =
+      response.addresses.find((item) => item.isDefault) || response.addresses[0] || null;
+
+    if (defaultAddress) {
+      currentAddressId.value = defaultAddress.addressId;
+      displayAddress.value = [
+        defaultAddress.province,
+        defaultAddress.city,
+        defaultAddress.district,
+        defaultAddress.street,
+        defaultAddress.detailAddress
+      ]
+        .filter(Boolean)
+        .join("");
+      currentContactName.value = defaultAddress.receiverName;
+      currentContactPhone.value = defaultAddress.receiverPhone;
+    }
+
+    const firstDate =
+      bookingDraft.value?.bookingDate ||
+      response.availableDates[0]?.date ||
+      visibleDates.value[0]?.date ||
+      "";
+    selectedDay.value = firstDate;
+    selectedTime.value =
+      bookingDraft.value?.bookingTimeSlot ||
+      response.availableDates.find((item) => item.date === firstDate)?.timeSlots[0] ||
+      response.availableDates[0]?.timeSlots[0] ||
+      mock.timeSlots[0]?.label ||
+      "";
+  } catch {
+    selectedDay.value =
+      bookingDraft.value?.bookingDate || visibleDates.value[0]?.date || "2026-04-01";
+    selectedTime.value = bookingDraft.value?.bookingTimeSlot || mock.timeSlots[0]?.label || "9:00";
   }
 }
 
-const nextStep = () => {
-  props.navigation.navigateTo('service/order-confirm')
+function goBack() {
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch(currentService.value?.detailPageId || "service/home-care-detail");
+  }
 }
+
+function selectDate(date: string) {
+  selectedDay.value = date;
+  selectedTime.value =
+    availableDates.value.find((item) => item.date === date)?.timeSlots[0] || visibleTimeSlots.value[0] || "";
+}
+
+function nextStep() {
+  updateOrderFlowBooking({
+    addressId: currentAddressId.value,
+    addressText: displayAddress.value,
+    contactName: currentContactName.value,
+    contactPhone: currentContactPhone.value,
+    bookingDate: selectedDay.value,
+    bookingTimeSlot: selectedTime.value,
+    remark: note.value.trim()
+  });
+
+  props.navigation.navigateTo("service/order-confirm");
+}
+
+onMounted(() => {
+  void loadBookingOptions();
+});
 </script>
 
 <template>
@@ -30,7 +133,7 @@ const nextStep = () => {
     <main class="booking-content">
       <section class="form-section">
         <h2>选择地址</h2>
-        <div class="address-card">{{ mock.address }}</div>
+        <div class="address-card">{{ displayAddress }}</div>
       </section>
 
       <section class="form-section">
@@ -43,14 +146,14 @@ const nextStep = () => {
           <div class="calendar-divider"></div>
           <div class="days-grid">
             <button
-              v-for="day in mock.days"
-              :key="day"
+              v-for="item in visibleDates"
+              :key="item.date"
               class="day-button"
-              :class="{ active: selectedDay === day }"
+              :class="{ active: selectedDay === item.date }"
               type="button"
-              @click="selectedDay = day"
+              @click="selectDate(item.date)"
             >
-              {{ day }}
+              {{ formatDayLabel(item.date) }}
             </button>
           </div>
         </div>
@@ -58,14 +161,14 @@ const nextStep = () => {
 
       <div class="time-grid">
         <button
-          v-for="slot in mock.timeSlots"
-          :key="slot.id"
+          v-for="slot in visibleTimeSlots"
+          :key="slot"
           class="time-button"
-          :class="{ active: selectedTime === slot.label }"
+          :class="{ active: selectedTime === slot }"
           type="button"
-          @click="selectedTime = slot.label"
+          @click="selectedTime = slot"
         >
-          {{ slot.label }}
+          {{ slot }}
         </button>
       </div>
 
@@ -93,7 +196,7 @@ const nextStep = () => {
   box-sizing: border-box;
   background: #ffffff;
   color: #34383f;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {

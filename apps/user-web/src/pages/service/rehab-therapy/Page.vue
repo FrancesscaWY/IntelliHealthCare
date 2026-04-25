@@ -4,6 +4,7 @@ import type { PageComponentProps } from '@ihc/page-core/types'
 import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
@@ -34,6 +35,21 @@ const goBack = () => {
 }
 
 const openProduct = () => {
+  const product = productList.value[0]
+  setOrderFlowService({
+    type: 'rehab',
+    serviceId: 'srv_rehab_stroke',
+    title: product?.title || '脑卒中术后康复套餐',
+    price: product?.price || 1990,
+    image: product?.image || '',
+    detailPageId: 'service/rehab-therapy-detail',
+    listPageId: 'service/rehab-therapy',
+    couponAmount: 100,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   props.navigation.navigateTo('service/rehab-therapy-detail')
 }
 
@@ -46,6 +62,21 @@ const resizeAssistant = () => {
 }
 
 onMounted(() => {
+  const product = productList.value[0]
+  setOrderFlowService({
+    type: 'rehab',
+    serviceId: 'srv_rehab_stroke',
+    title: product?.title || '脑卒中术后康复套餐',
+    price: product?.price || 1990,
+    image: product?.image || '',
+    detailPageId: 'service/rehab-therapy-detail',
+    listPageId: 'service/rehab-therapy',
+    couponAmount: 100,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   if (!assistantCanvasRef.value) return
 
   assistantRive = new Rive({

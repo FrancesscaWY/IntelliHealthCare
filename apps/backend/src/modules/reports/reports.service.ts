@@ -6,6 +6,7 @@ import {
 import { ReportStatus, ReportType, UserType } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import {
+  ensureRecord,
   paginate,
   toDateString,
   toDateTimeString,
@@ -160,7 +161,133 @@ export class ReportsService {
           .some((field) => String(field).toLowerCase().includes(normalizedKeyword));
       });
 
-    return paginate(list, page, pageSize);
+    const result = paginate(list, page, pageSize);
+
+    return {
+      title: "报告管理",
+      reportTypes: ["全部类型", "体检报告", "检验报告", "影像报告"],
+      rows: result.list.map((item) => ({
+        id: item.reportId,
+        uploadedAt: item.createdAt ? item.createdAt.replace("T", " ").slice(0, 16) : "-",
+        userName: item.elderName ?? "-",
+        avatar: null,
+        reportName: item.title,
+        reportType: item.typeText,
+        source: item.source,
+        uploader: item.uploader,
+        ticketNo: item.orderNo ?? "-",
+        reportDate: item.reportDate
+      })),
+      ...result
+    };
+  }
+
+  async getAdminReportDetail(reportId: string) {
+    const report = await this.prismaService.report.findUnique({
+      where: { id: reportId },
+      include: {
+        archive: {
+          include: {
+            user: true
+          }
+        },
+        order: true,
+        author: true
+      }
+    });
+
+    if (!report) {
+      throw new NotFoundException("Report not found");
+    }
+
+    return {
+      reportId: report.id,
+      type: report.type,
+      typeText: this.getReportTypeText(report.type),
+      status: report.status,
+      title: report.title,
+      summary: report.summary,
+      attachment: report.attachment,
+      reviewedAt: toDateTimeString(report.reviewedAt),
+      publishedAt: toDateTimeString(report.publishedAt),
+      createdAt: toDateTimeString(report.createdAt),
+      elderId: report.archive?.userId ?? null,
+      elderName:
+        report.archive?.user.realName ??
+        report.archive?.user.nickname ??
+        report.archive?.user.phone ??
+        null,
+      elderPhone: report.archive?.user.phone ?? null,
+      source: report.author ? "后台上传" : report.orderId ? "订单关联" : "用户上传",
+      uploader: report.author?.name ?? "系统",
+      orderId: report.orderId,
+      orderNo: report.order?.orderNo ?? null
+    };
+  }
+
+  async createAdminReport(payload: {
+    elderId?: string;
+    orderId?: string;
+    type: ReportType;
+    title: string;
+    summary: Record<string, unknown>;
+    attachment?: Record<string, unknown>;
+  }) {
+    const archiveId = payload.elderId
+      ? (
+          await this.prismaService.healthArchive.findUnique({
+            where: { userId: payload.elderId }
+          })
+        )?.id ?? null
+      : null;
+
+    const report = await this.prismaService.report.create({
+      data: {
+        archiveId,
+        orderId: payload.orderId ?? null,
+        type: payload.type,
+        status: ReportStatus.PENDING_REVIEW,
+        title: payload.title,
+        summary: toPrismaJson(payload.summary),
+        attachment: toPrismaNullableJson(payload.attachment ?? null)
+      }
+    });
+
+    return {
+      reportId: report.id,
+      status: report.status
+    };
+  }
+
+  async deleteAdminReport(reportId: string) {
+    await this.prismaService.report.delete({
+      where: { id: reportId }
+    });
+
+    return {
+      deleted: true,
+      reportId
+    };
+  }
+
+  async getAdminReportDownloadMetadata(reportId: string) {
+    const report = await this.prismaService.report.findUnique({
+      where: { id: reportId }
+    });
+
+    if (!report) {
+      throw new NotFoundException("Report not found");
+    }
+
+    const attachment = ensureRecord(report.attachment);
+
+    return {
+      reportId: report.id,
+      fileId: attachment.fileId ?? null,
+      fileName: attachment.fileName ?? `${report.title}.pdf`,
+      url: attachment.url ?? null,
+      mimeType: attachment.mimeType ?? "application/pdf"
+    };
   }
 
   async reviewReport(reportId: string, status: ReportStatus) {

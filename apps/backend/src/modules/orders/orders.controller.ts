@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -11,6 +12,7 @@ import {
 import { Type } from "class-transformer";
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -307,6 +309,203 @@ class UpdateWorkOrderStatusDto {
   status!: WorkOrderStatus;
 }
 
+class AdminWorkOrdersQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: "工单状态筛选。",
+    enum: WorkOrderStatus,
+    example: WorkOrderStatus.ASSIGNED
+  })
+  @IsOptional()
+  @IsEnum(WorkOrderStatus)
+  status?: WorkOrderStatus;
+
+  @ApiPropertyOptional({
+    description: "服务分类筛选。",
+    enum: ServiceCategory,
+    example: ServiceCategory.REHAB_THERAPY
+  })
+  @IsOptional()
+  @IsEnum(ServiceCategory)
+  serviceCategory?: ServiceCategory;
+
+  @ApiPropertyOptional({
+    description: "关键字，可匹配工单号、订单号、服务标题、客户姓名或手机号。",
+    example: "王兰"
+  })
+  @IsOptional()
+  @IsString()
+  keyword?: string;
+}
+
+class AdminBookingBoardQueryDto {
+  @ApiPropertyOptional({
+    description: "看板日期，建议 YYYY-MM-DD。",
+    example: "2026-04-24"
+  })
+  @IsOptional()
+  @IsString()
+  date?: string;
+
+  @ApiPropertyOptional({
+    description: "服务类型。",
+    example: "康复训练"
+  })
+  @IsOptional()
+  @IsString()
+  serviceType?: string;
+
+  @ApiPropertyOptional({
+    description: "服务人员 ID。",
+    example: "staff_lixiulan"
+  })
+  @IsOptional()
+  @IsString()
+  staffId?: string;
+}
+
+class UpdateAdminOrderPriceDto {
+  @ApiProperty({
+    description: "新的应付金额。",
+    example: 299
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  payableAmount!: number;
+
+  @ApiPropertyOptional({
+    description: "改价备注。",
+    example: "补贴活动手工减免"
+  })
+  @IsOptional()
+  @IsString()
+  remark?: string;
+}
+
+class CloseAdminOrderDto {
+  @ApiPropertyOptional({
+    description: "关单原因。",
+    example: "用户主动取消，已线下处理"
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+class SaveAdminOrderRemarkDto {
+  @ApiProperty({
+    description: "订单备注。",
+    example: "用户偏好上午上门，并需提前 30 分钟电话确认。"
+  })
+  @IsString()
+  remark!: string;
+}
+
+class AdminAfterSalesQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: "售后状态。",
+    example: "处理中"
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: "关键字，可匹配售后单号、订单号、商品标题。",
+    example: "AS202604220031"
+  })
+  @IsOptional()
+  @IsString()
+  keyword?: string;
+}
+
+class AdminAfterSaleDecisionDto {
+  @ApiPropertyOptional({
+    description: "处理备注。",
+    example: "核实服务延迟，按约退款 80 元。"
+  })
+  @IsOptional()
+  @IsString()
+  remark?: string;
+
+  @ApiPropertyOptional({
+    description: "退款金额。",
+    example: 80
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  refundAmount?: number;
+}
+
+class AdminOrderReviewsQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: "服务类型。",
+    example: "家政护工"
+  })
+  @IsOptional()
+  @IsString()
+  serviceType?: string;
+
+  @ApiPropertyOptional({
+    description: "评分筛选，可传 5、4、3、2。",
+    example: 5
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional({
+    description: "是否置顶。",
+    example: true
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isPinned?: boolean;
+}
+
+class UpdateReviewVisibilityDto {
+  @ApiProperty({
+    description: "是否显示。",
+    example: true
+  })
+  @Type(() => Boolean)
+  @IsBoolean()
+  isVisible!: boolean;
+}
+
+class UpdateReviewPinDto {
+  @ApiProperty({
+    description: "是否置顶。",
+    example: true
+  })
+  @Type(() => Boolean)
+  @IsBoolean()
+  isPinned!: boolean;
+}
+
+class AdminOrderReviewBatchDto {
+  @ApiProperty({
+    description: "评价 ID 列表。",
+    example: ["review_rehab_done", "review_exam_done"]
+  })
+  @IsArray()
+  reviewIds!: string[];
+
+  @ApiProperty({
+    description: "批量动作。",
+    enum: ["SHOW", "HIDE", "PIN", "UNPIN", "DELETE"],
+    example: "PIN"
+  })
+  @IsIn(["SHOW", "HIDE", "PIN", "UNPIN", "DELETE"])
+  action!: "SHOW" | "HIDE" | "PIN" | "UNPIN" | "DELETE";
+}
+
 @Controller("app/orders")
 @UseGuards(JwtAuthGuard)
 @ApiTags(SwaggerTags.AppOrders)
@@ -524,6 +723,28 @@ export class AppOrdersController {
 export class AdminOrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @Get("dashboard/overview")
+  @ApiOperation({
+    summary: "获取后台履约总览",
+    description: "dashboard/overview 页面接口。"
+  })
+  getDashboardOverview() {
+    return this.ordersService.getAdminDashboardOverview();
+  }
+
+  @Get("booking-board")
+  @ApiOperation({
+    summary: "获取预约看板",
+    description: "dashboard/booking-board 页面接口。"
+  })
+  getBookingBoard(@Query() query: AdminBookingBoardQueryDto) {
+    return this.ordersService.getAdminBookingBoard(
+      query.date,
+      query.serviceType,
+      query.staffId
+    );
+  }
+
   @Get("orders")
   @ApiOperation({
     summary: "后台获取订单列表",
@@ -549,6 +770,59 @@ export class AdminOrdersController {
     return this.ordersService.getAdminOrderDetail(orderId);
   }
 
+  @Put("orders/:orderId/price")
+  @ApiOperation({
+    summary: "后台修改订单价格",
+    description: "后台订单详情页改价动作接口。"
+  })
+  updateOrderPrice(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("orderId") orderId: string,
+    @Body() body: UpdateAdminOrderPriceDto
+  ) {
+    return this.ordersService.updateAdminOrderPrice(
+      user,
+      orderId,
+      body.payableAmount,
+      body.remark
+    );
+  }
+
+  @Post("orders/:orderId/close")
+  @ApiOperation({
+    summary: "后台关闭订单",
+    description: "后台订单详情页关闭订单动作接口。"
+  })
+  closeOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("orderId") orderId: string,
+    @Body() body: CloseAdminOrderDto
+  ) {
+    return this.ordersService.closeAdminOrder(user, orderId, body.reason);
+  }
+
+  @Post("orders/:orderId/remark")
+  @ApiOperation({
+    summary: "保存订单备注",
+    description: "后台订单详情页备注保存接口。"
+  })
+  saveOrderRemark(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("orderId") orderId: string,
+    @Body() body: SaveAdminOrderRemarkDto
+  ) {
+    return this.ordersService.saveAdminOrderRemark(user, orderId, body.remark);
+  }
+
+  @Get("orders/:orderId/timeline")
+  @ApiOperation({
+    summary: "获取后台订单时间线",
+    description: "后台订单详情页时间线接口。"
+  })
+  getOrderTimeline(@Param("orderId") orderId: string) {
+    return this.ordersService.getAdminOrderTimeline(orderId);
+  }
+
   @Post("orders/:orderId/dispatch")
   @ApiOperation({
     summary: "后台派单",
@@ -562,6 +836,30 @@ export class AdminOrdersController {
     return this.ordersService.dispatchOrder(user, orderId, body);
   }
 
+  @Get("work-orders")
+  @ApiOperation({
+    summary: "获取后台工单列表",
+    description: "dashboard/work-order 页面接口。"
+  })
+  listWorkOrders(@Query() query: AdminWorkOrdersQueryDto) {
+    return this.ordersService.listAdminWorkOrders(
+      query.page,
+      query.pageSize,
+      query.status,
+      query.serviceCategory,
+      query.keyword
+    );
+  }
+
+  @Get("work-orders/:workOrderId")
+  @ApiOperation({
+    summary: "获取后台工单详情",
+    description: "工单详情接口。"
+  })
+  getWorkOrderDetail(@Param("workOrderId") workOrderId: string) {
+    return this.ordersService.getAdminWorkOrderDetail(workOrderId);
+  }
+
   @Put("work-orders/:workOrderId/status")
   @ApiOperation({
     summary: "更新工单状态",
@@ -573,5 +871,144 @@ export class AdminOrdersController {
     @Body() body: UpdateWorkOrderStatusDto
   ) {
     return this.ordersService.updateWorkOrderStatus(user, workOrderId, body.status);
+  }
+
+  @Get("after-sales")
+  @ApiOperation({
+    summary: "获取售后列表",
+    description: "dashboard/after-sale 页面接口。"
+  })
+  listAfterSales(@Query() query: AdminAfterSalesQueryDto) {
+    return this.ordersService.listAdminAfterSales(
+      query.page,
+      query.pageSize,
+      query.status,
+      query.keyword
+    );
+  }
+
+  @Get("after-sales/:afterSaleId")
+  @ApiOperation({
+    summary: "获取售后详情",
+    description: "dashboard/after-sale-detail 页面接口。"
+  })
+  getAfterSaleDetail(@Param("afterSaleId") afterSaleId: string) {
+    return this.ordersService.getAdminAfterSaleDetail(afterSaleId);
+  }
+
+  @Put("after-sales/:afterSaleId/approve")
+  @ApiOperation({
+    summary: "同意售后退款",
+    description: "后台售后同意退款动作接口。"
+  })
+  approveAfterSale(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("afterSaleId") afterSaleId: string,
+    @Body() body: AdminAfterSaleDecisionDto
+  ) {
+    return this.ordersService.approveAdminAfterSale(
+      user,
+      afterSaleId,
+      body.remark,
+      body.refundAmount
+    );
+  }
+
+  @Put("after-sales/:afterSaleId/reject")
+  @ApiOperation({
+    summary: "驳回售后申请",
+    description: "后台售后驳回动作接口。"
+  })
+  rejectAfterSale(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("afterSaleId") afterSaleId: string,
+    @Body() body: AdminAfterSaleDecisionDto
+  ) {
+    return this.ordersService.rejectAdminAfterSale(user, afterSaleId, body.remark);
+  }
+
+  @Put("after-sales/:afterSaleId/close")
+  @ApiOperation({
+    summary: "关闭售后申请",
+    description: "后台售后关闭动作接口。"
+  })
+  closeAfterSale(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("afterSaleId") afterSaleId: string,
+    @Body() body: AdminAfterSaleDecisionDto
+  ) {
+    return this.ordersService.closeAdminAfterSale(user, afterSaleId, body.remark);
+  }
+
+  @Get("order-reviews")
+  @ApiOperation({
+    summary: "获取评价管理列表",
+    description: "dashboard/comment-management 页面接口。"
+  })
+  listOrderReviews(@Query() query: AdminOrderReviewsQueryDto) {
+    return this.ordersService.listAdminOrderReviews(
+      query.page,
+      query.pageSize,
+      query.serviceType,
+      query.rating,
+      query.isPinned
+    );
+  }
+
+  @Get("order-reviews/:reviewId")
+  @ApiOperation({
+    summary: "获取评价详情",
+    description: "评价详情接口。"
+  })
+  getOrderReviewDetail(@Param("reviewId") reviewId: string) {
+    return this.ordersService.getAdminOrderReviewDetail(reviewId);
+  }
+
+  @Put("order-reviews/:reviewId/visibility")
+  @ApiOperation({
+    summary: "更新评价显示状态",
+    description: "评价管理显示/隐藏接口。"
+  })
+  updateReviewVisibility(
+    @Param("reviewId") reviewId: string,
+    @Body() body: UpdateReviewVisibilityDto
+  ) {
+    return this.ordersService.updateAdminOrderReviewVisibility(
+      reviewId,
+      body.isVisible
+    );
+  }
+
+  @Put("order-reviews/:reviewId/pin")
+  @ApiOperation({
+    summary: "更新评价置顶状态",
+    description: "评价管理置顶/取消置顶接口。"
+  })
+  updateReviewPin(
+    @Param("reviewId") reviewId: string,
+    @Body() body: UpdateReviewPinDto
+  ) {
+    return this.ordersService.updateAdminOrderReviewPin(reviewId, body.isPinned);
+  }
+
+  @Delete("order-reviews/:reviewId")
+  @ApiOperation({
+    summary: "删除评价",
+    description: "评价管理删除接口，当前实现为软删除。"
+  })
+  deleteReview(@Param("reviewId") reviewId: string) {
+    return this.ordersService.deleteAdminOrderReview(reviewId);
+  }
+
+  @Post("order-reviews/batch")
+  @ApiOperation({
+    summary: "批量处理评价",
+    description: "评价管理批量显示、隐藏、置顶或删除接口。"
+  })
+  batchOperateReviews(@Body() body: AdminOrderReviewBatchDto) {
+    return this.ordersService.batchOperateAdminOrderReviews(
+      body.reviewIds,
+      body.action
+    );
   }
 }

@@ -5,6 +5,7 @@ import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineI
 import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import mock from "./mock";
+import { setOrderFlowService } from "@/pages/service/order-flow";
 
 const props = defineProps<PageComponentProps>();
 
@@ -14,8 +15,8 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 const draft = ref("");
 const quickActions = [
   { label: "更多推荐", icon: Editor },
-  { label: "商品智选", icon: Commodity },
-  { label: "体检定制", icon: Stethoscope },
+  { label: "商品咨询", icon: Commodity },
+  { label: "体检定制", icon: Stethoscope }
 ];
 
 let riveInstance: Rive | null = null;
@@ -29,8 +30,22 @@ function goBack() {
   }
 }
 
-function buyProject() {
-  props.navigation.navigateTo("service/payment");
+function buyProject(item: (typeof mock.projects)[number]) {
+  setOrderFlowService({
+    type: "homeCare",
+    serviceId: "srv_home_clean_2h",
+    title: item.name,
+    price: 298,
+    image: item.image,
+    detailPageId: "service/home-care-detail",
+    listPageId: "service/home-care",
+    couponAmount: 20,
+    addressId: "addr_joy_home",
+    addressText: "上海市上海市浦东新区丁香路168弄12号302",
+    contactName: "王秀琴",
+    contactPhone: "13800138000"
+  });
+  props.navigation.navigateTo("service/booking");
 }
 
 function useQuickAction(label: string) {
@@ -39,7 +54,6 @@ function useQuickAction(label: string) {
 
 function sendMessage() {
   const text = draft.value.trim();
-
   if (!text) {
     props.showToast("请输入内容");
     return;
@@ -76,7 +90,6 @@ function resizeRive() {
 
 onMounted(() => {
   const canvas = canvasRef.value;
-
   if (!canvas) {
     return;
   }
@@ -88,13 +101,13 @@ onMounted(() => {
     autoplay: true,
     layout: new Layout({
       fit: Fit.Contain,
-      alignment: Alignment.Center,
+      alignment: Alignment.Center
     }),
     onLoad: () => {
       resizeRive();
       bindStateMachineInputs();
       scheduleBlink();
-    },
+    }
   });
 
   resizeObserver = new ResizeObserver(resizeRive);
@@ -122,8 +135,8 @@ onBeforeUnmount(() => {
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
           <strong>您好！我是豆沙包</strong>
-          <strong>这是我为您推荐的项目～</strong>
-          <p>推荐仅供参考，您可以根据实际需求继续调整哦</p>
+          <strong>这是我为您推荐的项目</strong>
+          <p>推荐仅供参考，您可以根据实际需求继续调整</p>
         </div>
         <button class="more-btn" type="button" @click="props.showToast('更多功能待接入')">更多</button>
       </header>
@@ -136,9 +149,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="section">
-          <p>
-            已根据您的服务需求，为您筛选出更适合的家政护理项目。您可以先查看推荐理由，再选择需要购买的服务。
-          </p>
+          <p>已根据您的服务需求，为您筛选出更适合的家政护理项目。您可以先查看推荐理由，再选择需要购买的服务。</p>
         </div>
 
         <section class="project-card">
@@ -147,7 +158,7 @@ onBeforeUnmount(() => {
             <div class="project-info">
               <h2>{{ item.name }}</h2>
               <p>{{ item.desc }}</p>
-              <button type="button" @click="buyProject">立即购买</button>
+              <button type="button" @click="buyProject(item)">立即购买</button>
             </div>
           </article>
         </section>
