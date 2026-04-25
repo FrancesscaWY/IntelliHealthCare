@@ -11,11 +11,26 @@ const selectedDate = ref("");
 const selectedStaff = ref(mock.staffOptions[0]);
 const selectedServiceType = ref(mock.serviceTypeOptions[0]);
 
+const slotHeight = 156;
+const minimumLaneCount = 1;
+
+function formatDateLabel(value: string) {
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${year}年${month}月${day}日`;
+}
+
+const activeDateValue = computed(() => selectedDate.value || pageData.value.defaultDate);
+const activeDateLabel = computed(() => formatDateLabel(activeDateValue.value));
+
 const startHour = computed(() => pageData.value.timeSlots[0] ?? 0);
 const rowCount = computed(() => Math.max(pageData.value.timeSlots.length - 1, 0));
 const hourLabels = computed(() => pageData.value.timeSlots.slice(0, -1));
 const closingHour = computed(() => pageData.value.timeSlots[pageData.value.timeSlots.length - 1] ?? 0);
-const slotHeight = 156;
 
 const filteredBookings = computed(() =>
   pageData.value.bookings.filter((item) => {
@@ -36,7 +51,14 @@ const laneCount = computed(() =>
 );
 
 const occupiedLaneCount = computed(() => {
-  const activeLanes = new Set(filteredBookings.value.map((item) => item.lane));
+  const activeLanes = new Set<number>();
+
+  filteredBookings.value.forEach((item) => {
+    for (let index = 0; index < item.laneSpan; index += 1) {
+      activeLanes.add(item.lane + index);
+    }
+  });
+
   return activeLanes.size;
 });
 
@@ -45,7 +67,7 @@ const totalServiceHours = computed(() =>
 );
 
 const occupancyRate = computed(() => {
-  const availableSlots = rowCount * laneCount.value;
+  const availableSlots = rowCount.value * laneCount.value;
 
   if (!availableSlots) {
     return "0%";
@@ -92,6 +114,36 @@ const summaryCards = computed(() => {
   ] as const;
 });
 
+const topMetricItems = computed(() => [
+  ...summaryCards.value,
+  {
+    label: "排班利用率",
+    value: occupancyRate.value,
+    unit: "",
+    note: `${occupiedLaneCount.value}/${laneCount.value} 通道已占用`,
+    tone: "teal",
+  },
+]);
+
+const spotlightItems = computed(() => [
+  {
+    label: "服务时长",
+    value: `${totalServiceHours.value}`,
+    unit: "小时",
+    note: "按当前筛选累计排班时长",
+    tone: "mint",
+    meta: `${filteredBookings.value.length} 项预约参与排班`,
+  },
+  {
+    label: "排班通道",
+    value: `${occupiedLaneCount.value}/${laneCount.value}`,
+    unit: "通道",
+    note: "当前在用通道 / 可用通道",
+    tone: "blue",
+    meta: `时间范围 ${startHour.value}:00-${closingHour.value}:00`,
+  },
+]);
+
 const laneSummaries = computed(() =>
   Array.from({ length: laneCount.value }, (_, index) => {
     const lane = index + 1;
@@ -111,26 +163,22 @@ const laneSummaries = computed(() =>
 );
 
 const serviceTypeChips = computed(() =>
-  mock.serviceTypeOptions.slice(1).map((serviceType) => ({
+  pageData.value.serviceTypeOptions.slice(1).map((serviceType) => ({
     label: serviceType,
     count: filteredBookings.value.filter((item) => item.serviceType === serviceType).length,
   })),
 );
 
-const selectedDateLabel = computed(() => {
-  const [year, month, day] = selectedDate.value.split("-");
-
-  if (!year || !month || !day) {
-    return selectedDate.value;
-  }
-
-  return `${year}年${month}月${day}日`;
-});
-
 const boardGridStyle = computed(() => ({
-  gridTemplateRows: `repeat(${rowCount}, minmax(${slotHeight}px, ${slotHeight}px))`,
-  gridTemplateColumns: `repeat(${laneCount.value}, minmax(170px, 1fr))`,
+  gridTemplateRows: `repeat(${rowCount.value}, minmax(${slotHeight}px, ${slotHeight}px))`,
+  gridTemplateColumns: `repeat(${laneCount.value}, minmax(190px, 1fr))`,
 }));
+
+const filterTags = computed(() => [
+  `日期：${activeDateLabel.value}`,
+  `服务人员：${selectedStaff.value}`,
+  `服务类型：${selectedServiceType.value}`,
+]);
 
 function getBookingStyle(start: number, end: number, lane: number, laneSpan: number) {
   return {
@@ -145,6 +193,10 @@ function getCardAriaLabel(title: string, timeLabel: string, userName: string) {
 
 function openBooking(title: string) {
   props.showToast(`查看预约：${title}`);
+}
+
+function triggerAction(label: string) {
+  props.showToast(`${label}为演示状态。`);
 }
 
 async function syncPageData(query: {
@@ -196,77 +248,165 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="booking-page">
-    <article class="booking-panel booking-panel--filters">
-      <header class="section-head">
-        <span class="section-head__accent"></span>
-        <h1>{{ pageData.title }}</h1>
-      </header>
+  <section class="booking-overview-page">
+    <article class="trade-hero">
+      <div class="trade-hero__main">
+        <div class="trade-hero__copy">
+          <h1>{{ pageData.title }}</h1>
+          <p class="trade-hero__description">
+            统一查看预约排班、服务状态与通道占用，让预约看板和概况页保持同一套清爽的医疗运营视觉。
+          </p>
 
-      <div class="filter-shell">
-        <label class="field">
-          <span class="field__label">选择日期</span>
-          <div class="field__control field__control--date">
-            <input v-model="selectedDate" type="date" />
-            <svg viewBox="0 0 18 18" focusable="false" aria-hidden="true">
-              <rect x="2.5" y="3.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6" />
-              <path d="M5.5 2.5v3M12.5 2.5v3M2.5 7.5h13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.6" />
-            </svg>
+          <div class="trade-hero__tags">
+            <span v-for="item in filterTags" :key="item">{{ item }}</span>
           </div>
-        </label>
-
-        <label class="field">
-          <span class="field__label">服务人员</span>
-          <div class="field__control field__control--select">
-            <select v-model="selectedStaff">
-              <option v-for="item in pageData.staffOptions" :key="item" :value="item">{{ item }}</option>
-            </select>
-            <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
-              <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />
-            </svg>
-          </div>
-        </label>
-
-        <label class="field">
-          <span class="field__label">服务类型</span>
-          <div class="field__control field__control--select">
-            <select v-model="selectedServiceType">
-              <option v-for="item in pageData.serviceTypeOptions" :key="item" :value="item">{{ item }}</option>
-            </select>
-            <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
-              <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />
-            </svg>
-          </div>
-        </label>
-      </div>
-
-      <div class="service-distribution">
-        <span class="service-distribution__label">服务分布</span>
-        <div class="service-distribution__chips">
-          <span v-for="item in serviceTypeChips" :key="item.label" class="service-chip">
-            {{ item.label }}
-            <strong>{{ item.count }}</strong>
-          </span>
         </div>
+
+        <button class="date-range date-range--hero" type="button" @click="triggerAction('日期筛选')">
+          <span class="date-range__label">当前排班日期</span>
+          <strong>{{ activeDateLabel }}</strong>
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+          </svg>
+        </button>
       </div>
     </article>
 
-    <section class="summary-grid" aria-label="预约摘要">
-      <article v-for="item in summaryCards" :key="item.label" class="summary-card" :class="`summary-card--${item.tone}`">
-        <div class="summary-card__halo" aria-hidden="true"></div>
-        <p>{{ item.label }}</p>
-        <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
-        <span>{{ item.note }}</span>
+    <section class="metrics-panel" aria-label="预约核心指标">
+      <header class="metrics-panel__head">
+        <h2>预约核心指标</h2>
+      </header>
+
+      <div class="metric-grid metric-grid--booking">
+        <article
+          v-for="item in topMetricItems"
+          :key="item.label"
+          class="metric-card"
+          :class="`metric-card--${item.tone}`"
+        >
+          <div class="metric-copy">
+            <strong>
+              {{ item.value }}
+              <small v-if="item.unit">{{ item.unit }}</small>
+            </strong>
+            <h2>{{ item.label }}</h2>
+            <p>{{ item.note }}</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="spotlight-grid spotlight-grid--booking">
+        <article
+          v-for="item in spotlightItems"
+          :key="item.label"
+          class="spotlight-card"
+          :class="`spotlight-card--${item.tone}`"
+        >
+          <div class="spotlight-card__copy">
+            <span>{{ item.label }}</span>
+            <strong>
+              {{ item.value }}
+              <small>{{ item.unit }}</small>
+            </strong>
+            <p>{{ item.note }}</p>
+          </div>
+          <div class="spotlight-card__meta">{{ item.meta }}</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="booking-grid">
+      <article class="panel filter-panel">
+        <header class="panel-head panel-head--between">
+          <div>
+            <h2>排班筛选 <small>（条件视图）</small></h2>
+            <p class="panel-subtitle">按日期、服务人员和服务类型切换预约安排</p>
+          </div>
+          <button class="ghost-button" type="button" @click="triggerAction('导出排班')">导出排班</button>
+        </header>
+
+        <div class="filter-shell">
+          <label class="field">
+            <span class="field__label">选择日期</span>
+            <div class="field__control field__control--date">
+              <input v-model="selectedDate" type="date" />
+              <svg viewBox="0 0 18 18" focusable="false" aria-hidden="true">
+                <rect x="2.5" y="3.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6" />
+                <path d="M5.5 2.5v3M12.5 2.5v3M2.5 7.5h13" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.6" />
+              </svg>
+            </div>
+          </label>
+
+          <label class="field">
+            <span class="field__label">服务人员</span>
+            <div class="field__control field__control--select">
+              <select v-model="selectedStaff">
+                <option v-for="item in pageData.staffOptions" :key="item" :value="item">{{ item }}</option>
+              </select>
+              <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />
+              </svg>
+            </div>
+          </label>
+
+          <label class="field">
+            <span class="field__label">服务类型</span>
+            <div class="field__control field__control--select">
+              <select v-model="selectedServiceType">
+                <option v-for="item in pageData.serviceTypeOptions" :key="item" :value="item">{{ item }}</option>
+              </select>
+              <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                <path d="m3 6 5 5 5-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" />
+              </svg>
+            </div>
+          </label>
+        </div>
+
+        <div class="service-distribution">
+          <span class="service-distribution__label">服务分布</span>
+          <div class="service-distribution__chips">
+            <span v-for="item in serviceTypeChips" :key="item.label" class="service-chip">
+              {{ item.label }}
+              <strong>{{ item.count }}</strong>
+            </span>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel lane-panel">
+        <header class="panel-head">
+          <div>
+            <h2>排班通道概览 <small>（资源状态）</small></h2>
+            <p class="panel-subtitle">每个通道的预约数量与排班时长</p>
+          </div>
+        </header>
+
+        <div class="lane-grid">
+          <article
+            v-for="lane in laneSummaries"
+            :key="lane.lane"
+            class="lane-card"
+            :class="lane.toneClass"
+          >
+            <strong>{{ lane.title }}</strong>
+            <p>{{ lane.bookingCount }} 项预约</p>
+            <span>{{ lane.status }}</span>
+          </article>
+        </div>
       </article>
     </section>
 
-    <article class="booking-panel booking-panel--board">
-      <header class="panel-head">
+    <article class="panel board-panel">
+      <header class="panel-head panel-head--between">
         <div>
-          <small>Timeline Board</small>
-          <h2>当日预约时间轴</h2>
+          <h2>当日预约时间轴 <small>（服务排班）</small></h2>
+          <p class="panel-subtitle">{{ activeDateLabel }} · 共 {{ filteredBookings.length }} 项预约</p>
         </div>
-        <p>{{ selectedDateLabel }} · 共 {{ filteredBookings.length }} 项预约</p>
+
+        <div class="board-caption">
+          <span>{{ selectedStaff }}</span>
+          <span>{{ selectedServiceType }}</span>
+        </div>
       </header>
 
       <div class="timeline">
@@ -286,19 +426,6 @@ onMounted(() => {
         </div>
 
         <div class="timeline__content">
-          <div class="lane-strip" :style="{ gridTemplateColumns: `repeat(${laneCount}, minmax(170px, 1fr))` }">
-            <article
-              v-for="lane in laneSummaries"
-              :key="lane.lane"
-              class="lane-card"
-              :class="lane.toneClass"
-            >
-              <strong>{{ lane.title }}</strong>
-              <p>{{ lane.bookingCount }} 项预约</p>
-              <span>{{ lane.status }}</span>
-            </article>
-          </div>
-
           <div class="timeline__main">
             <div class="timeline__grid" :style="boardGridStyle">
               <div
@@ -339,6 +466,13 @@ onMounted(() => {
                       <strong>{{ item.staffs.join(" / ") }}</strong>
                     </div>
                   </div>
+
+                  <div class="booking-card__foot">
+                    <div class="booking-card__avatars">
+                      <img v-for="avatar in item.avatars" :key="avatar" :src="avatar" :alt="item.title" />
+                    </div>
+                    <em>点击查看详情</em>
+                  </div>
                 </button>
               </template>
 
@@ -355,13 +489,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.booking-page {
-  --mint: #4fbf91;
-  --green-deep: #1f7b70;
-  --blue: #5aaef5;
-  --rose: #ff7f98;
-  --amber: #ffa63d;
-  --slate: #253244;
+.booking-overview-page {
   display: grid;
   gap: 16px;
   width: 100%;
@@ -370,9 +498,11 @@ onMounted(() => {
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
-.booking-hero,
-.booking-panel,
-.summary-card,
+.trade-hero,
+.metrics-panel,
+.metric-card,
+.spotlight-card,
+.panel,
 .lane-card,
 .booking-card {
   border: 1px solid rgba(224, 240, 238, 0.86);
@@ -381,7 +511,7 @@ onMounted(() => {
   box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
 }
 
-.booking-hero {
+.trade-hero {
   position: relative;
   overflow: hidden;
   padding: 18px;
@@ -391,7 +521,7 @@ onMounted(() => {
     linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 251, 248, 0.96));
 }
 
-.booking-hero::after {
+.trade-hero::after {
   content: "";
   position: absolute;
   right: -40px;
@@ -399,21 +529,20 @@ onMounted(() => {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(95, 224, 186, 0.22), rgba(95, 224, 186, 0));
+  background: radial-gradient(circle, rgba(95, 224, 186, 0.2), rgba(95, 224, 186, 0));
   pointer-events: none;
 }
 
-.booking-hero__main {
+.trade-hero__main {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 240px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 18px;
-  align-items: stretch;
-  margin-bottom: 18px;
 }
 
-.booking-hero__eyebrow {
+.trade-hero__eyebrow {
   margin: 0 0 8px;
   color: #4f8a7b;
   font-size: 12px;
@@ -422,7 +551,7 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.booking-hero h1 {
+.trade-hero h1 {
   margin: 0;
   color: #1f6f67;
   font-size: 28px;
@@ -430,7 +559,7 @@ onMounted(() => {
   line-height: 1.15;
 }
 
-.booking-hero__description {
+.trade-hero__description {
   max-width: 680px;
   margin: 12px 0 0;
   color: #5d6876;
@@ -438,14 +567,14 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.booking-hero__tags {
+.trade-hero__tags {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 16px;
 }
 
-.booking-hero__tags span {
+.trade-hero__tags span {
   padding: 8px 12px;
   border: 1px solid rgba(93, 188, 153, 0.18);
   border-radius: 999px;
@@ -455,78 +584,285 @@ onMounted(() => {
   font-weight: 800;
 }
 
-.hero-highlight {
-  position: relative;
+.date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(218, 236, 231, 0.95);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #43515d;
+}
+
+.date-range--hero {
+  flex: none;
+  min-width: 288px;
+  justify-content: space-between;
+  align-self: center;
+  box-shadow: 0 6px 18px rgba(66, 122, 116, 0.08);
+}
+
+.date-range__label {
+  color: #8b96a1;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.date-range strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.date-range svg,
+.ghost-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.metrics-panel,
+.panel {
+  padding: 16px;
+}
+
+.metrics-panel__head,
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.metrics-panel__head h2,
+.panel-head h2 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.panel-head small {
+  color: #7b8a94;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.panel-head--between {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-subtitle {
+  margin: 6px 0 0;
+  color: #7b8994;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metric-grid {
   display: grid;
-  align-content: center;
-  gap: 6px;
-  padding: 18px;
-  border-radius: 10px;
-  background: linear-gradient(145deg, #1f7b70, #5bc29d);
-  color: #ffffff;
+  gap: 12px;
+}
+
+.metric-grid--booking {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.metric-card {
+  position: relative;
+  min-height: 102px;
+  padding: 14px 16px;
   overflow: hidden;
 }
 
-.hero-highlight::after {
+.metric-card::after {
   content: "";
   position: absolute;
-  inset: auto -18px -28px auto;
-  width: 96px;
-  height: 96px;
+  right: -14px;
+  bottom: -16px;
+  width: 86px;
+  height: 86px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 16%, #ffffff), transparent 72%);
 }
 
-.hero-highlight small,
-.hero-highlight p,
-.hero-highlight span {
+.metric-card--mint {
+  --tone: #4dbc8c;
+}
+
+.metric-card--blue {
+  --tone: #5aaef5;
+}
+
+.metric-card--rose {
+  --tone: #ff7f98;
+}
+
+.metric-card--amber {
+  --tone: #ffa63d;
+}
+
+.metric-card--teal {
+  --tone: #43bfa8;
+}
+
+.metric-copy {
   position: relative;
   z-index: 1;
 }
 
-.hero-highlight small {
-  font-size: 12px;
-  font-weight: 800;
-  opacity: 0.84;
-}
-
-.hero-highlight strong {
-  position: relative;
-  z-index: 1;
-  font-size: 46px;
+.metric-copy strong {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #263244;
+  font-size: 32px;
   font-weight: 900;
   line-height: 1;
 }
 
-.hero-highlight p {
-  margin: 0;
+.metric-copy small {
+  font-size: 12px;
+  font-weight: 800;
+  color: #88949f;
+}
+
+.metric-copy h2 {
+  margin: 8px 0 0;
+  color: #55616f;
   font-size: 13px;
-  font-weight: 700;
-  opacity: 0.9;
+  font-weight: 900;
 }
 
-.hero-highlight__meta {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.hero-highlight__meta span {
+.metric-copy p {
+  margin: 8px 0 0;
+  color: #88949f;
   font-size: 12px;
   font-weight: 700;
-  opacity: 0.9;
+}
+
+.spotlight-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.spotlight-grid--booking {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.spotlight-card {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 128px;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.spotlight-card::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -18px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  opacity: 0.2;
+  background: radial-gradient(circle, #ffffff, transparent 68%);
+}
+
+.spotlight-card--mint {
+  background: linear-gradient(135deg, rgba(82, 192, 154, 0.18), rgba(255, 255, 255, 0.96));
+}
+
+.spotlight-card--blue {
+  background: linear-gradient(135deg, rgba(90, 174, 245, 0.16), rgba(255, 255, 255, 0.96));
+}
+
+.spotlight-card__copy,
+.spotlight-card__meta {
+  position: relative;
+  z-index: 1;
+}
+
+.spotlight-card__copy span {
+  display: block;
+  color: #4f8a7b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.spotlight-card__copy strong {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 10px;
+  color: #263244;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.spotlight-card__copy small {
+  font-size: 12px;
+  font-weight: 800;
+  color: #7f8d98;
+}
+
+.spotlight-card__copy p {
+  margin: 10px 0 0;
+  color: #64727d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.spotlight-card__meta {
+  max-width: 150px;
+  color: #5f6f7a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+  text-align: right;
+}
+
+.booking-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 16px;
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(218, 236, 231, 0.95);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #45616f;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .filter-shell {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   padding: 14px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
+  background: linear-gradient(135deg, rgba(248, 252, 250, 0.98), rgba(240, 248, 245, 0.92));
 }
 
 .field {
@@ -590,8 +926,6 @@ onMounted(() => {
 }
 
 .service-distribution {
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -611,14 +945,15 @@ onMounted(() => {
   gap: 10px;
 }
 
-.service-chip {
+.service-chip,
+.board-caption span {
   display: inline-flex;
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(237, 246, 242, 0.95);
-  color: #50606d;
+  background: rgba(238, 248, 244, 0.92);
+  color: #4b6671;
   font-size: 12px;
   font-weight: 800;
 }
@@ -627,276 +962,175 @@ onMounted(() => {
   color: #1f6f67;
 }
 
-.summary-grid {
+.lane-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.summary-card {
+.lane-card {
   position: relative;
+  display: grid;
+  gap: 6px;
+  min-height: 108px;
+  padding: 16px;
   overflow: hidden;
-  min-height: 132px;
-  padding: 18px;
 }
 
-.summary-card--mint {
-  --tone: #4dbc8c;
-}
-
-.summary-card--rose {
-  --tone: #ff7f98;
-}
-
-.summary-card--blue {
-  --tone: #5aaef5;
-}
-
-.summary-card--amber {
-  --tone: #ffa63d;
-}
-
-.summary-card__halo {
+.lane-card::after {
+  content: "";
   position: absolute;
-  right: -18px;
-  top: -14px;
-  width: 92px;
-  height: 92px;
+  inset: auto -24px -24px auto;
+  width: 94px;
+  height: 94px;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 18%, #ffffff), transparent 72%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24), transparent 72%);
 }
 
-.summary-card p,
-.summary-card strong,
-.summary-card span {
+.lane-card strong,
+.lane-card p,
+.lane-card span {
   position: relative;
   z-index: 1;
 }
 
-.summary-card p {
+.lane-card strong {
+  color: #243141;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.lane-card p {
   margin: 0;
-  color: #55616f;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.summary-card strong {
-  display: block;
-  margin-top: 12px;
-  color: var(--slate);
-  font-size: 34px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.summary-card small {
-  margin-left: 6px;
-  color: #677483;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.summary-card span {
-  display: inline-block;
-  margin-top: 14px;
-  color: var(--tone);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.booking-panel--board {
-  padding: 18px;
-}
-
-.panel-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.panel-head small {
-  display: block;
-  margin-bottom: 4px;
-  color: #78a59b;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.panel-head h2 {
-  margin: 0;
-  color: #1f6f67;
-  font-size: 20px;
-  font-weight: 900;
-}
-
-.panel-head p {
-  margin: 0;
-  color: #6a7684;
+  color: #51616d;
   font-size: 13px;
   font-weight: 800;
+}
+
+.lane-card span {
+  color: #7c8b96;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lane-card--green {
+  background: linear-gradient(135deg, rgba(91, 194, 157, 0.2), rgba(255, 255, 255, 0.96));
+}
+
+.lane-card--amber {
+  background: linear-gradient(135deg, rgba(255, 178, 90, 0.22), rgba(255, 255, 255, 0.96));
+}
+
+.lane-card--red {
+  background: linear-gradient(135deg, rgba(255, 135, 154, 0.2), rgba(255, 255, 255, 0.96));
+}
+
+.board-panel {
+  overflow: hidden;
+}
+
+.board-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .timeline {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  min-width: 0;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 14px;
 }
 
 .timeline__sidebar {
-  position: relative;
   display: grid;
-  padding-top: 92px;
+  grid-template-rows: 68px repeat(auto-fit, minmax(0, 1fr)) 24px;
 }
 
 .timeline__spacer {
-  position: absolute;
-  top: 0;
-  right: 12px;
-  left: 0;
-  height: 74px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(239, 248, 244, 0.98), rgba(255, 255, 255, 0.8));
+  min-height: 68px;
 }
 
 .timeline__label {
+  position: relative;
   display: flex;
+  align-items: flex-start;
   justify-content: flex-end;
-  padding: 0 16px 0 0;
-  color: #59707c;
-  font-size: 13px;
-  font-weight: 800;
+  padding-top: 8px;
 }
 
 .timeline__label span {
-  margin-top: -10px;
+  color: #7c8a95;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .timeline__label--closing {
-  position: absolute;
-  right: 16px;
-  bottom: -4px;
-  padding-right: 0;
+  align-items: flex-end;
 }
 
 .timeline__content {
   min-width: 0;
 }
 
-.lane-strip {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-  margin-bottom: 12px;
-}
-
-.lane-card {
-  display: grid;
-  gap: 4px;
-  min-height: 74px;
-  padding: 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 251, 248, 0.95));
-}
-
-.lane-card strong {
-  color: #304152;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.lane-card p {
-  margin: 0;
-  color: #4d606d;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.lane-card span {
-  color: #82909c;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.lane-card--amber {
-  border-color: rgba(255, 194, 108, 0.28);
-  background: linear-gradient(180deg, rgba(255, 248, 231, 0.98), rgba(255, 255, 255, 0.95));
-}
-
-.lane-card--green {
-  border-color: rgba(79, 191, 145, 0.28);
-  background: linear-gradient(180deg, rgba(238, 250, 245, 0.98), rgba(255, 255, 255, 0.95));
-}
-
-.lane-card--red {
-  border-color: rgba(255, 126, 118, 0.28);
-  background: linear-gradient(180deg, rgba(255, 241, 240, 0.98), rgba(255, 255, 255, 0.95));
-}
-
 .timeline__main {
-  min-width: 0;
   overflow-x: auto;
+  padding-bottom: 4px;
 }
 
 .timeline__grid {
   position: relative;
   display: grid;
-  grid-auto-flow: row dense;
-  column-gap: 12px;
-  min-width: 760px;
-  padding: 6px 2px 2px;
+  gap: 12px;
+  min-width: max-content;
+  padding: 14px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(248, 252, 250, 0.96), rgba(241, 248, 245, 0.9)),
+    #ffffff;
 }
 
 .timeline__line {
   grid-column: 1 / -1;
-  align-self: start;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(220, 234, 229, 0.2), rgba(220, 234, 229, 1), rgba(220, 234, 229, 0.2));
+  align-self: end;
+  border-top: 1px dashed rgba(188, 212, 205, 0.9);
+  pointer-events: none;
 }
 
 .booking-card {
   position: relative;
   display: grid;
   align-content: start;
-  gap: 12px;
-  min-height: calc(100% - 8px);
-  margin-top: 8px;
-  padding: 14px;
-  border-width: 1px;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
   text-align: left;
+  cursor: pointer;
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
+    box-shadow 180ms ease;
 }
 
 .booking-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 32px rgba(47, 86, 79, 0.14);
-}
-
-.booking-card--amber {
-  border-color: rgba(255, 198, 92, 0.28);
-  background: linear-gradient(180deg, rgba(255, 250, 238, 0.98), rgba(255, 255, 255, 0.98));
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(66, 122, 116, 0.14);
 }
 
 .booking-card--green {
-  border-color: rgba(79, 191, 145, 0.28);
-  background: linear-gradient(180deg, rgba(239, 251, 245, 0.98), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(135deg, rgba(84, 201, 180, 0.18), rgba(255, 255, 255, 0.96));
+}
+
+.booking-card--amber {
+  background: linear-gradient(135deg, rgba(255, 191, 102, 0.22), rgba(255, 255, 255, 0.96));
 }
 
 .booking-card--red {
-  border-color: rgba(255, 126, 118, 0.28);
-  background: linear-gradient(180deg, rgba(255, 243, 241, 0.98), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(135deg, rgba(255, 138, 156, 0.18), rgba(255, 255, 255, 0.96));
 }
 
 .booking-card__tags {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -904,86 +1138,76 @@ onMounted(() => {
 .booking-card__status {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 28px;
+  min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 900;
-  white-space: nowrap;
 }
 
 .booking-card__type {
-  background: rgba(255, 255, 255, 0.92);
-  color: #546370;
-  box-shadow: inset 0 0 0 1px rgba(222, 236, 232, 0.96);
+  background: rgba(255, 255, 255, 0.9);
+  color: #2a6156;
 }
 
-.booking-card__status--amber {
-  background: rgba(255, 214, 95, 0.16);
-  color: #cc8b08;
+.booking-card__status {
+  color: #ffffff;
 }
 
 .booking-card__status--green {
-  background: rgba(57, 207, 157, 0.14);
-  color: #13956b;
+  background: #39b98a;
+}
+
+.booking-card__status--amber {
+  background: #f0aa48;
 }
 
 .booking-card__status--red {
-  background: rgba(255, 126, 118, 0.14);
-  color: #de5c53;
+  background: #f36c87;
 }
 
 .booking-card__top strong {
   display: block;
-  color: #2f3946;
-  font-size: 16px;
+  color: #263244;
+  font-size: 17px;
   font-weight: 900;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .booking-card__top p {
-  margin: 1px 0 0;
-  color: #6c7886;
+  margin: 6px 0 0;
+  color: #6f7d89;
   font-size: 12px;
   font-weight: 800;
 }
 
 .booking-card__meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
+  gap: 10px;
 }
 
 .booking-card__meta-row {
   display: grid;
-  gap: 0px;
-  align-items: start;
-  min-width: 0;
-  padding: -1px 10px;
+  gap: 4px;
 }
 
-.booking-card__meta span {
+.booking-card__meta-row span {
   color: #8b98a4;
   font-size: 11px;
   font-weight: 800;
-  line-height: 1.4;
 }
 
-.booking-card__meta strong {
+.booking-card__meta-row strong {
   color: #40505f;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1.5;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  line-height: 1.4;
 }
 
 .booking-card__foot {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   margin-top: auto;
   padding-top: 8px;
@@ -997,70 +1221,90 @@ onMounted(() => {
   font-weight: 800;
 }
 
-@media (max-width: 1180px) {
-  .booking-card__meta {
-    grid-template-columns: 1fr;
-  }
+.booking-card__avatars {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.booking-card__avatars img {
+  width: 34px;
+  height: 34px;
+  margin-left: -8px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.booking-card__avatars img:first-child {
+  margin-left: 0;
 }
 
 .timeline-empty {
   grid-column: 1 / -1;
   display: grid;
   place-items: center;
-  gap: 6px;
-  min-height: 260px;
-  margin-top: 18px;
-  border: 1px dashed rgba(151, 182, 172, 0.5);
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(248, 252, 250, 0.98), rgba(255, 255, 255, 0.98));
+  min-height: 280px;
+  padding: 24px;
+  border: 1px dashed rgba(190, 214, 207, 0.92);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
   text-align: center;
 }
 
 .timeline-empty strong {
-  color: #314353;
-  font-size: 18px;
+  color: #2d3d49;
+  font-size: 16px;
   font-weight: 900;
 }
 
 .timeline-empty p {
-  margin: 0;
-  color: #778390;
+  margin: 10px 0 0;
+  color: #7b8994;
   font-size: 13px;
   font-weight: 700;
 }
 
-@media (max-width: 1400px) {
-  .booking-hero__main {
+@media (max-width: 1280px) {
+  .metric-grid--booking,
+  .spotlight-grid--booking,
+  .lane-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .booking-grid {
     grid-template-columns: 1fr;
-  }
-
-  .summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .filter-shell {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 920px) {
+  .trade-hero__main,
+  .panel-head--between {
+    flex-direction: column;
+  }
+
+  .date-range--hero {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .metric-grid--booking,
+  .spotlight-grid--booking,
   .filter-shell,
-  .summary-grid {
+  .lane-grid {
     grid-template-columns: 1fr;
   }
 
+  .board-caption {
+    justify-content: flex-start;
+  }
+
   .timeline {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .timeline__sidebar {
-    padding-top: 84px;
+    display: none;
   }
-
-  .timeline__label {
-    padding-right: 8px;
-    font-size: 12px;
-  }
-
 }
 </style>

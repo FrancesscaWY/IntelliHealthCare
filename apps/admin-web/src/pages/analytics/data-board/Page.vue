@@ -8,6 +8,13 @@ import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 type RangeKey = (typeof mock.rangeOptions)[number]["key"];
+type DistributionItem = {
+  label: string;
+  value: number;
+  color: string;
+  highlightColor?: string;
+};
+
 type DataBoardPageData = typeof mock & {
   activeRange?: RangeKey;
 };
@@ -399,15 +406,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="analytics-dashboard">
-    <article class="dashboard-shell">
-      <header class="dashboard-shell__header">
-        <div class="dashboard-shell__title">
-          <span class="dashboard-shell__accent"></span>
-          <div>
-            <h1>{{ pageData.title }}</h1>
-            <p>{{ pageData.subtitle }}</p>
-          </div>
+  <section class="trade-overview-page user-overview-page">
+    <article class="trade-hero">
+      <div class="trade-hero__main">
+        <div class="trade-hero__copy">
+          <p class="trade-hero__eyebrow">USER OVERVIEW</p>
+          <h1>{{ pageData.title }}</h1>
+          <p class="trade-hero__description">{{ pageData.subtitle }}</p>
         </div>
 
         <div class="range-switch range-switch--hero" role="tablist" aria-label="数据周期">

@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
 import * as echarts from "echarts";
 import type { ECharts, EChartsOption } from "echarts";
 import shanghaiGeoJson from "@/assets/map/shanghai.json";
-import { getAdminDashboardOverview } from "@/shared/api/dashboard";
-import { handleAdminPageError } from "@/shared/api/error";
-import mockSeed from "./mock";
+import mock from "./mock";
 
 type ChartItem = {
   label: string;
@@ -63,18 +60,12 @@ const iconMarkup: Record<string, string> = {
 };
 
 const shanghaiMapName = "shanghai";
-const excludedShanghaiDistricts = new Set([
-  "崇明区",
-]);
 const shanghaiMapGeoJson = {
   ...shanghaiGeoJson,
-  features: shanghaiGeoJson.features.filter((feature) => !excludedShanghaiDistricts.has(feature.properties?.name ?? "")),
+  features: shanghaiGeoJson.features.filter((feature) => feature.properties?.name !== "崇明区"),
 };
 
 echarts.registerMap(shanghaiMapName, shanghaiMapGeoJson as Parameters<typeof echarts.registerMap>[1]);
-
-const props = defineProps<PageComponentProps>();
-const mock = ref<typeof mockSeed>(mockSeed);
 
 const serviceChartEl = ref<HTMLElement | null>(null);
 const ageChartEl = ref<HTMLElement | null>(null);
@@ -112,6 +103,10 @@ function getSparkGradientId(index: number) {
   return `metric-spark-gradient-${index}`;
 }
 
+function getSparkShadowId(index: number) {
+  return `metric-spark-shadow-${index}`;
+}
+
 function getChartInstance(target: HTMLElement | null, current: ECharts | null) {
   if (!target) {
     return null;
@@ -125,18 +120,7 @@ function createRingOption(
   items: ChartItem[],
   centerText: string,
   centerSubtext: string,
-  options: {
-    glossy?: boolean;
-    roundedCaps?: boolean;
-    whiteBorder?: boolean;
-  } = {},
 ): EChartsOption {
-  const {
-    glossy = false,
-    roundedCaps = false,
-    whiteBorder = false,
-  } = options;
-
   const ringData = items.map((item) => {
     const baseColor = item.color;
     const highlightColor = item.highlightColor || item.color;
@@ -145,44 +129,40 @@ function createRingOption(
       name: item.label,
       value: item.value,
       itemStyle: {
-        color: glossy
-          ? {
-              type: "linear" as const,
-              x: 0,
-              y: 0,
-              x2: 1,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: highlightColor },
-                { offset: 1, color: baseColor },
-              ],
-            }
-          : baseColor,
-        shadowBlur: glossy ? 14 : 0,
-        shadowColor: glossy ? `${baseColor}80` : "transparent",
-        shadowOffsetY: glossy ? 6 : 0,
+        color: {
+          type: "linear" as const,
+          x: 0,
+          y: 0,
+          x2: 1,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: highlightColor },
+            { offset: 1, color: baseColor },
+          ],
+        },
+        shadowBlur: 14,
+        shadowColor: `${baseColor}80`,
+        shadowOffsetY: 6,
       },
-      emphasis: glossy
-        ? {
-            itemStyle: {
-              color: {
-                type: "linear" as const,
-                x: 0,
-                y: 0,
-                x2: 1,
-                y2: 1,
-                colorStops: [
-                  { offset: 0, color: "#ffffff" },
-                  { offset: 0.42, color: highlightColor },
-                  { offset: 1, color: baseColor },
-                ],
-              },
-              shadowBlur: 24,
-              shadowColor: `${baseColor}a8`,
-              shadowOffsetY: 8,
-            },
-          }
-        : undefined,
+      emphasis: {
+        itemStyle: {
+          color: {
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "#ffffff" },
+              { offset: 0.42, color: highlightColor },
+              { offset: 1, color: baseColor },
+            ],
+          },
+          shadowBlur: 24,
+          shadowColor: `${baseColor}a8`,
+          shadowOffsetY: 8,
+        },
+      },
     };
   });
 
@@ -228,7 +208,7 @@ function createRingOption(
         style: {
           text: centerText,
           fill: "#23302e",
-          fontSize: 19,
+          fontSize: 20,
           fontWeight: 900,
           align: "center",
         },
@@ -236,7 +216,7 @@ function createRingOption(
       {
         type: "text",
         left: "center",
-        top: "56%",
+        top: "57%",
         style: {
           text: centerSubtext,
           fill: "#41515e",
@@ -254,9 +234,8 @@ function createRingOption(
         center: ["50%", "52%"],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: roundedCaps ? 10 : 0,
-          borderWidth: whiteBorder ? 2 : 0,
-          borderColor: whiteBorder ? "rgba(255, 255, 255, 0.9)" : "transparent",
+          borderWidth: 0,
+          borderColor: "transparent",
         },
         label: {
           show: false,
@@ -265,7 +244,7 @@ function createRingOption(
         emphasis: {
           label: {
             show: true,
-            fontSize: 40,
+            fontSize: 36,
             fontWeight: "bold",
             color: "#1f7b70",
           },
@@ -307,7 +286,7 @@ function createTrendOption(): EChartsOption {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: mock.value.serviceTrend.labels,
+      data: mock.serviceTrend.labels,
       axisLine: {
         lineStyle: {
           color: "#edf3f1",
@@ -337,12 +316,7 @@ function createTrendOption(): EChartsOption {
         fontSize: 12,
         fontWeight: 700,
         formatter(value: number) {
-          if (value < 1000) {
-            return `${Math.round(value)}`;
-          }
-
-          const normalized = value / 1000;
-          return normalized >= 10 ? `${Math.round(normalized)}K` : `${normalized.toFixed(1)}K`;
+          return `${Math.round(value / 1000)}K`;
         },
       },
       splitLine: {
@@ -355,7 +329,7 @@ function createTrendOption(): EChartsOption {
       {
         name: "服务人次",
         type: "line",
-        data: mock.value.serviceTrend.values,
+        data: mock.serviceTrend.values,
         smooth: true,
         symbol: "circle",
         symbolSize: 9,
@@ -380,7 +354,7 @@ function createTrendOption(): EChartsOption {
 }
 
 function createMapOption(): EChartsOption {
-  const values = mock.value.mapPoints.map((item) => item.value);
+  const values = mock.mapPoints.map((item) => item.value);
   const mapLayout = {
     roam: false,
     zoom: 1,
@@ -390,7 +364,7 @@ function createMapOption(): EChartsOption {
     left: -22,
     right: -22,
   };
-  const centerPointData = mock.value.mapPoints.map((item) => ({
+  const centerPointData = mock.mapPoints.map((item) => ({
     name: item.name,
     value: [...item.coordinate, item.value],
   }));
@@ -451,12 +425,12 @@ function createMapOption(): EChartsOption {
         },
         itemStyle: {
           areaColor: "#dff8f2",
-          borderColor: "rgb(242,244,242)",
+          borderColor: "rgba(255,255,255,0.96)",
           borderWidth: 2,
-          shadowBlur: 5,
-          shadowColor: "rgba(183,237,204,0.67)",
+          shadowBlur: 22,
+          shadowColor: "rgba(42, 112, 143, 0.28)",
           shadowOffsetX: 0,
-          shadowOffsetY: 0,
+          shadowOffsetY: 5,
         },
         emphasis: {
           label: {
@@ -467,15 +441,15 @@ function createMapOption(): EChartsOption {
           },
           itemStyle: {
             areaColor: "#91e2b2",
-            borderColor: "rgba(255,255,255,0.92)",
-            borderWidth: 2,
-            shadowBlur: 24,
-            shadowColor: "rgba(170, 235, 255, 0.42)",
+            borderColor: "rgba(255,255,255,0.96)",
+            borderWidth: 2.4,
+            shadowBlur: 28,
+            shadowColor: "rgba(42, 112, 143, 0.36)",
             shadowOffsetX: 0,
-            shadowOffsetY: 0,
+            shadowOffsetY: 6,
           },
         },
-        data: mock.value.mapPoints,
+        data: mock.mapPoints,
       },
       {
         name: "区域中心点",
@@ -524,18 +498,9 @@ function renderCharts() {
   trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
   mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
 
-  serviceChart.value?.setOption(
-    createRingOption("服务类型分布", mock.value.serviceTypes, mock.value.serviceTotal, "服务人次", true),
-    true,
-  );
-  ageChart.value?.setOption(
-    createRingOption("用户年龄结构", mock.value.ageGroups, mock.value.registeredTotal, "在册用户", true),
-    true,
-  );
-  healthChart.value?.setOption(
-    createRingOption("健康状态分布", mock.value.healthStatus, mock.value.healthScore, "健康/良好", true),
-    true,
-  );
+  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次"), true);
+  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户"), true);
+  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好"), true);
   trendChart.value?.setOption(createTrendOption(), true);
   mapChart.value?.setOption(createMapOption(), true);
 }
@@ -546,20 +511,6 @@ function resizeCharts() {
   healthChart.value?.resize();
   trendChart.value?.resize();
   mapChart.value?.resize();
-}
-
-async function syncPageData() {
-  try {
-    mock.value = (await getAdminDashboardOverview()) as typeof mockSeed;
-    await nextTick();
-    renderCharts();
-  } catch (error) {
-    handleAdminPageError(error, {
-      navigation: props.navigation,
-      showToast: props.showToast,
-      fallbackMessage: "概览数据加载失败，已回退到演示数据",
-    });
-  }
 }
 
 onMounted(async () => {
@@ -577,7 +528,6 @@ onMounted(async () => {
   });
 
   window.addEventListener("resize", resizeCharts);
-  void syncPageData();
 });
 
 onBeforeUnmount(() => {
@@ -614,9 +564,20 @@ onBeforeUnmount(() => {
               <stop offset="0%" stop-color="currentColor" stop-opacity="0.34" />
               <stop offset="100%" stop-color="currentColor" stop-opacity="0.04" />
             </linearGradient>
+            <filter :id="getSparkShadowId(index)" x="-20%" y="-20%" width="160%" height="180%">
+              <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="currentColor" flood-opacity="0.22" />
+            </filter>
           </defs>
           <polygon :points="buildSparkArea(item.spark)" :fill="`url(#${getSparkGradientId(index)})`" />
-          <polyline :points="item.spark" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" />
+          <polyline
+            :points="item.spark"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            :filter="`url(#${getSparkShadowId(index)})`"
+          />
         </svg>
       </article>
     </section>
@@ -756,14 +717,13 @@ onBeforeUnmount(() => {
   gap: 16px;
   width: 100%;
   min-width: 0;
-  overflow-x: clip;
   color: #253244;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -771,7 +731,6 @@ onBeforeUnmount(() => {
 .panel {
   border: 1px solid rgba(224, 240, 238, 0.86);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
 }
 
@@ -870,24 +829,23 @@ onBeforeUnmount(() => {
   width: 62px;
   height: 24px;
   color: var(--tone);
-  opacity: 0.82;
+  overflow: visible;
+  opacity: 0.92;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1.05fr) minmax(360px, 1.6fr) minmax(280px, 1.15fr);
-  grid-template-rows: minmax(250px, auto) minmax(228px, auto) minmax(228px, auto);
+  grid-template-columns: minmax(0, 25.5%) minmax(0, 46%) minmax(0, 28.5%);
+  grid-template-rows: 250px 228px 228px;
   grid-template-areas:
     "service map age"
     "trend map health"
     "satisfaction alert workload";
   gap: 12px;
-  align-items: stretch;
 }
 
 .panel {
   min-width: 0;
-  min-height: 0;
   padding: 16px;
   overflow: hidden;
 }
@@ -916,9 +874,6 @@ onBeforeUnmount(() => {
 
 .map-panel {
   grid-area: map;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
 }
 
 .age-panel {
@@ -1108,10 +1063,10 @@ onBeforeUnmount(() => {
 .map-chart-hook {
   position: relative;
   height: calc(100% - 36px);
-  min-height: 360px;
+  min-height: 488px;
   overflow: hidden;
   border-radius: 10px;
-  background: transparent;
+  background: #ffffff;
 }
 
 .map-center {
@@ -1267,7 +1222,7 @@ onBeforeUnmount(() => {
 
 .alert-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
   height: calc(100% - 36px);
 }
@@ -1369,47 +1324,6 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-style: normal;
   font-weight: 900;
-}
-
-@media (max-width: 1560px) {
-  .dashboard-grid {
-    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
-    grid-template-areas:
-      "map map"
-      "service age"
-      "trend health"
-      "satisfaction workload"
-      "alert alert";
-  }
-
-  .map-chart-hook {
-    min-height: 420px;
-  }
-}
-
-@media (max-width: 1180px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "service"
-      "map"
-      "age"
-      "trend"
-      "health"
-      "satisfaction"
-      "alert"
-      "workload";
-  }
-
-  .ring-with-list,
-  .satisfaction-layout {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-  }
-
-  .side-legend {
-    gap: 10px;
-  }
 }
 
 @media (max-width: 780px) {

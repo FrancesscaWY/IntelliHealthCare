@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import * as echarts from "echarts";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { getAnalyticsTradeOverview } from "@/shared/api/analytics";
@@ -15,8 +15,8 @@ const lineChart = shallowRef<echarts.ECharts | null>(null);
 const barChart = shallowRef<echarts.ECharts | null>(null);
 
 const metricTones = ["mint", "blue", "rose", "teal", "amber", "pink"] as const;
-const overviewItems = mock.overviewRows.flat();
-const spotlightSeries = mock.spotlightCharts;
+const overviewItems = computed(() => pageData.value.overviewRows.flat());
+const spotlightSeries = computed(() => pageData.value.spotlightCharts);
 
 function buildSparkPoints(values: readonly number[], width = 150, height = 44) {
   if (!values.length) {
@@ -51,7 +51,7 @@ function buildSparkArea(points: string, width = 150, height = 44) {
 }
 
 function getOverviewItem(label: string) {
-  return overviewItems.find((item) => item.label === label);
+  return overviewItems.value.find((item) => item.label === label);
 }
 
 const topMetricItems = computed(() => [
@@ -71,7 +71,7 @@ const spotlightMetricItems = computed(() =>
       tone: "amber" as const,
       lineColor: "#f1b24b",
       lineGlow: "rgba(241, 178, 75, 0.22)",
-      series: spotlightSeries.paymentAmount,
+      series: spotlightSeries.value.paymentAmount,
     },
     {
       ...(getOverviewItem("支付订单数") || { label: "支付订单数", value: "--" }),
@@ -80,7 +80,7 @@ const spotlightMetricItems = computed(() =>
       tone: "mint" as const,
       lineColor: "#55c9b4",
       lineGlow: "rgba(85, 201, 180, 0.22)",
-      series: spotlightSeries.orderCount,
+      series: spotlightSeries.value.orderCount,
     },
   ].map((item, index) => {
     const points = buildSparkPoints(item.series.values);
@@ -99,18 +99,9 @@ const spotlightMetricItems = computed(() =>
   }),
 );
 
-// 暂不展示的交易核心指标，先保留数据定义，后续需要时可直接恢复。
-// const hiddenMetricItems = [
-//   getOverviewItem("下单人数"),
-//   getOverviewItem("下单笔数"),
-//   getOverviewItem("下单金额（元）"),
-//   getOverviewItem("支付人数"),
-//   getOverviewItem("客单价（元）"),
-// ];
-
 const funnelSummary = computed(() => {
-  const primary = mock.funnel[0];
-  const secondary = mock.funnel[mock.funnel.length - 1];
+  const primary = pageData.value.funnel[0];
+  const secondary = pageData.value.funnel[pageData.value.funnel.length - 1];
 
   return {
     primary: primary?.label || "访客",
@@ -350,31 +341,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="analysis-page">
-    <article class="analysis-card analysis-card--filter">
-      <header class="analysis-heading">
-        <span class="analysis-heading__accent"></span>
-        <h1>{{ pageData.title }}</h1>
-      </header>
-
-      <div class="filter-stack">
-        <div class="filter-row-grid">
-          <div class="filter-field" style="grid-column: span 12">
-            <span class="filter-field__label">{{ pageData.filterLabel }}</span>
-            <button class="filter-field__control filter-field__control--range" type="button" @click="trigger('日期筛选')">
-              <span class="filter-field__input">{{ pageData.rangeLabel.split(" ~ ")[0] }}</span>
-              <span class="filter-field__divider">~</span>
-              <span class="filter-field__input">{{ pageData.rangeLabel.split(" ~ ")[1] }}</span>
-              <svg class="filter-field__icon filter-field__icon--calendar" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
-              </svg>
-            </button>
-          </div>
+  <section class="trade-overview-page">
+    <article class="trade-hero">
+      <div class="trade-hero__main">
+        <div class="trade-hero__copy">
+          <h1>{{ pageData.title }}</h1>
+          <p class="trade-hero__description">
+            聚焦浏览、下单、支付与退款链路，用统一的运营看板视觉查看交易转化情况。
+          </p>
         </div>
 
         <button class="date-range date-range--hero" type="button" @click="trigger('日期筛选')">
-          <span class="date-range__label">{{ mock.filterLabel }}</span>
-          <strong>{{ mock.rangeLabel }}</strong>
+          <span class="date-range__label">{{ pageData.filterLabel }}</span>
+          <strong>{{ pageData.rangeLabel }}</strong>
           <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
             <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
           </svg>
@@ -396,19 +375,40 @@ onBeforeUnmount(() => {
         </article>
       </div>
 
-      <section class="overview-grid">
-        <div class="overview-panel">
-          <div v-for="(row, index) in pageData.overviewRows" :key="index" class="overview-row" :style="{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }">
-            <div v-for="item in row" :key="item.label" class="overview-item">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </div>
+      <div class="spotlight-grid">
+        <article
+          v-for="item in spotlightMetricItems"
+          :key="item.label"
+          class="spotlight-card"
+          :class="`spotlight-card--${item.tone}`"
+          :style="{ '--chart-glow': item.lineGlow }"
+        >
+          <div class="spotlight-card__copy">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <p>{{ item.note }}</p>
           </div>
 
-        <div class="funnel-panel">
-          <div v-for="item in pageData.funnel" :key="item.label" class="funnel-segment">
-            <div class="funnel-segment__shape" :style="{ width: item.width, background: item.color }">
-              {{ item.label }}
+          <div class="spotlight-card__chart">
+            <svg viewBox="0 0 150 44" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient :id="item.gradientId" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" :stop-color="item.lineColor" stop-opacity="0.26" />
+                  <stop offset="100%" :stop-color="item.lineColor" stop-opacity="0.03" />
+                </linearGradient>
+              </defs>
+              <polygon :points="item.areaPoints" :fill="`url(#${item.gradientId})`" />
+              <polyline
+                :points="item.points"
+                fill="none"
+                :stroke="item.lineColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <div class="spotlight-card__axis">
+              <span v-for="axisLabel in item.axisLabels" :key="axisLabel">{{ axisLabel }}</span>
             </div>
           </div>
         </article>
@@ -426,18 +426,19 @@ onBeforeUnmount(() => {
           <span>到 {{ funnelSummary.secondary }} 的交易层级转化</span>
         </div>
 
-      <section class="chart-section">
-        <div class="section-heading">
-          <div>
-            <h2>{{ pageData.lineChart.title }}</h2>
-            <p>（元）</p>
+        <div class="funnel-list">
+          <div v-for="item in pageData.funnel" :key="item.label" class="funnel-row">
+            <span class="funnel-row__label">{{ item.label }}</span>
+            <div class="funnel-row__track">
+              <div class="funnel-row__bar" :style="{ width: item.width, background: item.color }"></div>
+            </div>
           </div>
         </div>
       </article>
 
       <article class="panel chart-panel">
         <header class="panel-head">
-          <h2>{{ mock.lineChart.title }} <small>（元）</small></h2>
+          <h2>{{ pageData.lineChart.title }} <small>（元）</small></h2>
         </header>
         <div ref="lineRef" class="chart-box chart-box--line"></div>
         <div class="chart-legend">
@@ -446,13 +447,10 @@ onBeforeUnmount(() => {
         </div>
       </article>
 
-      <section class="chart-section">
-        <div class="section-heading">
-          <div>
-            <h2>{{ pageData.barChart.title }}</h2>
-            <p>（元）</p>
-          </div>
-        </div>
+      <article class="panel chart-panel">
+        <header class="panel-head">
+          <h2>{{ pageData.barChart.title }} <small>（元）</small></h2>
+        </header>
         <div ref="barRef" class="chart-box chart-box--bar"></div>
         <div class="chart-legend">
           <span class="chart-legend__dot"></span>
@@ -513,15 +511,6 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-}
-
-.trade-hero__eyebrow {
-  margin: 0 0 8px;
-  color: #4f8a7b;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 .trade-hero h1 {
