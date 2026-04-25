@@ -666,7 +666,7 @@ input {
 }
 
 .voice-btn.recording {
-u  color: #ffffff;
+  color: #ffffff;
 }
 
 .voice-btn.recording span {

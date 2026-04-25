@@ -9,7 +9,7 @@ export type UserFileCategory =
   | "CONTENT_COVER"
   | "ACTIVITY_BANNER";
 
-interface PresignedUploadResponse {
+export interface PresignedUploadResponse {
   uploadId: string;
   bucket: string;
   objectKey: string;
@@ -31,6 +31,11 @@ export interface UploadedFileAsset {
   createdAt: string;
 }
 
+export interface FileAssetInfo extends UploadedFileAsset {
+  bucket: string;
+  metadata: unknown;
+}
+
 export function createUserFilePresign(payload: {
   category: UserFileCategory;
   fileName: string;
@@ -43,6 +48,8 @@ export function createUserFilePresign(payload: {
     body: payload
   });
 }
+
+export const createFilePresign = createUserFilePresign;
 
 export function completeUserFileUpload(payload: {
   category: UserFileCategory;
@@ -59,6 +66,31 @@ export function completeUserFileUpload(payload: {
   });
 }
 
+export const completeFileUpload = completeUserFileUpload;
+
+export function getFileInfo(fileId: string) {
+  return request<FileAssetInfo>(`/app/files/${fileId}`, {
+    auth: true
+  });
+}
+
+export async function uploadFileByPresign(presign: PresignedUploadResponse, file: File) {
+  const headers = new Headers(presign.headers);
+  if (!headers.has("content-type")) {
+    headers.set("content-type", file.type || "application/octet-stream");
+  }
+
+  const uploadResponse = await fetch(presign.uploadUrl, {
+    method: presign.method,
+    headers,
+    body: file
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`文件上传失败 (${uploadResponse.status})`);
+  }
+}
+
 export async function uploadUserFile(input: {
   category: UserFileCategory;
   file: File;
@@ -71,20 +103,7 @@ export async function uploadUserFile(input: {
     size: input.file.size
   });
 
-  const headers = new Headers(presign.headers);
-  if (!headers.has("content-type")) {
-    headers.set("content-type", input.file.type || "application/octet-stream");
-  }
-
-  const uploadResponse = await fetch(presign.uploadUrl, {
-    method: presign.method,
-    headers,
-    body: input.file
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error(`文件上传失败 (${uploadResponse.status})`);
-  }
+  await uploadFileByPresign(presign, input.file);
 
   return completeUserFileUpload({
     category: input.category,
@@ -94,4 +113,12 @@ export async function uploadUserFile(input: {
     size: input.file.size,
     metadata: input.metadata
   });
+}
+
+export function uploadAppFile(
+  category: UserFileCategory,
+  file: File,
+  metadata?: Record<string, unknown>
+) {
+  return uploadUserFile({ category, file, metadata });
 }
