@@ -12,6 +12,7 @@ import {
   saveSelectedServiceContext,
 } from '@/shared/service/catalog'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 const detailData = ref<ServiceCatalogDetail | null>(null)

@@ -12,27 +12,29 @@ type LegacyOrderItem = (typeof mock.ordersByService)[ServiceKey][number]
 const activeService = ref<ServiceKey>('therapy')
 const activeTab = ref('all')
 
-const currentOrders = computed(() => mock.ordersByService[activeService.value])
+const currentOrders = computed(() =>
+  orders.value.filter((item) => getOrderServiceTypeKey(item.serviceCategory) === activeService.value)
+);
 const visibleOrders = computed(() => {
-  if (activeTab.value === 'all') {
-    return currentOrders.value
+  if (activeTab.value === "all") {
+    return currentOrders.value;
   }
 
-  if (activeTab.value === 'review') {
-    return currentOrders.value.filter((item) => item.status === 'done')
+  if (activeTab.value === "review") {
+    return currentOrders.value.filter((item) => item.status === "COMPLETED");
   }
 
-  return currentOrders.value.filter((item) => item.status === activeTab.value)
-})
+  return currentOrders.value.filter((item) => item.status === activeTab.value);
+});
 
 function selectService(key: string) {
-  activeService.value = key as ServiceKey
-  activeTab.value = 'all'
+  activeService.value = key as ServiceKey;
+  activeTab.value = "all";
 }
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('home/mine')
+    props.navigation.reLaunch("home/mine");
   }
 }
 
@@ -57,45 +59,54 @@ function handleAction(actionKey: string, order?: LegacyOrderItem) {
     return
   }
 
-  if (actionKey === 'record') {
-    props.navigation.navigateTo('service/service-track')
-    return
+  if (actionKey === "record") {
+    props.navigation.navigateTo("service/service-track");
+    return;
   }
 
-  if (actionKey === 'book') {
-    props.navigation.navigateTo('service/booking')
-    return
+  if (actionKey === "coupon") {
+    props.navigation.navigateTo("orders/checkup-voucher");
+    return;
   }
 
-  if (actionKey === 'coupon') {
-    props.navigation.navigateTo('orders/checkup-voucher')
-    return
+  if (actionKey === "checkup-report") {
+    props.navigation.navigateTo("orders/checkup-report");
+    return;
   }
 
-  if (actionKey === 'checkup-report') {
-    props.navigation.navigateTo('orders/checkup-report')
-    return
-  }
-
-  if (actionKey === 'again') {
-    const detailMap: Record<ServiceKey, string> = {
-      homeCare: 'service/home-care-detail',
-      therapy: 'service/rehab-therapy-detail',
-      exam: 'service/home-exam-detail',
+  if (actionKey === "cancel") {
+    try {
+      await cancelCurrentOrder("用户主动取消");
+      props.showToast("订单已取消");
+      await ensureOrdersLoaded(true);
+    } catch (error) {
+      props.showToast(error instanceof Error ? error.message : "取消订单失败");
     }
-
-    props.navigation.navigateTo(detailMap[activeService.value])
-    return
+    return;
   }
 
-  const labelMap: Record<string, string> = {
-    cancel: '取消订单',
-    report: '评估报告',
-    review: '评价',
-  }
-
-  props.showToast(`${labelMap[actionKey] || '该'}功能待接入`)
+  props.navigation.navigateTo("service/order-detail");
 }
+
+function getOrderActions(order: (typeof visibleOrders.value)[number]) {
+  if (order.status === "COMPLETED" && activeService.value === "exam") {
+    return [{ key: "checkup-report", label: "查看报告", type: "primary" as const }];
+  }
+
+  if (order.status === "COMPLETED") {
+    return [{ key: "record", label: "服务记录", type: "primary" as const }];
+  }
+
+  return [
+    { key: "cancel", label: "取消订单", type: "ghost" as const },
+    { key: "edit", label: "修改信息", type: "ghost" as const },
+    { key: "record", label: "订单详情", type: "primary" as const }
+  ];
+}
+
+onMounted(() => {
+  void ensureOrdersLoaded();
+});
 </script>
 
 <template>
@@ -135,24 +146,27 @@ function handleAction(actionKey: string, order?: LegacyOrderItem) {
     </nav>
 
     <main class="order-scroll">
-      <article v-for="order in visibleOrders" :key="order.id" class="order-card">
+      <p v-if="isOrdersLoading" class="empty-text">正在同步订单...</p>
+      <p v-else-if="ordersError" class="empty-text">{{ ordersError }}</p>
+
+      <article v-for="order in visibleOrders" :key="order.orderId" class="order-card">
         <div class="order-card-top">
-          <p v-if="'countdown' in order && order.countdown" class="countdown">剩余时间：{{ order.countdown }}</p>
-          <span v-else></span>
+          <p class="countdown">{{ getOrderCategoryLabel(order.serviceCategory) }}</p>
           <strong>{{ order.statusText }}</strong>
         </div>
 
         <section class="product-row">
-          <img class="product-image" :src="order.image" :alt="order.title" />
+          <img class="product-image" :src="resolveOrderAssetUrl(order.image)" :alt="order.title" />
           <div class="product-copy">
             <h2>{{ order.title }}</h2>
-            <p>¥{{ order.price }}</p>
+            <p>¥{{ order.actualAmount }}</p>
+            <small>{{ resolveOrderBookingText(order.orderId, order.bookingDate, order.bookingTimeSlot) }}</small>
           </div>
         </section>
 
         <footer class="action-row">
           <button
-            v-for="action in order.actions"
+            v-for="action in getOrderActions(order)"
             :key="action.key"
             class="action-button"
             :class="{ primary: action.type === 'primary' }"
@@ -164,7 +178,7 @@ function handleAction(actionKey: string, order?: LegacyOrderItem) {
         </footer>
       </article>
 
-      <p v-if="visibleOrders.length === 0" class="empty-text">当前没有相关订单</p>
+      <p v-if="!isOrdersLoading && !visibleOrders.length" class="empty-text">当前没有相关订单</p>
     </main>
   </section>
 </template>
@@ -184,7 +198,7 @@ function handleAction(actionKey: string, order?: LegacyOrderItem) {
   overflow: hidden;
   background: #f5f6f7;
   color: #252939;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 button {
@@ -247,7 +261,6 @@ button {
 .service-tab.active {
   background: #75d6df;
   color: #1f2a44;
-  box-shadow: 0 10px 20px rgba(117, 214, 223, 0.22);
 }
 
 .order-tabs {
@@ -273,7 +286,7 @@ button {
 }
 
 .order-tab.active::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 50%;
   bottom: 0;
@@ -337,15 +350,10 @@ button {
   display: block;
   border-radius: 12px;
   object-fit: cover;
-  box-shadow: 0 10px 18px rgba(41, 51, 70, 0.08);
-}
-
-.product-copy {
-  min-width: 0;
 }
 
 .product-copy h2 {
-  margin: 0 0 34px;
+  margin: 0 0 18px;
   color: #34383f;
   font-size: 17px;
   font-weight: 800;
@@ -357,6 +365,13 @@ button {
   color: #464a52;
   font-size: 16px;
   font-weight: 900;
+}
+
+.product-copy small {
+  display: block;
+  margin-top: 6px;
+  color: #8d929b;
+  font-size: 12px;
 }
 
 .action-row {
@@ -379,14 +394,12 @@ button {
   font-size: 13px;
   font-weight: 900;
   white-space: nowrap;
-  box-shadow: 0 6px 16px rgba(31, 40, 58, 0.035);
 }
 
 .action-button.primary {
   border-color: transparent;
   background: #75d6df;
   color: #1f2a44;
-  box-shadow: 0 10px 18px rgba(117, 214, 223, 0.22);
 }
 
 .empty-text {

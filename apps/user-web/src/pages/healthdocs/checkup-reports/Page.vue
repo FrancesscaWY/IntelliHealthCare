@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { reports, removeReport, selectReport } = useReportCenter();
+const { reports, removeReport, selectReport, ensureReportsLoaded, isReportsLoading, reportsError } =
+  useReportCenter();
 const pendingDeleteId = ref("");
+const isDeleting = ref(false);
+
+onMounted(() => {
+  void ensureReportsLoaded();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -22,14 +28,22 @@ function cancelDelete() {
   pendingDeleteId.value = "";
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!pendingDeleteId.value) {
     return;
   }
 
-  removeReport(pendingDeleteId.value);
-  pendingDeleteId.value = "";
-  props.showToast("已删除报告");
+  isDeleting.value = true;
+
+  try {
+    await removeReport(pendingDeleteId.value);
+    pendingDeleteId.value = "";
+    props.showToast("已删除报告");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "删除失败");
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function interpretReport(reportId: string) {
@@ -57,6 +71,9 @@ function uploadReport() {
     </header>
 
     <main class="page-scroll">
+      <p v-if="isReportsLoading" class="status-text">正在同步报告列表...</p>
+      <p v-else-if="reportsError" class="status-text status-text--error">{{ reportsError }}</p>
+
       <article v-for="item in reports" :key="item.id" class="report-card">
         <header class="card-head">
           <span class="report-icon" aria-hidden="true">
@@ -74,6 +91,7 @@ function uploadReport() {
         </header>
 
         <section class="card-info">
+          <p><span>状态：</span>{{ item.statusText }}</p>
           <p><span>报告来源：</span>{{ item.source }}</p>
           <p><span>报告时间：</span>{{ item.reportTime }}</p>
           <p><span>上传时间：</span>{{ item.uploadTime }}</p>
@@ -105,7 +123,9 @@ function uploadReport() {
         <p>确定删除这条体检报告吗？</p>
         <div class="dialog-actions">
           <button class="dialog-btn dialog-btn--ghost" type="button" @click="cancelDelete">取消</button>
-          <button class="dialog-btn dialog-btn--primary" type="button" @click="confirmDelete">确定删除</button>
+          <button class="dialog-btn dialog-btn--primary" type="button" :disabled="isDeleting" @click="confirmDelete">
+            {{ isDeleting ? "删除中..." : "确认删除" }}
+          </button>
         </div>
       </section>
     </div>
@@ -179,6 +199,17 @@ function uploadReport() {
 
 .page-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.status-text {
+  margin: 0 0 12px;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-text--error {
+  color: #d56c6c;
 }
 
 .report-card {
@@ -365,6 +396,10 @@ function uploadReport() {
 .dialog-btn--primary {
   background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
   color: #ffffff;
+}
+
+.dialog-btn:disabled {
+  opacity: 0.7;
 }
 
 @media (min-width: 561px) {

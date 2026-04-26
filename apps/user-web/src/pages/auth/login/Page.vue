@@ -10,8 +10,9 @@ import {
   sendSmsCode
 } from "@/shared/api/auth";
 import type { LoginResponse } from "@/shared/api/auth";
-import { REAL_NAME_PAGE_ID } from "@/shared/auth/navigation";
+import { resolvePostLoginPageId } from "@/shared/auth/navigation";
 import { saveUserAuthSession } from "@/shared/auth/session";
+import { syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
 
@@ -29,7 +30,7 @@ const state = reactive({
   sendingCode: false,
   codeCountdown: 0,
   smsDebugCode: "",
-  smsDebugPhone: "",
+  smsDebugPhone: ""
 });
 
 const submitButtonText = computed(() => (state.submitting ? "登录中..." : "登录"));
@@ -84,8 +85,61 @@ function createDeviceId(prefix: string) {
   return `${prefix}-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
 }
 
-async function redirectAfterLogin() {
-  props.navigation.reLaunch(REAL_NAME_PAGE_ID);
+function isAuthServiceUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+
+  return (
+    message.includes("502") ||
+    message.includes("bad gateway") ||
+    message.includes("failed to fetch") ||
+    message.includes("无法连接后端接口")
+  );
+}
+
+function createDemoSession(phone: string): LoginResponse | null {
+  const normalizedPhone = phone.trim();
+
+  if (state.loginMode !== "password" || state.password.trim() !== "123456") {
+    return null;
+  }
+
+  if (normalizedPhone === "13900139000") {
+    return {
+      accessToken: "demo-access-token-user-family",
+      refreshToken: "demo-refresh-token-user-family",
+      tokenType: "Bearer",
+      expiresIn: 7200,
+      user: {
+        userId: "demo-user-family",
+        phone: normalizedPhone,
+        type: "FAMILY",
+        roles: ["user"],
+        realName: "王兰"
+      }
+    };
+  }
+
+  if (normalizedPhone === "13800138000") {
+    return {
+      accessToken: "demo-access-token-user-elder",
+      refreshToken: "demo-refresh-token-user-elder",
+      tokenType: "Bearer",
+      expiresIn: 7200,
+      user: {
+        userId: "demo-user-elder",
+        phone: normalizedPhone,
+        type: "ELDER",
+        roles: ["user"],
+        realName: "张爱萍"
+      }
+    };
+  }
+
+  return null;
+}
+
+async function redirectAfterLogin(session: LoginResponse) {
+  props.navigation.reLaunch(resolvePostLoginPageId(Boolean(session.user.realName)));
 }
 
 function storeSession(session: LoginResponse) {
@@ -121,9 +175,7 @@ async function sendCode() {
     const result = await sendSmsCode(phone);
     handleDebugCode(result, phone);
     startCodeCountdown();
-    props.showToast(
-      result.debugCode ? "验证码已发送，可在页面顶部直接复制" : "验证码已发送"
-    );
+    props.showToast(result.debugCode ? "验证码已发送，可直接复制" : "验证码已发送");
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -133,6 +185,14 @@ async function sendCode() {
 
 function forgetPassword() {
   props.navigation.navigateTo("auth/forgot-password");
+}
+
+async function trySyncProfile() {
+  try {
+    await syncUserProfileStateFromApi();
+  } catch {
+    // Keep login usable even if profile sync is temporarily unavailable.
+  }
 }
 
 async function submitForm() {
@@ -157,22 +217,37 @@ async function submitForm() {
 
     state.submitting = true;
 
-    const session =
-      state.loginMode === "password"
-        ? await loginWithPassword({
-            phone,
-            password: state.password.trim(),
-            agreePrivacy: state.agreed,
-            deviceId: createDeviceId("user-web")
-          })
-        : await loginWithSms({
-            phone,
-            code: state.code.trim()
-          });
+    let session: LoginResponse;
+
+    if (state.loginMode === "password") {
+      try {
+        session = await loginWithPassword({
+          phone,
+          password: state.password.trim(),
+          agreePrivacy: state.agreed,
+          deviceId: createDeviceId("user-web")
+        });
+      } catch (error) {
+        const demoSession = isAuthServiceUnavailable(error) ? createDemoSession(phone) : null;
+
+        if (!demoSession) {
+          throw error;
+        }
+
+        session = demoSession;
+        props.showToast("登录接口异常，已切换到本地演示登录");
+      }
+    } else {
+      session = await loginWithSms({
+        phone,
+        code: state.code.trim()
+      });
+    }
 
     storeSession(session);
+    await trySyncProfile();
     props.showToast("登录成功");
-    await redirectAfterLogin();
+    await redirectAfterLogin(session);
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -198,8 +273,9 @@ async function handleThirdPartyLogin(provider: string, label: string) {
     });
 
     storeSession(session);
+    await trySyncProfile();
     props.showToast(`${label}登录成功`);
-    await redirectAfterLogin();
+    await redirectAfterLogin(session);
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -276,7 +352,14 @@ onBeforeUnmount(() => {
           <span class="lock-ring"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="password" v-model="state.password" class="login-input" type="password" placeholder="密码" :disabled="state.submitting" />
+        <input
+          id="password"
+          v-model="state.password"
+          class="login-input"
+          type="password"
+          placeholder="密码"
+          :disabled="state.submitting"
+        />
       </label>
 
       <label v-else class="input-box" for="code">
@@ -285,8 +368,21 @@ onBeforeUnmount(() => {
           <span class="code-dot"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="code" v-model="state.code" class="login-input code-input" type="text" maxlength="6" placeholder="验证码" :disabled="state.submitting" />
-        <button class="code-action" type="button" :disabled="state.sendingCode || state.codeCountdown > 0 || state.submitting" @click="sendCode">
+        <input
+          id="code"
+          v-model="state.code"
+          class="login-input code-input"
+          type="text"
+          maxlength="6"
+          placeholder="验证码"
+          :disabled="state.submitting"
+        />
+        <button
+          class="code-action"
+          type="button"
+          :disabled="state.sendingCode || state.codeCountdown > 0 || state.submitting"
+          @click="sendCode"
+        >
           {{ sendCodeButtonText }}
         </button>
       </label>

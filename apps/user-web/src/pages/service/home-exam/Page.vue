@@ -6,6 +6,7 @@ import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
 import { getHomeExamServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
 import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 

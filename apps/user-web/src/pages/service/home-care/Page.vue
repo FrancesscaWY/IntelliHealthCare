@@ -300,6 +300,20 @@ const goDetail = (item: DisplayCareItem) => {
 }
 
 onMounted(() => {
+  setOrderFlowService({
+    type: 'homeCare',
+    serviceId: 'srv_home_clean_2h',
+    title: '日常清洁 2小时1人上门服务',
+    price: 298,
+    image: mock.discountList[0]?.image || mock.recommendList[0]?.image || '',
+    detailPageId: 'service/home-care-detail',
+    listPageId: 'service/home-care',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   startCountdown()
   void loadHomeCareServices()
 

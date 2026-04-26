@@ -1,8 +1,69 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getDiseaseDetail } from "@/shared/api/content";
 import mock from "./mock";
+import { selectedDiseaseId } from "../disease-guide/state";
 
 const props = defineProps<PageComponentProps>();
+
+const diseaseName = ref(mock.diseaseName);
+const summary = ref(mock.summary);
+const tags = ref([...mock.tags]);
+const quickFacts = ref([...mock.quickFacts]);
+const sections = ref([...mock.sections]);
+const departmentName = ref("");
+const publishText = ref("");
+
+const heroEyebrow = computed(() => departmentName.value || "疾病百科");
+
+function formatDate(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日更新`;
+}
+
+function applyFallbackData() {
+  diseaseName.value = mock.diseaseName;
+  summary.value = mock.summary;
+  tags.value = [...mock.tags];
+  quickFacts.value = [...mock.quickFacts];
+  sections.value = [...mock.sections];
+  departmentName.value = mock.tags[0] || "";
+  publishText.value = "";
+}
+
+async function loadDiseaseDetail() {
+  const diseaseId = selectedDiseaseId.value.trim();
+
+  if (!diseaseId) {
+    applyFallbackData();
+    return;
+  }
+
+  try {
+    const detail = await getDiseaseDetail(diseaseId);
+
+    diseaseName.value = detail.diseaseName || detail.title || mock.diseaseName;
+    summary.value = detail.summary || mock.summary;
+    tags.value = detail.tags?.length ? [...detail.tags] : [...mock.tags];
+    quickFacts.value = detail.quickFacts?.length ? [...detail.quickFacts] : [...mock.quickFacts];
+    sections.value = detail.sections?.length ? [...detail.sections] : [...mock.sections];
+    departmentName.value = detail.department?.name || "";
+    publishText.value = formatDate(detail.publishedAt);
+  } catch {
+    applyFallbackData();
+    props.showToast("疾病详情加载失败，已显示本地示例");
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -10,9 +71,14 @@ function goBack() {
   }
 }
 
-function showPending(label: string) {
-  props.showToast(`${label}功能待接入`);
+function showUnavailableAction(label: string) {
+  props.showToast(`${label}接口暂未提供`);
 }
+
+onMounted(() => {
+  applyFallbackData();
+  void loadDiseaseDetail();
+});
 </script>
 
 <template>
@@ -23,12 +89,12 @@ function showPending(label: string) {
       </button>
       <h1>{{ mock.navTitle }}</h1>
       <div class="detail-actions">
-        <button type="button" aria-label="收藏" @click="showPending('收藏')">
+        <button type="button" aria-label="收藏" @click="showUnavailableAction('收藏')">
           <svg class="detail-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
           </svg>
         </button>
-        <button type="button" aria-label="分享" @click="showPending('分享')">
+        <button type="button" aria-label="分享" @click="showUnavailableAction('分享')">
           <svg class="detail-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M7 17 17 7" />
             <path d="M9 7h8v8" />
@@ -41,9 +107,10 @@ function showPending(label: string) {
     <main class="detail-scroll">
       <section class="disease-hero">
         <div>
-          <span class="hero-eyebrow">疾病百科</span>
-          <h2>{{ mock.diseaseName }}</h2>
-          <p>{{ mock.summary }}</p>
+          <span class="hero-eyebrow">{{ heroEyebrow }}</span>
+          <h2>{{ diseaseName }}</h2>
+          <p>{{ summary }}</p>
+          <small v-if="publishText" class="publish-text">{{ publishText }}</small>
         </div>
         <span class="hero-mark" aria-hidden="true">
           <span></span>
@@ -51,18 +118,18 @@ function showPending(label: string) {
       </section>
 
       <div class="tag-row" aria-label="疾病标签">
-        <span v-for="tag in mock.tags" :key="tag">{{ tag }}</span>
+        <span v-for="tag in tags" :key="tag">{{ tag }}</span>
       </div>
 
       <section class="quick-card" aria-label="疾病概览">
-        <div v-for="item in mock.quickFacts" :key="item.label">
+        <div v-for="item in quickFacts" :key="item.label">
           <span>{{ item.label }}</span>
           <strong>{{ item.value }}</strong>
         </div>
       </section>
 
       <article class="detail-content">
-        <section v-for="section in mock.sections" :key="section.title" class="detail-section">
+        <section v-for="section in sections" :key="section.title" class="detail-section">
           <h3>
             <span aria-hidden="true"></span>
             {{ section.title }}
@@ -228,6 +295,13 @@ function showPending(label: string) {
   line-height: 1.65;
 }
 
+.publish-text {
+  display: block;
+  margin-top: 12px;
+  color: #8e97a5;
+  font-size: 12px;
+}
+
 .hero-mark {
   position: relative;
   z-index: 1;
@@ -270,6 +344,7 @@ function showPending(label: string) {
 
 .tag-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 16px;
 }

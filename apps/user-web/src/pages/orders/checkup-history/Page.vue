@@ -1,8 +1,26 @@
 <script setup lang="ts">
+import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
+import { useReportCenter } from "@/pages/healthdocs/report-center";
 
 const props = defineProps<PageComponentProps>();
+const { reports, selectReport, ensureReportsLoaded, isReportsLoading, reportsError } = useReportCenter();
+
+const historyReports = computed(() =>
+  reports.value.map((item) => ({
+    id: item.id,
+    name: item.reportName || item.title,
+    center: item.hospital || item.source,
+    date: item.reportTime || item.uploadTime,
+    status: item.statusText,
+    summary: item.conclusion || "可查看报告详情和后续解读。"
+  }))
+);
+
+onMounted(() => {
+  void ensureReportsLoaded();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -10,7 +28,8 @@ function goBack() {
   }
 }
 
-function viewReport() {
+function viewReport(reportId: string) {
+  selectReport(reportId);
   props.navigation.navigateTo("orders/checkup-report");
 }
 
@@ -29,7 +48,10 @@ function viewAiEvaluation() {
     </header>
 
     <main class="history-scroll">
-      <article v-for="item in mock.reports" :key="item.id" class="history-card">
+      <p v-if="isReportsLoading" class="status-text">正在同步历史报告...</p>
+      <p v-else-if="reportsError" class="status-text status-text--error">{{ reportsError }}</p>
+
+      <article v-for="item in historyReports" :key="item.id" class="history-card">
         <header>
           <div>
             <h2>{{ item.name }}</h2>
@@ -39,10 +61,12 @@ function viewAiEvaluation() {
         </header>
         <p class="summary">{{ item.summary }}</p>
         <div class="history-actions">
-          <button type="button" @click="viewReport">查看报告</button>
+          <button type="button" @click="viewReport(item.id)">查看报告</button>
           <button type="button" @click="viewAiEvaluation">AI评估</button>
         </div>
       </article>
+
+      <p v-if="!isReportsLoading && !historyReports.length" class="empty-text">暂无历史报告</p>
     </main>
   </section>
 </template>
@@ -106,6 +130,18 @@ function viewAiEvaluation() {
 
 .history-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.status-text,
+.empty-text {
+  margin: 0 0 14px;
+  color: rgba(48, 52, 63, 0.58);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.status-text--error {
+  color: #d56c6c;
 }
 
 .history-card {

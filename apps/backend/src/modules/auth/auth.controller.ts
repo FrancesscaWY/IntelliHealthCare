@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Put,
   Post,
   UseGuards
 } from "@nestjs/common";
@@ -152,6 +153,78 @@ class RefreshTokenDto {
   refreshToken!: string;
 }
 
+class UpdateAdminProfileDto {
+  @ApiPropertyOptional({
+    description: "后台账号姓名。",
+    example: "李明明"
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: "后台账号手机号。",
+    example: "17615904456"
+  })
+  @IsOptional()
+  @Matches(/^1\d{10}$/)
+  phone?: string;
+
+  @ApiPropertyOptional({
+    description: "后台账号备注。",
+    example: "负责订单派单与履约协同。"
+  })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class UpdateAdminPasswordDto {
+  @ApiProperty({
+    description: "旧密码。",
+    example: "123456"
+  })
+  @IsString()
+  @MinLength(6)
+  oldPassword!: string;
+
+  @ApiProperty({
+    description: "新密码，至少 6 位。",
+    example: "654321"
+  })
+  @IsString()
+  @MinLength(6)
+  newPassword!: string;
+
+  @ApiPropertyOptional({
+    description: "确认新密码，可选。若传入则必须与 newPassword 一致。",
+    example: "654321"
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  confirmPassword?: string;
+}
+
+class UpdateAdminAvatarDto {
+  @ApiPropertyOptional({
+    description: "已上传完成的文件 ID。优先从后台文件上传接口获取。",
+    example: "file_admin_avatar_001"
+  })
+  @IsOptional()
+  @IsString()
+  fileId?: string;
+
+  @ApiPropertyOptional({
+    description: "头像 URL。已知 URL 时可直接写入。",
+    example: "https://cdn.intellihealthcare.demo/admin/avatar.jpg"
+  })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+}
+
 @Controller("app/auth")
 @ApiTags(SwaggerTags.AppAuth)
 export class AppAuthController {
@@ -269,6 +342,59 @@ export class AdminAuthController {
   })
   me(@CurrentUser() user: AuthenticatedUser) {
     return user;
+  }
+
+  @Get("profile")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "获取后台个人资料",
+    description: "后台个人资料页与账号设置页初始化接口。"
+  })
+  getProfile(@CurrentUser("id") userId: string) {
+    return this.authService.getAdminProfile(userId);
+  }
+
+  @Put("profile")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "更新后台个人资料",
+    description: "后台账号设置页保存个人资料时调用。"
+  })
+  updateProfile(
+    @CurrentUser("id") userId: string,
+    @Body() body: UpdateAdminProfileDto
+  ) {
+    return this.authService.updateAdminProfile(userId, body);
+  }
+
+  @Put("password")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "修改后台登录密码",
+    description: "后台重置密码页提交接口。"
+  })
+  updatePassword(
+    @CurrentUser("id") userId: string,
+    @Body() body: UpdateAdminPasswordDto
+  ) {
+    return this.authService.updateAdminPassword(userId, body);
+  }
+
+  @Put("avatar")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "更新后台头像",
+    description: "后台头像上传完成后写入账号资料时调用。"
+  })
+  updateAvatar(
+    @CurrentUser("id") userId: string,
+    @Body() body: UpdateAdminAvatarDto
+  ) {
+    return this.authService.updateAdminAvatar(userId, body);
   }
 }
 

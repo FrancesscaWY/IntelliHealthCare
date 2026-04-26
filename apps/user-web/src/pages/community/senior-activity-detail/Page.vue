@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { currentUserCommentProfile } from "../../content/comment-mock";
+import { getCurrentUserCommentProfile } from "../../content/comment-mock";
 import { getSeniorActivityById } from "../senior-activities/activities";
 import { selectedSeniorActivityId } from "../senior-activities/state";
 
@@ -114,6 +114,7 @@ function deleteComment(commentId: string) {
 
 function submitComment() {
   const content = commentDraft.value.trim();
+  const currentUserCommentProfile = getCurrentUserCommentProfile();
 
   if (!content) {
     props.showToast("请输入评论内容");

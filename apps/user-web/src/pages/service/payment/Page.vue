@@ -140,6 +140,7 @@ const paymentMethods = computed<PaymentMethodView[]>(() => {
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("service/order-confirm");
+    props.navigation.reLaunch("service/order-confirm");
   }
 };
 
@@ -309,6 +310,7 @@ onMounted(() => {
   background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -375,6 +377,7 @@ onMounted(() => {
 .amount-block strong {
   display: block;
   margin-top: 18px;
+  color: #006dff;
   color: #006dff;
   font-size: 38px;
   line-height: 1;

@@ -19,10 +19,16 @@ export const SwaggerTags = {
   AppContent: "用户端 / 健康内容",
   AppCommunity: "用户端 / 社区与活动",
   AppAi: "用户端 / AI 助手",
-  AdminAuth: "后台端 / 后台认证",
-  AdminWorkbench: "后台端 / 后台工作台",
-  AdminOrders: "后台端 / 后台订单调度",
+  AdminAuth: "后台端 / 后台认证与账号",
+  AdminAnalytics: "后台端 / 后台运营分析",
+  AdminElders: "后台端 / 后台长者档案",
   AdminReports: "后台端 / 后台报告审核",
+  AdminOrders: "后台端 / 后台订单履约",
+  AdminAfterSales: "后台端 / 后台售后与评价",
+  AdminCatalogStaff: "后台端 / 后台商品与服务人员",
+  AdminSystem: "后台端 / 后台机构与权限",
+  AdminMessaging: "后台端 / 后台消息与会话",
+  AdminFiles: "后台端 / 后台文件上传",
   InternalAgents: "内部治理层 / 智能体与 RAG"
 } as const;
 
@@ -109,19 +115,43 @@ export const SwaggerTagDefinitions = [
   },
   {
     name: SwaggerTags.AdminAuth,
-    description: "后台登录、后台 token 刷新与当前后台用户信息。"
+    description: "后台登录、后台 token、当前账号、个人资料、改密与头像设置。"
   },
   {
-    name: SwaggerTags.AdminWorkbench,
-    description: "后台工作台概览、长者详情与工单列表。"
+    name: SwaggerTags.AdminAnalytics,
+    description: "后台运营看板、用户构成、交易转化、商品分析和履约分析。"
+  },
+  {
+    name: SwaggerTags.AdminElders,
+    description: "后台长者列表、建档、标签维护、详情总览及分 tab 子资源。"
   },
   {
     name: SwaggerTags.AdminOrders,
-    description: "后台订单查询、派单与工单状态流转。"
+    description: "后台总览、预约看板、订单履约、工单详情、改价、关单与派单。"
+  },
+  {
+    name: SwaggerTags.AdminAfterSales,
+    description: "后台售后审核、退款流转、评价管理、显示隐藏、置顶与删除。"
+  },
+  {
+    name: SwaggerTags.AdminCatalogStaff,
+    description: "后台商品管理、服务人员管理与服务人员入驻审核。"
+  },
+  {
+    name: SwaggerTags.AdminSystem,
+    description: "后台机构管理、后台账号、角色定义、启停与批量状态变更。"
+  },
+  {
+    name: SwaggerTags.AdminMessaging,
+    description: "后台群发消息、客户会话、消息明细、发送消息与结束会话。"
+  },
+  {
+    name: SwaggerTags.AdminFiles,
+    description: "后台头像、证件、机构图、商品图等统一文件上传支撑。"
   },
   {
     name: SwaggerTags.AdminReports,
-    description: "后台报告列表与审核。"
+    description: "后台报告列表、详情、上传、删除、审核与下载元数据。"
   },
   {
     name: SwaggerTags.InternalAgents,

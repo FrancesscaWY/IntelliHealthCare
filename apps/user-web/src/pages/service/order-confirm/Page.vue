@@ -201,6 +201,7 @@ const bookingPhoneText = computed(
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("service/booking");
+    props.navigation.reLaunch("service/booking");
   }
 };
 
@@ -420,6 +421,7 @@ onMounted(() => {
   background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -494,6 +496,7 @@ onMounted(() => {
 
 .product-info span {
   color: #006dff;
+  color: #006dff;
   font-size: 17px;
   font-weight: 700;
 }
@@ -516,6 +519,7 @@ onMounted(() => {
 
 .price-row strong {
   color: #006dff;
+  color: #006dff;
   font-size: 18px;
 }
 
@@ -529,11 +533,8 @@ onMounted(() => {
   background: #ededee;
 }
 
-.subtotal {
-  color: #a0a3aa;
-}
-
 .subtotal strong {
+  color: #006dff;
   color: #006dff;
   font-size: 24px;
 }
@@ -616,6 +617,7 @@ dd {
 }
 
 .total strong {
+  color: #006dff;
   color: #006dff;
   font-size: 32px;
   line-height: 1;

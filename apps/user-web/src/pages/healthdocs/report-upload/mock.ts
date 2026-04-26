@@ -3,9 +3,9 @@ const mock = {
   placeholders: {
     title: "请填写",
     date: "请选择",
-    file: "请上传",
+    file: "请上传"
   },
-  saveText: "保存",
+  saveText: "保存"
 };
 
 export default mock;
