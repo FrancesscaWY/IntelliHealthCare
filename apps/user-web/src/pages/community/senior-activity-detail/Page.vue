@@ -1,43 +1,118 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { getCurrentUserCommentProfile } from "../../content/comment-mock";
-import { getSeniorActivityById } from "../senior-activities/activities";
+import {
+  cancelCommunityActivity,
+  createCommunityActivityComment,
+  favoriteCommunityActivity,
+  getCommunityActivityComments,
+  getCommunityActivityDetail,
+  likeCommunityActivity,
+  registerCommunityActivity,
+  shareCommunityActivity,
+  type CommunityActivityDetail,
+  type CommunityCommentItem
+} from "@/shared/api/community";
 import { selectedSeniorActivityId } from "../senior-activities/state";
 
 const props = defineProps<PageComponentProps>();
 
-const activity = getSeniorActivityById(selectedSeniorActivityId.value);
+const activity = ref<CommunityActivityDetail | null>(null);
+const comments = ref<CommunityCommentItem[]>([]);
 const commentsSectionRef = ref<HTMLElement | null>(null);
 const commentInputRef = ref<HTMLInputElement | null>(null);
-
-const liked = ref(false);
-const starred = ref(false);
 const showComposer = ref(false);
 const showEmojiPanel = ref(false);
 const replyTarget = ref<string>("");
-const likeCount = ref(activity.stats.likes);
-const starCount = ref(activity.stats.stars);
-const commentCount = ref(activity.stats.comments);
+const replyParentId = ref<string>("");
 const commentDraft = ref("");
-const comments = ref([...activity.comments]);
+const loading = ref(false);
+const submittingComment = ref(false);
+const submittingRegister = ref(false);
 
-const emojiOptions = ["😀", "😊", "👏", "👍", "🌸", "🎉", "❤️", "📷", "🌊", "☀️", "🥰", "🙌"];
+const emojiOptions = ["😀", "😊", "👍", "👏", "🎉", "📷", "❤️", "🌸", "✨", "☀️", "🥳", "🙌"];
+
+const likeCount = computed(() => activity.value?.stats?.likes ?? activity.value?.likesCount ?? 0);
+const starCount = computed(() => activity.value?.stats?.stars ?? activity.value?.favoritesCount ?? 0);
+const commentCount = computed(() => comments.value.length);
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function resolveTypeKey(category: string) {
+  return category.includes("户外") ? "outdoor" : "culture";
+}
+
+function resolveStatusKey(status: string) {
+  return status === "ONGOING" ? "ongoing" : "upcoming";
+}
+
+function resolveStatusText(status: string) {
+  if (status === "ONGOING") {
+    return "进行中";
+  }
+
+  if (status === "ENDED") {
+    return "已结束";
+  }
+
+  if (status === "CANCELLED") {
+    return "已取消";
+  }
+
+  return "未开始";
+}
+
+function formatDateText(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.getFullYear()}.${`${date.getMonth() + 1}`.padStart(2, "0")}.${`${date.getDate()}`.padStart(2, "0")}`;
+}
+
+function formatCommentTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${`${date.getHours()}`.padStart(2, "0")}:${`${date.getMinutes()}`.padStart(2, "0")}`;
+}
+
+async function loadDetail() {
+  if (!selectedSeniorActivityId.value) {
+    props.showToast("未找到活动");
+    return;
+  }
+
+  loading.value = true;
+
+  try {
+    const [detail, commentResponse] = await Promise.all([
+      getCommunityActivityDetail(selectedSeniorActivityId.value),
+      getCommunityActivityComments(selectedSeniorActivityId.value, { page: 1, pageSize: 50 })
+    ]);
+
+    activity.value = detail;
+    comments.value = commentResponse.list;
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("community/senior-activities");
   }
-}
-
-function toggleLike() {
-  liked.value = !liked.value;
-  likeCount.value += liked.value ? 1 : -1;
-}
-
-function toggleStar() {
-  starred.value = !starred.value;
-  starCount.value += starred.value ? 1 : -1;
 }
 
 function scrollToComments() {
@@ -49,6 +124,7 @@ async function focusCommentInput() {
   await nextTick();
   showComposer.value = true;
   replyTarget.value = "";
+  replyParentId.value = "";
   commentInputRef.value?.focus();
 }
 
@@ -56,14 +132,16 @@ function openComposer() {
   showComposer.value = true;
   showEmojiPanel.value = false;
   replyTarget.value = "";
+  replyParentId.value = "";
   void nextTick(() => {
     commentInputRef.value?.focus();
   });
 }
 
-async function replyToComment(author: string) {
+async function replyToComment(comment: CommunityCommentItem) {
   scrollToComments();
-  replyTarget.value = author;
+  replyTarget.value = comment.author || comment.user?.name || "";
+  replyParentId.value = comment.commentId;
   showComposer.value = true;
   showEmojiPanel.value = false;
   await nextTick();
@@ -74,6 +152,7 @@ function closeComposer() {
   showComposer.value = false;
   showEmojiPanel.value = false;
   replyTarget.value = "";
+  replyParentId.value = "";
 }
 
 function toggleEmojiPanel() {
@@ -89,59 +168,143 @@ function appendEmoji(emoji: string) {
   commentDraft.value += emoji;
 }
 
-function toggleCommentLike(commentId: string) {
-  const target = comments.value.find((item) => item.id === commentId);
-
-  if (!target) {
+async function handleLike() {
+  if (!activity.value) {
     return;
   }
 
-  target.liked = !target.liked;
-  target.likes += target.liked ? 1 : -1;
+  const previousLiked = Boolean(activity.value.liked);
+  const previousCount = likeCount.value;
+  const nextLiked = !previousLiked;
+  activity.value = {
+    ...activity.value,
+    liked: nextLiked,
+    stats: {
+      ...activity.value.stats,
+      likes: Math.max(0, previousCount + (nextLiked ? 1 : -1))
+    }
+  };
+
+  try {
+    if (!previousLiked) {
+      await likeCommunityActivity(activity.value.activityId);
+    }
+  } catch (error) {
+    activity.value = {
+      ...activity.value,
+      liked: previousLiked,
+      stats: {
+        ...activity.value.stats,
+        likes: previousCount
+      }
+    };
+    props.showToast(getErrorMessage(error));
+  }
 }
 
-function deleteComment(commentId: string) {
-  const index = comments.value.findIndex((item) => item.id === commentId && item.isMine);
-
-  if (index < 0) {
+async function handleFavorite() {
+  if (!activity.value) {
     return;
   }
 
-  comments.value.splice(index, 1);
-  commentCount.value = Math.max(0, commentCount.value - 1);
-  props.showToast("评论已删除");
+  const previousFavorited = Boolean(activity.value.favorited);
+  const previousCount = starCount.value;
+  const nextFavorited = !previousFavorited;
+  activity.value = {
+    ...activity.value,
+    favorited: nextFavorited,
+    stats: {
+      ...activity.value.stats,
+      stars: Math.max(0, previousCount + (nextFavorited ? 1 : -1))
+    }
+  };
+
+  try {
+    if (!previousFavorited) {
+      await favoriteCommunityActivity(activity.value.activityId);
+    }
+  } catch (error) {
+    activity.value = {
+      ...activity.value,
+      favorited: previousFavorited,
+      stats: {
+        ...activity.value.stats,
+        stars: previousCount
+      }
+    };
+    props.showToast(getErrorMessage(error));
+  }
 }
 
-function submitComment() {
-  const content = commentDraft.value.trim();
-  const currentUserCommentProfile = getCurrentUserCommentProfile();
+async function handleShare() {
+  if (!activity.value) {
+    return;
+  }
 
-  if (!content) {
+  try {
+    await shareCommunityActivity(activity.value.activityId);
+    props.showToast("已记录分享");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function submitComment() {
+  if (!activity.value || !commentDraft.value.trim()) {
     props.showToast("请输入评论内容");
     return;
   }
 
-  comments.value.unshift({
-    id: `comment-${Date.now()}`,
-    author: currentUserCommentProfile.author,
-    avatarUrl: currentUserCommentProfile.avatarUrl,
-    time: "刚刚",
-    city: currentUserCommentProfile.city,
-    content,
-    replyTo: replyTarget.value || undefined,
-    likes: 0,
-    liked: false,
-    isMine: true,
-  });
-  commentDraft.value = "";
-  commentCount.value += 1;
-  closeComposer();
-  props.showToast("评论已发布");
+  submittingComment.value = true;
+
+  try {
+    await createCommunityActivityComment(activity.value.activityId, {
+      parentId: replyParentId.value || undefined,
+      content: commentDraft.value.trim()
+    });
+
+    commentDraft.value = "";
+    closeComposer();
+    await loadDetail();
+    props.showToast("评论已发布");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    submittingComment.value = false;
+  }
 }
 
-function registerActivity() {
-  props.showToast("报名成功，已为您保留名额");
+async function toggleRegister() {
+  if (!activity.value) {
+    return;
+  }
+
+  submittingRegister.value = true;
+
+  try {
+    if (activity.value.registered) {
+      await cancelCommunityActivity(activity.value.activityId, {
+        reason: "用户主动取消报名"
+      });
+      props.showToast("已取消报名");
+    } else {
+      await registerCommunityActivity(activity.value.activityId, {
+        remark: "用户端报名"
+      });
+      props.showToast("报名成功");
+    }
+
+    await loadDetail();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    submittingRegister.value = false;
+  }
 }
+
+onMounted(() => {
+  void loadDetail();
+});
 </script>
 
 <template>
@@ -152,7 +315,7 @@ function registerActivity() {
           <span class="back-arrow" aria-hidden="true"></span>
         </button>
         <h1>活动详情</h1>
-        <button class="nav-btn" type="button" aria-label="分享" @click="props.showToast('分享功能待接入')">
+        <button class="nav-btn" type="button" aria-label="分享" @click="handleShare">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M14 3h7v7" />
             <path d="M10 14 21 3" />
@@ -161,97 +324,99 @@ function registerActivity() {
         </button>
       </header>
 
-      <section class="summary-card">
-        <div class="summary-cover-wrap">
-          <img class="summary-cover" :src="activity.image" :alt="activity.title" draggable="false" />
-          <span class="status-badge" :class="`status-badge--${activity.statusKey}`">{{ activity.status }}</span>
-        </div>
+      <p v-if="loading" class="state-text">活动加载中...</p>
 
-        <div class="summary-copy">
-          <h2>{{ activity.title }}</h2>
-          <span class="type-tag" :class="`type-tag--${activity.typeKey}`">{{ activity.type }}</span>
-          <p class="publish-date">发布时间：{{ activity.publishDate }}</p>
-          <button class="register-btn" type="button" @click="registerActivity">我要报名</button>
-        </div>
-      </section>
-
-      <section class="info-list">
-        <div class="info-row">
-          <span>活动时间</span>
-          <strong>{{ activity.dateRange }}</strong>
-        </div>
-        <div class="info-row">
-          <span>活动地点</span>
-          <strong>{{ activity.location }}</strong>
-        </div>
-        <div class="info-row">
-          <span>报名截止日期</span>
-          <strong>{{ activity.signUpDeadline }}</strong>
-        </div>
-      </section>
-
-      <article class="detail-body">
-        <img class="detail-image" :src="activity.detailImage" :alt="activity.title" draggable="false" />
-
-        <section v-for="section in activity.sections" :key="section.title + section.paragraphs[0]" class="detail-section">
-          <h3 v-if="section.title">{{ section.title }}</h3>
-          <p v-for="paragraph in section.paragraphs" :key="paragraph">{{ paragraph }}</p>
-        </section>
-      </article>
-
-      <section ref="commentsSectionRef" class="comments-section">
-        <header class="comments-header">
-          <h3>全部 {{ commentCount }} 条评论</h3>
-        </header>
-
-        <article v-for="item in comments" :key="item.id" class="comment-item" @click="replyToComment(item.author)">
-          <img class="comment-avatar" :src="item.avatarUrl" :alt="item.author" draggable="false" />
-
-          <div class="comment-main">
-            <header class="comment-top">
-              <div class="comment-user">
-                <strong>{{ item.author }}</strong>
-                <div class="comment-meta">
-                  <span>{{ item.time }}</span>
-                  <span>{{ item.city }}</span>
-                </div>
-              </div>
-
-              <div class="comment-actions">
-                <button class="comment-bubble" type="button" aria-label="回复评论" @click.stop="replyToComment(item.author)">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
-                  </svg>
-                </button>
-
-                <button class="comment-like" :class="{ 'comment-like--active': item.liked }" type="button" @click.stop="toggleCommentLike(item.id)">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
-                  </svg>
-                  <span>{{ item.likes }}</span>
-                </button>
-              </div>
-            </header>
-
-            <p class="comment-content">
-              <span v-if="item.replyTo" class="comment-reply-target">回复 {{ item.replyTo }}：</span>
-              {{ item.content }}
-            </p>
-
-            <footer class="comment-bottom">
-              <button v-if="item.isMine" class="comment-delete" type="button" aria-label="删除评论" @click.stop="deleteComment(item.id)">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 7h16" />
-                  <path d="M9 7V5.7c0-.75.6-1.35 1.35-1.35h3.3c.75 0 1.35.6 1.35 1.35V7" />
-                  <path d="M7.2 7l.9 11.1c.08.9.82 1.58 1.72 1.58h4.4c.9 0 1.64-.68 1.72-1.58L16.8 7" />
-                  <path d="M10 10.2v6.1" />
-                  <path d="M14 10.2v6.1" />
-                </svg>
-              </button>
-            </footer>
+      <template v-else-if="activity">
+        <section class="summary-card">
+          <div class="summary-cover-wrap">
+            <img class="summary-cover" :src="activity.coverUrl || activity.image || ''" :alt="activity.title" draggable="false" />
+            <span class="status-badge" :class="`status-badge--${resolveStatusKey(activity.status)}`">{{ resolveStatusText(activity.status) }}</span>
           </div>
+
+          <div class="summary-copy">
+            <h2>{{ activity.title }}</h2>
+            <span class="type-tag" :class="`type-tag--${resolveTypeKey(activity.category)}`">{{ activity.category }}</span>
+            <p class="publish-date">发布时间：{{ activity.publishDate || formatDateText(activity.startAt) }}</p>
+            <button class="register-btn" type="button" :disabled="submittingRegister" @click="toggleRegister">
+              {{ submittingRegister ? "处理中" : activity.registered ? "取消报名" : "我要报名" }}
+            </button>
+          </div>
+        </section>
+
+        <section class="info-list">
+          <div class="info-row">
+            <span>活动时间</span>
+            <strong>{{ activity.time || `${formatDateText(activity.startAt)}~${formatDateText(activity.endAt)}` }}</strong>
+          </div>
+          <div class="info-row">
+            <span>活动地点</span>
+            <strong>{{ activity.location }}</strong>
+          </div>
+          <div class="info-row">
+            <span>报名截止日期</span>
+            <strong>{{ activity.signupDeadlineText || formatDateText(activity.signupDeadline) }}</strong>
+          </div>
+        </section>
+
+        <article class="detail-body">
+          <img class="detail-image" :src="activity.coverUrl || activity.image || ''" :alt="activity.title" draggable="false" />
+
+          <section
+            v-for="section in activity.sections || activity.detailContent?.sections || []"
+            :key="`${section.title || ''}-${section.paragraphs[0] || ''}`"
+            class="detail-section"
+          >
+            <h3 v-if="section.title">{{ section.title }}</h3>
+            <p v-for="paragraph in section.paragraphs" :key="paragraph">{{ paragraph }}</p>
+          </section>
         </article>
-      </section>
+
+        <section ref="commentsSectionRef" class="comments-section">
+          <header class="comments-header">
+            <h3>全部 {{ commentCount }} 条评论</h3>
+          </header>
+
+          <article v-for="item in comments" :key="item.commentId" class="comment-item" @click="replyToComment(item)">
+            <img class="comment-avatar" :src="item.avatarUrl || item.user?.avatar || ''" :alt="item.author || item.user?.name || '评论头像'" draggable="false" />
+
+            <div class="comment-main">
+              <header class="comment-top">
+                <div class="comment-user">
+                  <strong>{{ item.author || item.user?.name }}</strong>
+                  <div class="comment-meta">
+                    <span>{{ formatCommentTime(item.createdAt) }}</span>
+                    <span>{{ item.city || "上海市" }}</span>
+                  </div>
+                </div>
+
+                <div class="comment-actions">
+                  <button class="comment-bubble" type="button" aria-label="回复评论" @click.stop="replyToComment(item)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
+                    </svg>
+                  </button>
+
+                  <button class="comment-like" :class="{ 'comment-like--active': item.liked }" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
+                    </svg>
+                    <span>{{ item.likes || 0 }}</span>
+                  </button>
+                </div>
+              </header>
+
+              <p class="comment-content">
+                <span v-if="item.parentId && replyTarget" class="comment-reply-target">回复 {{ replyTarget }}：</span>
+                {{ item.content }}
+              </p>
+            </div>
+          </article>
+
+          <p v-if="!comments.length" class="state-text state-text--compact">暂无评论</p>
+        </section>
+      </template>
+
+      <p v-else class="state-text">未找到活动内容</p>
     </main>
 
     <footer class="bottom-bar">
@@ -261,14 +426,24 @@ function registerActivity() {
       </button>
 
       <div class="bottom-actions">
-        <button class="bottom-action" :class="{ 'bottom-action--active': liked }" type="button" @click="toggleLike">
+        <button
+          class="bottom-action"
+          :class="{ 'bottom-action--active': activity?.liked }"
+          type="button"
+          @click="handleLike"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
           </svg>
           <span>{{ likeCount }}</span>
         </button>
 
-        <button class="bottom-action" :class="{ 'bottom-action--active': starred }" type="button" @click="toggleStar">
+        <button
+          class="bottom-action"
+          :class="{ 'bottom-action--active': activity?.favorited }"
+          type="button"
+          @click="handleFavorite"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
           </svg>
@@ -303,7 +478,7 @@ function registerActivity() {
             <path d="M8 14.5c1 .9 2.3 1.4 4 1.4s3-.5 4-1.4" />
           </svg>
         </button>
-        <button class="composer-send" type="submit">发送</button>
+        <button class="composer-send" type="submit">{{ submittingComment ? "发送中" : "发送" }}</button>
       </form>
 
       <div v-if="showEmojiPanel" class="emoji-panel">
@@ -355,7 +530,6 @@ function registerActivity() {
 .comment-trigger,
 .comment-bubble,
 .comment-like,
-.comment-delete,
 .bottom-action,
 .register-btn,
 .emoji-toggle,
@@ -492,6 +666,10 @@ function registerActivity() {
   font-weight: 400;
 }
 
+.register-btn:disabled {
+  opacity: 0.7;
+}
+
 .info-list {
   margin: 28px 18px 0;
   border-top: 1px solid #eceef3;
@@ -578,6 +756,7 @@ function registerActivity() {
   height: 42px;
   border-radius: 50%;
   object-fit: cover;
+  background: #f2f4f7;
 }
 
 .comment-main {
@@ -624,7 +803,6 @@ function registerActivity() {
 
 .comment-bubble svg,
 .comment-like svg,
-.comment-delete svg,
 .bottom-action svg {
   width: 18px;
   height: 18px;
@@ -649,17 +827,6 @@ function registerActivity() {
 
 .comment-reply-target {
   color: #6570f0;
-}
-
-.comment-bottom {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.comment-delete {
-  padding: 0;
-  color: #c0c4cc;
 }
 
 .bottom-bar {
@@ -715,6 +882,7 @@ function registerActivity() {
 .bottom-action--active {
   color: #6570f0;
 }
+
 
 .composer-mask {
   position: absolute;
@@ -791,6 +959,18 @@ function registerActivity() {
   border-radius: 12px;
   background: #f4f5f8;
   font-size: 18px;
+}
+
+.state-text {
+  margin: 0;
+  padding: 24px 18px;
+  color: #a1a5ad;
+  font-size: 13px;
+  text-align: center;
+}
+
+.state-text--compact {
+  padding: 12px 0 0;
 }
 
 @media (min-width: 561px) {

@@ -1,24 +1,25 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
-import {
-  Comment,
-  Coupon,
-  Headset,
-  Help,
-  MedicalFiles,
-  Setting,
-  Star,
-} from "@icon-park/vue-next";
+import { Comment, Coupon, Headset, Help, MedicalFiles, Setting, Star } from "@icon-park/vue-next";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import {
+  getCurrentUserProfile,
+  getUserActivities,
+  getUserCoupons,
+  getUserPoints,
+  getUserReviews,
+} from "@/shared/api/auth";
 import { loadUserProfileState, syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
 const profileState = ref(loadUserProfileState());
+const statCards = ref(mock.profile.stats);
+const menuBadges = ref<Record<string, string>>({});
 
 let assistantRive: Rive | null = null;
 let assistantResizeObserver: ResizeObserver | null = null;
@@ -50,6 +51,19 @@ const menuIconMap: Record<string, Component> = {
   setting: Setting,
 };
 
+const menuPageMap: Record<string, string> = {
+  coupon: "",
+  points: "home/MyJ/integration",
+  activity: "home/MyJ/myactivity",
+  review: "",
+  support: "",
+  settings: "home/MyJ/setting",
+};
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
 function getNavIconMarkup(key: string) {
   return navIconMarkup[key] || navIconMarkup.home;
 }
@@ -80,12 +94,40 @@ function openCheckupHistory() {
   props.navigation.navigateTo("orders/checkup-history");
 }
 
+function openStatCard(label: string) {
+  if (label !== "足迹") {
+    return;
+  }
+
+  props.navigation.navigateTo("home/MyJ/myfoot");
 function openSupportChat() {
   openSubPage("home/customer-service-chat", "客服");
 }
 
 function resizeAssistant() {
   assistantRive?.resizeDrawingSurfaceToCanvas();
+}
+
+async function loadMineSummary() {
+  try {
+    const [profile, points, activities, coupons, reviews] = await Promise.all([
+      getCurrentUserProfile(),
+      getUserPoints({ page: 1, pageSize: 20 }),
+      getUserActivities({ page: 1, pageSize: 1 }),
+      getUserCoupons({ page: 1, pageSize: 1 }),
+      getUserReviews({ page: 1, pageSize: 1 }),
+    ]);
+
+    menuBadges.value = {
+      coupon: String(coupons.total),
+      points: String(points.summary.balance),
+      activity: String(activities.total),
+      review: String(reviews.total),
+      settings: profile.realNameStatus === "VERIFIED" ? "已认证" : "",
+    };
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
 }
 
 onMounted(() => {
@@ -95,6 +137,7 @@ onMounted(() => {
       profileState.value = state;
     })
     .catch(() => {});
+  void loadMineSummary();
 
   if (!assistantCanvasRef.value) return;
 
@@ -116,6 +159,13 @@ onMounted(() => {
 
 const profileAvatar = computed(() => profileState.value.avatarUrl || mock.profile.avatar);
 const profileName = computed(() => profileState.value.nickname || mock.profile.name);
+const visibleMenus = computed(() =>
+  mock.menus.map((item) => ({
+    ...item,
+    pageId: menuPageMap[item.key] || item.pageId || "",
+    badge: menuBadges.value[item.key] || "",
+  })),
+);
 
 onBeforeUnmount(() => {
   assistantResizeObserver?.disconnect();
@@ -145,10 +195,17 @@ onBeforeUnmount(() => {
           </div>
 
           <section class="stats-row" aria-label="用户数据">
-            <div v-for="item in mock.profile.stats" :key="item.label" class="stat-item">
+            <button
+              v-for="item in statCards"
+              :key="item.label"
+              class="stat-item"
+              type="button"
+              :class="{ 'stat-item--clickable': item.label === '足迹' }"
+              @click="openStatCard(item.label)"
+            >
               <strong>{{ item.value }}</strong>
               <span>{{ item.label }}</span>
-            </div>
+            </button>
           </section>
         </div>
       </header>
@@ -169,12 +226,12 @@ onBeforeUnmount(() => {
           <strong>{{ mock.orderEntry.label }}</strong>
           <small>{{ mock.orderEntry.desc }}</small>
         </span>
-        <span class="chevron">›</span>
+        <span class="chevron">></span>
       </button>
 
       <section class="menu-card">
         <button
-          v-for="item in mock.menus"
+          v-for="item in visibleMenus"
           :key="item.key"
           class="menu-row"
           type="button"
@@ -183,13 +240,14 @@ onBeforeUnmount(() => {
           <span class="menu-icon">
             <component :is="menuIconMap[item.icon]" theme="outline" size="18" fill="currentColor" />
           </span>
-          <span>{{ item.label }}</span>
+          <span class="menu-label">{{ item.label }}</span>
+          <span v-if="item.badge" class="menu-badge">{{ item.badge }}</span>
           <span class="chevron">></span>
         </button>
       </section>
     </main>
 
-    <nav class="home-tabbar" aria-label="底部导航">
+    <nav class="home-tabbar" aria-label="搴曢儴瀵艰埅">
       <button
         v-for="item in mock.tabs"
         :key="item.key"
@@ -199,7 +257,7 @@ onBeforeUnmount(() => {
           { 'tab-item--active': item.key === 'mine', 'tab-item--publish': item.key === 'publish' },
         ]"
         type="button"
-        @click="openPage(item.pageId, item.label || '发布')"
+        @click="openPage(item.pageId, item.label || '鍙戝竷')"
       >
         <span v-if="item.key === 'publish'" class="tab-icon tab-icon--publish" aria-hidden="true"></span>
         <span v-else class="tab-image" :class="`tab-image--${item.key}`" aria-hidden="true">
@@ -242,7 +300,7 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
     linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
   color: #252939;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
@@ -286,7 +344,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 0;
   text-align: center;
 }
 
@@ -316,7 +373,6 @@ onBeforeUnmount(() => {
   color: #252939;
   font-size: 24px;
   font-weight: 900;
-  letter-spacing: 0;
 }
 
 .level-badge {
@@ -361,6 +417,13 @@ onBeforeUnmount(() => {
   display: grid;
   justify-items: center;
   gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.stat-item--clickable {
+  cursor: pointer;
 }
 
 .stat-item strong {
@@ -380,30 +443,6 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
-}
-
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.section-heading h2 {
-  margin: 0;
-  color: #34383f;
-  font-size: 20px;
-  font-weight: 900;
-}
-
-.section-heading span {
-  color: #b8babd;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.health-section {
-  margin-bottom: 16px;
 }
 
 .health-analyse {
@@ -474,182 +513,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 9px 18px rgba(43, 31, 10, 0.24), inset 0 1px 0 rgba(255, 238, 178, 0.34);
 }
 
-.health-card-list {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 170px;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none;
-}
-
-.health-card-list::-webkit-scrollbar {
-  display: none;
-}
-
-.health-card {
-  height: 174px;
-  padding: 20px 18px 16px;
-  border-radius: 28px;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.health-card--green {
-  background: #e4ffb6;
-}
-
-.health-card--pink {
-  background: #ffe0e7;
-}
-
-.health-card--blue {
-  background: #dff0ff;
-}
-
-.health-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.health-card-top span {
-  color: #252939;
-  font-size: 17px;
-  font-weight: 900;
-}
-
-.health-card-top i {
-  width: 22px;
-  height: 20px;
-  border-radius: 999px 999px 12px 12px;
-  background: #aee42c;
-  transform: rotate(45deg);
-}
-
-.health-card--pink .health-card-top i {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px 4px 12px 12px;
-  background: #ff5976;
-  transform: rotate(0deg);
-}
-
-.health-card--blue .health-card-top i {
-  background: #4aa4ff;
-}
-
-.health-card strong {
-  display: block;
-  color: #252939;
-  font-size: 34px;
-  font-weight: 900;
-}
-
-.health-card em {
-  color: #65736e;
-  font-size: 16px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.health-visual {
-  position: relative;
-  height: 62px;
-  margin-top: 14px;
-}
-
-.health-visual span {
-  position: absolute;
-  bottom: 0;
-  width: 16px;
-  border-radius: 999px;
-  opacity: 0.82;
-}
-
-.health-visual--heart span {
-  height: 4px;
-  background: transparent;
-}
-
-.health-visual--heart::before,
-.health-visual--heart::after {
-  content: '';
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  left: 0;
-  height: 46px;
-  border-bottom: 7px solid #85d80d;
-  border-radius: 50%;
-  transform: rotate(-8deg);
-}
-
-.health-visual--heart::after {
-  left: 42px;
-  border-color: rgba(139, 216, 20, 0.55);
-  transform: rotate(16deg);
-}
-
-.health-visual--steps span,
-.health-visual--water span {
-  background: #ff4668;
-}
-
-.health-visual--steps span:nth-child(1),
-.health-visual--water span:nth-child(1) {
-  left: 0;
-  height: 34px;
-  opacity: 0.25;
-}
-
-.health-visual--steps span:nth-child(2),
-.health-visual--water span:nth-child(2) {
-  left: 24px;
-  height: 52px;
-  opacity: 0.3;
-}
-
-.health-visual--steps span:nth-child(3),
-.health-visual--water span:nth-child(3) {
-  left: 48px;
-  height: 74px;
-  opacity: 0.55;
-}
-
-.health-visual--steps span:nth-child(4),
-.health-visual--water span:nth-child(4) {
-  left: 72px;
-  height: 96px;
-}
-
-.health-visual--steps span:nth-child(5),
-.health-visual--water span:nth-child(5) {
-  left: 96px;
-  height: 62px;
-  opacity: 0.45;
-}
-
-.health-visual--steps span:nth-child(6),
-.health-visual--water span:nth-child(6) {
-  left: 120px;
-  height: 36px;
-  opacity: 0.28;
-}
-
-.health-visual--steps span:nth-child(7),
-.health-visual--water span:nth-child(7) {
-  left: 144px;
-  height: 20px;
-  opacity: 0.22;
-}
-
-.health-visual--water span {
-  background: #3f98ff;
-}
-
 .order-entry-card {
   width: 100%;
   min-height: 72px;
@@ -700,7 +563,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 58px;
   display: grid;
-  grid-template-columns: 36px 1fr 18px;
+  grid-template-columns: 36px minmax(0, 1fr) auto 18px;
   gap: 10px;
   align-items: center;
   padding: 0 18px;
@@ -726,6 +589,24 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, rgba(117, 214, 223, 0.2) 0%, rgba(123, 226, 142, 0.14) 100%);
   color: #1aaeba;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.menu-label {
+  min-width: 0;
+}
+
+.menu-badge {
+  min-width: 24px;
+  padding: 0 8px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(26, 174, 186, 0.1);
+  color: #1aaeba;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .chevron {

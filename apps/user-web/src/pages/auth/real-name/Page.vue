@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { getCurrentUser, submitRealName, updateUserProfile } from "@/shared/api/auth";
-import {
-  DEFAULT_AUTHENTICATED_PAGE_ID,
-  resolvePostLoginPageId
-} from "@/shared/auth/navigation";
+import { getCurrentUser, getCurrentUserProfile, submitRealName, updateUserProfile } from "@/shared/api/auth";
+import { DEFAULT_AUTHENTICATED_PAGE_ID } from "@/shared/auth/navigation";
 import mock from "./mock";
 import { lastLoginPhone } from "../session";
 
@@ -130,12 +127,14 @@ async function saveProfile() {
 
 onMounted(async () => {
   try {
-    const currentUser = await getCurrentUser();
+    const [currentUser, currentProfile] = await Promise.all([getCurrentUser(), getCurrentUserProfile()]);
     profilePhone.value = currentUser.phone;
     form.gender = mapGenderFromApi(currentUser.gender);
     form.birthday = currentUser.birthday || "";
 
-    if (currentUser.name && currentUser.name !== currentUser.phone) {
+    if (currentProfile.realName?.trim()) {
+      form.realName = currentProfile.realName.trim();
+    } else if (currentUser.name && currentUser.name !== currentUser.phone) {
       form.realName = currentUser.name;
     }
   } catch (error) {

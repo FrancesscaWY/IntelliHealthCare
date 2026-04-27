@@ -1,114 +1,367 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import { Like, Share, Star } from '@icon-park/vue-next'
-import mock from './mock'
+import { computed, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import { Like, Share, Star } from "@icon-park/vue-next";
+import {
+  createCommunityPostComment,
+  favoriteCommunityPost,
+  getCommunityPostComments,
+  getCommunityPostDetail,
+  likeCommunityPost,
+  shareCommunityPost,
+  type CommunityCommentItem,
+  type CommunityPostItem
+} from "@/shared/api/community";
 
-const props = defineProps<PageComponentProps>()
-const liked = ref(false)
-const starred = ref(false)
+const props = defineProps<PageComponentProps>();
 
-const selectedPostId = ref(getSelectedPostId())
+const postId = ref(getSelectedPostId());
+const post = ref<CommunityPostItem | null>(null);
+const comments = ref<CommunityCommentItem[]>([]);
+const commentDraft = ref("");
+const loading = ref(false);
+const submittingComment = ref(false);
+const replyParentId = ref<string>("");
+const replyTarget = ref<string>("");
 
-const post = computed(() => mock.posts.find((item) => item.id === selectedPostId.value) || mock.posts[0])
-const comments = computed(() => mock.comments[post.value.id] || [])
+const likeCount = computed(() => post.value?.likes ?? post.value?.likesCount ?? 0);
+const favoriteCount = computed(() => post.value?.stars ?? post.value?.favoritesCount ?? 0);
+const shareCount = computed(() => post.value?.shares ?? post.value?.sharesCount ?? 0);
 
 function getSelectedPostId() {
-  if (typeof window === 'undefined') {
-    return mock.posts[0]?.id ?? 1
+  if (typeof window === "undefined") {
+    return "";
   }
 
-  const storedId = Number(window.sessionStorage.getItem('circlePostId'))
-  return Number.isFinite(storedId) && storedId > 0 ? storedId : mock.posts[0]?.id ?? 1
+  return window.sessionStorage.getItem("circlePostId") || "";
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function formatPostTime(value?: string | null, createdAt?: string) {
+  if (value) {
+    return value;
+  }
+
+  if (!createdAt) {
+    return "";
+  }
+
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return createdAt;
+  }
+
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatCommentTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${`${date.getHours()}`.padStart(2, "0")}:${`${date.getMinutes()}`.padStart(2, "0")}`;
+}
+
+function isUsablePostComment(comment: CommunityCommentItem) {
+  const authorName = (comment.author || comment.user?.name || "").trim();
+  const text = comment.content.trim();
+
+  if (!authorName || !text) {
+    return false;
+  }
+
+  if (/^post_comment_moc[a-z0-9_]*$/i.test(text)) {
+    return false;
+  }
+
+  if (/codex/i.test(text) || /smoke\s+test/i.test(text)) {
+    return false;
+  }
+
+  return true;
+}
+
+async function loadDetail() {
+  if (!postId.value) {
+    props.showToast("未找到帖子");
+    return;
+  }
+
+  loading.value = true;
+
+  try {
+    const [detail, commentResponse] = await Promise.all([
+      getCommunityPostDetail(postId.value),
+      getCommunityPostComments(postId.value, { page: 1, pageSize: 50 })
+    ]);
+
+    post.value = detail;
+    comments.value = commentResponse.list.filter(isUsablePostComment);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
 }
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch('community/circle')
+    props.navigation.reLaunch("community/circle");
   }
 }
 
 function pending(label: string) {
-  props.showToast(`${label}功能待接入`)
+  props.showToast(`${label}功能暂未接入`);
 }
+
+function replyToComment(comment: CommunityCommentItem) {
+  replyParentId.value = comment.commentId;
+  replyTarget.value = comment.author || comment.user?.name || "该用户";
+}
+
+function cancelReply() {
+  replyParentId.value = "";
+  replyTarget.value = "";
+}
+
+function toggleCommentLike(commentId: string) {
+  const target = comments.value.find((comment) => comment.commentId === commentId);
+  if (!target) {
+    return;
+  }
+
+  const nextLiked = !target.liked;
+  target.liked = nextLiked;
+  target.likes = Math.max(0, (target.likes || 0) + (nextLiked ? 1 : -1));
+}
+
+async function handleLike() {
+  if (!post.value) {
+    return;
+  }
+
+  const previousLiked = Boolean(post.value.liked);
+  const previousCount = likeCount.value;
+  const nextLiked = !previousLiked;
+  post.value = {
+    ...post.value,
+    liked: nextLiked,
+    likes: Math.max(0, previousCount + (nextLiked ? 1 : -1))
+  };
+
+  try {
+    if (!previousLiked) {
+      await likeCommunityPost(post.value.postId);
+    }
+  } catch (error) {
+    post.value = {
+      ...post.value,
+      liked: previousLiked,
+      likes: previousCount
+    };
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function handleFavorite() {
+  if (!post.value) {
+    return;
+  }
+
+  const previousFavorited = Boolean(post.value.favorited);
+  const previousCount = favoriteCount.value;
+  const nextFavorited = !previousFavorited;
+  post.value = {
+    ...post.value,
+    favorited: nextFavorited,
+    stars: Math.max(0, previousCount + (nextFavorited ? 1 : -1))
+  };
+
+  try {
+    if (!previousFavorited) {
+      await favoriteCommunityPost(post.value.postId);
+    }
+  } catch (error) {
+    post.value = {
+      ...post.value,
+      favorited: previousFavorited,
+      stars: previousCount
+    };
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function handleShare() {
+  if (!post.value) {
+    return;
+  }
+
+  const previousCount = shareCount.value;
+  post.value = {
+    ...post.value,
+    shares: previousCount + 1
+  };
+
+  try {
+    await shareCommunityPost(post.value.postId);
+    props.showToast("已记录分享");
+  } catch (error) {
+    post.value = {
+      ...post.value,
+      shares: previousCount
+    };
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function submitComment() {
+  if (!post.value || !commentDraft.value.trim()) {
+    props.showToast("请输入评论内容");
+    return;
+  }
+
+  submittingComment.value = true;
+
+  try {
+    await createCommunityPostComment(post.value.postId, {
+      parentId: replyParentId.value || undefined,
+      content: commentDraft.value.trim()
+    });
+
+    commentDraft.value = "";
+    cancelReply();
+    await loadDetail();
+    props.showToast("评论已发布");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    submittingComment.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadDetail();
+});
 </script>
 
 <template>
-  <section class="post-detail-page"><header class="page-header">
+  <section class="post-detail-page">
+    <header class="page-header">
       <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
       <h1>帖子详情</h1>
-      <button class="share-button" type="button" aria-label="转发" @click="pending('转发')">
+      <button class="share-button" type="button" aria-label="分享" @click="handleShare">
         <Share theme="outline" size="22" fill="#34383f" />
       </button>
     </header>
 
     <main class="detail-scroll">
-      <article class="detail-card">
-        <header class="post-header">
-          <img class="post-avatar" :src="post.avatar" :alt="post.author" />
-          <div class="post-author">
-            <div>
-              <strong>{{ post.author }}</strong>
-              <span>{{ post.badge }}</span>
+      <p v-if="loading" class="state-text">帖子加载中...</p>
+
+      <template v-else-if="post">
+        <article class="detail-card">
+          <header class="post-header">
+            <img class="post-avatar" :src="post.author?.avatar || post.avatar || ''" :alt="post.author?.name || post.authorName || '用户头像'" />
+            <div class="post-author">
+              <div>
+                <strong>{{ post.author?.name || post.authorName }}</strong>
+                <span v-if="post.badge || post.tagLabel">{{ post.badge || post.tagLabel }}</span>
+              </div>
+              <small>{{ formatPostTime(post.time, post.createdAt) }}</small>
             </div>
-            <small>{{ post.time }}</small>
+            <button class="follow-button" type="button" @click="pending('关注')">+ 关注</button>
+          </header>
+
+          <p class="detail-content">{{ post.content }}</p>
+
+          <div v-if="post.images.length" class="detail-images" :class="{ 'detail-images--double': post.images.length === 2 }">
+            <img v-for="image in post.images" :key="image" :src="image" :alt="post.content" />
           </div>
-          <button class="follow-button" type="button" @click="pending('关注')">+ 关注</button>
-        </header>
 
-        <p class="detail-content">{{ post.content }}</p>
-
-        <div class="detail-images" :class="{ 'detail-images--double': post.images.length === 2 }">
-          <img v-for="image in post.images" :key="image" :src="image" :alt="post.content" />
-        </div>
-
-        <button class="tag-chip" type="button" @click="pending(post.tag)">
-          <span></span>
-          {{ post.tag }}
-        </button>
-
-        <footer class="detail-actions">
-          <button class="detail-action" :class="{ active: starred, starred }" type="button" @click="starred = !starred">
-            <Star :theme="starred ? 'filled' : 'outline'" size="22" :fill="starred ? '#f4bf25' : '#454952'" />
-            {{ post.stars + (starred ? 1 : 0) }}
+          <button v-if="post.tag || post.topic?.title" class="tag-chip" type="button" @click="pending('话题')">
+            <span></span>
+            {{ post.tag || post.topic?.title }}
           </button>
-          <button class="detail-action" :class="{ active: liked }" type="button" @click="liked = !liked">
-            <Like :theme="liked ? 'filled' : 'outline'" size="22" :fill="liked ? '#7a6ff0' : '#454952'" />
-            {{ post.likes + (liked ? 1 : 0) }}
-          </button>
-          <button class="detail-action" type="button" @click="pending('转发')">
-            <Share theme="outline" size="22" fill="#454952" />
-            {{ post.shares }}
-          </button>
-        </footer>
-      </article>
 
-      <section class="comment-section">
-        <div class="comment-heading">
-          <h2>评论区</h2>
-          <span>{{ comments.length }}条评论</span>
-        </div>
-
-        <article v-for="comment in comments" :key="comment.id" class="comment-card">
-          <img class="comment-avatar" :src="comment.avatar" :alt="comment.author" />
-          <div class="comment-body">
-            <div class="comment-top">
-              <strong>{{ comment.author }}</strong>
-              <small>{{ comment.time }}</small>
-            </div>
-            <p>{{ comment.content }}</p>
-            <button type="button" @click="pending('评论点赞')">
-              <Like theme="outline" size="16" fill="#9b9ea6" />
-              {{ comment.likes }}
+          <footer class="detail-actions">
+            <button
+              class="detail-action"
+              :class="{ starred: post.favorited }"
+              type="button"
+              @click="handleFavorite"
+            >
+              <Star :theme="post.favorited ? 'filled' : 'outline'" size="22" :fill="post.favorited ? '#f4bf25' : '#454952'" />
+              {{ favoriteCount }}
             </button>
-          </div>
+            <button
+              class="detail-action"
+              :class="{ active: post.liked }"
+              type="button"
+              @click="handleLike"
+            >
+              <Like :theme="post.liked ? 'filled' : 'outline'" size="22" :fill="post.liked ? '#7a6ff0' : '#454952'" />
+              {{ likeCount }}
+            </button>
+            <button class="detail-action" type="button" @click="handleShare">
+              <Share theme="outline" size="22" fill="#454952" />
+              {{ shareCount }}
+            </button>
+          </footer>
         </article>
-      </section>
+
+        <section class="comment-section">
+          <div class="comment-heading">
+            <h2>评论区</h2>
+            <span>{{ comments.length }}条评论</span>
+          </div>
+
+          <article v-for="comment in comments" :key="comment.commentId" class="comment-card" @click="replyToComment(comment)">
+            <img class="comment-avatar" :src="comment.avatarUrl || comment.user?.avatar || ''" :alt="comment.author || comment.user?.name || '评论头像'" />
+            <div class="comment-body">
+              <div class="comment-top">
+                <div>
+                  <strong>{{ comment.author || comment.user?.name }}</strong>
+                  <small>{{ formatCommentTime(comment.createdAt) }}</small>
+                </div>
+                <div class="comment-actions">
+                  <button class="comment-bubble" type="button" aria-label="回复评论" @click.stop="replyToComment(comment)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
+                    </svg>
+                  </button>
+                  <button class="comment-like" :class="{ 'comment-like--active': comment.liked }" type="button" @click.stop="toggleCommentLike(comment.commentId)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
+                    </svg>
+                    <span>{{ comment.likes || 0 }}</span>
+                  </button>
+                </div>
+              </div>
+              <p>
+                <span v-if="comment.replyTo" class="reply-to">回复 {{ comment.replyTo }}：</span>
+                {{ comment.content }}
+              </p>
+              <div class="comment-meta">
+                <span>{{ comment.city || "上海市" }}</span>
+              </div>
+            </div>
+          </article>
+
+          <p v-if="!comments.length" class="state-text state-text--compact">暂无评论</p>
+        </section>
+      </template>
+
+      <p v-else class="state-text">未找到帖子内容</p>
     </main>
 
     <div class="comment-bar">
-      <button class="comment-input" type="button" @click="pending('发表评论')">说点什么吧...</button>
-      <button class="send-button" type="button" @click="pending('发送评论')">发送</button>
+      <input v-model="commentDraft" class="comment-input" type="text" :placeholder="replyTarget ? `回复 ${replyTarget}` : '说点什么吧...'" />
+      <button class="send-button" type="button" :disabled="submittingComment" @click="submitComment">
+        {{ submittingComment ? "发送中" : "发送" }}
+      </button>
     </div>
   </section>
 </template>
@@ -128,7 +381,7 @@ function pending(label: string) {
   overflow: hidden;
   background: #f5f6f7;
   color: #252939;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -146,7 +399,6 @@ function pending(label: string) {
 .follow-button,
 .tag-chip,
 .detail-action,
-.comment-card button,
 .comment-input,
 .send-button {
   border: 0;
@@ -216,6 +468,7 @@ function pending(label: string) {
   display: block;
   border-radius: 50%;
   object-fit: cover;
+  background: #f2f4f7;
 }
 
 .post-author {
@@ -334,6 +587,7 @@ function pending(label: string) {
   color: #f4bf25;
 }
 
+
 .comment-section {
   margin-top: 14px;
   padding: 16px;
@@ -373,6 +627,7 @@ function pending(label: string) {
   display: block;
   border-radius: 50%;
   object-fit: cover;
+  background: #f2f4f7;
 }
 
 .comment-top {
@@ -402,14 +657,52 @@ function pending(label: string) {
   line-height: 1.6;
 }
 
-.comment-card button {
+.comment-meta {
+  display: flex;
+  gap: 10px;
+  color: #9b9ea6;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #b2b4ba;
+}
+
+.comment-bubble,
+.comment-like {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 0;
-  color: #9b9ea6;
+  border: 0;
+  background: transparent;
+  color: inherit;
   font-size: 12px;
   font-weight: 800;
+}
+
+.comment-bubble svg,
+.comment-like svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.comment-like--active,
+.reply-to {
+  color: #6872f0;
+}
+
+.comment-like--active svg {
+  fill: currentColor;
 }
 
 .comment-bar {
@@ -418,7 +711,7 @@ function pending(label: string) {
   bottom: 0;
   left: 0;
   display: grid;
-  grid-template-columns: 1fr 58px;
+  grid-template-columns: 1fr 72px;
   gap: 10px;
   padding: 12px 18px 18px;
   box-sizing: border-box;
@@ -431,10 +724,14 @@ function pending(label: string) {
   padding: 0 14px;
   border-radius: 19px;
   background: #f1f2f4;
-  color: #a0a3aa;
+  color: #252939;
   font-size: 14px;
   font-weight: 700;
-  text-align: left;
+  outline: none;
+}
+
+.comment-input::placeholder {
+  color: #a0a3aa;
 }
 
 .send-button {
@@ -444,5 +741,21 @@ function pending(label: string) {
   color: #fff;
   font-size: 14px;
   font-weight: 900;
+}
+
+.send-button:disabled {
+  opacity: 0.7;
+}
+
+.state-text {
+  margin: 0;
+  padding: 24px 0;
+  color: #9fa2a8;
+  font-size: 13px;
+  text-align: center;
+}
+
+.state-text--compact {
+  padding-bottom: 0;
 }
 </style>

@@ -1,16 +1,53 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getCurrentUserSettings, updateMessageSettings, type MessageSettingsPayload } from "@/shared/api/auth";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 
-const masterEnabled = ref(true);
+type SettingKey = "interactive" | "system" | "health" | "order" | "sms";
+
+const loading = ref(false);
+const saving = ref(false);
 const switches = reactive(
   mock.items.map((item) => ({
     ...item,
   })),
 );
+const masterEnabled = computed(() => switches.every((item) => item.enabled));
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function findSwitch(key: SettingKey) {
+  return switches.find((item) => item.key === key);
+}
+
+function syncFromPayload(payload: Required<MessageSettingsPayload>) {
+  const mapping: Record<SettingKey, boolean> = {
+    interactive: payload.communityNotice,
+    system: payload.systemNotice,
+    health: payload.healthAlert,
+    order: payload.orderNotice,
+    sms: payload.smsEnabled,
+  };
+
+  switches.forEach((item) => {
+    item.enabled = mapping[item.key as SettingKey] ?? false;
+  });
+}
+
+function buildPayload() {
+  return {
+    communityNotice: Boolean(findSwitch("interactive")?.enabled),
+    systemNotice: Boolean(findSwitch("system")?.enabled),
+    healthAlert: Boolean(findSwitch("health")?.enabled),
+    orderNotice: Boolean(findSwitch("order")?.enabled),
+    smsEnabled: Boolean(findSwitch("sms")?.enabled),
+  } satisfies MessageSettingsPayload;
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -18,11 +55,47 @@ function goBack() {
   }
 }
 
-function toggleMaster() {
-  masterEnabled.value = !masterEnabled.value;
+async function loadSettings() {
+  loading.value = true;
+
+  try {
+    const settings = await getCurrentUserSettings();
+    syncFromPayload(settings.messageSettings);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
 }
 
-function toggleItem(key: string) {
+async function persistSettings() {
+  if (saving.value) {
+    return;
+  }
+
+  try {
+    saving.value = true;
+    const result = await updateMessageSettings(buildPayload());
+    syncFromPayload(result.messageSettings);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+    await loadSettings();
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function toggleMaster() {
+  const nextValue = !masterEnabled.value;
+
+  switches.forEach((item) => {
+    item.enabled = nextValue;
+  });
+
+  await persistSettings();
+}
+
+async function toggleItem(key: string) {
   const target = switches.find((item) => item.key === key);
 
   if (!target) {
@@ -30,7 +103,12 @@ function toggleItem(key: string) {
   }
 
   target.enabled = !target.enabled;
+  await persistSettings();
 }
+
+onMounted(() => {
+  void loadSettings();
+});
 </script>
 
 <template>
@@ -50,6 +128,7 @@ function toggleItem(key: string) {
           :class="{ 'switch--active': masterEnabled }"
           type="button"
           :aria-pressed="masterEnabled"
+          :disabled="loading || saving"
           @click="toggleMaster"
         >
           <span class="switch-thumb"></span>
@@ -62,6 +141,7 @@ function toggleItem(key: string) {
           :key="item.key"
           class="setting-row"
           type="button"
+          :disabled="loading || saving"
           @click="toggleItem(item.key)"
         >
           <span>{{ item.label }}</span>

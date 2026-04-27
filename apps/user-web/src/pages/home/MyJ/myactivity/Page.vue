@@ -1,13 +1,101 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getMyCommunityActivities, type CommunityActivityRegistrationItem } from "@/shared/api/community";
 import { selectedSeniorActivityId } from "@/pages/community/senior-activities/state";
-import mock, { type MyActivityTabKey } from "./mock";
+
+type MyActivityTabKey = "ongoing" | "upcoming" | "ended";
 
 const props = defineProps<PageComponentProps>();
 const activeTab = ref<MyActivityTabKey>("ongoing");
+const activities = ref<CommunityActivityRegistrationItem[]>([]);
+const loading = ref(false);
 
-const visibleActivities = computed(() => mock.activities[activeTab.value]);
+const tabs: Array<{ key: MyActivityTabKey; label: string }> = [
+  { key: "ongoing", label: "进行中" },
+  { key: "upcoming", label: "未开始" },
+  { key: "ended", label: "已结束" }
+];
+
+const visibleActivities = computed(() =>
+  activities.value
+    .filter((item) => resolveTabKey(item) === activeTab.value)
+    .map((item) => ({
+      id: item.registrationId,
+      sourceActivityId: item.activity.activityId,
+      title: item.activity.title,
+      type: item.activity.category,
+      typeKey: resolveTypeKey(item.activity.category),
+      status: resolveStatusText(item),
+      statusKey: resolveTabKey(item),
+      time: `${formatDate(item.activity.startAt)}~${formatDate(item.activity.endAt)}`,
+      location: item.activity.location,
+      remark: item.cancellationReason || "已报名",
+      image: item.activity.coverUrl || ""
+    }))
+);
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function resolveTabKey(item: CommunityActivityRegistrationItem): MyActivityTabKey {
+  if (item.status === "CANCELLED" || item.activity.status === "ENDED") {
+    return "ended";
+  }
+
+  if (item.activity.status === "ONGOING") {
+    return "ongoing";
+  }
+
+  return "upcoming";
+}
+
+function resolveStatusText(item: CommunityActivityRegistrationItem) {
+  if (item.status === "CANCELLED") {
+    return "已取消";
+  }
+
+  if (item.activity.status === "ENDED") {
+    return "已结束";
+  }
+
+  if (item.activity.status === "ONGOING") {
+    return "进行中";
+  }
+
+  return "未开始";
+}
+
+function resolveTypeKey(category: string) {
+  return category.includes("户外") ? "outdoor" : "culture";
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+async function loadActivities() {
+  loading.value = true;
+
+  try {
+    const response = await getMyCommunityActivities({ page: 1, pageSize: 20 });
+    activities.value = response.list;
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -23,6 +111,10 @@ function openActivity(activityId: string) {
   selectedSeniorActivityId.value = activityId;
   props.navigation.navigateTo("community/senior-activity-detail");
 }
+
+onMounted(() => {
+  void loadActivities();
+});
 </script>
 
 <template>
@@ -31,13 +123,13 @@ function openActivity(activityId: string) {
       <button class="back-btn" type="button" aria-label="返回我的页面" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <h1>{{ mock.title }}</h1>
+      <h1>我参加的活动</h1>
     </header>
 
     <main class="page-content">
       <nav class="tab-bar" aria-label="活动状态筛选">
         <button
-          v-for="tab in mock.tabs"
+          v-for="tab in tabs"
           :key="tab.key"
           class="tab-btn"
           :class="{ 'tab-btn--active': activeTab === tab.key }"
@@ -48,7 +140,9 @@ function openActivity(activityId: string) {
         </button>
       </nav>
 
-      <section v-if="visibleActivities.length" class="activity-list">
+      <p v-if="loading" class="state-text">活动加载中...</p>
+
+      <section v-else-if="visibleActivities.length" class="activity-list">
         <article
           v-for="item in visibleActivities"
           :key="item.id"
@@ -68,15 +162,15 @@ function openActivity(activityId: string) {
             <h2>{{ item.title }}</h2>
             <p>时间：{{ item.time }}</p>
             <p>地点：{{ item.location }}</p>
-            <p>费用：{{ item.price }}</p>
+            <p>说明：{{ item.remark }}</p>
           </div>
         </article>
 
-        <p class="end-text">{{ mock.endText }}</p>
+        <p class="end-text">没有更多了</p>
       </section>
 
       <section v-else class="empty-state">
-        <p>{{ mock.emptyText }}</p>
+        <p>暂无活动记录</p>
       </section>
     </main>
   </section>
@@ -198,6 +292,7 @@ function openActivity(activityId: string) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: #f2f4f7;
 }
 
 .status-badge {
@@ -265,7 +360,8 @@ function openActivity(activityId: string) {
   line-height: 1.45;
 }
 
-.empty-state {
+.empty-state,
+.state-text {
   display: grid;
   place-items: center;
   min-height: 320px;
@@ -281,4 +377,3 @@ function openActivity(activityId: string) {
   font-weight: 600;
 }
 </style>
-

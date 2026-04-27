@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type FootprintRecord } from "./mock";
+import { clearUserFootprints, getUserFootprints, type UserFootprintItem } from "@/shared/api/auth";
+import mock from "./mock";
 import { selectedSeniorActivityId } from "@/pages/community/senior-activities/state";
 
 const props = defineProps<PageComponentProps>();
-
-const records = ref<FootprintRecord[]>([...mock.records]);
+const records = ref<UserFootprintItem[]>([]);
 const sortMode = ref<"latest" | "earliest">("latest");
+const loading = ref(false);
 
 const hasRecords = computed(() => records.value.length > 0);
 const sortLabel = computed(() => (sortMode.value === "latest" ? "最新优先" : "最早优先"));
@@ -15,47 +16,81 @@ const sortedRecords = computed(() =>
   [...records.value].sort((left, right) => {
     const leftTime = new Date(left.viewedAt).getTime();
     const rightTime = new Date(right.viewedAt).getTime();
-
     return sortMode.value === "latest" ? rightTime - leftTime : leftTime - rightTime;
   }),
 );
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+async function loadFootprints() {
+  loading.value = true;
+
+  try {
+    const response = await getUserFootprints({ page: 1, pageSize: 20 });
+    records.value = response.list;
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  } finally {
+    loading.value = false;
+  }
+}
 
 function goBack() {
   props.navigation.reLaunch("home/mine");
 }
 
-function clearAll() {
+async function clearAll() {
   if (!records.value.length) {
     return;
   }
 
-  records.value = [];
-  props.showToast("已清除全部足迹");
+  try {
+    await clearUserFootprints();
+    records.value = [];
+    props.showToast("已清除全部足迹");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
 }
 
 function toggleSortMode() {
   sortMode.value = sortMode.value === "latest" ? "earliest" : "latest";
 }
 
-function openRecord(record: FootprintRecord) {
-  if (record.type === "activity") {
-    selectedSeniorActivityId.value = record.activityId;
+function openRecord(record: UserFootprintItem) {
+  if (record.targetType === "ACTIVITY") {
+    selectedSeniorActivityId.value = record.targetId;
+    props.navigation.navigateTo("community/senior-activity-detail");
+    return;
   }
 
-  props.navigation.navigateTo(record.pageId);
+  props.navigation.navigateTo("service/home-care-detail");
 }
 
-function getTimelineDate(record: FootprintRecord) {
+function getTimelineDate(record: UserFootprintItem) {
   const viewedAt = new Date(record.viewedAt);
   const month = `${viewedAt.getMonth() + 1}`.padStart(2, "0");
   const day = `${viewedAt.getDate()}`.padStart(2, "0");
-
   return `${month}-${day}`;
 }
 
-function getRecordHint(record: FootprintRecord) {
-  return sortMode.value === "latest" ? "最近浏览" : "较早记录";
+function getRecordImage(record: UserFootprintItem) {
+  return record.coverUrl || mock.records[0]?.image || "";
 }
+
+function getRecordPrice(record: UserFootprintItem) {
+  return String(record.metadata?.price || record.metadata?.amount || "");
+}
+
+function getRecordMeta(record: UserFootprintItem, key: string) {
+  return String(record.metadata?.[key] || "");
+}
+
+onMounted(() => {
+  void loadFootprints();
+});
 </script>
 
 <template>
@@ -83,7 +118,7 @@ function getRecordHint(record: FootprintRecord) {
       </div>
 
       <section v-if="hasRecords" class="timeline-list">
-        <article v-for="record in sortedRecords" :key="record.id" class="timeline-row">
+        <article v-for="record in sortedRecords" :key="record.footprintId" class="timeline-row">
           <div class="timeline-rail">
             <span class="timeline-dot"></span>
             <span class="timeline-time">{{ getTimelineDate(record) }}</span>
@@ -92,20 +127,20 @@ function getRecordHint(record: FootprintRecord) {
           <button class="footprint-card" type="button" @click="openRecord(record)">
             <div class="card-body">
               <div class="card-image-wrap">
-                <img class="cover" :src="record.image" :alt="record.title" />
+                <img class="cover" :src="getRecordImage(record)" :alt="record.title" />
               </div>
 
               <div class="card-copy">
                 <h3>{{ record.title }}</h3>
 
-                <template v-if="record.type === 'service'">
-                  <p class="price">{{ record.price }}</p>
+                <template v-if="record.targetType === 'SERVICE'">
+                  <p class="price">{{ getRecordPrice(record) || " " }}</p>
                 </template>
 
                 <template v-else>
-                  <p class="meta">时间：{{ record.time }}</p>
-                  <p class="meta">地点：{{ record.location }}</p>
-                  <p class="meta">费用：{{ record.fee }}</p>
+                  <p class="meta" v-if="getRecordMeta(record, 'time')">时间：{{ getRecordMeta(record, "time") }}</p>
+                  <p class="meta" v-if="getRecordMeta(record, 'location')">地点：{{ getRecordMeta(record, "location") }}</p>
+                  <p class="meta" v-if="getRecordMeta(record, 'fee')">费用：{{ getRecordMeta(record, "fee") }}</p>
                 </template>
               </div>
             </div>
@@ -117,7 +152,7 @@ function getRecordHint(record: FootprintRecord) {
 
       <section v-else class="empty-state">
         <div class="empty-blob"></div>
-        <p>{{ mock.emptyText }}</p>
+        <p>{{ loading ? "加载中..." : mock.emptyText }}</p>
       </section>
     </main>
   </section>
@@ -153,7 +188,6 @@ function getRecordHint(record: FootprintRecord) {
 
 .back-btn,
 .clear-btn,
-.day-chip,
 .sort-pill,
 .footprint-card {
   padding: 0;
@@ -397,44 +431,5 @@ function getRecordHint(record: FootprintRecord) {
   color: #bcc2af;
   font-size: 14px;
   font-weight: 700;
-}
-
-@media (max-width: 389px) {
-  .hero-nav {
-    grid-template-columns: 38px minmax(0, 1fr);
-  }
-
-  .clear-btn {
-    grid-column: 1 / -1;
-    justify-self: end;
-    margin-top: -2px;
-  }
-
-  .timeline-row {
-    grid-template-columns: 46px minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .timeline-list::before {
-    left: 12px;
-  }
-
-  .timeline-dot {
-    left: 5px;
-  }
-
-  .timeline-time {
-    min-width: 42px;
-    font-size: 11px;
-  }
-
-  .card-body {
-    grid-template-columns: 78px minmax(0, 1fr);
-  }
-
-  .cover {
-    width: 78px;
-    height: 78px;
-  }
 }
 </style>

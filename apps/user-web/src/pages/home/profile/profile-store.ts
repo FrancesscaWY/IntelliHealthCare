@@ -90,7 +90,7 @@ export async function syncUserProfileStateFromApi() {
   const currentState = loadUserProfileState();
   const resolvedNickname = !isInvalidNickname(currentProfile.nickname)
     ? (currentProfile.nickname || "")
-    : currentUser.name || currentState.nickname || defaultState.nickname;
+    : currentProfile.realName || currentUser.name || currentState.nickname || defaultState.nickname;
 
   saveUserProfileState({
     avatarUrl: currentProfile.avatar || currentUser.avatar || currentState.avatarUrl || defaultState.avatarUrl,

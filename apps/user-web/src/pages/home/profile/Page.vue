@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Back, Comment, Like, Male, More, Share, Star } from "@icon-park/vue-next";
@@ -15,6 +15,9 @@ type InteractiveProfilePost = ProfilePost & {
 const props = defineProps<PageComponentProps>();
 const isFollowing = ref(false);
 const profileState = ref(loadUserProfileState());
+const region = ref(mock.profile.region);
+const stats = ref(mock.profile.stats);
+const profileMotto = computed(() => profileState.value.intro.trim() || "这个人很懒，还没有填写简介");
 const publishedPost = loadPublishedProfilePost();
 const initialPosts: ProfilePost[] = publishedPost ? [publishedPost, ...mock.posts] : mock.posts;
 const posts = ref<InteractiveProfilePost[]>(
@@ -26,8 +29,8 @@ const posts = ref<InteractiveProfilePost[]>(
 );
 
 const profileStats = computed(() =>
-  mock.profile.stats.map((item, index) => {
-    if (index !== 1) {
+  stats.value.map((item, index) => {
+    if (index !== 0) {
       return item;
     }
 
@@ -117,11 +120,11 @@ function imageStyle(src: string, position = "center") {
                 <Male theme="filled" size="14" fill="#57d6b6" />
               </span>
             </div>
-            <p class="profile-region">{{ mock.profile.region }}</p>
+            <p class="profile-region">{{ region }}</p>
           </div>
         </div>
 
-        <p class="profile-motto">{{ mock.profile.motto }}</p>
+        <p class="profile-motto">{{ profileMotto }}</p>
 
         <div class="profile-actions">
           <div class="profile-stats">
@@ -150,9 +153,9 @@ function imageStyle(src: string, position = "center") {
 
       <article v-for="post in posts" :key="post.id" class="feed-item">
         <div class="feed-item__meta">
-          <img class="feed-item__avatar" :src="profileAvatar" :alt="`${post.author}头像`" draggable="false" />
+          <img class="feed-item__avatar" :src="profileAvatar" :alt="`${profileName}头像`" draggable="false" />
           <div>
-            <strong>{{ post.author }}</strong>
+            <strong>{{ profileName }}</strong>
             <span>{{ post.date }}</span>
           </div>
         </div>
@@ -520,19 +523,5 @@ function imageStyle(src: string, position = "center") {
 
 .feed-action-button--active-star {
   color: #d8972a;
-}
-
-@media (max-width: 389px) {
-  .profile-cover {
-    min-height: 380px;
-  }
-
-  .profile-stats {
-    gap: 18px;
-  }
-
-  .feed-gallery {
-    grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.9fr);
-  }
 }
 </style>
