@@ -210,9 +210,9 @@ watch(activeTab, () => {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #f5f5f5;
@@ -393,8 +393,8 @@ watch(activeTab, () => {
 
 @media (min-width: 561px) {
   .health-lecture-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

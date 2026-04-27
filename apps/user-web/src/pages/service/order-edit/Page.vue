@@ -125,7 +125,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.order-edit-page { position: relative; left: 50%; width: min(402px, 100vw); min-height: 874px; margin: -18px 0; transform: translateX(-50%); padding: 16px 14px 96px; box-sizing: border-box; background: #f5f6f7; color: #34383f; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.order-edit-page { position: relative; left: 50%; width: min(402px, 100vw); min-height: var(--ihc-page-min-height); margin: -18px 0; transform: translateX(-50%); padding: 16px 14px 96px; box-sizing: border-box; background: #f5f6f7; color: #34383f; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
 .page-header { height: 64px; display: flex; align-items: center; margin-bottom: 24px; }
 .back-button { width: 24px; height: 32px; display: flex; align-items: center; justify-content: center; margin: 0 8px 0 -4px; padding: 0; border: 0; background: transparent; color: #34383f; font-size: 34px; line-height: 26px; font-weight: 300; cursor: pointer; }
 .page-header h1 { margin: 0; color: #34383f; font-size: 22px; font-weight: 600; }

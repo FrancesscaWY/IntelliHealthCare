@@ -128,7 +128,7 @@ function getRecordHint(record: FootprintRecord) {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  min-height: min(844px, calc(100vh - 36px));
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   background: #f5f6f7;
   color: #2b3128;

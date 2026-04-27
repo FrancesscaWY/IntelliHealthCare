@@ -1,5 +1,8 @@
 :root {
   color-scheme: light;
+  --ihc-viewport-height: 100vh;
+  --ihc-viewport-height: 100dvh;
+  --ihc-page-min-height: calc(var(--ihc-viewport-height) - 36px);
   --text: #162033;
   --muted: #66758b;
   --brand: #2361eb;
@@ -40,6 +43,10 @@ body {
   color: var(--text);
 }
 
+body {
+  min-height: var(--ihc-viewport-height);
+}
+
 body,
 button,
 input,
@@ -58,25 +65,26 @@ a {
 }
 
 #app {
-  min-height: 100vh;
+  min-height: var(--ihc-viewport-height);
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: var(--ihc-viewport-height);
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-items: start;
 }
 
 .app-canvas {
   width: min(100%, 402px);
-  min-height: 874px;
+  min-height: var(--ihc-viewport-height);
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
   background: linear-gradient(180deg, #e8f0ff 0%, #f8fbff 48%, #f0f5fb 100%);
 }
 
 .mobile-page-root {
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   padding: 18px;
 }
 
@@ -134,10 +142,10 @@ a {
 @media (max-width: 560px) {
   .app-canvas {
     width: 100%;
-    min-height: 100vh;
+    min-height: var(--ihc-viewport-height);
   }
 
   .mobile-page-root {
-    min-height: 100vh;
+    min-height: var(--ihc-page-min-height);
   }
 }

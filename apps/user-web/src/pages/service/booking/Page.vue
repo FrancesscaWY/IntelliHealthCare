@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import { getServiceDetailPageId, readSelectedServiceContext } from '@/shared/service/catalog'
-import mock from './mock'
+import { computed, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import { getOrderBookingOptions } from "@/shared/api/orders";
+import { getOrderFlowState, updateOrderFlowBooking } from "@/pages/service/order-flow";
+import { getServiceDetailPageId, readSelectedServiceContext } from "@/shared/service/catalog";
+import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const orderFlowState = getOrderFlowState();
@@ -195,7 +197,7 @@ onMounted(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
   padding: 16px 14px 92px;

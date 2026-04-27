@@ -255,7 +255,7 @@ onMounted(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
   padding-top: 16px;

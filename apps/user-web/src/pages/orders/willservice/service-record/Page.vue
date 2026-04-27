@@ -69,7 +69,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.record-page { position: relative; left: 50%; width: min(390px, 100vw); min-height: min(844px, calc(100vh - 36px)); margin: -18px 0; background: #f3f4f6; color: #2e3136; font-family: var(--ihc-font-family); transform: translateX(-50%); -webkit-font-smoothing: antialiased; }
+.record-page { position: relative; left: 50%; width: min(390px, 100vw); min-height: var(--ihc-page-min-height); margin: -18px 0; background: #f3f4f6; color: #2e3136; font-family: var(--ihc-font-family); transform: translateX(-50%); -webkit-font-smoothing: antialiased; }
 .page-header { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 12px; height: 52px; padding: 0 16px; }
 .back-btn,.action-btn { padding: 0; border: 0; background: transparent; color: inherit; }
 .back-btn { display: grid; place-items: center; width: 28px; height: 28px; }

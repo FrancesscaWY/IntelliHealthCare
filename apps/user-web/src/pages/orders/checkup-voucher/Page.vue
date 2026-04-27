@@ -65,7 +65,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.voucher-page { position: relative; left: 50%; width: min(402px, 100vw); height: min(874px, calc(100vh - 36px)); min-height: min(874px, calc(100vh - 36px)); max-height: 874px; margin: -18px 0; overflow: hidden; background: #ffffff; color: #30343f; font-family: var(--ihc-font-family); transform: translateX(-50%); -webkit-font-smoothing: antialiased; }
+.voucher-page { position: relative; left: 50%; width: min(402px, 100vw); height: auto; min-height: var(--ihc-page-min-height); max-height: none; margin: -18px 0; overflow: hidden; background: #ffffff; color: #30343f; font-family: var(--ihc-font-family); transform: translateX(-50%); -webkit-font-smoothing: antialiased; }
 .page-nav { display: flex; align-items: center; height: 74px; padding: 0 29px; }
 .back-btn { display: grid; place-items: center; width: 30px; height: 44px; padding: 0; border: 0; background: transparent; }
 .back-btn span { width: 14px; height: 14px; border-bottom: 4px solid #333333; border-left: 4px solid #333333; transform: rotate(45deg); }

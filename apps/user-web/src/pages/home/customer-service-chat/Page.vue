@@ -327,9 +327,9 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   padding-top: 14px;
   box-sizing: border-box;

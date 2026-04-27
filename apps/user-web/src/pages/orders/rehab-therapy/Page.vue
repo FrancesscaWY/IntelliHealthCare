@@ -1,30 +1,56 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { PageComponentProps } from '@ihc/page-core/types'
-import { Headset } from '@icon-park/vue-next'
-import mock from './mock'
-import { writeServicePaymentContext } from '@/shared/payment/session'
+import { computed, onMounted, ref } from "vue";
+import type { PageComponentProps } from "@ihc/page-core/types";
+import type { OrderListItem } from "@/shared/api/orders";
+import { Headset } from "@icon-park/vue-next";
+import {
+  getOrderCategoryLabel,
+  getOrderServiceTypeKey,
+  resolveOrderAssetUrl,
+  resolveOrderBookingText,
+  useOrderCenter,
+} from "@/pages/service/order-center";
+import { writeServicePaymentContext } from "@/shared/payment/session";
+import mock from "./mock";
 
-const props = defineProps<PageComponentProps>()
-type ServiceKey = keyof typeof mock.ordersByService
-type LegacyOrderItem = (typeof mock.ordersByService)[ServiceKey][number]
+const props = defineProps<PageComponentProps>();
+type ServiceKey = keyof typeof mock.ordersByService;
 
-const activeService = ref<ServiceKey>('therapy')
-const activeTab = ref('all')
+const { orders, isOrdersLoading, ordersError, ensureOrdersLoaded, selectOrder, cancelCurrentOrder } =
+  useOrderCenter();
+const activeService = ref<ServiceKey>("therapy");
+const activeTab = ref("all");
 
 const currentOrders = computed(() =>
   orders.value.filter((item) => getOrderServiceTypeKey(item.serviceCategory) === activeService.value)
 );
-const visibleOrders = computed(() => {
+
+function matchesActiveTab(order: OrderListItem) {
   if (activeTab.value === "all") {
-    return currentOrders.value;
+    return true;
+  }
+
+  if (activeTab.value === "pending") {
+    return order.status === "PENDING_PAYMENT";
+  }
+
+  if (activeTab.value === "assessment") {
+    return order.status === "WAITING_ASSESSMENT";
+  }
+
+  if (activeTab.value === "service") {
+    return order.status === "SCHEDULED" || order.status === "IN_SERVICE";
   }
 
   if (activeTab.value === "review") {
-    return currentOrders.value.filter((item) => item.status === "COMPLETED");
+    return order.status === "COMPLETED";
   }
 
-  return currentOrders.value.filter((item) => item.status === activeTab.value);
+  return false;
+}
+
+const visibleOrders = computed(() => {
+  return currentOrders.value.filter((item) => matchesActiveTab(item));
 });
 
 function selectService(key: string) {
@@ -38,25 +64,29 @@ function goBack() {
   }
 }
 
-function handleAction(actionKey: string, order?: LegacyOrderItem) {
-  if (actionKey === 'pay') {
-    if (order) {
-      writeServicePaymentContext({
-        orderNo: `LEGACY-${activeService.value}-${order.id}`,
-        amount: Number(order.price),
-        serviceTitle: order.title,
-        isLegacyPendingOrder: true,
-        legacySource: 'orders/rehab-therapy',
-      })
-    }
-
-    props.navigation.navigateTo('service/payment')
-    return
+async function handleAction(actionKey: string, order?: OrderListItem) {
+  if (order) {
+    selectOrder(order.orderId);
   }
 
-  if (actionKey === 'edit') {
-    props.navigation.navigateTo('service/order-edit')
-    return
+  if (actionKey === "pay") {
+    if (order) {
+      writeServicePaymentContext({
+        orderId: order.orderId,
+        orderNo: order.orderNo,
+        amount: Number(order.actualAmount),
+        serviceTitle: order.title,
+        legacySource: "orders/rehab-therapy",
+      });
+    }
+
+    props.navigation.navigateTo("service/payment");
+    return;
+  }
+
+  if (actionKey === "edit") {
+    props.navigation.navigateTo("service/order-edit");
+    return;
   }
 
   if (actionKey === "record") {
@@ -88,7 +118,7 @@ function handleAction(actionKey: string, order?: LegacyOrderItem) {
   props.navigation.navigateTo("service/order-detail");
 }
 
-function getOrderActions(order: (typeof visibleOrders.value)[number]) {
+function getOrderActions(order: OrderListItem) {
   if (order.status === "COMPLETED" && activeService.value === "exam") {
     return [{ key: "checkup-report", label: "查看报告", type: "primary" as const }];
   }
@@ -188,9 +218,9 @@ onMounted(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   padding: 16px 18px 28px;
   box-sizing: border-box;

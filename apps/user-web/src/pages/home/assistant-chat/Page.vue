@@ -795,7 +795,7 @@ watch(
       </div>
 
       <div class="quick-actions">
-        <button v-for="item in quickActions" :key="item.label" type="button" @click="useQuickAction(item)">
+        <button v-for="item in quickActions" :key="item.label" type="button" @click="useQuickAction(item.label)">
           <component :is="item.icon" theme="outline" size="16" fill="currentColor" aria-hidden="true" />
           {{ item.label }}
         </button>
@@ -859,8 +859,8 @@ watch(
   justify-self: stretch;
   width: 100%;
   max-width: none;
-  height: 100vh;
-  min-height: 100vh;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
   max-height: none;
   margin: 0;
   overflow: hidden;

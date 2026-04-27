@@ -94,8 +94,11 @@ export function getOrderCategoryLabel(category: string) {
       return "家政护理";
     case "REHAB_THERAPY":
       return "康复理疗";
+    case "HOME_EXAM":
     case "CHECKUP":
       return "上门体检";
+    case "ELDERLY_CARE":
+      return "养老机构";
     default:
       return "订单服务";
   }
@@ -105,6 +108,7 @@ export function getOrderServiceTypeKey(category: string) {
   switch (category) {
     case "HOME_CARE":
       return "homeCare";
+    case "HOME_EXAM":
     case "CHECKUP":
       return "exam";
     default:

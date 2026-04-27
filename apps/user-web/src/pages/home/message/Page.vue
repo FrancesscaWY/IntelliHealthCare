@@ -361,13 +361,11 @@ async function openMessage(item: NoticeSummary | ConversationSummary) {
 <style scoped>
 .message-page {
   position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px 0;
-  transform: translateX(-50%);
+  width: calc(100% + 36px);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
+  margin: -18px 0 -18px -18px;
   overflow: hidden;
   background:
     radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
@@ -378,15 +376,9 @@ async function openMessage(item: NoticeSummary | ConversationSummary) {
 }
 
 .message-scroll {
-  height: 100%;
-  padding: 16px 22px 104px;
+  min-height: var(--ihc-page-min-height);
+  padding: 16px 22px calc(126px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.message-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .message-header button,
@@ -572,18 +564,20 @@ async function openMessage(item: NoticeSummary | ConversationSummary) {
 }
 
 .home-tabbar {
-  position: absolute;
-  right: 0;
+  position: fixed;
+  left: 50%;
   bottom: 0;
-  left: 0;
   z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  height: 74px;
-  padding: 9px 12px 10px;
+  width: min(402px, 100vw);
+  height: calc(74px + env(safe-area-inset-bottom, 0px));
+  padding: 9px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
+  transform: translateX(-50%);
 }
 
 .home-tabbar::before {

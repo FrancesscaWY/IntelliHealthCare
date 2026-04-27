@@ -66,43 +66,6 @@ function removeCookie(name: string) {
   document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
-function canUseCookie() {
-  return typeof document !== "undefined";
-}
-
-function readCookie(name: string) {
-  if (!canUseCookie()) {
-    return "";
-  }
-
-  const cookiePrefix = `${name}=`;
-  const cookieValue = document.cookie
-    .split("; ")
-    .find((item) => item.startsWith(cookiePrefix));
-
-  if (!cookieValue) {
-    return "";
-  }
-
-  return decodeURIComponent(cookieValue.slice(cookiePrefix.length));
-}
-
-function writeCookie(name: string, value: string, maxAgeSeconds = COOKIE_MAX_AGE_SECONDS) {
-  if (!canUseCookie()) {
-    return;
-  }
-
-  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`;
-}
-
-function removeCookie(name: string) {
-  if (!canUseCookie()) {
-    return;
-  }
-
-  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
-}
-
 function isValidSession(value: unknown): value is UserAuthSession {
   if (!value || typeof value !== "object") {
     return false;

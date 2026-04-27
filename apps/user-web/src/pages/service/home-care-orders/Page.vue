@@ -2,19 +2,13 @@
 import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Headset, Left, More } from "@icon-park/vue-next";
-import mock from "./mock";
 import {
-  cancelHomeCareOrder,
-  deleteHomeCareOrder,
-  ensureHomeCareOrders,
-  getHomeCareOrderById,
-  getHomeCareOrders,
-  getHomeCareOrderStatusLabel,
-  setActiveHomeCareOrderId,
-  type HomeCareOrder,
-  type HomeCareOrderStatus,
-} from "./store";
-import { writeServicePaymentContext } from "@/shared/payment/session";
+  formatOrderTime,
+  resolveOrderAssetUrl,
+  resolveOrderBookingText,
+  useOrderCenter,
+} from "@/pages/service/order-center";
+import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const { orders, ensureOrdersLoaded, selectOrder, cancelCurrentOrder } = useOrderCenter();
@@ -35,43 +29,9 @@ function openEdit(orderId: string) {
   props.navigation.navigateTo("service/order-edit");
 }
 
-function openPayment(orderId: string) {
-  selectOrder(orderId);
-  const order = getHomeCareOrderById(orderId);
-
-  if (order) {
-    writeServicePaymentContext({
-      orderNo: order.orderNo,
-      amount: order.actualAmount,
-      serviceTitle: order.title,
-      isLegacyPendingOrder: true,
-      legacySource: "service/home-care-orders"
-    });
-  }
-
-  props.navigation.navigateTo("service/payment");
-}
-
-function openVoucher(orderId: string) {
-  selectOrder(orderId);
-  props.navigation.navigateTo("service/payment-result");
-}
-
 function openTrack(orderId: string) {
   selectOrder(orderId);
-  const order = getHomeCareOrderById(orderId);
-
-  if (order) {
-    writeServicePaymentContext({
-      orderNo: order.orderNo,
-      amount: order.actualAmount,
-      serviceTitle: order.title,
-      isLegacyPendingOrder: true,
-      legacySource: "service/home-care-orders"
-    });
-  }
-
-  props.navigation.navigateTo("service/payment");
+  props.navigation.navigateTo("service/service-track");
 }
 
 function openVoucher(orderId: string) {
@@ -169,7 +129,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.home-care-orders-page { --page-bg: #edf4ff; --card-bg: rgba(255,255,255,.9); --card-border: #e3ebf7; --primary: #6872f0; --text-1: #2e3135; --text-2: #68717b; --text-3: #97a3b8; position: relative; left: 50%; width: min(402px, 100vw); min-height: 874px; margin: -18px 0; transform: translateX(-50%); padding: 16px 14px 28px; box-sizing: border-box; background: var(--page-bg); color: var(--text-1); font-family: "HarmonyOS Sans SC","MiSans","Source Han Sans SC","PingFang SC","Microsoft YaHei UI",sans-serif; }
+.home-care-orders-page { --page-bg: #edf4ff; --card-bg: rgba(255,255,255,.9); --card-border: #e3ebf7; --primary: #6872f0; --text-1: #2e3135; --text-2: #68717b; --text-3: #97a3b8; position: relative; left: 50%; width: min(402px, 100vw); min-height: var(--ihc-page-min-height); margin: -18px 0; transform: translateX(-50%); padding: 16px 14px 28px; box-sizing: border-box; background: var(--page-bg); color: var(--text-1); font-family: "HarmonyOS Sans SC","MiSans","Source Han Sans SC","PingFang SC","Microsoft YaHei UI",sans-serif; }
 .page-header { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 16px 0 10px; }
 .page-title h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.25; }
 .page-title p { margin: 2px 0 0; font-size: 11px; color: #8f959d; }

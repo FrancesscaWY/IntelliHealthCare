@@ -105,8 +105,6 @@ onMounted(() => {
           <button type="button" @click="viewAiEvaluation(item.reportId)">AI评估</button>
         </div>
       </article>
-
-      <p v-if="!isReportsLoading && !historyReports.length" class="empty-text">暂无历史报告</p>
     </main>
   </section>
 </template>
@@ -116,9 +114,9 @@ onMounted(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;

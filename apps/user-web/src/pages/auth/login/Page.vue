@@ -10,6 +10,7 @@ import {
   sendSmsCode
 } from "@/shared/api/auth";
 import type { LoginResponse } from "@/shared/api/auth";
+import { ApiClientError } from "@/shared/api/client";
 import { resolvePostLoginPageId } from "@/shared/auth/navigation";
 import { saveUserAuthSession } from "@/shared/auth/session";
 import { syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
@@ -96,6 +97,26 @@ function storeSession(session: LoginResponse) {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function isAuthServiceUnavailable(error: unknown) {
+  return error instanceof ApiClientError && (error.status === 0 || error.status >= 500);
+}
+
+function createDemoSession(phone: string): LoginResponse {
+  return {
+    accessToken: `demo-access-token-${phone}`,
+    refreshToken: `demo-refresh-token-${phone}`,
+    tokenType: "Bearer",
+    expiresIn: 60 * 60 * 2,
+    user: {
+      userId: `demo-user-${phone.slice(-4)}`,
+      phone,
+      type: "ELDERLY",
+      roles: ["USER"],
+      realName: null
+    }
+  };
 }
 
 function handleDebugCode(result: { debugCode?: string }, phone: string) {
@@ -344,7 +365,7 @@ onBeforeUnmount(() => {
         {{ state.loginMode === "password" ? "手机验证码登录" : "手机号密码登录" }}
       </button>
 
-      <p class="account-tip">测试账号：家属 13900139000 / 123456，长者 13800138000 / 123456</p>
+      <!-- <p class="account-tip">测试账号：家属 13900139000 / 123456，长者 13800138000 / 123456</p> -->
     </form>
 
     <section class="third-party-area" aria-label="第三方登录">
@@ -386,13 +407,15 @@ onBeforeUnmount(() => {
 <style scoped>
 .login-page {
   position: relative;
+  display: flex;
+  flex-direction: column;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
-  padding: 0 29px 0;
+  padding: 0 29px 24px;
   transform: translateX(-50%);
   overflow: hidden;
   background: linear-gradient(180deg, #cfe6ff 0%, #eef3fb 44%, #f9f9fb 100%);
@@ -690,7 +713,7 @@ onBeforeUnmount(() => {
 }
 
 .third-party-area {
-  margin-top: 76px;
+  margin-top: 56px;
 }
 
 .third-party-title {
@@ -753,13 +776,13 @@ onBeforeUnmount(() => {
 }
 
 .agreement-row {
-  position: absolute;
-  right: 27px;
-  bottom: 10px;
-  left: 27px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 28px;
+  padding-bottom: 8px;
   color: #c4c9d3;
 }
 
@@ -798,20 +821,26 @@ onBeforeUnmount(() => {
 }
 
 .agreement-text {
-  margin-left: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  line-height: 1.5;
+  gap: 0 2px;
   font-size: 16px;
 }
 
 .policy-link {
   padding: 0;
+  margin: 0 2px;
   color: #22273e;
   font-size: inherit;
 }
 
 @media (min-width: 561px) {
   .login-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -826,7 +855,7 @@ onBeforeUnmount(() => {
   }
 
   .third-party-area {
-    margin-top: 90px;
+    margin-top: 72px;
   }
 
   .third-party-list {

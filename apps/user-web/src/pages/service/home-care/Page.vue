@@ -98,6 +98,7 @@ import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
 import { getHomeCareServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
 import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 import {
   Home,
@@ -351,7 +352,7 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
   background: #ffffff;

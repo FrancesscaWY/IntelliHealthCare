@@ -118,9 +118,9 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: linear-gradient(180deg, #f7f8fc 0%, #f8f9fd 100%);
@@ -336,8 +336,8 @@ onBeforeUnmount(() => {
 
 @media (min-width: 561px) {
   .device-add-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

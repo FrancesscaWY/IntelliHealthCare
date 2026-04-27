@@ -84,19 +84,24 @@ let blinkTrigger: StateMachineInput | null = null;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
+function resolveProjectPrice(item: ProjectCard, fallbackPrice: number) {
+  const matched = item.priceLabel?.match(/(\d+(?:\.\d+)?)/);
+  return matched ? Number(matched[1]) : fallbackPrice;
+}
+
 function goBack() {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("service/home-care");
   }
 }
 
-function buyProject(item: (typeof mock.projects)[number]) {
+function buyProject(item: ProjectCard) {
   setOrderFlowService({
     type: "homeCare",
-    serviceId: "srv_home_clean_2h",
-    title: item.name,
-    price: 298,
-    image: item.image,
+    serviceId: item.serviceId || "srv_home_clean_2h",
+    title: item.title,
+    price: resolveProjectPrice(item, 298),
+    image: item.imageUrl,
     detailPageId: "service/home-care-detail",
     listPageId: "service/home-care",
     couponAmount: 20,
@@ -281,7 +286,7 @@ onBeforeUnmount(() => {
               <p>{{ item.reason }}</p>
               <small v-if="item.priceLabel">参考价：{{ item.priceLabel }}</small>
               <small v-if="item.regionScope.length">服务区域：{{ item.regionScope.join(" / ") }}</small>
-              <button type="button" @click="buyProject">立即购买</button>
+              <button type="button" @click="buyProject(item)">立即购买</button>
             </div>
           </article>
         </section>
@@ -344,9 +349,9 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:

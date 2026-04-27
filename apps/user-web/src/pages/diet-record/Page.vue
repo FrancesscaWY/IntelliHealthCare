@@ -339,9 +339,9 @@ function getFoodThumbLabel(thumb: DietFoodThumb) {
   display: flex;
   flex-direction: column;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #f5f6f8;

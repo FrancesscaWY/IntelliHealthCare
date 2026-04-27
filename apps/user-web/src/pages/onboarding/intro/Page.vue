@@ -124,11 +124,13 @@ onBeforeUnmount(() => {
   --intro-text: #263241;
   --intro-muted: #a3abb6;
   position: relative;
+  display: flex;
+  flex-direction: column;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;
@@ -200,7 +202,8 @@ onBeforeUnmount(() => {
 
 .intro-track {
   display: flex;
-  min-height: inherit;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -219,8 +222,9 @@ onBeforeUnmount(() => {
   flex: 0 0 100%;
   flex-direction: column;
   align-items: center;
-  min-height: inherit;
-  padding: 88px 30px 156px;
+  min-height: 100%;
+  padding: 88px 30px 36px;
+  box-sizing: border-box;
   scroll-snap-align: start;
 }
 
@@ -268,14 +272,13 @@ onBeforeUnmount(() => {
 }
 
 .intro-footer {
-  position: absolute;
   z-index: 6;
-  right: 30px;
-  bottom: 17px;
-  left: 30px;
   display: grid;
-  gap: 43px;
+  flex: 0 0 auto;
+  gap: 18px;
   justify-items: center;
+  margin-top: auto;
+  padding: 0 30px 17px;
   pointer-events: none;
 }
 
@@ -321,8 +324,8 @@ onBeforeUnmount(() => {
 
 @media (min-width: 561px) {
   .intro-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

@@ -24,13 +24,14 @@ const homeCity = ref(mock.city);
 const serviceCards = ref([...mock.services]);
 const healthReminder = ref({ ...mock.reminder });
 const hotDiseases = ref([...mock.diseases]);
-const articles = ref(createArticleState(mock.articles));
+const articles = ref(createFallbackArticles());
 const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
 const activeFeaturePage = ref(0);
 const isSubmittingSearch = ref(false);
 
 interface ArticleCardState {
   id: string;
+  newsId: string;
   title: string;
   desc: string;
   likes: number;
@@ -43,6 +44,8 @@ interface ArticleCardState {
 
 function createArticleState(
   items: Array<{
+    id?: string;
+    newsId?: string;
     title: string;
     desc: string;
     likes: number;
@@ -53,11 +56,27 @@ function createArticleState(
 ): ArticleCardState[] {
   return items.map((item, index) => ({
     ...item,
-    id: `article-${index + 1}`,
+    id: item.id || item.newsId || `article-${index + 1}`,
+    newsId: item.newsId || item.id || `article-${index + 1}`,
     coverUrl: item.coverUrl ?? null,
     isLiked: false,
     isStarred: false,
   }));
+}
+
+function createFallbackArticles() {
+  return createArticleState(
+    mock.articles.map((item, index) => ({
+      id: `mock-article-${index + 1}`,
+      newsId: `mock-article-${index + 1}`,
+      title: item.title,
+      desc: item.desc,
+      likes: item.likes,
+      stars: item.stars,
+      comments: item.comments,
+      coverUrl: fallbackNewsImage,
+    }))
+  );
 }
 
 function getErrorMessage(error: unknown) {
@@ -106,12 +125,14 @@ function mapServiceEntries(entries: HomeDashboardServiceEntry[]) {
 function mapRecommendedArticles(items: HomeDashboardArticle[]) {
   return createArticleState(
     items.map((item, index) => ({
+      id: item.articleId || `article-${index + 1}`,
+      newsId: item.articleId || `article-${index + 1}`,
       title: item.title,
       desc: item.summary || mock.articles[index]?.desc || "",
       likes: mock.articles[index]?.likes ?? 0,
       stars: mock.articles[index]?.stars ?? 0,
       comments: mock.articles[index]?.comments ?? 0,
-      coverUrl: item.coverUrl,
+      coverUrl: item.coverUrl || fallbackNewsImage,
     }))
   );
 }
@@ -135,7 +156,9 @@ async function loadDashboard() {
           detail: "\u6682\u672A\u751F\u6210\u4ECA\u65E5\u63D0\u9192",
         };
     hotDiseases.value = dashboard.hotDiseases.map((item) => item.title);
-    articles.value = mapRecommendedArticles(dashboard.recommendedArticles);
+    articles.value = dashboard.recommendedArticles.length
+      ? mapRecommendedArticles(dashboard.recommendedArticles)
+      : createFallbackArticles();
   } catch (error) {
     props.showToast(getErrorMessage(error));
   }
@@ -378,14 +401,17 @@ async function loadHealthNews() {
       likes: item.likesCount ?? 0,
       stars: item.favoritesCount ?? 0,
       comments: item.commentsCount ?? 0,
+      coverUrl:
+        item.coverUrl ||
+        normalizeNewsImages(
+          item.newsId || item.id || `article-${index + 1}`,
+          item.title,
+          Array.isArray(item.images) ? item.images : [],
+          item.coverUrl
+        )[0] ||
+        fallbackNewsImage,
       isLiked: false,
       isStarred: false,
-      images: normalizeNewsImages(
-        item.newsId || item.id || `article-${index + 1}`,
-        item.title,
-        Array.isArray(item.images) ? item.images : [],
-        item.coverUrl
-      )
     }));
   } catch {
     articles.value = createFallbackArticles();
@@ -691,13 +717,11 @@ onMounted(() => {
 <style scoped>
 .home-page {
   position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px 0;
-  transform: translateX(-50%);
+  width: calc(100% + 36px);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
+  margin: -18px 0 -18px -18px;
   background:
     radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
     radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
@@ -709,15 +733,8 @@ onMounted(() => {
 }
 
 .home-scroll {
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 22px 22px 108px;
-  scrollbar-width: none;
-}
-
-.home-scroll::-webkit-scrollbar {
-  display: none;
+  min-height: var(--ihc-page-min-height);
+  padding: 22px 22px calc(126px + env(safe-area-inset-bottom, 0px));
 }
 
 .home-topbar {
@@ -1330,18 +1347,20 @@ onMounted(() => {
 }
 
 .home-tabbar {
-  position: absolute;
-  right: 0;
+  position: fixed;
+  left: 50%;
   bottom: 0;
-  left: 0;
   z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  height: 74px;
-  padding: 9px 12px 10px;
+  width: min(402px, 100vw);
+  height: calc(74px + env(safe-area-inset-bottom, 0px));
+  padding: 9px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
+  transform: translateX(-50%);
 }
 
 .home-tabbar::before {
@@ -1429,8 +1448,8 @@ onMounted(() => {
 
 @media (min-width: 561px) {
   .home-page {
-    height: 874px;
-    min-height: 874px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -1463,4 +1482,3 @@ onMounted(() => {
   }
 }
 </style>
-

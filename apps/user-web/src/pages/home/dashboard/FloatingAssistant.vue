@@ -253,7 +253,7 @@ defineExpose({
 <style scoped>
 .floating-assistant {
   position: fixed;
-  top: 70%;
+  top: 50%;
   right: -50px;
   z-index: 15;
   display: grid;
@@ -264,7 +264,7 @@ defineExpose({
   border: 0;
   background: transparent;
   cursor: pointer;
-  transform: translateY(-70%);
+  transform: translateY(-50%);
   touch-action: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

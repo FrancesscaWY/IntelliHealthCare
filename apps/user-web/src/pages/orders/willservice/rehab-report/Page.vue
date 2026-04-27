@@ -60,7 +60,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.rehab-report-page { position: relative; left: 50%; width: min(390px, 100vw); min-height: min(844px, calc(100vh - 36px)); margin: -18px 0; background: #ffffff; color: #27303a; font-family: var(--ihc-font-family); transform: translateX(-50%); -webkit-font-smoothing: antialiased; }
+.rehab-report-page { position: relative; left: 50%; width: min(390px, 100vw); min-height: var(--ihc-page-min-height); margin: -18px 0; background: #ffffff; color: #27303a; font-family: var(--ihc-font-family); transform: translateX(-50%); -webkit-font-smoothing: antialiased; }
 .page-header { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 12px; height: 68px; padding: 0 16px; }
 .back-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: inherit; }
 .back-arrow { width: 11px; height: 11px; border-bottom: 2px solid #343936; border-left: 2px solid #343936; transform: rotate(45deg); }

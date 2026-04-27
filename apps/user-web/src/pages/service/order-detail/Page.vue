@@ -259,7 +259,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.order-detail-page { position: relative; left: 50%; width: min(402px, 100vw); min-height: 874px; margin: -18px 0; transform: translateX(-50%); padding: 16px 14px 96px; box-sizing: border-box; background: #f5f6f7; color: #34383f; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.order-detail-page { position: relative; left: 50%; width: min(402px, 100vw); min-height: var(--ihc-page-min-height); margin: -18px 0; transform: translateX(-50%); padding: 16px 14px 96px; box-sizing: border-box; background: #f5f6f7; color: #34383f; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
 .top-header { height: 70px; display: flex; align-items: center; justify-content: space-between; }
 .back-button,.service-button { padding: 0; border: 0; background: transparent; cursor: pointer; }
 .back-button { width: 28px; height: 36px; color: #34383f; font-size: 42px; line-height: 30px; font-weight: 300; }
