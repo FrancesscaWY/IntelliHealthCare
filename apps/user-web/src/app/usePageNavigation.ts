@@ -4,9 +4,14 @@ import type { NavigationApi, PageEntry } from "@ihc/page-core/types";
 import { currentUserAuthSession, hasUserAuthSession } from "@/shared/auth/session";
 import {
   LOGIN_PAGE_ID,
+  isPublicPageId,
   rememberPostLoginPageId,
   requiresUserAuth
 } from "@/shared/auth/navigation";
+import {
+  loadLastAuthenticatedPageId,
+  saveLastAuthenticatedPageId
+} from "@/shared/auth/page-session";
 
 interface UsePageNavigationOptions {
   manifest: PageEntry[];
@@ -46,10 +51,20 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
     return hasPage(LOGIN_PAGE_ID) ? LOGIN_PAGE_ID : normalizedPageId;
   };
 
-  const initialPageId = resolveAccessiblePageId(
-    resolveInitialPage(manifest, preferredPageId, pathname, fallbackPageId),
-    true
+  const resolvedInitialPageId = resolveInitialPage(
+    manifest,
+    preferredPageId,
+    pathname,
+    fallbackPageId
   );
+  const lastAuthenticatedPageId = loadLastAuthenticatedPageId();
+  const preferredInitialPageId =
+    hasUserAuthSession() &&
+    lastAuthenticatedPageId &&
+    (!resolvedInitialPageId || isPublicPageId(resolvedInitialPageId))
+      ? lastAuthenticatedPageId
+      : resolvedInitialPageId;
+  const initialPageId = resolveAccessiblePageId(preferredInitialPageId, true);
   const stack = ref<string[]>(initialPageId ? [initialPageId] : []);
 
   const setStack = (nextStack: string[]) => {
@@ -105,6 +120,20 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
       return [...stack.value];
     },
   };
+
+  watch(
+    activePage,
+    (pageEntry) => {
+      const currentPageId = pageEntry?.id || "";
+
+      if (!hasUserAuthSession() || !requiresUserAuth(currentPageId)) {
+        return;
+      }
+
+      saveLastAuthenticatedPageId(currentPageId);
+    },
+    { immediate: true, flush: "sync" }
+  );
 
   watch(
     currentUserAuthSession,

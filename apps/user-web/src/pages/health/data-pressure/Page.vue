@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { loadStressSource } from "../measurement-source";
 
 type ChartMode = "day" | "week" | "month";
 type StressRecord = {
@@ -26,16 +26,22 @@ type PeriodItem = {
 
 const props = defineProps<PageComponentProps>();
 const selectedChartMode = ref<ChartMode>("day");
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadStressSource>>>({
+  list: [],
+  dailyTimeline: [],
+  monthlyData: []
+});
 
 const healthList = computed<StressRecord[] | null>(() => {
-  if (mock && Array.isArray(mock.list) && mock.list.length > 0) {
-    return mock.list as StressRecord[];
+  if (pageData.value.list.length > 0) {
+    return pageData.value.list as StressRecord[];
   }
   return null;
 });
 
 const stressData = computed(() => healthList.value ?? []);
-const timelineEntries = computed<TimelineEntry[]>(() => (mock.dailyTimeline ?? []) as TimelineEntry[]);
+const timelineEntries = computed<TimelineEntry[]>(() => pageData.value.dailyTimeline as TimelineEntry[]);
 
 const latest = computed(
   () =>
@@ -63,7 +69,7 @@ const weekItems = computed<PeriodItem[]>(() =>
 );
 
 const monthItems = computed<PeriodItem[]>(() =>
-  (mock.monthlyData ?? []).map((item: { label: string; min: number; max: number; avg: number }) => ({
+  pageData.value.monthlyData.map((item: { label: string; min: number; max: number; avg: number }) => ({
     label: item.label,
     min: Number(item.min),
     max: Number(item.max),
@@ -204,11 +210,16 @@ function getChangeClass(index: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("health/health-data");
-  } else {
-    window.history.back();
+  if (props.navigation?.navigateBack?.()) {
+    return;
   }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
+    return;
+  }
+
+  window.history.back();
 }
 
 function goToAddData() {
@@ -216,6 +227,18 @@ function goToAddData() {
   sessionStorage.setItem("addReturnPath", "health/data-pressure");
   props.navigation?.navigateTo?.("health/add-data");
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadStressSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -368,6 +391,9 @@ function goToAddData() {
         </section>
       </template>
 
+      <div v-else-if="isLoading" class="error-card">
+        <strong>加载中...</strong>
+      </div>
       <div v-else class="error-card">
         <strong>数据加载失败</strong>
         <p>请检查 `mock.ts` 文件，确认已导出有效的 `list` 数据。</p>

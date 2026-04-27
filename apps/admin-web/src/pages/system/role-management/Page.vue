@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type RoleCategory, type RoleManagementRow } from "./mock";
+import {
+  batchUpdateAdminAccountStatus,
+  createAdminAccount,
+  deleteAdminAccount,
+  getAdminAccounts,
+  updateAdminAccount,
+  updateAdminAccountStatus,
+} from "@/shared/api/system";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed, { type RoleCategory, type RoleManagementRow } from "./mock";
 
 type RoleFilter = "全部" | RoleCategory;
 type PermissionKey = "user-view" | "user-detail" | "user-create" | "user-delete" | "user-tag";
 
 const props = defineProps<PageComponentProps>();
 
-const rows = ref<RoleManagementRow[]>(mock.rows.map((row) => ({ ...row })));
-const roleFilters: RoleFilter[] = ["全部", ...mock.roleOptions];
+const mock = ref<typeof mockSeed>(mockSeed);
+const rows = ref<RoleManagementRow[]>(mockSeed.rows.map((row) => ({ ...row })));
+const roleFilters = computed<RoleFilter[]>(() => ["全部", ...(mock.value.roleOptions as RoleCategory[])]);
 const activeRole = ref<RoleFilter>("全部");
 const searchDraft = ref("");
 const searchKeyword = ref("");
@@ -31,7 +41,7 @@ const operatorName = "李明明";
 const form = reactive({
   employeeNo: "",
   employeeName: "",
-  role: mock.roleOptions[0] as RoleCategory,
+  role: mockSeed.roleOptions[0] as RoleCategory,
   phone: "",
   password: "",
   note: "",
@@ -105,6 +115,41 @@ function formatNow() {
 
 function buildPaginationPages(totalPageCount: number) {
   return Array.from({ length: totalPageCount }, (_, index) => index + 1);
+}
+
+async function syncPageData() {
+  try {
+    const response = await getAdminAccounts({
+      page: 1,
+      pageSize: 200,
+    });
+    const roleOptions = Array.isArray(response?.roleOptions) && response.roleOptions.length
+      ? (response.roleOptions as RoleCategory[])
+      : mockSeed.roleOptions;
+
+    mock.value = {
+      ...mock.value,
+      title: String(response?.title ?? mockSeed.title),
+      roleOptions,
+    };
+    rows.value = Array.isArray(response?.rows)
+      ? (response.rows as RoleManagementRow[]).map((row) => ({ ...row }))
+      : [];
+
+    if (activeRole.value !== "全部" && !roleOptions.includes(activeRole.value)) {
+      activeRole.value = "全部";
+    }
+
+    if (!roleOptions.includes(form.role)) {
+      form.role = roleOptions[0] as RoleCategory;
+    }
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "角色管理列表加载失败，已回退到演示数据",
+    });
+  }
 }
 
 function setActiveRole(role: RoleFilter) {
@@ -193,7 +238,7 @@ function openCreateDialog() {
   editingRowId.value = "";
   form.employeeNo = "";
   form.employeeName = "";
-  form.role = activeRole.value === "全部" ? mock.roleOptions[0] : activeRole.value;
+  form.role = activeRole.value === "全部" ? mock.value.roleOptions[0] : activeRole.value;
   form.phone = "";
   form.password = "";
   form.note = "";
@@ -232,7 +277,7 @@ function openAvatarUploader() {
   props.showToast("上传头像功能为演示状态");
 }
 
-function saveRoleMember() {
+async function saveRoleMember() {
   const employeeName = form.employeeName.trim();
   const phone = form.phone.trim();
   const password = form.password.trim();
@@ -274,42 +319,59 @@ function saveRoleMember() {
     return;
   }
 
-  const nextRow: RoleManagementRow = {
-    id: editingRowId.value || `staff-${Date.now()}`,
-    employeeNo,
-    employeeName,
-    role: form.role,
-    phone,
-    password,
-    note: form.note.trim() || "-",
-    updatedBy: operatorName,
-    updatedAt: formatNow(),
-    enabled: isPlatformAdminRole ? true : form.enabled,
-  };
+  try {
+    const payload = {
+      employeeNo,
+      employeeName,
+      role: form.role,
+      phone,
+      password,
+      note: form.note.trim(),
+      enabled: isPlatformAdminRole ? true : form.enabled,
+    };
 
-  if (formMode.value === "create") {
-    rows.value = [nextRow, ...rows.value];
-    props.showToast(`已新增人员：${employeeName}`);
-  } else {
-    rows.value = rows.value.map((row) => (row.id === editingRowId.value ? nextRow : row));
-    props.showToast(`已更新人员：${employeeName}`);
+    if (formMode.value === "create") {
+      await createAdminAccount(payload);
+      props.showToast(`已新增人员：${employeeName}`);
+    } else {
+      await updateAdminAccount(editingRowId.value, payload);
+      props.showToast(`已更新人员：${employeeName}`);
+    }
+
+    activeRole.value = form.role;
+    currentPage.value = 1;
+    closeFormDialog();
+    await syncPageData();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${formMode.value === "create" ? "新增" : "更新"}人员失败，请稍后重试`,
+    });
   }
-
-  activeRole.value = nextRow.role;
-  currentPage.value = 1;
-  closeFormDialog();
 }
 
-function toggleStatus(row: RoleManagementRow) {
+async function toggleStatus(row: RoleManagementRow) {
   if (statusLocked(row.role)) {
     props.showToast("平台管理员启用状态不可修改。");
     return;
   }
 
-  row.enabled = !row.enabled;
-  row.updatedBy = operatorName;
-  row.updatedAt = formatNow();
-  props.showToast(`${row.employeeName}已${row.enabled ? "启用" : "停用"}`);
+  try {
+    await updateAdminAccountStatus(row.id, {
+      enabled: !row.enabled,
+    });
+    row.enabled = !row.enabled;
+    row.updatedBy = operatorName;
+    row.updatedAt = formatNow();
+    props.showToast(`${row.employeeName}已${row.enabled ? "启用" : "停用"}`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "更新账号状态失败，请稍后重试",
+    });
+  }
 }
 
 function toggleFormStatus() {
@@ -346,7 +408,7 @@ function closeDeleteDialog() {
   pendingDeleteIds.value = [];
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!pendingDeleteIds.value.length) {
     closeDeleteDialog();
     return;
@@ -355,14 +417,23 @@ function confirmDelete() {
   const deleteSet = new Set(pendingDeleteIds.value);
   const deleteCount = deleteSet.size;
 
-  rows.value = rows.value.filter((row) => !deleteSet.has(row.id));
-  selectedIds.value = selectedIds.value.filter((id) => !deleteSet.has(id));
-
-  closeDeleteDialog();
-  props.showToast(deleteCount === 1 ? "人员已删除" : `已删除 ${deleteCount} 位人员`);
+  try {
+    await Promise.all(Array.from(deleteSet).map((id) => deleteAdminAccount(id)));
+    rows.value = rows.value.filter((row) => !deleteSet.has(row.id));
+    selectedIds.value = selectedIds.value.filter((id) => !deleteSet.has(id));
+    closeDeleteDialog();
+    props.showToast(deleteCount === 1 ? "人员已删除" : `已删除 ${deleteCount} 位人员`);
+    await syncPageData();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "删除人员失败，请稍后重试",
+    });
+  }
 }
 
-function handleBatchAction(action: "enable" | "disable" | "delete") {
+async function handleBatchAction(action: "enable" | "disable" | "delete") {
   const targets = selectedRows.value;
 
   if (!targets.length) {
@@ -383,17 +454,35 @@ function handleBatchAction(action: "enable" | "disable" | "delete") {
     return;
   }
 
-  editableTargets.forEach((row) => {
-    row.enabled = action === "enable";
-    row.updatedBy = operatorName;
-    row.updatedAt = formatNow();
-  });
+  try {
+    await batchUpdateAdminAccountStatus({
+      accountIds: editableTargets.map((row) => row.id),
+      enabled: action === "enable",
+    });
 
-  const actionText = action === "enable" ? "批量启用" : "批量停用";
-  props.showToast(
-    lockedCount ? `${actionText} ${editableTargets.length} 位人员，已跳过 ${lockedCount} 位平台管理员` : `${actionText} ${editableTargets.length} 位人员`,
-  );
+    editableTargets.forEach((row) => {
+      row.enabled = action === "enable";
+      row.updatedBy = operatorName;
+      row.updatedAt = formatNow();
+    });
+
+    const actionText = action === "enable" ? "批量启用" : "批量停用";
+    props.showToast(
+      lockedCount ? `${actionText} ${editableTargets.length} 位人员，已跳过 ${lockedCount} 位平台管理员` : `${actionText} ${editableTargets.length} 位人员`,
+    );
+    await syncPageData();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${action === "enable" ? "批量启用" : "批量停用"}失败，请稍后重试`,
+    });
+  }
 }
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>

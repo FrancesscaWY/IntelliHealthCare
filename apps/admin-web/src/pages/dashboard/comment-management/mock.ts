@@ -1,5 +1,6 @@
 export interface CommentManagementRow {
   id: string;
+  orderId?: string;
   orderNo: string;
   productCode: string;
   title: string;
@@ -17,21 +18,14 @@ export interface CommentManagementRow {
   gallery: string[];
 }
 
-const cleaningImage =
-  "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=480";
-const rehabImage =
-  "https://images.pexels.com/photos/5793996/pexels-photo-5793996.jpeg?auto=compress&cs=tinysrgb&w=480";
-const medicalImage =
-  "https://images.pexels.com/photos/3846035/pexels-photo-3846035.jpeg?auto=compress&cs=tinysrgb&w=480";
+const cleaningImage = "/api/v1/assets/demo/services/service-cleaning.jpg";
+const rehabImage = "/api/v1/assets/demo/services/service-rehab.png";
+const medicalImage = "/api/v1/assets/demo/services/service-home-visit.png";
 
-const avatarA =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
-const avatarB =
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240";
-const avatarC =
-  "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=240";
-const avatarD =
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=240";
+const avatarA = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+const avatarB = "/api/v1/assets/demo/staff/staff-1.png";
+const avatarC = "/api/v1/assets/demo/staff/staff-2.png";
+const avatarD = "/api/v1/assets/demo/avatars/avatar-4.jpg";
 
 const mock = {
   title: "评价管理",

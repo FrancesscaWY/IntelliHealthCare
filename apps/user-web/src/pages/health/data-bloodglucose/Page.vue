@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { loadBloodGlucoseSource } from "../measurement-source";
 
 type ChartMode = "day" | "week" | "month";
 type BloodGlucoseRecord = {
@@ -27,16 +27,22 @@ type RangeItem = {
 
 const props = defineProps<PageComponentProps>();
 const selectedChartMode = ref<ChartMode>("day");
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadBloodGlucoseSource>>>({
+  list: [],
+  dailyTimeline: [],
+  monthlyData: []
+});
 
 const healthList = computed<BloodGlucoseRecord[] | null>(() => {
-  if (mock && Array.isArray(mock.list) && mock.list.length > 0) {
-    return mock.list as BloodGlucoseRecord[];
+  if (pageData.value.list.length > 0) {
+    return pageData.value.list as BloodGlucoseRecord[];
   }
   return null;
 });
 
 const bloodGlucoseData = computed(() => healthList.value ?? []);
-const timelineEntries = computed<TimelineEntry[]>(() => (mock.dailyTimeline ?? []) as TimelineEntry[]);
+const timelineEntries = computed<TimelineEntry[]>(() => pageData.value.dailyTimeline as TimelineEntry[]);
 
 const latest = computed(
   () =>
@@ -69,7 +75,7 @@ const weekRangeItems = computed<RangeItem[]>(() =>
 );
 
 const monthRangeItems = computed<RangeItem[]>(() =>
-  (mock.monthlyData ?? []).map((item: { label: string; min: number; max: number; avg: number }) => ({
+  pageData.value.monthlyData.map((item: { label: string; min: number; max: number; avg: number }) => ({
     label: item.label,
     min: Number(item.min),
     max: Number(item.max),
@@ -242,6 +248,16 @@ const chartTitle = computed(() => {
 const chartSummary = computed(() => {
   if (selectedChartMode.value === "day") {
     const values = latestTimeline.value.map((item) => item.value);
+    if (!values.length) {
+      return {
+        highestValue: 0,
+        highestLabel: "--",
+        lowestValue: 0,
+        lowestLabel: "--",
+        averageValue: 0,
+        averageLabel: latest.value.date || "--",
+      };
+    }
     const total = values.reduce((sum, value) => sum + value, 0);
     const maxValue = Math.max(...values);
     const minValue = Math.min(...values);
@@ -259,6 +275,16 @@ const chartSummary = computed(() => {
   }
 
   const source = selectedChartMode.value === "week" ? weekRangeItems.value : monthRangeItems.value;
+  if (!source.length) {
+    return {
+      highestValue: 0,
+      highestLabel: "--",
+      lowestValue: 0,
+      lowestLabel: "--",
+      averageValue: 0,
+      averageLabel: selectedChartMode.value === "week" ? "近7天" : "本月",
+    };
+  }
   const maxItem = source.reduce((result, item) => (item.max > result.max ? item : result), source[0]);
   const minItem = source.reduce((result, item) => (item.min < result.min ? item : result), source[0]);
   const averageValue = Number(
@@ -303,11 +329,16 @@ function getChangeClass(index: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("health/health-data");
-  } else {
-    window.history.back();
+  if (props.navigation?.navigateBack?.()) {
+    return;
   }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
+    return;
+  }
+
+  window.history.back();
 }
 
 function goToAddData() {
@@ -315,6 +346,18 @@ function goToAddData() {
   sessionStorage.setItem("addReturnPath", "health/data-bloodglucose");
   props.navigation?.navigateTo?.("health/add-data");
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadBloodGlucoseSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -518,6 +561,9 @@ function goToAddData() {
         </section>
       </template>
 
+      <div v-else-if="isLoading" class="error-card">
+        <strong>加载中...</strong>
+      </div>
       <div v-else class="error-card">
         <strong>数据加载失败</strong>
         <p>请检查 `mock.ts` 文件，确认已导出有效的 `list` 数据。</p>

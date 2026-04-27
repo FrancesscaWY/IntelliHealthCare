@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Leaf, Sport, Stopwatch } from "@icon-park/vue-next";
 import stepsRingImage from "@/assets/health/img.png";
 import mock from "./mock";
+import { loadStepsSource } from "../measurement-source";
 
 const props = defineProps<PageComponentProps>();
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadStepsSource>>>({
+  list: []
+});
 
 type HistoryMode = "steps" | "distance";
 
 const historyMode = ref<HistoryMode>("steps");
 
 const healthList = computed(() => {
-  if (mock?.list && Array.isArray(mock.list) && mock.list.length > 0) {
-    return mock.list;
+  if (pageData.value.list.length > 0) {
+    return pageData.value.list;
   }
 
   return null;
@@ -59,13 +64,29 @@ function formatNumber(num: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("health/health-data");
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
     return;
   }
 
   window.history.back();
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadStepsSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -142,6 +163,10 @@ function goBack() {
         </ol>
       </article>
     </main>
+
+    <div v-else-if="isLoading" class="error-card">
+      <strong>加载中...</strong>
+    </div>
 
     <div v-else class="error-card">
       <strong>数据加载失败</strong>

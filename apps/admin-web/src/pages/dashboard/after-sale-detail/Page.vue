@@ -1,26 +1,41 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { buildAfterSaleDetail, getActiveAfterSaleRow, getLinkedOrder } from "./mock";
-import { upsertAfterSaleRow, type AfterSaleRow } from "../after-sale/mock";
-import { orderDetailStorageKey, updateOrderById, type AdminOrderRecord } from "../order-list/mock";
+import {
+  approveAdminAfterSale,
+  getAdminAfterSaleDetail,
+  rejectAdminAfterSale,
+} from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
+import {
+  buildAfterSaleDetail,
+  getActiveAfterSaleRow,
+  getLinkedOrder,
+  readSelectedAfterSaleNo,
+  type AfterSaleDetailViewModel,
+} from "./mock";
+import { upsertAfterSaleRow } from "../after-sale/mock";
+import { orderDetailStorageKey } from "../order-list/mock";
 
 const props = defineProps<PageComponentProps>();
 
 const nowTimestamp = ref(Date.now());
-const selectedAfterSale = ref<AfterSaleRow | null>(null);
-const selectedOrder = ref<AdminOrderRecord | null>(null);
+const afterSaleId = ref(readSelectedAfterSaleNo());
+const orderId = ref("");
 const decisionDialogOpen = ref(false);
 const decisionMode = ref<"approve" | "reject">("approve");
 const approveRefundAmountInput = ref("");
 const approveRemarkInput = ref("");
 const rejectRemarkInput = ref("");
+const detail = ref<AfterSaleDetailViewModel | null>(null);
 let countdownTimer: number | null = null;
 
-const detail = computed(() => {
-  const row = selectedAfterSale.value;
-  return row ? buildAfterSaleDetail(row, selectedOrder.value) : null;
-});
+function buildFallbackDetail() {
+  const row = getActiveAfterSaleRow();
+  return row ? buildAfterSaleDetail(row, getLinkedOrder(row)) : null;
+}
+
+detail.value = buildFallbackDetail();
 
 const canProcess = computed(() => detail.value?.status === "处理中");
 const requestedRefundAmount = computed(() => Number(detail.value?.refundAmount || 0));
@@ -116,38 +131,6 @@ function startCountdown() {
   }, 1000);
 }
 
-function refreshSelection() {
-  selectedAfterSale.value = getActiveAfterSaleRow();
-  selectedOrder.value = getLinkedOrder(selectedAfterSale.value);
-  nowTimestamp.value = Date.now();
-}
-
-watch(
-  () => detail.value?.deadlineAt ?? "",
-  (deadlineAt) => {
-    nowTimestamp.value = Date.now();
-    stopCountdown();
-
-    if (deadlineAt) {
-      startCountdown();
-    }
-  },
-  { immediate: true },
-);
-
-onMounted(refreshSelection);
-onActivated(refreshSelection);
-
-onBeforeUnmount(() => {
-  stopCountdown();
-});
-
-function goBack() {
-  if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch("dashboard/after-sale");
-  }
-}
-
 function navigateWithStorage(pageId: string, storageKey: string, value: string) {
   if (typeof window !== "undefined") {
     window.sessionStorage.setItem(storageKey, value);
@@ -163,15 +146,94 @@ function navigateWithStorage(pageId: string, storageKey: string, value: string) 
   }
 }
 
-function openOrderDetail() {
-  const orderNo = selectedAfterSale.value?.orderNo;
+function syncAfterSaleCache(currentDetail: AfterSaleDetailViewModel) {
+  const appliedAt = currentDetail.refundFields.find((item) => item.label === "申请时间")?.value || "";
 
-  if (!orderNo) {
+  upsertAfterSaleRow({
+    orderId: orderId.value || undefined,
+    orderNo: currentDetail.orderNo,
+    afterSaleNo: currentDetail.afterSaleNo,
+    title: currentDetail.productTitle,
+    image: currentDetail.productImage,
+    paidAmount: currentDetail.paidAmount,
+    refundAmount: currentDetail.refundAmount,
+    status: currentDetail.status,
+    appliedAt,
+  });
+}
+
+async function syncPageData() {
+  const currentAfterSaleId = readSelectedAfterSaleNo();
+
+  afterSaleId.value = currentAfterSaleId;
+  nowTimestamp.value = Date.now();
+
+  if (!currentAfterSaleId) {
+    detail.value = buildFallbackDetail();
+    orderId.value = "";
+    return;
+  }
+
+  try {
+    const response = await getAdminAfterSaleDetail(currentAfterSaleId);
+    detail.value = response as AfterSaleDetailViewModel;
+    afterSaleId.value = String(response?.afterSaleId ?? currentAfterSaleId);
+    orderId.value = String(response?.orderId ?? "");
+
+    if (detail.value) {
+      syncAfterSaleCache(detail.value);
+    }
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "售后详情加载失败，已回退到演示数据",
+    });
+    detail.value = buildFallbackDetail();
+    orderId.value = "";
+  }
+}
+
+watch(
+  () => detail.value?.deadlineAt ?? "",
+  (deadlineAt) => {
+    nowTimestamp.value = Date.now();
+    stopCountdown();
+
+    if (deadlineAt) {
+      startCountdown();
+    }
+  },
+  { immediate: true },
+);
+
+onMounted(() => {
+  void syncPageData();
+});
+
+onActivated(() => {
+  void syncPageData();
+});
+
+onBeforeUnmount(() => {
+  stopCountdown();
+});
+
+function goBack() {
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch("dashboard/after-sale");
+  }
+}
+
+function openOrderDetail() {
+  const targetOrderId = orderId.value || detail.value?.orderNo || "";
+
+  if (!targetOrderId) {
     props.showToast("当前售后记录未关联订单");
     return;
   }
 
-  navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, orderNo);
+  navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, targetOrderId);
 }
 
 function contactUser() {
@@ -180,34 +242,6 @@ function contactUser() {
   }
 
   props.showToast(`已打开 ${detail.value.contactName} 的联系入口`);
-}
-
-function applyAfterSalePatch(patch: Partial<AfterSaleRow>) {
-  const currentRow = selectedAfterSale.value;
-
-  if (!currentRow) {
-    return;
-  }
-
-  const nextRow = { ...currentRow, ...patch };
-  selectedAfterSale.value = nextRow;
-  upsertAfterSaleRow(nextRow);
-}
-
-function applyOrderPatch(patch: Partial<AdminOrderRecord>) {
-  const currentOrder = selectedOrder.value;
-
-  if (!currentOrder) {
-    return;
-  }
-
-  const nextOrder = { ...currentOrder, ...patch };
-  selectedOrder.value = nextOrder;
-  updateOrderById(currentOrder.id, patch);
-}
-
-function formatAmount(value: number) {
-  return value.toFixed(2);
 }
 
 function openDecisionDialog(mode: "approve" | "reject") {
@@ -229,47 +263,37 @@ function closeDecisionDialog() {
   rejectRemarkInput.value = "";
 }
 
-function confirmDecision() {
-  const row = selectedAfterSale.value;
+async function confirmDecision() {
   const currentDetail = detail.value;
 
-  if (!row || !currentDetail || !canConfirmDecision.value) {
+  if (!currentDetail || !afterSaleId.value || !canConfirmDecision.value) {
     return;
   }
 
   const isApprove = decisionMode.value === "approve";
-  const nextStatus = isApprove ? "售后完成" : "售后关闭";
-  const approvedRefundAmount = isApprove ? formatAmount(Number(approveRefundAmountInput.value.trim())) : row.refundAmount;
-  const handleRemark = isApprove ? approveRemarkInput.value.trim() : rejectRemarkInput.value.trim();
-  const nextDetailTitle = isApprove ? "售后处理完成" : "售后申请已关闭";
-  const nextDetailDescription = isApprove
-    ? `售后申请已处理完成，已同意退款 ¥${approvedRefundAmount}，请关注退款到账进度。`
-    : "售后申请已关闭，如用户仍有异议，可继续沟通后重新发起售后。";
-  const nextReason = `${currentDetail.applicationReason}；处理结果：${nextStatus}；处理备注：${handleRemark}`;
 
-  applyAfterSalePatch({
-    status: nextStatus,
-    refundAmount: approvedRefundAmount,
-  });
+  try {
+    if (isApprove) {
+      await approveAdminAfterSale(afterSaleId.value, {
+        refundAmount: Number(approveRefundAmountInput.value.trim()),
+        remark: approveRemarkInput.value.trim(),
+      });
+    } else {
+      await rejectAdminAfterSale(afterSaleId.value, {
+        remark: rejectRemarkInput.value.trim(),
+      });
+    }
 
-  applyOrderPatch({
-    status: "退款售后",
-    afterSaleNo: row.afterSaleNo,
-    afterSaleStatus: nextStatus,
-    afterSaleReason: nextReason,
-    detailTitle: nextDetailTitle,
-    detailDescription: nextDetailDescription,
-    productActionLabel: nextStatus,
-    footerActions: [{ label: "返回", tone: "ghost" }],
-    actions: [
-      { label: "订单详情", tone: "green" },
-      { label: "联系用户", tone: "green" },
-      { label: "备注", tone: "green" },
-    ],
-  });
-
-  closeDecisionDialog();
-  props.showToast(`售后单 ${row.afterSaleNo} 已${isApprove ? "同意退款" : "拒绝退款"}`);
+    closeDecisionDialog();
+    await syncPageData();
+    props.showToast(`售后单 ${currentDetail.afterSaleNo} 已${isApprove ? "同意退款" : "拒绝退款"}`);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${isApprove ? "同意退款" : "拒绝退款"}失败，请稍后重试`,
+    });
+  }
 }
 </script>
 

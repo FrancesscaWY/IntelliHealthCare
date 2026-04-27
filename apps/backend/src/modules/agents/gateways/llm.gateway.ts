@@ -157,6 +157,24 @@ export class LlmGateway {
     }
   }
 
+  getRuntimeStatus() {
+    const clientConfig = this.getClientConfig();
+
+    return {
+      provider: clientConfig.provider,
+      baseUrlConfigured: Boolean(clientConfig.baseUrl),
+      apiKeyConfigured: Boolean(clientConfig.apiKey),
+      deterministicFallback: this.shouldUseDeterministicFallback(clientConfig),
+      models: {
+        primary: this.resolveChatModel("primary"),
+        light: this.resolveChatModel("light"),
+        fallback: this.resolveChatModel("fallback")
+      },
+      strictJson: clientConfig.strictJson,
+      requireToolCalling: clientConfig.requireToolCalling
+    };
+  }
+
   async generateToolCalls(
     input: GenerateToolCallsInput
   ): Promise<LlmToolCallResponse> {

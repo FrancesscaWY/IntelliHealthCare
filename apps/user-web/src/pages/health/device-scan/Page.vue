@@ -2,12 +2,14 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import watchA001Image from "@/assets/devices/watch-a001-device.jpg";
+import { scanBindHealthDevice } from "@/shared/api/health";
+import { selectDevice, syncHealthDeviceItems } from "../device-center/state";
 import mock from "./mock";
-import { selectedDeviceId } from "../device-center/state";
 
 const props = defineProps<PageComponentProps>();
 const phase = ref<"scanning" | "success">("scanning");
 const progressWidth = ref(0);
+const isBinding = ref(false);
 let scanTimer: ReturnType<typeof setTimeout> | undefined;
 
 function goBack() {
@@ -25,7 +27,6 @@ function beginScanFlow() {
   progressWidth.value = 0;
   scanTimer = setTimeout(async () => {
     phase.value = "success";
-    selectedDeviceId.value = "watch-a001";
     await nextTick();
     requestAnimationFrame(() => {
       progressWidth.value = 100;
@@ -33,9 +34,24 @@ function beginScanFlow() {
   }, 2000);
 }
 
-function finishBinding() {
-  selectedDeviceId.value = "watch-a001";
-  props.navigation.reLaunch("health/device-detail");
+async function finishBinding() {
+  if (isBinding.value) {
+    return;
+  }
+
+  try {
+    isBinding.value = true;
+    const device = await scanBindHealthDevice("watch-a001");
+    selectDevice(device.deviceId);
+    await syncHealthDeviceItems();
+    props.showToast("绑定成功");
+    props.navigation.reLaunch("health/device-detail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "绑定失败，请稍后重试";
+    props.showToast(message);
+  } finally {
+    isBinding.value = false;
+  }
 }
 
 onMounted(() => {
@@ -90,7 +106,9 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="success-footer">
-      <button class="finish-btn" type="button" @click="finishBinding">{{ mock.finishText }}</button>
+      <button class="finish-btn" type="button" :disabled="isBinding" @click="finishBinding">
+        {{ isBinding ? "绑定中..." : mock.finishText }}
+      </button>
     </footer>
   </section>
 </template>
@@ -347,6 +365,10 @@ onBeforeUnmount(() => {
   font-size: 18px;
   font-weight: 400;
   box-shadow: 0 14px 28px rgba(102, 112, 240, 0.2);
+}
+
+.finish-btn:disabled {
+  opacity: 0.66;
 }
 
 @keyframes scan {

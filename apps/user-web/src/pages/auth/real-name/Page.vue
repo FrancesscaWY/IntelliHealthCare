@@ -117,7 +117,7 @@ async function saveProfile() {
       birthday: form.birthday
     });
     props.showToast("实名认证已提交");
-    props.navigation.reLaunch(DEFAULT_AUTHENTICATED_PAGE_ID);
+    props.navigation.reLaunch(resolvePostLoginPageId(true));
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {

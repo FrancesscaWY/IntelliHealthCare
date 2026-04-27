@@ -1,144 +1,329 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import type { BookingOptionAddress, PreviewOrderResponse } from "@/shared/api/orders";
+import { createOrder, getBookingOptions, previewOrder } from "@/shared/api/orders";
+import { writeServicePaymentContext } from "@/shared/payment/session";
+import {
+  readSelectedServiceContext,
+  type SelectedServiceContext
+} from "@/shared/service/catalog";
 import mock from "./mock";
-import { createOrder, previewOrder } from "@/shared/api/orders";
-import { getOrderFlowState, setCreatedOrderSnapshot } from "@/pages/service/order-flow";
-import { useOrderCenter } from "@/pages/service/order-center";
 
 const props = defineProps<PageComponentProps>();
-const submitting = ref(false);
-const orderFlowState = getOrderFlowState();
-const { selectOrder } = useOrderCenter();
-const previewAmount = ref<{
-  total: number;
-  coupon: number;
-  subtotal: number;
-} | null>(null);
 
-const orderService = computed(() => {
-  const service = orderFlowState.service;
-  if (service) {
-    return {
-      title: service.title,
-      price: service.price,
-      image: service.image
-    };
+const SERVICE_ID_MAP = {
+  homeCare: "srv_home_clean_2h",
+  rehab: "srv_rehab_stroke",
+  exam: "srv_exam_basic"
+} as const;
+
+const SERVICE_TITLE_MAP: Record<keyof typeof SERVICE_ID_MAP, string> = {
+  homeCare: "\u65e5\u5e38\u6e05\u6d01 2\u5c0f\u65f61\u4eba\u4e0a\u95e8\u670d\u52a1",
+  rehab: "\u8111\u5352\u4e2d\u672f\u540e\u5eb7\u590d\u5957\u9910",
+  exam: "\u957f\u8005\u57fa\u7840\u4f53\u68c0\u5957\u9910"
+};
+
+const UI = {
+  backAria: "\u8fd4\u56de",
+  pageTitle: "\u8ba2\u5355\u786e\u8ba4",
+  totalLabel: "\u5546\u54c1\u603b\u989d",
+  couponLabel: "\u4f18\u60e0\u51cf\u514d",
+  subtotalLabel: "\u5c0f\u8ba1",
+  bookingTitle: "\u9884\u7ea6\u4fe1\u606f",
+  addressLabel: "\u4e0a\u95e8\u5730\u5740",
+  timeLabel: "\u9884\u7ea6\u65f6\u95f4",
+  phoneLabel: "\u8054\u7cfb\u65b9\u5f0f",
+  noticeTitle: "\u9884\u7ea6\u8bf4\u660e",
+  totalBarLabel: "\u5408\u8ba1",
+  submitOrder: "\u63d0\u4ea4\u8ba2\u5355",
+  submitting: "\u63d0\u4ea4\u4e2d...",
+  loading: "\u9884\u7ea6\u4fe1\u606f\u52a0\u8f7d\u4e2d...",
+  unknownAddress: "\u5f85\u751f\u6210\u9884\u7ea6\u5730\u5740",
+  unknownSchedule: "\u5f85\u751f\u6210\u9884\u7ea6\u65f6\u95f4",
+  unknownPhone: "\u5f85\u751f\u6210\u8054\u7cfb\u65b9\u5f0f"
+} as const;
+
+const NOTICE_ITEMS = [
+  {
+    label: "\u6709\u6548\u671f",
+    value: "\u8d2d\u4e70\u540e30\u5929\u5185\u6709\u6548"
+  },
+  {
+    label: "\u9884\u7ea6\u89c4\u5219",
+    value: "\u8bf7\u6309\u9884\u7ea6\u65f6\u95f4\u4f7f\u7528\uff0c\u670d\u52a1\u5f00\u59cb\u524d2\u5c0f\u65f6\u5185\u53ef\u53d6\u6d88"
   }
+] as const;
 
-  return mock.services.homeCare;
-});
+const TOASTS = {
+  noAddress: "\u672a\u83b7\u53d6\u5230\u53ef\u7528\u5730\u5740",
+  noSchedule: "\u672a\u83b7\u53d6\u5230\u53ef\u7528\u9884\u7ea6\u65f6\u95f4",
+  createFailed: "\u8ba2\u5355\u63d0\u4ea4\u5931\u8d25",
+  previewFailed: "\u9884\u7ea6\u4fe1\u606f\u52a0\u8f7d\u5931\u8d25"
+} as const;
 
-const orderPrice = computed(() => {
-  if (previewAmount.value) {
-    return previewAmount.value;
-  }
+type OrderServiceKey = keyof typeof SERVICE_ID_MAP;
 
-  const service = orderFlowState.service;
-  const couponAmount = service?.couponAmount ?? 20;
-  const total = service?.price ?? mock.prices.homeCare.total;
-  const subtotal = Math.max(0, total - couponAmount);
-
-  return {
-    total,
-    coupon: -couponAmount,
-    subtotal
-  };
-});
-
-const bookingInfo = computed(() => ({
-  address: orderFlowState.booking?.addressText || orderFlowState.service?.addressText || mock.booking.address,
-  time: orderFlowState.booking
-    ? `${orderFlowState.booking.bookingDate} ${orderFlowState.booking.bookingTimeSlot}`
-    : mock.booking.time,
-  phone: orderFlowState.booking?.contactPhone || orderFlowState.service?.contactPhone || mock.booking.phone
-}));
-
-async function loadPreview() {
-  const service = orderFlowState.service;
-  const booking = orderFlowState.booking;
-
-  if (!service || !booking?.addressId) {
-    return;
-  }
-
-  try {
-    const preview = await previewOrder({
-      serviceId: service.serviceId,
-      addressId: booking.addressId,
-      elderId: booking.elderId || undefined,
-      bookingDate: booking.bookingDate || undefined,
-      bookingTimeSlot: booking.bookingTimeSlot || undefined,
-      couponId: booking.couponId || undefined,
-      remark: booking.remark || undefined
-    });
-
-    previewAmount.value = {
-      total: preview.originalAmount,
-      coupon: -preview.discountAmount,
-      subtotal: preview.payableAmount
-    };
-  } catch {
-    previewAmount.value = null;
-  }
+interface ResolvedOrderContext {
+  address: BookingOptionAddress;
+  bookingDate: string;
+  bookingTimeSlot: string;
+  preview: PreviewOrderResponse;
 }
 
-function goBack() {
+const selectedServiceContext = ref<SelectedServiceContext | null>(readSelectedServiceContext());
+
+function getOrderServiceKeyFromCategory(categorySlug: string): OrderServiceKey {
+  if (categorySlug === "rehab-therapy") {
+    return "rehab";
+  }
+
+  if (categorySlug === "home-exam") {
+    return "exam";
+  }
+
+  return "homeCare";
+}
+
+const inferredOrderServiceKey = computed<OrderServiceKey>(() => {
+  const stack = props.navigation.getStack();
+
+  if (stack.includes("service/rehab-therapy-detail")) {
+    return "rehab";
+  }
+
+  if (stack.includes("service/home-exam-detail")) {
+    return "exam";
+  }
+
+  return "homeCare";
+});
+
+const orderServiceKey = computed<OrderServiceKey>(() => {
+  const stack = props.navigation.getStack();
+  const selectedCategory = selectedServiceContext.value?.categorySlug;
+
+  if (
+    !stack.includes("service/home-care-detail") &&
+    !stack.includes("service/home-exam-detail") &&
+    !stack.includes("service/rehab-therapy-detail") &&
+    selectedCategory
+  ) {
+    return getOrderServiceKeyFromCategory(selectedCategory);
+  }
+
+  return inferredOrderServiceKey.value;
+});
+
+const resolvedServiceId = computed(() => {
+  const expectedCategory =
+    orderServiceKey.value === "rehab"
+      ? "rehab-therapy"
+      : orderServiceKey.value === "exam"
+        ? "home-exam"
+        : "home-care";
+
+  if (
+    selectedServiceContext.value?.categorySlug === expectedCategory &&
+    selectedServiceContext.value.serviceId.trim()
+  ) {
+    return selectedServiceContext.value.serviceId.trim();
+  }
+
+  return SERVICE_ID_MAP[orderServiceKey.value];
+});
+
+const isLoadingPreview = ref(false);
+const isSubmitting = ref(false);
+const previewError = ref<string | null>(null);
+const previewData = ref<PreviewOrderResponse | null>(null);
+const selectedAddress = ref<BookingOptionAddress | null>(null);
+const selectedBookingDate = ref<string | null>(null);
+const selectedBookingTimeSlot = ref<string | null>(null);
+
+const fallbackService = computed(() => mock.services[orderServiceKey.value]);
+const fallbackPrice = computed(() => mock.prices[orderServiceKey.value]);
+
+const serviceTitle = computed(
+  () =>
+    previewData.value?.service.title ??
+    selectedServiceContext.value?.title ??
+    SERVICE_TITLE_MAP[orderServiceKey.value]
+);
+
+const serviceImage = computed(
+  () =>
+    previewData.value?.service.coverUrl ||
+    selectedServiceContext.value?.coverUrl ||
+    fallbackService.value.image
+);
+
+const servicePriceText = computed(() =>
+  formatCurrency(
+    previewData.value?.service.price ??
+      selectedServiceContext.value?.price ??
+      fallbackService.value.price
+  )
+);
+
+const totalAmountText = computed(() =>
+  formatCurrency(previewData.value?.price.originalAmount ?? fallbackPrice.value.total)
+);
+
+const discountAmountText = computed(() =>
+  formatSignedCurrency(-(previewData.value?.price.discountAmount ?? Math.abs(fallbackPrice.value.coupon)))
+);
+
+const payableAmountText = computed(() =>
+  formatCurrency(previewData.value?.price.payableAmount ?? fallbackPrice.value.subtotal)
+);
+
+const bookingAddressText = computed(() => {
+  if (!selectedAddress.value) {
+    return isLoadingPreview.value ? UI.loading : UI.unknownAddress;
+  }
+
+  return buildAddressText(selectedAddress.value);
+});
+
+const bookingTimeText = computed(() => {
+  if (!selectedBookingDate.value || !selectedBookingTimeSlot.value) {
+    return isLoadingPreview.value ? UI.loading : UI.unknownSchedule;
+  }
+
+  return `${selectedBookingDate.value} ${selectedBookingTimeSlot.value}`;
+});
+
+const bookingPhoneText = computed(
+  () => selectedAddress.value?.receiverPhone ?? (isLoadingPreview.value ? UI.loading : UI.unknownPhone)
+);
+
+const goBack = () => {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("service/booking");
+    props.navigation.reLaunch("service/booking");
   }
+};
+
+function formatCurrency(amount: number) {
+  return `\uFFE5${amount.toFixed(2)}`;
 }
 
-async function submitOrder() {
-  const service = orderFlowState.service;
-  const booking = orderFlowState.booking;
+function formatSignedCurrency(amount: number) {
+  const sign = amount < 0 ? "-" : "";
+  return `${sign}\uFFE5${Math.abs(amount).toFixed(2)}`;
+}
 
-  if (!service) {
-    props.showToast("请先选择服务");
-    props.navigation.reLaunch("service/home-care");
-    return;
+function buildAddressText(address: BookingOptionAddress) {
+  return [
+    address.province,
+    address.city,
+    address.district,
+    address.street,
+    address.detailAddress
+  ]
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .join("");
+}
+
+async function resolveOrderContext() {
+  if (
+    previewData.value &&
+    selectedAddress.value &&
+    selectedBookingDate.value &&
+    selectedBookingTimeSlot.value
+  ) {
+    return {
+      address: selectedAddress.value,
+      bookingDate: selectedBookingDate.value,
+      bookingTimeSlot: selectedBookingTimeSlot.value,
+      preview: previewData.value
+    } satisfies ResolvedOrderContext;
   }
 
-  if (!booking?.addressId || !booking.bookingDate || !booking.bookingTimeSlot) {
-    props.showToast("请先完善预约信息");
-    props.navigation.reLaunch("service/booking");
-    return;
+  const serviceId = resolvedServiceId.value;
+  const bookingOptions = await getBookingOptions(serviceId);
+  const address = bookingOptions.addresses[0];
+  const bookingDate = bookingOptions.availableDates[0]?.date;
+  const bookingTimeSlot = bookingOptions.availableDates[0]?.timeSlots[0];
+
+  if (!address?.addressId) {
+    throw new Error(TOASTS.noAddress);
   }
 
-  if (submitting.value) {
-    return;
+  if (!bookingDate || !bookingTimeSlot) {
+    throw new Error(TOASTS.noSchedule);
   }
 
-  submitting.value = true;
+  const preview = await previewOrder({
+    serviceId,
+    addressId: address.addressId,
+    bookingDate,
+    bookingTimeSlot
+  });
+
+  selectedAddress.value = address;
+  selectedBookingDate.value = bookingDate;
+  selectedBookingTimeSlot.value = bookingTimeSlot;
+  previewData.value = preview;
+  previewError.value = null;
+
+  return {
+    address,
+    bookingDate,
+    bookingTimeSlot,
+    preview
+  } satisfies ResolvedOrderContext;
+}
+
+async function loadPreview() {
+  if (isLoadingPreview.value) {
+    return;
+  }
 
   try {
-    const createdOrder = await createOrder({
-      serviceId: service.serviceId,
-      addressId: booking.addressId,
-      bookingDate: booking.bookingDate,
-      bookingTimeSlot: booking.bookingTimeSlot,
-      contactName: booking.contactName || undefined,
-      contactPhone: booking.contactPhone || undefined,
-      elderId: booking.elderId || undefined,
-      couponId: booking.couponId || undefined,
-      remark: booking.remark || undefined
-    });
-
-    setCreatedOrderSnapshot({
-      ...createdOrder,
-      createdAt: new Date().toISOString()
-    });
-    selectOrder(createdOrder.orderId);
-
-    props.showToast("订单创建成功");
-    props.navigation.navigateTo("service/payment");
+    isLoadingPreview.value = true;
+    await resolveOrderContext();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "创建订单失败";
-    props.showToast(message);
+    previewError.value = error instanceof Error ? error.message : TOASTS.previewFailed;
   } finally {
-    submitting.value = false;
+    isLoadingPreview.value = false;
   }
 }
+
+const submitOrder = async () => {
+  if (isSubmitting.value) {
+    return;
+  }
+
+  try {
+    isSubmitting.value = true;
+
+    const serviceId = resolvedServiceId.value;
+    const { address, bookingDate, bookingTimeSlot, preview } = await resolveOrderContext();
+    const createdOrder = await createOrder({
+      serviceId,
+      addressId: address.addressId,
+      bookingDate,
+      bookingTimeSlot,
+      contactName: address.receiverName,
+      contactPhone: address.receiverPhone
+    });
+
+    writeServicePaymentContext({
+      orderId: createdOrder.orderId,
+      orderNo: createdOrder.orderNo,
+      amount: preview.price.payableAmount,
+      serviceTitle: preview.service.title
+    });
+
+    props.navigation.navigateTo("service/payment");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : TOASTS.createFailed);
+  } finally {
+    isSubmitting.value = false;
+  }
+};
 
 onMounted(() => {
   void loadPreview();
@@ -148,59 +333,62 @@ onMounted(() => {
 <template>
   <div class="order-confirm-page">
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
-      <h1>订单确认</h1>
+      <button class="back-button" type="button" :aria-label="UI.backAria" @click="goBack">
+        &lt;
+      </button>
+      <h1>{{ UI.pageTitle }}</h1>
     </header>
 
     <main class="order-content">
       <section class="card product-card">
         <div class="product-main">
-          <img class="product-image" :src="orderService.image" :alt="orderService.title" />
+          <img class="product-image" :src="serviceImage" :alt="serviceTitle" />
           <div class="product-info">
-            <h2>{{ orderService.title }}</h2>
-            <span>¥{{ orderService.price }}</span>
+            <h2>{{ serviceTitle }}</h2>
+            <span>{{ servicePriceText }}</span>
           </div>
         </div>
 
         <div class="price-list">
           <div class="price-row">
-            <span>商品总价</span>
-            <strong>¥{{ orderPrice.total }}</strong>
+            <span>{{ UI.totalLabel }}</span>
+            <strong>{{ totalAmountText }}</strong>
           </div>
           <div class="price-row">
-            <span>优惠券</span>
-            <strong class="discount">¥{{ orderPrice.coupon }}</strong>
+            <span>{{ UI.couponLabel }}</span>
+            <strong class="discount">{{ discountAmountText }}</strong>
           </div>
           <div class="divider"></div>
           <div class="price-row subtotal">
-            <span>小计</span>
-            <strong>¥{{ orderPrice.subtotal }}</strong>
+            <span>{{ UI.subtotalLabel }}</span>
+            <strong>{{ payableAmountText }}</strong>
           </div>
         </div>
       </section>
 
       <section class="card info-card">
-        <h2>预约信息</h2>
+        <h2>{{ UI.bookingTitle }}</h2>
         <dl>
           <div>
-            <dt>上门地址</dt>
-            <dd>{{ bookingInfo.address }}</dd>
+            <dt>{{ UI.addressLabel }}</dt>
+            <dd>{{ bookingAddressText }}</dd>
           </div>
           <div>
-            <dt>预约时间</dt>
-            <dd>{{ bookingInfo.time }}</dd>
+            <dt>{{ UI.timeLabel }}</dt>
+            <dd>{{ bookingTimeText }}</dd>
           </div>
           <div>
-            <dt>联系方式</dt>
-            <dd>{{ bookingInfo.phone }}</dd>
+            <dt>{{ UI.phoneLabel }}</dt>
+            <dd>{{ bookingPhoneText }}</dd>
           </div>
         </dl>
+        <p v-if="previewError" class="error-text">{{ previewError }}</p>
       </section>
 
       <section class="card notice-card">
-        <h2>购买须知</h2>
+        <h2>{{ UI.noticeTitle }}</h2>
         <dl>
-          <div v-for="item in mock.notice" :key="item.label">
+          <div v-for="item in NOTICE_ITEMS" :key="item.label">
             <dt>{{ item.label }}</dt>
             <dd>{{ item.value }}</dd>
           </div>
@@ -209,9 +397,12 @@ onMounted(() => {
     </main>
 
     <div class="submit-bar">
-      <div class="total">合计：<strong>¥{{ orderPrice.subtotal }}</strong></div>
-      <button class="submit-button" type="button" :disabled="submitting" @click="submitOrder">
-        {{ submitting ? "提交中..." : "提交订单" }}
+      <div class="total">
+        {{ UI.totalBarLabel }}
+        <strong>{{ payableAmountText }}</strong>
+      </div>
+      <button class="submit-button" type="button" :disabled="isSubmitting" @click="submitOrder">
+        {{ isSubmitting ? UI.submitting : UI.submitOrder }}
       </button>
     </div>
   </div>
@@ -229,6 +420,7 @@ onMounted(() => {
   box-sizing: border-box;
   background: #ffffff;
   color: #34383f;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -250,9 +442,9 @@ onMounted(() => {
   border: 0;
   background: transparent;
   color: #34383f;
-  font-size: 34px;
-  line-height: 26px;
-  font-weight: 300;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -304,6 +496,7 @@ onMounted(() => {
 
 .product-info span {
   color: #006dff;
+  color: #006dff;
   font-size: 17px;
   font-weight: 700;
 }
@@ -326,7 +519,12 @@ onMounted(() => {
 
 .price-row strong {
   color: #006dff;
+  color: #006dff;
   font-size: 18px;
+}
+
+.price-row .discount {
+  color: #006dff;
 }
 
 .divider {
@@ -336,6 +534,7 @@ onMounted(() => {
 }
 
 .subtotal strong {
+  color: #006dff;
   color: #006dff;
   font-size: 24px;
 }
@@ -384,6 +583,13 @@ dd {
   text-align: left;
 }
 
+.error-text {
+  margin: 16px 0 0;
+  color: #eb5757;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .submit-bar {
   position: fixed;
   left: 50%;
@@ -412,6 +618,7 @@ dd {
 
 .total strong {
   color: #006dff;
+  color: #006dff;
   font-size: 32px;
   line-height: 1;
 }
@@ -432,7 +639,7 @@ dd {
 }
 
 .submit-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+  opacity: 0.72;
+  cursor: default;
 }
 </style>

@@ -1,16 +1,40 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import mock from './mock'
-import type { SelfTestProject } from './mock'
+import {
+  getSelfTestDetail,
+  getSelfTestHistory,
+  getSelfTests,
+  submitSelfTest,
+  type SelfTestAssessmentLevel,
+  type SelfTestAttemptSummary,
+  type SelfTestDetailResponse,
+  type SelfTestHistoryItem,
+  type SelfTestProjectSummary,
+  type SelfTestResultAdvice,
+  type SubmitSelfTestResponse,
+} from '@/shared/api/health-self-tests'
 
 const props = defineProps<PageComponentProps>()
+const tabs = [
+  { key: 'tests', label: '健康自测' },
+  { key: 'records', label: '我的测评' },
+] as const
 
 const activeTab = ref<'tests' | 'records'>('tests')
 const phase = ref<'list' | 'quiz' | 'result'>('list')
-const selectedProject = ref<SelfTestProject | null>(null)
+const projects = ref<SelfTestProjectSummary[]>([])
+const selectedProject = ref<SelfTestDetailResponse | null>(null)
 const currentIndex = ref(0)
 const answers = ref<number[]>([])
+const latestResult = ref<SubmitSelfTestResponse | SelfTestAttemptSummary | null>(null)
+const recordItems = ref<SelfTestHistoryItem[]>([])
+const isListLoading = ref(false)
+const isDetailLoading = ref(false)
+const isHistoryLoading = ref(false)
+const isSubmitting = ref(false)
+const pendingTestId = ref('')
+const historyLoaded = ref(false)
 
 const currentQuestion = computed(() => selectedProject.value?.questions[currentIndex.value])
 const progressPercent = computed(() => {
@@ -21,20 +45,20 @@ const progressPercent = computed(() => {
   return Math.round(((currentIndex.value + 1) / selectedProject.value.questions.length) * 100)
 })
 
-const totalScore = computed(() => answers.value.reduce((sum, score) => sum + score, 0))
-const maxScore = computed(() => (selectedProject.value?.questions.length || 1) * 3)
-const riskPercent = computed(() => Math.round((totalScore.value / maxScore.value) * 100))
-const riskLevel = computed<'low' | 'medium' | 'high'>(() => {
-  if (riskPercent.value >= 68) {
-    return 'high'
+const maxScore = computed(() =>
+  (selectedProject.value?.questions || []).reduce(
+    (sum, question) => sum + Math.max(...question.options.map((option) => option.score), 0),
+    0,
+  ),
+)
+const riskPercent = computed(() => {
+  if (!latestResult.value || maxScore.value <= 0) {
+    return 0
   }
 
-  if (riskPercent.value >= 36) {
-    return 'medium'
-  }
-
-  return 'low'
+  return Math.round((latestResult.value.totalScore / maxScore.value) * 100)
 })
+const riskLevel = computed<'low' | 'medium' | 'high'>(() => normalizeLevel(latestResult.value?.level))
 
 const riskText = computed(() => {
   const map = {
@@ -47,11 +71,30 @@ const riskText = computed(() => {
 })
 
 const riskClass = computed(() => `risk-${riskLevel.value}`)
-const resultAdvice = computed(() => selectedProject.value?.resultAdvice[riskLevel.value] || '')
+const resultAdvice = computed(() => {
+  if (latestResult.value?.summary) {
+    return latestResult.value.summary
+  }
+
+  return resolveAdvice(selectedProject.value?.resultAdvice, riskLevel.value)
+})
+const resultCompletedAt = computed(() => latestResult.value?.completedAt || '')
+
+onMounted(() => {
+  void loadSelfTests()
+  void loadSelfTestHistory()
+})
+
+watch(activeTab, (value) => {
+  if (value === 'records' && !historyLoaded.value) {
+    void loadSelfTestHistory()
+  }
+})
 
 function goBack() {
   if (phase.value === 'result') {
     phase.value = 'list'
+    latestResult.value = null
     return
   }
 
@@ -69,18 +112,76 @@ function goBack() {
   }
 }
 
-function startTest(project: SelfTestProject) {
-  selectedProject.value = project
-  currentIndex.value = 0
-  answers.value = []
-  phase.value = 'quiz'
+async function loadSelfTests() {
+  isListLoading.value = true
+
+  try {
+    projects.value = await getSelfTests()
+  } catch (error) {
+    console.error('load self tests failed', error)
+    props.showToast('自测项目加载失败')
+  } finally {
+    isListLoading.value = false
+  }
 }
 
-function selectOption(score: number) {
-  answers.value[currentIndex.value] = score
+async function loadSelfTestHistory(force = false) {
+  if (isHistoryLoading.value || (historyLoaded.value && !force)) {
+    return
+  }
+
+  isHistoryLoading.value = true
+
+  try {
+    const response = await getSelfTestHistory({ page: 1, pageSize: 20 })
+    recordItems.value = response.list
+    historyLoaded.value = true
+  } catch (error) {
+    console.error('load self test history failed', error)
+    props.showToast('测评记录加载失败')
+  } finally {
+    isHistoryLoading.value = false
+  }
 }
 
-function nextQuestion() {
+async function startTest(project: SelfTestProjectSummary) {
+  if (isDetailLoading.value) {
+    return
+  }
+
+  pendingTestId.value = project.testId
+  isDetailLoading.value = true
+
+  try {
+    const detail = await getSelfTestDetail(project.testId)
+    selectedProject.value = detail
+    currentIndex.value = 0
+    answers.value = []
+    latestResult.value = detail.latestAttempt
+    phase.value = 'quiz'
+
+    if (detail.latestAttempt) {
+      upsertRecord({
+        ...detail.latestAttempt,
+        testId: detail.testId,
+        title: detail.title,
+        category: detail.category,
+      })
+    }
+  } catch (error) {
+    console.error('load self test detail failed', error)
+    props.showToast('自测题目加载失败')
+  } finally {
+    isDetailLoading.value = false
+    pendingTestId.value = ''
+  }
+}
+
+function selectOption(index: number) {
+  answers.value[currentIndex.value] = index
+}
+
+async function nextQuestion() {
   if (answers.value[currentIndex.value] === undefined) {
     props.showToast('请先选择一个答案')
     return
@@ -95,13 +196,88 @@ function nextQuestion() {
     return
   }
 
-  phase.value = 'result'
+  await submitCurrentTest()
 }
 
 function resetTest() {
-  if (selectedProject.value) {
-    startTest(selectedProject.value)
+  const project = projects.value.find((item) => item.testId === selectedProject.value?.testId)
+
+  if (project) {
+    void startTest(project)
   }
+}
+
+function restartTest(testId: string) {
+  const project = projects.value.find((item) => item.testId === testId)
+
+  if (project) {
+    void startTest(project)
+  }
+}
+
+async function submitCurrentTest() {
+  if (!selectedProject.value || isSubmitting.value) {
+    return
+  }
+
+  isSubmitting.value = true
+
+  try {
+    const result = await submitSelfTest(selectedProject.value.testId, {
+      answers: selectedProject.value.questions.map((question, index) => ({
+        questionId: question.questionId,
+        optionIndex: answers.value[index],
+      })),
+    })
+
+    latestResult.value = result
+    upsertRecord({
+      ...result,
+      title: selectedProject.value.title,
+      category: selectedProject.value.category,
+    })
+
+    const projectSummary = projects.value.find((item) => item.testId === result.testId)
+    if (projectSummary) {
+      projectSummary.measuredCount += 1
+    }
+
+    phase.value = 'result'
+  } catch (error) {
+    console.error('submit self test failed', error)
+    props.showToast('提交测评失败')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function upsertRecord(record: SelfTestHistoryItem) {
+  const next = recordItems.value.filter((item) => item.testId !== record.testId)
+  next.unshift(record)
+  next.sort((left, right) => Date.parse(right.completedAt) - Date.parse(left.completedAt))
+  recordItems.value = next
+  historyLoaded.value = true
+}
+
+function normalizeLevel(level?: SelfTestAssessmentLevel | null): 'low' | 'medium' | 'high' {
+  if (level === 'HIGH') {
+    return 'high'
+  }
+
+  if (level === 'MEDIUM') {
+    return 'medium'
+  }
+
+  return 'low'
+}
+
+function resolveAdvice(resultAdvice: SelfTestResultAdvice | null | undefined, level: 'low' | 'medium' | 'high') {
+  if (!resultAdvice) {
+    return ''
+  }
+
+  const value = resultAdvice[level]
+  return typeof value === 'string' ? value : ''
 }
 </script>
 
@@ -116,7 +292,7 @@ function resetTest() {
     <template v-if="phase === 'list'">
       <nav class="top-tabs" aria-label="健康自测栏目">
         <button
-          v-for="tab in mock.tabs"
+          v-for="tab in tabs"
           :key="tab.key"
           type="button"
           :class="{ active: activeTab === tab.key }"
@@ -128,8 +304,16 @@ function resetTest() {
 
       <main class="test-scroll">
         <section v-if="activeTab === 'tests'" class="project-list">
-          <article v-for="project in mock.projects" :key="project.id" class="project-card" @click="startTest(project)">
-            <div class="project-icon" :style="{ '--accent': project.accent }">
+          <p v-if="isListLoading && !projects.length" class="loading-state">自测项目加载中...</p>
+          <p v-else-if="!projects.length" class="empty-state">暂无可用自测项目</p>
+          <article
+            v-for="project in projects"
+            :key="project.testId"
+            class="project-card"
+            :class="{ 'project-card--loading': pendingTestId === project.testId }"
+            @click="startTest(project)"
+          >
+            <div class="project-icon" :style="{ '--accent': project.accentColor }">
               <span></span>
               <i></i>
             </div>
@@ -137,18 +321,20 @@ function resetTest() {
               <small>{{ project.category }}</small>
               <h2>{{ project.title }}</h2>
               <p>{{ project.intro }}</p>
-              <em>{{ project.measuredCount }}人 已测评</em>
+              <em>{{ pendingTestId === project.testId ? '加载中...' : `${project.measuredCount}人 已测评` }}</em>
             </div>
           </article>
         </section>
 
         <section v-else class="record-list">
-          <article v-for="project in mock.projects.slice(0, 3)" :key="project.id" class="record-card">
+          <p v-if="isHistoryLoading && !recordItems.length" class="loading-state">测评记录加载中...</p>
+          <p v-else-if="!recordItems.length" class="empty-state">暂无测评记录</p>
+          <article v-for="record in recordItems" :key="record.attemptId" class="record-card">
             <div>
-              <strong>{{ project.title }}</strong>
-              <span>上次测评：{{ project.id === 'stroke' ? '中风险' : '低风险' }}</span>
+              <strong>{{ record.title }}</strong>
+              <span>上次测评：{{ normalizeLevel(record.level) === 'high' ? '高风险' : normalizeLevel(record.level) === 'medium' ? '中风险' : '低风险' }}</span>
             </div>
-            <button type="button" @click="startTest(project)">重新测评</button>
+            <button type="button" @click="restartTest(record.testId)">重新测评</button>
           </article>
         </section>
       </main>
@@ -171,23 +357,27 @@ function resetTest() {
 
       <section class="option-list">
         <button
-          v-for="option in currentQuestion.options"
+          v-for="(option, index) in currentQuestion.options"
           :key="option.label"
           type="button"
-          :class="{ selected: answers[currentIndex] === option.score }"
-          @click="selectOption(option.score)"
+          :class="{ selected: answers[currentIndex] === index }"
+          @click="selectOption(index)"
         >
           <span>{{ option.label }}</span>
           <i></i>
         </button>
       </section>
 
-      <button class="next-button" type="button" @click="nextQuestion">
-        {{ currentIndex === selectedProject.questions.length - 1 ? '提交测评' : '下一题' }}
+      <button class="next-button" type="button" :disabled="isSubmitting" @click="nextQuestion">
+        {{
+          currentIndex === selectedProject.questions.length - 1
+            ? (isSubmitting ? '提交中...' : '提交测评')
+            : '下一题'
+        }}
       </button>
     </main>
 
-    <main v-else-if="phase === 'result' && selectedProject" class="result-panel">
+    <main v-else-if="phase === 'result' && selectedProject && latestResult" class="result-panel">
       <section class="result-card" :class="riskClass">
         <span class="result-label">测评结果</span>
         <h2>{{ selectedProject.title }}</h2>
@@ -196,6 +386,7 @@ function resetTest() {
           <span>{{ riskPercent }}%</span>
         </div>
         <p>{{ resultAdvice }}</p>
+        <small v-if="resultCompletedAt" class="result-time">完成时间 {{ resultCompletedAt }}</small>
       </section>
 
       <section class="risk-scale">
@@ -217,6 +408,10 @@ function resetTest() {
         <button type="button" @click="resetTest">重新测试</button>
         <button type="button" class="primary" @click="phase = 'list'">返回项目</button>
       </div>
+    </main>
+
+    <main v-else-if="isDetailLoading" class="quiz-panel quiz-panel--loading">
+      <p class="loading-state">测评题目加载中...</p>
     </main>
   </section>
 </template>
@@ -325,6 +520,10 @@ button {
   box-shadow: 0 10px 28px rgba(31, 40, 58, 0.045);
 }
 
+.project-card--loading {
+  opacity: 0.72;
+}
+
 .project-icon {
   width: 78px;
   height: 78px;
@@ -422,6 +621,19 @@ button {
 .record-list {
   display: grid;
   gap: 12px;
+}
+
+.loading-state,
+.empty-state {
+  margin: 0;
+  padding: 30px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #8f949d;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .record-card {
@@ -571,6 +783,10 @@ button {
   box-shadow: 0 14px 28px rgba(104, 114, 240, 0.2);
 }
 
+.next-button:disabled {
+  opacity: 0.7;
+}
+
 .result-panel {
   justify-content: center;
   gap: 16px;
@@ -640,6 +856,14 @@ button {
   line-height: 1.65;
 }
 
+.result-time {
+  display: block;
+  margin-top: 12px;
+  color: #a0a5ae;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .result-card.risk-low .risk-ring {
   background: linear-gradient(135deg, #4fd3aa 0%, #72e6c7 100%);
 }
@@ -707,5 +931,9 @@ button {
 .result-actions .primary {
   background: #6872f0;
   color: #fff;
+}
+
+.quiz-panel--loading {
+  justify-content: center;
 }
 </style>

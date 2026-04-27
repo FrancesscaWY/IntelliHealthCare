@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type InstitutionRow } from "./mock";
+import {
+  batchDeleteAdminInstitutions,
+  createAdminInstitution,
+  getAdminInstitutionDetail,
+  getAdminInstitutions,
+  publishAdminInstitution,
+  unpublishAdminInstitution,
+  updateAdminInstitution,
+} from "@/shared/api/system";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed, { type InstitutionRow } from "./mock";
 
 type StatusFilter = "全部" | "已发布" | "未发布";
 type PublishMode = "immediate" | "scheduled";
@@ -28,18 +38,22 @@ const serviceOptions: ServiceOption[] = [
 ];
 const defaultBusinessHours = ["08:00-20:00", "09:00-18:00", "07:30-19:30", "24小时服务"];
 
-function buildInstitutionRecord(row: InstitutionRow, index: number): InstitutionRecord {
+function buildInstitutionRecord(
+  row: InstitutionRow & Partial<Pick<InstitutionRecord, "coverName" | "businessHours" | "publishMode" | "publishDate" | "publishTime">>,
+  index: number,
+): InstitutionRecord {
   return {
     ...row,
-    coverName: `institution-cover-${index + 1}.jpg`,
-    businessHours: defaultBusinessHours[index % defaultBusinessHours.length] ?? "08:00-20:00",
-    publishMode: row.published ? "immediate" : "scheduled",
-    publishDate: row.published ? "" : row.updatedAt.slice(0, 10),
-    publishTime: row.updatedAt.slice(11, 16) || "12:00",
+    coverName: row.coverName || `institution-cover-${index + 1}.jpg`,
+    businessHours: row.businessHours || defaultBusinessHours[index % defaultBusinessHours.length] || "08:00-20:00",
+    publishMode: row.publishMode || (row.published ? "immediate" : "scheduled"),
+    publishDate: row.publishDate || (row.published ? "" : row.updatedAt.slice(0, 10)),
+    publishTime: row.publishTime || row.updatedAt.slice(11, 16) || "12:00",
   };
 }
 
-const rows = ref<InstitutionRecord[]>(mock.rows.map((row, index) => buildInstitutionRecord(row, index)));
+const mock = ref<typeof mockSeed>(mockSeed);
+const rows = ref<InstitutionRecord[]>(mockSeed.rows.map((row, index) => buildInstitutionRecord(row, index)));
 const searchDraft = ref("");
 const searchKeyword = ref("");
 const statusFilter = ref<StatusFilter>("全部");
@@ -62,7 +76,7 @@ const operatorName = "李明明";
 const form = reactive({
   institutionNo: "",
   name: "",
-  region: mock.regionOptions[0] ?? "浦东新区",
+  region: mockSeed.regionOptions[0] ?? "浦东新区",
   address: "",
   contactName: "",
   contactPhone: "",
@@ -156,6 +170,38 @@ function resetPage() {
   currentPage.value = 1;
 }
 
+async function syncPageData() {
+  try {
+    const response = await getAdminInstitutions({
+      page: 1,
+      pageSize: 200,
+    });
+    const nextRows = Array.isArray(response?.rows) ? (response.rows as InstitutionRow[]) : [];
+
+    mock.value = {
+      ...mock.value,
+      title: String(response?.title ?? mockSeed.title),
+      summary: String(response?.summary ?? mockSeed.summary),
+      statusOptions: Array.isArray(response?.statusOptions) ? response.statusOptions : mockSeed.statusOptions,
+      regionOptions: Array.isArray(response?.regionOptions) && response.regionOptions.length
+        ? response.regionOptions
+        : mockSeed.regionOptions,
+      rows: nextRows,
+    };
+    rows.value = nextRows.map((row, index) => buildInstitutionRecord(row, index));
+
+    if (!mock.value.regionOptions.includes(form.region)) {
+      form.region = mock.value.regionOptions[0] ?? form.region;
+    }
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "机构管理列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
 function applySearch() {
   searchKeyword.value = searchDraft.value.trim();
   selectedIds.value = [];
@@ -226,20 +272,35 @@ function openBatchActions() {
   batchActionOpen.value = !batchActionOpen.value;
 }
 
-function applyBatchPublish(nextPublished: boolean) {
+async function applyBatchPublish(nextPublished: boolean) {
   if (!selectedRows.value.length) {
     props.showToast("请先勾选需要操作的机构。");
     return;
   }
 
-  selectedRows.value.forEach((row) => {
-    row.published = nextPublished;
-    row.publishMode = nextPublished ? "immediate" : row.publishMode;
-    row.updatedBy = operatorName;
-    row.updatedAt = formatNow();
-  });
+  try {
+    await Promise.all(
+      selectedRows.value.map((row) =>
+        nextPublished ? publishAdminInstitution(row.id) : unpublishAdminInstitution(row.id),
+      ),
+    );
 
-  props.showToast(`${nextPublished ? "批量发布" : "批量下架"} ${selectedRows.value.length} 家机构`);
+    selectedRows.value.forEach((row) => {
+      row.published = nextPublished;
+      row.publishMode = nextPublished ? "immediate" : row.publishMode;
+      row.updatedBy = operatorName;
+      row.updatedAt = formatNow();
+    });
+
+    props.showToast(`${nextPublished ? "批量发布" : "批量下架"} ${selectedRows.value.length} 家机构`);
+    await syncPageData();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${nextPublished ? "批量发布" : "批量下架"}失败，请稍后重试`,
+    });
+  }
 }
 
 function requestDeleteRows(targetIds: string[]) {
@@ -257,17 +318,30 @@ function closeDeleteDialog() {
   deleteTargetIds.value = [];
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!deleteTargetIds.value.length) {
     closeDeleteDialog();
     return;
   }
 
   const deleteSet = new Set(deleteTargetIds.value);
-  rows.value = rows.value.filter((row) => !deleteSet.has(row.id));
-  selectedIds.value = selectedIds.value.filter((id) => !deleteSet.has(id));
-  props.showToast(deleteSet.size === 1 ? "机构已删除" : `已删除 ${deleteSet.size} 家机构`);
-  closeDeleteDialog();
+
+  try {
+    await batchDeleteAdminInstitutions({
+      institutionIds: Array.from(deleteSet),
+    });
+    rows.value = rows.value.filter((row) => !deleteSet.has(row.id));
+    selectedIds.value = selectedIds.value.filter((id) => !deleteSet.has(id));
+    props.showToast(deleteSet.size === 1 ? "机构已删除" : `已删除 ${deleteSet.size} 家机构`);
+    closeDeleteDialog();
+    await syncPageData();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "删除机构失败，请稍后重试",
+    });
+  }
 }
 
 function generateInstitutionNo() {
@@ -282,7 +356,7 @@ function generateInstitutionNo() {
 function resetForm() {
   form.institutionNo = "";
   form.name = "";
-  form.region = mock.regionOptions[0] ?? "浦东新区";
+  form.region = mock.value.regionOptions[0] ?? "浦东新区";
   form.address = "";
   form.contactName = operatorName;
   form.contactPhone = "";
@@ -358,30 +432,42 @@ function onCoverChange(event: Event) {
   form.coverName = file.name;
 }
 
-function openEditDialog(row: InstitutionRecord) {
-  dialogMode.value = "edit";
-  editingId.value = row.id;
-  form.institutionNo = row.institutionNo;
-  form.name = row.name;
-  form.region = row.region;
-  form.address = row.address;
-  form.contactName = row.contactName;
-  form.contactPhone = row.contactPhone;
-  form.servicePreset = inferServicePreset(row.serviceTags);
-  form.coverName = row.coverName;
-  form.businessHours = row.businessHours;
-  form.shareCount = `${row.shareCount}`;
-  form.favoriteCount = `${row.favoriteCount}`;
-  form.note = row.note === "-" ? "" : row.note;
-  form.publishMode = row.published ? "immediate" : row.publishMode;
-  form.publishDate = row.publishDate;
-  form.publishTime = row.publishTime || "12:00";
+async function openEditDialog(row: InstitutionRecord) {
+  try {
+    const response = await getAdminInstitutionDetail(row.id);
 
-  if (coverInputRef.value) {
-    coverInputRef.value.value = "";
+    dialogMode.value = "edit";
+    editingId.value = row.id;
+    form.institutionNo = String(response?.institutionNo ?? row.institutionNo);
+    form.name = String(response?.name ?? row.name);
+    form.region = String(response?.district ?? response?.region ?? row.region);
+    form.address = String(response?.address ?? row.address);
+    form.contactName = String(response?.contactName ?? row.contactName);
+    form.contactPhone = String(response?.contactPhone ?? row.contactPhone);
+    form.servicePreset = inferServicePreset(
+      Array.isArray(response?.serviceTags) ? (response.serviceTags as string[]) : row.serviceTags,
+    );
+    form.coverName = String(response?.coverName ?? row.coverName);
+    form.businessHours = String(response?.businessHours ?? row.businessHours);
+    form.shareCount = `${Number(response?.shareCount ?? row.shareCount)}`;
+    form.favoriteCount = `${Number(response?.favoriteCount ?? row.favoriteCount)}`;
+    form.note = String(response?.note ?? row.note) === "-" ? "" : String(response?.note ?? row.note);
+    form.publishMode = (response?.published ? "immediate" : (response?.publishMode || row.publishMode)) as PublishMode;
+    form.publishDate = String(response?.publishDate ?? row.publishDate);
+    form.publishTime = String((response?.publishTime ?? row.publishTime) || "12:00");
+
+    if (coverInputRef.value) {
+      coverInputRef.value.value = "";
+    }
+
+    dialogOpen.value = true;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "机构详情加载失败，请稍后重试",
+    });
   }
-
-  dialogOpen.value = true;
 }
 
 function closeDialog() {
@@ -393,7 +479,7 @@ function closeDialog() {
   }
 }
 
-function saveInstitution() {
+async function saveInstitution() {
   const name = form.name.trim();
   const address = form.address.trim();
   const contactName = form.contactName.trim() || operatorName;
@@ -435,45 +521,66 @@ function saveInstitution() {
     return;
   }
 
-  const nextRow: InstitutionRecord = {
-    id: editingId.value || `institution-${Date.now()}`,
-    institutionNo: form.institutionNo,
-    name,
-    region: form.region,
-    address,
-    contactName,
-    contactPhone,
-    serviceTags,
-    coverName,
-    businessHours,
-    shareCount,
-    favoriteCount,
-    updatedBy: operatorName,
-    updatedAt: formatNow(),
-    note: form.note.trim() || "-",
-    published: form.publishMode === "immediate",
-    publishMode: form.publishMode,
-    publishDate: form.publishMode === "scheduled" ? form.publishDate : "",
-    publishTime: form.publishMode === "scheduled" ? form.publishTime : "12:00",
-  };
+  try {
+    const payload = {
+      code: form.institutionNo,
+      name,
+      city: "上海市",
+      district: form.region,
+      address,
+      contactName,
+      contactPhone,
+      serviceTags,
+      note: form.note.trim(),
+      coverName,
+      businessHours,
+      shareCount,
+      favoriteCount,
+      publishMode: form.publishMode,
+      publishDate: form.publishMode === "scheduled" ? form.publishDate : "",
+      publishTime: form.publishMode === "scheduled" ? form.publishTime : "12:00",
+    };
 
-  if (dialogMode.value === "create") {
-    rows.value = [nextRow, ...rows.value];
-    props.showToast(`已新增机构：${name}`);
-  } else {
-    rows.value = rows.value.map((row) => (row.id === editingId.value ? nextRow : row));
-    props.showToast(`已更新机构：${name}`);
+    let institutionId = editingId.value;
+
+    if (dialogMode.value === "create") {
+      const response = await createAdminInstitution(payload);
+      institutionId = String(response?.institutionId ?? "");
+      props.showToast(`已新增机构：${name}`);
+    } else {
+      await updateAdminInstitution(editingId.value, payload);
+      props.showToast(`已更新机构：${name}`);
+    }
+
+    if (institutionId) {
+      if (form.publishMode === "immediate") {
+        await publishAdminInstitution(institutionId);
+      } else {
+        await unpublishAdminInstitution(institutionId);
+      }
+    }
+
+    selectedIds.value = [];
+    batchActionOpen.value = false;
+    resetPage();
+    closeDialog();
+    await syncPageData();
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${dialogMode.value === "create" ? "新增" : "更新"}机构失败，请稍后重试`,
+    });
   }
-
-  selectedIds.value = [];
-  batchActionOpen.value = false;
-  resetPage();
-  closeDialog();
 }
 
 function tagTone(index: number) {
   return index % 2 === 0 ? "feature-tag--mint" : "feature-tag--amber";
 }
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>

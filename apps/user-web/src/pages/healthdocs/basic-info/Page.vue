@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  getArchiveBasicInfo,
+  updateArchiveBasicInfo,
+  type ArchiveBasicInfo,
+  type ArchiveEmergencyContact
+} from "@/shared/api/health-archive";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -9,6 +15,57 @@ const formState = reactive<Record<string, string>>(
   Object.fromEntries(mock.groups.flat().map((item) => [item.key, ""])),
 );
 const showAvatarSheet = ref(false);
+const isLoading = ref(false);
+const isSaving = ref(false);
+const emergencyContactState = ref<ArchiveEmergencyContact | null>(null);
+
+function toText(value: unknown) {
+  return value == null ? "" : String(value);
+}
+
+function mapGenderFromApi(gender: string | null | undefined) {
+  if (gender === "MALE") {
+    return "男";
+  }
+
+  if (gender === "FEMALE") {
+    return "女";
+  }
+
+  return "";
+}
+
+function applyBasicInfo(data: ArchiveBasicInfo) {
+  formState.avatar = toText(data.avatar);
+  formState.name = toText(data.name);
+  formState.idCard = toText(data.idCard);
+  formState.gender = mapGenderFromApi(data.gender);
+  formState.birthday = toText(data.birthday);
+  formState.phone = toText(data.phone);
+  formState.address = toText(data.address);
+  formState.height = toText(data.height);
+  formState.weight = toText(data.weight);
+  formState.nativePlace = toText(data.nativePlace);
+  formState.ethnicity = toText(data.ethnicity);
+  formState.education = toText(data.education);
+  formState.maritalStatus = toText(data.maritalStatus);
+  formState.occupation = toText(data.occupation);
+  formState.emergencyName = toText(data.emergencyContact?.name);
+  formState.emergencyPhone = toText(data.emergencyContact?.phone);
+  emergencyContactState.value = data.emergencyContact;
+}
+
+async function loadBasicInfo() {
+  try {
+    isLoading.value = true;
+    const data = await getArchiveBasicInfo();
+    applyBasicInfo(data);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "基础信息加载失败");
+  } finally {
+    isLoading.value = false;
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -16,8 +73,99 @@ function goBack() {
   }
 }
 
-function saveProfile() {
-  props.showToast("基础信息已暂存");
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function buildEmergencyContact() {
+  const emergencyName = formState.emergencyName.trim();
+  const emergencyPhone = formState.emergencyPhone.trim();
+  const nextEmergencyContact: Record<string, unknown> = {};
+
+  if (typeof emergencyContactState.value?.relation === "string" && emergencyContactState.value.relation) {
+    nextEmergencyContact.relation = emergencyContactState.value.relation;
+  }
+  if (emergencyName) {
+    nextEmergencyContact.name = emergencyName;
+  }
+  if (emergencyPhone) {
+    nextEmergencyContact.phone = emergencyPhone;
+  }
+
+  if (Object.keys(nextEmergencyContact).length > 0) {
+    return nextEmergencyContact;
+  }
+
+  if (emergencyContactState.value && Object.keys(emergencyContactState.value).length > 0) {
+    return {};
+  }
+
+  return undefined;
+}
+
+async function saveProfile() {
+  if (isSaving.value) {
+    return;
+  }
+
+  if (!formState.name.trim()) {
+    props.showToast("请填写真实姓名");
+    return;
+  }
+
+  if (!formState.birthday.trim()) {
+    props.showToast("请选择出生日期");
+    return;
+  }
+
+  if (!formState.phone.trim()) {
+    props.showToast("请输入联系电话");
+    return;
+  }
+
+  const height = parseOptionalNumber(formState.height);
+  const weight = parseOptionalNumber(formState.weight);
+
+  if (Number.isNaN(height)) {
+    props.showToast("身高格式不正确");
+    return;
+  }
+
+  if (Number.isNaN(weight)) {
+    props.showToast("体重格式不正确");
+    return;
+  }
+
+  try {
+    isSaving.value = true;
+
+    const saved = await updateArchiveBasicInfo({
+      avatar: formState.avatar.trim() || undefined,
+      name: formState.name.trim(),
+      phone: formState.phone.trim(),
+      birthday: formState.birthday.trim(),
+      address: formState.address.trim() || undefined,
+      height,
+      weight,
+      education: formState.education.trim() || undefined,
+      occupation: formState.occupation.trim() || undefined,
+      emergencyContact: buildEmergencyContact()
+    });
+
+    applyBasicInfo(saved);
+    props.showToast("基础信息已保存");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "基础信息保存失败");
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 function handleAvatarUpload() {
@@ -37,6 +185,10 @@ function pickFromAlbum() {
   showAvatarSheet.value = false;
   props.showToast("相册选取功能待接入");
 }
+
+onMounted(() => {
+  void loadBasicInfo();
+});
 </script>
 
 <template>
@@ -67,7 +219,9 @@ function pickFromAlbum() {
             type="button"
             @click="handleAvatarUpload"
           >
-            <span class="avatar-trigger__placeholder">{{ item.placeholder }}</span>
+            <span class="avatar-trigger__placeholder">
+              {{ formState.avatar ? "已上传头像" : item.placeholder }}
+            </span>
             <span class="field-icon field-icon--arrow" aria-hidden="true"></span>
           </button>
 
@@ -127,7 +281,9 @@ function pickFromAlbum() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveProfile">保存</button>
+      <button class="save-btn" type="button" :disabled="isSaving || isLoading" @click="saveProfile">
+        {{ isSaving ? "保存中..." : isLoading ? "加载中..." : "保存" }}
+      </button>
     </footer>
 
     <div
@@ -457,6 +613,10 @@ function pickFromAlbum() {
   font-size: 16px;
   font-weight: 900;
   letter-spacing: 0;
+}
+
+.save-btn:disabled {
+  opacity: 0.78;
 }
 
 .sheet-mask {

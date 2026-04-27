@@ -1,18 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type CommentManagementRow } from "./mock";
+import {
+  batchOperateAdminOrderReviews,
+  deleteAdminOrderReview,
+  getAdminOrderReviews,
+  updateAdminOrderReviewPin,
+  updateAdminOrderReviewVisibility,
+} from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed, { type CommentManagementRow } from "./mock";
 import { orderDetailStorageKey } from "../order-list/mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
 
 const defaultStartDate = "2026-04-01";
 const defaultEndDate = "2026-04-30";
 
-const rows = ref(mock.rows.map((row) => ({ ...row, gallery: [...row.gallery] })));
-const selectedServiceType = ref(mock.serviceTypes[0]);
-const selectedRating = ref(mock.ratingOptions[0]);
-const selectedPinStatus = ref(mock.pinOptions[0]);
+const rows = ref<CommentManagementRow[]>(
+  mockSeed.rows.map((row) => ({ ...row, gallery: [...row.gallery] })),
+);
+const selectedServiceType = ref(mockSeed.serviceTypes[0]);
+const selectedRating = ref(mockSeed.ratingOptions[0]);
+const selectedPinStatus = ref(mockSeed.pinOptions[0]);
 const startDate = ref(defaultStartDate);
 const endDate = ref(defaultEndDate);
 const keyword = ref("");
@@ -63,18 +74,21 @@ const selectionSummary = computed(() =>
 );
 
 function searchRows() {
-  props.showToast(`已筛选 ${filteredRows.value.length} 条评价`);
+  void syncPageData().then(() => {
+    props.showToast(`已筛选 ${filteredRows.value.length} 条评价`);
+  });
 }
 
 function resetFilters() {
-  selectedServiceType.value = mock.serviceTypes[0];
-  selectedRating.value = mock.ratingOptions[0];
-  selectedPinStatus.value = mock.pinOptions[0];
+  selectedServiceType.value = mock.value.serviceTypes[0];
+  selectedRating.value = mock.value.ratingOptions[0];
+  selectedPinStatus.value = mock.value.pinOptions[0];
   startDate.value = defaultStartDate;
   endDate.value = defaultEndDate;
   keyword.value = "";
   batchMode.value = false;
   selectedIds.value = [];
+  void syncPageData();
   props.showToast("筛选条件已重置");
 }
 
@@ -148,9 +162,9 @@ function clearBatchSelection() {
   selectedIds.value = [];
 }
 
-function openOrderDetail(orderNo: string) {
+function openOrderDetail(orderId: string) {
   detailDialogRow.value = null;
-  navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, orderNo);
+  navigateWithStorage("dashboard/order-detail", orderDetailStorageKey, orderId);
 }
 
 function openDetailDialog(row: CommentManagementRow) {
@@ -161,14 +175,62 @@ function closeDetailDialog() {
   detailDialogRow.value = null;
 }
 
-function togglePinned(row: CommentManagementRow) {
-  row.isPinned = !row.isPinned;
-  props.showToast(row.isPinned ? "评价已置顶" : "评价已取消置顶");
+async function syncPageData() {
+  try {
+    mock.value = (await getAdminOrderReviews({
+      page: 1,
+      pageSize: 100,
+      serviceType: selectedServiceType.value !== mock.value.serviceTypes[0] ? selectedServiceType.value : undefined,
+      rating:
+        selectedRating.value === "5星" || selectedRating.value === "4星" || selectedRating.value === "3星"
+          ? Number(selectedRating.value[0])
+          : undefined,
+      isPinned:
+        selectedPinStatus.value === "已置顶" ? true : selectedPinStatus.value === "未置顶" ? false : undefined,
+    })) as typeof mockSeed;
+    rows.value = mock.value.rows.map((row) => ({
+      ...row,
+      gallery: [...row.gallery],
+    }));
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "评价管理列表加载失败，已回退到演示数据",
+    });
+  }
 }
 
-function toggleVisible(row: CommentManagementRow) {
-  row.isVisible = !row.isVisible;
-  props.showToast(row.isVisible ? "评价已显示" : "评价已隐藏");
+async function togglePinned(row: CommentManagementRow) {
+  try {
+    await updateAdminOrderReviewPin(row.id, {
+      isPinned: !row.isPinned,
+    });
+    row.isPinned = !row.isPinned;
+    props.showToast(row.isPinned ? "评价已置顶" : "评价已取消置顶");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "更新置顶状态失败，请稍后重试",
+    });
+  }
+}
+
+async function toggleVisible(row: CommentManagementRow) {
+  try {
+    await updateAdminOrderReviewVisibility(row.id, {
+      isVisible: !row.isVisible,
+    });
+    row.isVisible = !row.isVisible;
+    props.showToast(row.isVisible ? "评价已显示" : "评价已隐藏");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "更新显示状态失败，请稍后重试",
+    });
+  }
 }
 
 function requestDeleteRows(targetRows: CommentManagementRow[]) {
@@ -192,7 +254,7 @@ function closeDeleteDialog() {
   pendingDeleteIds.value = [];
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!pendingDeleteIds.value.length) {
     closeDeleteDialog();
     return;
@@ -201,14 +263,32 @@ function confirmDelete() {
   const deleteIdSet = new Set(pendingDeleteIds.value);
   const deleteCount = deleteIdSet.size;
 
-  rows.value = rows.value.filter((row) => !deleteIdSet.has(row.id));
-  selectedIds.value = selectedIds.value.filter((id) => !deleteIdSet.has(id));
+  try {
+    if (deleteCount === 1) {
+      await deleteAdminOrderReview(pendingDeleteIds.value[0]);
+    } else {
+      await batchOperateAdminOrderReviews({
+        reviewIds: pendingDeleteIds.value,
+        action: "DELETE",
+      });
+    }
 
-  closeDeleteDialog();
-  props.showToast(deleteCount === 1 ? "评价已删除" : `已删除 ${deleteCount} 条评价`);
+    rows.value = rows.value.filter((row) => !deleteIdSet.has(row.id));
+    selectedIds.value = selectedIds.value.filter((id) => !deleteIdSet.has(id));
+
+    closeDeleteDialog();
+    props.showToast(deleteCount === 1 ? "评价已删除" : `已删除 ${deleteCount} 条评价`);
+  } catch (error) {
+    closeDeleteDialog();
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "删除评价失败，请稍后重试",
+    });
+  }
 }
 
-function applyBatchAction(action: "show" | "hide" | "pin" | "unpin" | "delete") {
+async function applyBatchAction(action: "show" | "hide" | "pin" | "unpin" | "delete") {
   const targets = selectedFilteredRows.value;
 
   if (!targets.length) {
@@ -221,17 +301,38 @@ function applyBatchAction(action: "show" | "hide" | "pin" | "unpin" | "delete") 
     return;
   }
 
-  targets.forEach((row) => {
-    if (action === "show") {
-      row.isVisible = true;
-    } else if (action === "hide") {
-      row.isVisible = false;
-    } else if (action === "pin") {
-      row.isPinned = true;
-    } else if (action === "unpin") {
-      row.isPinned = false;
-    }
-  });
+  try {
+    await batchOperateAdminOrderReviews({
+      reviewIds: targets.map((row) => row.id),
+      action:
+        action === "show"
+          ? "SHOW"
+          : action === "hide"
+            ? "HIDE"
+            : action === "pin"
+              ? "PIN"
+              : "UNPIN",
+    });
+
+    targets.forEach((row) => {
+      if (action === "show") {
+        row.isVisible = true;
+      } else if (action === "hide") {
+        row.isVisible = false;
+      } else if (action === "pin") {
+        row.isPinned = true;
+      } else if (action === "unpin") {
+        row.isPinned = false;
+      }
+    });
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "批量操作失败，请稍后重试",
+    });
+    return;
+  }
 
   const actionCopyMap = {
     show: "批量显示",
@@ -243,6 +344,10 @@ function applyBatchAction(action: "show" | "hide" | "pin" | "unpin" | "delete") 
 
   props.showToast(`${actionCopyMap[action]} ${targets.length} 条评价`);
 }
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -428,7 +533,7 @@ function applyBatchAction(action: "show" | "hide" | "pin" | "unpin" | "delete") 
                 {{ row.isPinned ? "取消置顶" : "置顶" }}
               </button>
               <button type="button" class="action-link" @click="openDetailDialog(row)">评价详情</button>
-              <button type="button" class="action-link" @click="openOrderDetail(row.orderNo)">订单详情</button>
+              <button type="button" class="action-link" @click="openOrderDetail(row.orderId || row.orderNo)">订单详情</button>
               <button type="button" class="action-link action-link--danger" @click="requestDeleteRows([row])">删除</button>
             </div>
           </article>
@@ -526,7 +631,7 @@ function applyBatchAction(action: "show" | "hide" | "pin" | "unpin" | "delete") 
 
         <footer class="dialog__footer">
           <button class="dialog-button dialog-button--ghost" type="button" @click="closeDetailDialog">关闭</button>
-          <button class="dialog-button dialog-button--primary" type="button" @click="openOrderDetail(detailDialogRow.orderNo)">
+          <button class="dialog-button dialog-button--primary" type="button" @click="openOrderDetail(detailDialogRow.orderId || detailDialogRow.orderNo)">
             订单详情
           </button>
         </footer>

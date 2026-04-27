@@ -1,6 +1,9 @@
 import { shallowRef } from "vue";
+import { clearLastAuthenticatedPageId } from "./page-session";
 
 const USER_AUTH_STORAGE_KEY = "ihc:user-web:auth-session";
+const USER_AUTH_COOKIE_KEY = "ihc_user_web_auth_session";
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export interface UserAuthSessionUser {
   userId: string;
@@ -19,7 +22,85 @@ export interface UserAuthSession {
 }
 
 function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  try {
+    return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  } catch {
+    return false;
+  }
+}
+
+function canUseCookie() {
+  return typeof document !== "undefined";
+}
+
+function readCookie(name: string) {
+  if (!canUseCookie()) {
+    return "";
+  }
+
+  const cookiePrefix = `${name}=`;
+  const cookieValue = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(cookiePrefix));
+
+  if (!cookieValue) {
+    return "";
+  }
+
+  return decodeURIComponent(cookieValue.slice(cookiePrefix.length));
+}
+
+function writeCookie(name: string, value: string, maxAgeSeconds = COOKIE_MAX_AGE_SECONDS) {
+  if (!canUseCookie()) {
+    return;
+  }
+
+  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function removeCookie(name: string) {
+  if (!canUseCookie()) {
+    return;
+  }
+
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+function canUseCookie() {
+  return typeof document !== "undefined";
+}
+
+function readCookie(name: string) {
+  if (!canUseCookie()) {
+    return "";
+  }
+
+  const cookiePrefix = `${name}=`;
+  const cookieValue = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(cookiePrefix));
+
+  if (!cookieValue) {
+    return "";
+  }
+
+  return decodeURIComponent(cookieValue.slice(cookiePrefix.length));
+}
+
+function writeCookie(name: string, value: string, maxAgeSeconds = COOKIE_MAX_AGE_SECONDS) {
+  if (!canUseCookie()) {
+    return;
+  }
+
+  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function removeCookie(name: string) {
+  if (!canUseCookie()) {
+    return;
+  }
+
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
 function isValidSession(value: unknown): value is UserAuthSession {
@@ -39,11 +120,11 @@ function isValidSession(value: unknown): value is UserAuthSession {
 }
 
 function loadUserAuthSession() {
-  if (!canUseStorage()) {
-    return null;
-  }
-
-  const rawValue = window.localStorage.getItem(USER_AUTH_STORAGE_KEY);
+  const rawStorageValue = canUseStorage()
+    ? window.localStorage.getItem(USER_AUTH_STORAGE_KEY) || ""
+    : "";
+  const rawCookieValue = readCookie(USER_AUTH_COOKIE_KEY);
+  const rawValue = rawStorageValue || rawCookieValue;
 
   if (!rawValue) {
     return null;
@@ -53,7 +134,10 @@ function loadUserAuthSession() {
     const parsedValue = JSON.parse(rawValue);
     return isValidSession(parsedValue) ? parsedValue : null;
   } catch {
-    window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+    if (canUseStorage()) {
+      window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+    }
+    removeCookie(USER_AUTH_COOKIE_KEY);
     return null;
   }
 }
@@ -85,20 +169,25 @@ export function saveUserAuthSession(session: UserAuthSession) {
   currentUserAuthSession.value = session;
 
   if (!canUseStorage()) {
+    writeCookie(USER_AUTH_COOKIE_KEY, JSON.stringify(session));
     return;
   }
 
   window.localStorage.setItem(USER_AUTH_STORAGE_KEY, JSON.stringify(session));
+  writeCookie(USER_AUTH_COOKIE_KEY, JSON.stringify(session));
 }
 
 export function clearUserAuthSession() {
   currentUserAuthSession.value = null;
+  clearLastAuthenticatedPageId();
 
   if (!canUseStorage()) {
+    removeCookie(USER_AUTH_COOKIE_KEY);
     return;
   }
 
   window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
+  removeCookie(USER_AUTH_COOKIE_KEY);
 }
 
 export function hasUserAuthSession() {

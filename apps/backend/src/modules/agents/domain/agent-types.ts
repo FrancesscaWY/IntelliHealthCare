@@ -190,19 +190,44 @@ export const navigationSuggestionSchema = z.object({
   reason: z.string().min(1).optional()
 });
 
+export const assistantContextSnapshotSchema = z.object({
+  ownerUserId: z.string().min(1).optional(),
+  targetUserId: z.string().min(1).optional(),
+  authorizedScope: z.array(z.string().min(1)).max(20).optional(),
+  selectedReportId: nullableStringSchema.optional(),
+  latestReportId: nullableStringSchema.optional(),
+  latestReportTitle: nullableStringSchema.optional(),
+  preferredServiceCategory: z.nativeEnum(ServiceCategoryEnum).nullable().optional(),
+  preferredServiceScene: nullableStringSchema.optional()
+});
+
+export const assistantDomainInsightSchema = z.object({
+  sourceTaskType: z.string().min(1),
+  sourceAgent: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  highlights: z.array(z.string().min(1)).max(8).optional(),
+  followUpActions: z.array(z.string().min(1)).max(8).optional(),
+  navigationSuggestion: navigationSuggestionSchema.nullable().optional(),
+  data: genericRecordSchema.optional()
+});
+
 export const assistantConversationInputSchema = z.object({
   sessionId: z.string().min(1),
   userMessage: z.string().min(1),
   conversationHistory: z.array(conversationTurnSchema).max(30).optional(),
   resolvedIntent: taskOrchestratorOutputSchema.nullable().optional(),
-  pageContext: pageContextSchema.optional()
+  pageContext: pageContextSchema.optional(),
+  contextSnapshot: assistantContextSnapshotSchema.optional(),
+  domainInsights: z.array(assistantDomainInsightSchema).max(6).optional()
 });
 
 export const assistantConversationOutputSchema = z.object({
   assistantReply: z.string().min(1),
   followUpQuestion: nullableStringSchema.optional(),
   navigationSuggestion: navigationSuggestionSchema.nullable().optional(),
-  pendingTaskHint: nullableStringSchema.optional()
+  pendingTaskHint: nullableStringSchema.optional(),
+  referencedTaskTypes: z.array(z.string().min(1)).max(6).optional()
 });
 
 export type AssistantConversationInput = z.infer<
@@ -210,6 +235,12 @@ export type AssistantConversationInput = z.infer<
 >;
 export type AssistantConversationOutput = z.infer<
   typeof assistantConversationOutputSchema
+>;
+export type AssistantContextSnapshot = z.infer<
+  typeof assistantContextSnapshotSchema
+>;
+export type AssistantDomainInsight = z.infer<
+  typeof assistantDomainInsightSchema
 >;
 
 export const reportSummaryInputSchema = z.object({
@@ -316,7 +347,8 @@ export const serviceRecommendationItemSchema = z.object({
   category: z.nativeEnum(ServiceCategoryEnum),
   price: z.number().nonnegative(),
   regionScope: z.array(z.string()).max(10),
-  reason: z.string()
+  reason: z.string(),
+  imageUrl: nullableStringSchema.optional()
 });
 
 export const serviceRecommendationOutputSchema = baseAgentOutputSchema.extend({
@@ -643,6 +675,7 @@ export interface ServiceCatalogItem {
   salesVolume: number;
   regionScope: string[];
   tags: string[];
+  coverUrl: string | null;
 }
 
 export class AgentExecutionError extends Error {

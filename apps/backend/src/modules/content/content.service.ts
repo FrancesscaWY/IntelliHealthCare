@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { ContentActionType, ContentStatus, ContentTargetType } from "@prisma/client";
 import {
   ensureArray,
@@ -7,6 +7,14 @@ import {
   toDateTimeString
 } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import {
+  isInvalidPlaceholderContentComment,
+  normalizePresentedContentComment,
+  resolvePresentedContentCommentAvatar,
+} from "./content-comment-presentation";
+import { resolveCuratedLectureMedia } from "./content-curated-lectures";
+import { resolveCuratedNewsMedia } from "./content-curated-news";
+import { extractPublishedContentMeta } from "./content-metadata";
 
 type InteractionAction = "LIKE" | "FAVORITE" | "SHARE";
 type ContentSort = "LATEST" | "HOT";
@@ -51,16 +59,22 @@ export class AppContentService {
 
     const list = articles.map((item) => {
       const counts = this.getCounts(summary.counts, item.id);
+      const meta = this.resolveArticleContentMeta(item);
 
       return {
         newsId: item.id,
         id: item.id,
         title: item.title,
         summary: item.summary,
-        coverUrl: item.coverUrl,
-        images: item.coverUrl ? [item.coverUrl] : [],
+        coverUrl: meta.coverUrl,
+        images: meta.gallery.map((image) => image.url),
         authorName: item.authorName,
-        sourceName: item.sourceName,
+        sourceName: meta.sourceName ?? item.sourceName,
+        sourceUrl: meta.sourceUrl,
+        sourceTitle: meta.sourceTitle,
+        sourcePublishedAt: meta.sourcePublishedAt,
+        readingMinutes: meta.readingMinutes,
+        imageAlt: meta.imageAlt,
         tags: ensureArray<string>(item.tags),
         publishedAt: toDateTimeString(item.publishedAt),
         liked: summary.likes.has(item.id),
@@ -93,17 +107,27 @@ export class AppContentService {
       this.listContentComments(userId, "ARTICLE", article.id, 1, 20)
     ]);
     const counts = this.getCounts(summary.counts, article.id);
-    const sections = ensureArray<Record<string, unknown>>(ensureRecord(article.content).sections);
+    const content = ensureRecord(article.content);
+    const sections = ensureArray<Record<string, unknown>>(content.sections);
+    const meta = this.resolveArticleContentMeta(article);
 
     return {
       newsId: article.id,
       id: article.id,
       title: article.title,
       summary: article.summary,
-      coverUrl: article.coverUrl,
-      heroImage: article.coverUrl,
+      coverUrl: meta.coverUrl,
+      heroImage: meta.gallery[0]?.url ?? meta.coverUrl,
       authorName: article.authorName,
-      sourceName: article.sourceName,
+      sourceName: meta.sourceName ?? article.sourceName,
+      sourceUrl: meta.sourceUrl,
+      sourceTitle: meta.sourceTitle,
+      sourceDescription: meta.sourceDescription,
+      sourcePublishedAt: meta.sourcePublishedAt,
+      readingMinutes: meta.readingMinutes,
+      imageAlt: meta.imageAlt,
+      gallery: meta.gallery,
+      references: meta.references,
       tags: ensureArray<string>(article.tags),
       content: article.content,
       sections: sections.map((item) => ({
@@ -162,6 +186,7 @@ export class AppContentService {
 
     const list = lectures.map((item) => {
       const counts = this.getCounts(summary.counts, item.id);
+      const meta = this.resolveLectureContentMeta(item);
 
       return {
         lectureId: item.id,
@@ -170,9 +195,18 @@ export class AppContentService {
         summary: item.summary,
         speakerName: item.speakerName,
         speakerTitle: item.speakerTitle,
-        coverUrl: item.coverUrl,
-        imageUrl: item.coverUrl,
-        videoUrl: item.videoUrl,
+        coverUrl: meta.coverUrl,
+        imageUrl: meta.gallery[0]?.url ?? meta.coverUrl,
+        videoUrl: meta.videoUrl,
+        sourceName: meta.sourceName,
+        watchUrl: meta.watchUrl,
+        watchLabel: meta.watchLabel,
+        sourceUrl: meta.sourceUrl,
+        sourceTitle: meta.sourceTitle,
+        sourceDescription: meta.sourceDescription,
+        sourcePublishedAt: meta.sourcePublishedAt,
+        readingMinutes: meta.readingMinutes,
+        imageAlt: meta.imageAlt,
         durationMinutes: item.durationMinutes,
         publishedAt: toDateTimeString(item.publishedAt),
         liked: summary.likes.has(item.id),
@@ -206,6 +240,21 @@ export class AppContentService {
     ]);
     const counts = this.getCounts(summary.counts, lecture.id);
     const content = ensureRecord(lecture.content);
+    const meta = this.resolveLectureContentMeta(lecture);
+    const presentationContent: Record<string, unknown> = {
+      ...content,
+      sourceName: meta.sourceName,
+      sourceUrl: meta.sourceUrl,
+      sourceTitle: meta.sourceTitle,
+      sourceDescription: meta.sourceDescription,
+      sourcePublishedAt: meta.sourcePublishedAt,
+      watchUrl: meta.watchUrl,
+      watchLabel: meta.watchLabel,
+      readingMinutes: meta.readingMinutes,
+      imageAlt: meta.imageAlt,
+      gallery: meta.gallery,
+      references: meta.references,
+    };
 
     return {
       lectureId: lecture.id,
@@ -214,13 +263,24 @@ export class AppContentService {
       summary: lecture.summary,
       speakerName: lecture.speakerName,
       speakerTitle: lecture.speakerTitle,
-      coverUrl: lecture.coverUrl,
-      heroImage: lecture.coverUrl,
-      videoUrl: lecture.videoUrl,
+      coverUrl: meta.coverUrl,
+      heroImage: meta.gallery[0]?.url ?? meta.coverUrl,
+      videoUrl: meta.videoUrl,
+      sourceName: meta.sourceName,
+      watchUrl: meta.watchUrl,
+      watchLabel: meta.watchLabel,
+      sourceUrl: meta.sourceUrl,
+      sourceTitle: meta.sourceTitle,
+      sourceDescription: meta.sourceDescription,
+      sourcePublishedAt: meta.sourcePublishedAt,
+      readingMinutes: meta.readingMinutes,
+      imageAlt: meta.imageAlt,
+      gallery: meta.gallery,
+      references: meta.references,
       durationMinutes: lecture.durationMinutes,
-      content: lecture.content,
-      outline: ensureArray<string>(content.outline),
-      highlights: ensureArray<string>(content.highlights),
+      content: presentationContent,
+      outline: ensureArray<string>(presentationContent.outline),
+      highlights: ensureArray<string>(presentationContent.highlights),
       publishedAt: toDateTimeString(lecture.publishedAt),
       liked: summary.likes.has(lecture.id),
       favorited: summary.favorites.has(lecture.id),
@@ -405,25 +465,39 @@ export class AppContentService {
     );
 
     return paginate(
-      comments.map((item) => ({
-        commentId: item.id,
-        id: item.id,
-        parentId: item.parentId,
-        content: item.content,
-        createdAt: toDateTimeString(item.createdAt),
-        author: item.user.realName ?? item.user.nickname ?? item.user.phone,
-        avatarUrl: item.user.avatarUrl,
-        city: item.user.city,
-        replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
-        likes: 0,
-        liked: false,
-        isMine: item.userId === userId,
-        user: {
+      comments.map((item) => {
+        const authorName =
+          item.user.realName ?? item.user.nickname ?? item.user.phone;
+        const avatarUrl = resolvePresentedContentCommentAvatar({
           userId: item.user.id,
-          name: item.user.realName ?? item.user.nickname ?? item.user.phone,
-          avatar: item.user.avatarUrl
-        }
-      })),
+          avatarUrl: item.user.avatarUrl,
+        });
+        const content = normalizePresentedContentComment({
+          targetId,
+          content: item.content,
+          commentId: item.id,
+        });
+
+        return {
+          commentId: item.id,
+          id: item.id,
+          parentId: item.parentId,
+          content,
+          createdAt: toDateTimeString(item.createdAt),
+          author: authorName,
+          avatarUrl,
+          city: item.user.city,
+          replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
+          likes: 0,
+          liked: false,
+          isMine: item.userId === userId,
+          user: {
+            userId: item.user.id,
+            name: authorName,
+            avatar: avatarUrl
+          }
+        };
+      }),
       page,
       pageSize
     );
@@ -439,6 +513,15 @@ export class AppContentService {
     }
   ) {
     await this.assertContentTargetExists(targetType, targetId);
+    const normalizedContent = payload.content.trim();
+
+    if (!normalizedContent) {
+      throw new BadRequestException("请输入评论内容");
+    }
+
+    if (isInvalidPlaceholderContentComment(normalizedContent)) {
+      throw new BadRequestException("请输入有效评论内容");
+    }
 
     if (payload.parentId) {
       const parent = await this.prismaService.contentComment.findUnique({
@@ -461,7 +544,7 @@ export class AppContentService {
         targetType: targetType as ContentTargetType,
         targetId,
         parentId: payload.parentId,
-        content: payload.content
+        content: normalizedContent
       }
     });
 
@@ -666,6 +749,75 @@ export class AppContentService {
 
   private normalizeSort(sort?: string): ContentSort {
     return sort?.toUpperCase() === "HOT" ? "HOT" : "LATEST";
+  }
+
+  private resolveArticleContentMeta(article: {
+    id: string;
+    slug: string;
+    content: unknown;
+    coverUrl: string | null;
+  }) {
+    const extracted = extractPublishedContentMeta(article.content, article.coverUrl);
+    const curated = resolveCuratedNewsMedia(article);
+
+    if (!curated) {
+      return {
+        ...extracted,
+        coverUrl: article.coverUrl,
+      };
+    }
+
+    return {
+      ...extracted,
+      ...curated,
+      coverUrl: curated.coverUrl,
+      gallery: curated.gallery.length > 0 ? curated.gallery : extracted.gallery,
+      references: curated.references.length > 0 ? curated.references : extracted.references,
+      imageAlt: curated.imageAlt ?? extracted.imageAlt,
+      readingMinutes: curated.readingMinutes ?? extracted.readingMinutes,
+      sourceName: curated.sourceName ?? extracted.sourceName,
+      sourceUrl: curated.sourceUrl ?? extracted.sourceUrl,
+      sourceTitle: curated.sourceTitle ?? extracted.sourceTitle,
+      sourceDescription: curated.sourceDescription ?? extracted.sourceDescription,
+      sourcePublishedAt: curated.sourcePublishedAt ?? extracted.sourcePublishedAt,
+    };
+  }
+
+  private resolveLectureContentMeta(lecture: {
+    id: string;
+    slug: string;
+    content: unknown;
+    coverUrl: string | null;
+    videoUrl: string | null;
+  }) {
+    const extracted = extractPublishedContentMeta(lecture.content, lecture.coverUrl);
+    const curated = resolveCuratedLectureMedia(lecture);
+
+    if (!curated) {
+      return {
+        ...extracted,
+        coverUrl: lecture.coverUrl,
+        videoUrl: lecture.videoUrl,
+      };
+    }
+
+    return {
+      ...extracted,
+      ...curated,
+      coverUrl: curated.coverUrl,
+      videoUrl: curated.videoUrl,
+      gallery: curated.gallery.length > 0 ? curated.gallery : extracted.gallery,
+      references: curated.references.length > 0 ? curated.references : extracted.references,
+      imageAlt: curated.imageAlt ?? extracted.imageAlt,
+      readingMinutes: curated.readingMinutes ?? extracted.readingMinutes,
+      sourceName: curated.sourceName ?? extracted.sourceName,
+      sourceUrl: curated.sourceUrl ?? extracted.sourceUrl,
+      sourceTitle: curated.sourceTitle ?? extracted.sourceTitle,
+      sourceDescription: curated.sourceDescription ?? extracted.sourceDescription,
+      sourcePublishedAt: curated.sourcePublishedAt ?? extracted.sourcePublishedAt,
+      watchUrl: curated.watchUrl ?? extracted.watchUrl,
+      watchLabel: curated.watchLabel ?? extracted.watchLabel,
+    };
   }
 
   private async assertContentTargetExists(

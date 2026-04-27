@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { SetOff } from "@icon-park/vue-next";
 import avatarImage from "@/assets/community/activities/people.png";
-import mock from "./mock";
+import { syncHealthDeviceItems } from "../device-center/state";
+import { loadHealthDataOverviewSource } from "../measurement-source";
 import { takeHealthDataBackTarget } from "./source";
 
 const props = defineProps<PageComponentProps>();
@@ -19,9 +20,27 @@ const metricColorMap: Record<string, string> = {
   stress: "#d9b46a",
 };
 
-type HealthDataItem = (typeof mock.list)[number];
+type HealthDataItem = Awaited<ReturnType<typeof loadHealthDataOverviewSource>>["list"][number];
 
-const dataList = computed<HealthDataItem[]>(() => mock.list);
+const emptyHealthDataItem: HealthDataItem = {
+  date: "",
+  steps: 0,
+  sleep: 0,
+  weight: 0,
+  heartRate: 0,
+  bloodSugar: 0,
+  bloodPressure: "0/0",
+  oxygen: 0,
+  stress: 0
+};
+
+const overviewData = ref<{ list: HealthDataItem[] }>({
+  list: []
+});
+
+const dataList = computed<HealthDataItem[]>(() =>
+  overviewData.value.list.length ? overviewData.value.list : [emptyHealthDataItem]
+);
 const latest = computed(() => dataList.value[dataList.value.length - 1]);
 const previous = computed(() => dataList.value[dataList.value.length - 2] ?? latest.value);
 
@@ -134,6 +153,12 @@ const scoreLabel = computed(() => {
 });
 
 const addDevicePageId = "health/add-device-placeholder";
+const deviceCount = ref(3);
+const linkedDevices = ref([
+  { id: "watch-alpha", name: "智能手表 A" },
+  { id: "watch-beta", name: "智能手表 B" },
+  { id: "watch-gamma", name: "智能手表 C" }
+]);
 
 const profileSummary = computed(() => ({
   name: "张爱清",
@@ -141,7 +166,7 @@ const profileSummary = computed(() => ({
   age: 65,
   height: 172,
   weight: latest.value.weight.toFixed(1),
-  deviceCount: 3,
+  deviceCount: deviceCount.value,
 }));
 
 const healthAlerts = computed(() =>
@@ -152,7 +177,7 @@ const healthAlerts = computed(() =>
     .map((item) => `${item.label}偏高`)
 );
 
-const linkedDevices = [
+const linkedDevicesFallback = [
   { id: "watch-alpha", name: "智能手表 A" },
   { id: "watch-beta", name: "智能手表 B" },
   { id: "watch-gamma", name: "智能手表 C" },
@@ -272,6 +297,10 @@ function getNavigateKey(key: string) {
 }
 
 function goBack() {
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
   const backTarget = takeHealthDataBackTarget();
 
   if (backTarget) {
@@ -286,9 +315,7 @@ function goBack() {
     }
   }
 
-  if (!props.navigation?.navigateBack?.()) {
-    props.navigation?.reLaunch?.("home/dashboard");
-  }
+  props.navigation?.reLaunch?.("home/dashboard");
 }
 
 function goToAddDevice() {
@@ -296,6 +323,33 @@ function goToAddDevice() {
     props.navigation.navigateTo(addDevicePageId);
   }
 }
+
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
+}
+
+async function loadOverviewData() {
+  try {
+    overviewData.value = await loadHealthDataOverviewSource();
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  }
+}
+
+onMounted(() => {
+  void loadOverviewData();
+  void syncHealthDeviceItems()
+    .then((items) => {
+      deviceCount.value = items.length;
+      linkedDevices.value = items.slice(0, 4).map((item) => ({
+        id: item.id,
+        name: item.name
+      }));
+    })
+    .catch((error) => {
+      props.showToast(getDeviceErrorMessage(error));
+    });
+});
 </script>
 
 <template>

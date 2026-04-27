@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getArchiveBasicInfo, getArchiveMedicalHistory, type ArchiveBasicInfo } from "@/shared/api/health-archive";
 import mock from "./mock";
 import type { HealthInfoField, HealthInfoOption } from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const fieldMap = Object.fromEntries(
+  mock.groups.flatMap((group) => group.fields).map((item) => [item.key, item]),
+) as Record<string, HealthInfoField>;
 
 const formState = reactive<Record<string, string>>(
   Object.fromEntries(
@@ -28,6 +32,11 @@ const activeSelect = ref<{
   placeholder?: string;
   options: HealthInfoOption[];
 } | null>(null);
+const isLoading = ref(false);
+
+onMounted(() => {
+  void loadMedicalHistory();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -76,11 +85,104 @@ function getSelectedLabel(field: HealthInfoField) {
   const currentValue = formState[field.key];
   const currentOption = field.options?.find((option) => option.value === currentValue);
 
-  return currentOption?.label || field.placeholder || "请选择";
+  return currentOption?.label || currentValue || field.placeholder || "请选择";
 }
 
 function saveProfile() {
   props.showToast("健康信息已暂存");
+}
+
+async function loadMedicalHistory() {
+  isLoading.value = true;
+
+  try {
+    const [basicInfo, medicalHistory] = await Promise.all([
+      getArchiveBasicInfo(),
+      getArchiveMedicalHistory(),
+    ]);
+
+    applyBasicInfo(basicInfo);
+    applyMedicalHistory(medicalHistory.medicalHistory);
+  } catch (error) {
+    console.error("load archive medical history failed", error);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function applyBasicInfo(data: ArchiveBasicInfo) {
+  setFormValue("height", data.height);
+  setFormValue("weight", data.weight);
+  setSelectValue("bloodType", data.bloodType);
+}
+
+function applyMedicalHistory(history: Record<string, unknown> | null) {
+  const source = asRecord(history);
+  const lifestyle = asRecord(source.lifestyle);
+  const chronicDiseases = toStringArray(source.chronicDiseases ?? source.chronicDisease);
+
+  setSelectValue("rhType", source.rhType);
+  setSelectValue("chronicDisease", chronicDiseases.length > 1 ? chronicDiseases.join("、") : chronicDiseases[0]);
+  setSelectValue("sleepQuality", lifestyle.sleepQuality ?? source.sleepQuality);
+  setSelectValue("smokingFrequency", lifestyle.smokingFrequency ?? source.smokingFrequency);
+  setSelectValue("drinkingFrequency", lifestyle.drinkingFrequency ?? source.drinkingFrequency);
+  setSelectValue("exerciseFrequency", lifestyle.exerciseFrequency ?? source.exerciseFrequency);
+  setSelectValue("dietPreference", lifestyle.dietPreference ?? source.dietPreference);
+
+  recordState.medicalHistory = toStringArray(source.surgeries ?? source.medicalHistory);
+  recordState.familyHistory = toStringArray(source.familyHistory);
+  recordState.allergyHistory = toStringArray(source.allergies ?? source.allergyHistory);
+  recordState.visitHistory = toStringArray(source.visitHistory ?? source.visits);
+}
+
+function setFormValue(key: string, value: unknown) {
+  const normalized = toDisplayString(value);
+  formState[key] = normalized;
+}
+
+function setSelectValue(key: string, value: unknown) {
+  const normalized = toDisplayString(value);
+  const field = fieldMap[key];
+
+  if (!normalized || field?.type !== "select") {
+    formState[key] = normalized;
+    return;
+  }
+
+  const matched = field.options?.find((option) => option.value === normalized || option.label === normalized);
+  formState[key] = matched?.value || normalized;
+}
+
+function toDisplayString(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return "";
+}
+
+function toStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  return [];
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 </script>
 
@@ -182,7 +284,9 @@ function saveProfile() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveProfile">保存</button>
+      <button class="save-btn" type="button" @click="saveProfile">
+        {{ isLoading ? "加载中..." : "保存" }}
+      </button>
     </footer>
 
     <div v-if="activeSelect" class="sheet-mask" @click.self="closeSelect">

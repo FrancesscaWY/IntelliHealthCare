@@ -1,18 +1,38 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watchEffect } from "vue";
+import { computed, onMounted, reactive, ref, watchEffect } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  getHealthDeviceDetail,
+  getHealthDeviceMeasurements,
+  unbindHealthDevice,
+  updateDeviceSettings
+} from "@/shared/api/health";
+import type { HealthDeviceMeasurement } from "@/shared/api/health";
 import mock from "./mock";
-import { getDeviceById } from "../device-center/devices";
-import { selectedDeviceId } from "../device-center/state";
+import { getDeviceById, mapHealthDeviceToDeviceItem } from "../device-center/devices";
+import {
+  currentDeviceItems,
+  removeCurrentDevice,
+  selectedDeviceId
+} from "../device-center/state";
 
 const props = defineProps<PageComponentProps>();
 
-const currentDevice = computed(() => getDeviceById(selectedDeviceId.value));
+const currentDevice = computed(() => getDeviceById(selectedDeviceId.value, currentDeviceItems.value));
 const toggleValues = reactive<Record<string, boolean>>({});
 const imageLoadFailed = ref(false);
+const isUnbinding = ref(false);
+const isLoadingDetail = ref(false);
+const measurements = ref<HealthDeviceMeasurement[]>([]);
+const isLoadingMeasurements = ref(false);
+const savingToggles = reactive<Record<string, boolean>>({});
 
 watchEffect(() => {
   imageLoadFailed.value = false;
+  if (!currentDevice.value) {
+    return;
+  }
+
   for (const item of currentDevice.value.toggles) {
     if (!(item.key in toggleValues)) {
       toggleValues[item.key] = item.enabled;
@@ -66,12 +86,33 @@ function goBack() {
   }
 }
 
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备操作失败，请稍后重试";
+}
+
 function getIconMarkup(type: string) {
   return detailIconMarkup[type] || detailIconMarkup.watch;
 }
 
-function toggleSetting(key: string) {
-  toggleValues[key] = !toggleValues[key];
+async function toggleSetting(key: string) {
+  const deviceId = selectedDeviceId.value;
+  if (!deviceId || savingToggles[key]) {
+    return;
+  }
+
+  const newValue = !toggleValues[key];
+  toggleValues[key] = newValue;
+
+  try {
+    savingToggles[key] = true;
+    await updateDeviceSettings(deviceId, { [key]: newValue });
+  } catch (error) {
+    // Revert on failure
+    toggleValues[key] = !newValue;
+    props.showToast(getDeviceErrorMessage(error));
+  } finally {
+    savingToggles[key] = false;
+  }
 }
 
 function openQuickLink(item: { key: string; label: string }) {
@@ -96,9 +137,99 @@ function openAction(label: string) {
   props.showToast(`${label}功能待接入`);
 }
 
-function unbindDevice() {
+function unbindDeviceLegacy() {
   props.showToast("解除绑定功能待接入");
 }
+async function unbindDevice() {
+  if (isUnbinding.value || !currentDevice.value) {
+    return;
+  }
+
+  try {
+    isUnbinding.value = true;
+    await unbindHealthDevice(currentDevice.value.id);
+    removeCurrentDevice(currentDevice.value.id);
+    props.showToast("解绑成功");
+    props.navigation.reLaunch("health/device-center");
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  } finally {
+    isUnbinding.value = false;
+  }
+}
+
+async function fetchDeviceDetail() {
+  const deviceId = selectedDeviceId.value;
+  if (!deviceId) {
+    return;
+  }
+
+  try {
+    isLoadingDetail.value = true;
+    const detail = await getHealthDeviceDetail(deviceId);
+    const mapped = mapHealthDeviceToDeviceItem(detail);
+    // Update the device in the shared state with detail data
+    const idx = currentDeviceItems.value.findIndex((item) => item.id === deviceId);
+    if (idx !== -1) {
+      currentDeviceItems.value[idx] = mapped;
+    } else {
+      currentDeviceItems.value.push(mapped);
+    }
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  } finally {
+    isLoadingDetail.value = false;
+  }
+}
+
+async function fetchDeviceMeasurements() {
+  const deviceId = selectedDeviceId.value;
+  if (!deviceId) {
+    return;
+  }
+
+  try {
+    isLoadingMeasurements.value = true;
+    measurements.value = await getHealthDeviceMeasurements(deviceId);
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  } finally {
+    isLoadingMeasurements.value = false;
+  }
+}
+
+function formatMeasurementTime(isoString: string) {
+  try {
+    const date = new Date(isoString);
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${month}-${day} ${hours}:${minutes}`;
+  } catch {
+    return isoString;
+  }
+}
+
+const measurementTypeLabels: Record<string, string> = {
+  heartRate: "心率",
+  bloodPressure: "血压",
+  bloodSugar: "血糖",
+  weight: "体重",
+  sleep: "睡眠",
+  steps: "步数",
+  oxygen: "血氧",
+  stress: "压力",
+};
+
+function getMeasurementTypeLabel(type: string) {
+  return measurementTypeLabels[type] || type;
+}
+
+onMounted(() => {
+  void fetchDeviceDetail();
+  void fetchDeviceMeasurements();
+});
 </script>
 
 <template>
@@ -107,10 +238,10 @@ function unbindDevice() {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <h1>{{ currentDevice.name }}</h1>
+      <h1>{{ currentDevice?.name || "设备详情" }}</h1>
     </header>
 
-    <main class="detail-scroll">
+    <main v-if="currentDevice" class="detail-scroll">
       <section class="device-summary">
         <div class="device-photo-frame">
           <img
@@ -174,6 +305,7 @@ function unbindDevice() {
           :key="item.key"
           class="settings-row settings-row--toggle"
           type="button"
+          :disabled="savingToggles[item.key]"
           @click="toggleSetting(item.key)"
         >
           <span>{{ item.label }}</span>
@@ -195,10 +327,29 @@ function unbindDevice() {
           <span class="row-arrow" aria-hidden="true"></span>
         </button>
       </section>
+
+      <section class="measurements-card">
+        <h3 class="measurements-title">最近测量记录</h3>
+        <div v-if="isLoadingMeasurements" class="measurements-loading">加载中...</div>
+        <ul v-else-if="measurements.length > 0" class="measurements-list">
+          <li v-for="m in measurements" :key="m.recordId" class="measurement-item">
+            <span class="measurement-type">{{ getMeasurementTypeLabel(m.metricKey) }}</span>
+            <span class="measurement-value">{{ m.displayValue ?? m.value }}{{ m.unit ? m.unit : "" }}</span>
+            <span class="measurement-time">{{ formatMeasurementTime(m.measuredAt) }}</span>
+          </li>
+        </ul>
+        <div v-else class="measurements-empty">暂无测量记录</div>
+      </section>
+    </main>
+
+    <main v-else class="detail-scroll detail-scroll--empty">
+      <div class="detail-empty">暂无设备信息</div>
     </main>
 
     <footer class="detail-footer">
-      <button class="unbind-btn" type="button" @click="unbindDevice">{{ mock.unbindText }}</button>
+      <button class="unbind-btn" type="button" :disabled="isUnbinding || !currentDevice" @click="unbindDevice">
+        {{ isUnbinding ? "解绑中..." : mock.unbindText }}
+      </button>
     </footer>
   </section>
 </template>
@@ -267,6 +418,24 @@ function unbindDevice() {
 
 .detail-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.detail-scroll--empty {
+  display: grid;
+  place-items: center;
+}
+
+.detail-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 180px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #9a9fa8;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(110, 124, 154, 0.04);
 }
 
 .device-summary {
@@ -453,11 +622,74 @@ function unbindDevice() {
   box-shadow: 0 12px 24px rgba(255, 110, 104, 0.18);
 }
 
+.unbind-btn:disabled {
+  opacity: 0.66;
+}
+
 @media (min-width: 561px) {
   .device-detail-page {
     height: 844px;
     min-height: 844px;
   }
+}
+
+.measurements-card {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 8px 20px rgba(110, 124, 154, 0.04);
+}
+
+.measurements-title {
+  margin: 0 0 12px;
+  color: #383d46;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.measurements-loading,
+.measurements-empty {
+  padding: 20px 0;
+  color: #9a9fa8;
+  font-size: 14px;
+  text-align: center;
+}
+
+.measurements-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.measurement-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  color: #383d46;
+  font-size: 14px;
+}
+
+.measurement-item + .measurement-item {
+  border-top: 1px solid #f0f1f4;
+}
+
+.measurement-type {
+  color: #4a4f59;
+  font-weight: 400;
+}
+
+.measurement-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+.measurement-time {
+  color: #9a9fa8;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 @media (max-width: 389px) {

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { updateDevicePassword } from "@/shared/api/health";
+import { selectedDeviceId } from "../device-center/state";
 
 const props = defineProps<PageComponentProps>();
 const password = ref("");
+const isSaving = ref(false);
 
-const isSaveDisabled = computed(() => password.value.length !== 6);
+const isSaveDisabled = computed(() => password.value.length !== 6 || isSaving.value);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -19,12 +21,28 @@ function onPasswordInput(event: Event) {
   password.value = target.value.replace(/\D/g, "").slice(0, 6);
 }
 
-function savePassword() {
+async function savePassword() {
   if (isSaveDisabled.value) {
     return;
   }
 
-  props.showToast("密码已保存");
+  const deviceId = selectedDeviceId.value;
+  if (!deviceId) {
+    props.showToast("设备信息缺失");
+    return;
+  }
+
+  try {
+    isSaving.value = true;
+    await updateDevicePassword(deviceId, password.value);
+    props.showToast("密码已保存");
+    goBack();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "保存失败，请稍后重试";
+    props.showToast(message);
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
@@ -34,27 +52,27 @@ function savePassword() {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <h1>{{ mock.title }}</h1>
+      <h1>设置密码</h1>
     </header>
 
     <main class="password-content">
-      <h2>{{ mock.heading }}</h2>
+      <h2>设置6位锁屏密码</h2>
 
       <label class="password-field">
-        <span class="sr-only">{{ mock.placeholder }}</span>
+        <span class="sr-only">请输入密码</span>
         <input
           :value="password"
           type="password"
           inputmode="numeric"
           maxlength="6"
           autocomplete="one-time-code"
-          :placeholder="mock.placeholder"
+          placeholder="请输入密码"
           @input="onPasswordInput"
         />
       </label>
 
       <button class="save-btn" type="button" :disabled="isSaveDisabled" @click="savePassword">
-        {{ mock.saveText }}
+        {{ isSaving ? "保存中..." : "保存" }}
       </button>
     </main>
   </section>

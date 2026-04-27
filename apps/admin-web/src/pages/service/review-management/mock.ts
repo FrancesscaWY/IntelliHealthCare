@@ -1,8 +1,8 @@
 const avatars = [
-  "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=240",
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240",
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=240",
-  "https://images.pexels.com/photos/712513/pexels-photo-712513.jpeg?auto=compress&cs=tinysrgb&w=240",
+  "/api/v1/assets/demo/staff/staff-1.png",
+  "/api/v1/assets/demo/staff/staff-2.png",
+  "/api/v1/assets/demo/staff/staff-3.png",
+  "/api/v1/assets/demo/avatars/avatar-4.jpg",
 ];
 
 const names = ["王晓倩", "李雅宁", "张婉晴", "刘梦琪", "周晓兰", "陈思敏", "黄静怡", "赵小芸", "吴雪琴", "郑依琳"];

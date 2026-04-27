@@ -1,12 +1,27 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Comment, Like, Mail, MedicalFiles, Message, Remind, SpeakerOne, Star, User } from '@icon-park/vue-next'
+import { Comment, Headset, Like, Mail, MedicalFiles, Message, Remind, SpeakerOne, Star, User } from '@icon-park/vue-next'
+import {
+  getMessageOverview,
+  listConversations,
+  listMessageNotices,
+  markConversationAsRead,
+  markNoticesAsRead,
+  type ConversationSummary,
+  type MessageOverview,
+  type NoticeSummary,
+} from '@/shared/api/messaging'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
 const activeTab = ref<'notice' | 'chat'>('notice')
+const overview = ref<MessageOverview | null>(null)
+const notices = ref<NoticeSummary[]>([])
+const conversations = ref<ConversationSummary[]>([])
+const isLoading = ref(false)
+const isMarkingAllRead = ref(false)
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -35,11 +50,28 @@ const iconMap: Record<string, Component> = {
   like: Like,
   order: Star,
   assistant: SpeakerOne,
+  service: Headset,
   mail: Mail,
   message: Message,
 }
 
-const messageList = computed(() => (activeTab.value === 'notice' ? mock.notices : mock.chats))
+const tabs = computed(() => [
+  {
+    key: 'notice',
+    label: overview.value?.unreadNoticeCount ? `通知 ${overview.value.unreadNoticeCount}` : '通知',
+  },
+  {
+    key: 'chat',
+    label: overview.value?.unreadConversationCount ? `聊天 ${overview.value.unreadConversationCount}` : '聊天',
+  },
+])
+
+const messageList = computed(() => (activeTab.value === 'notice' ? notices.value : conversations.value))
+const showEmptyState = computed(() => !isLoading.value && messageList.value.length === 0)
+
+onMounted(() => {
+  void loadMessageData()
+})
 
 function getNavIconMarkup(key: string) {
   return navIconMarkup[key] || navIconMarkup.home
@@ -58,27 +90,184 @@ function openPage(pageId: string, label?: string) {
   props.navigation.navigateTo(pageId)
 }
 
-function markAllRead() {
-  props.showToast('已全部标记为已读')
+async function loadMessageData() {
+  isLoading.value = true
+
+  try {
+    const [overviewData, noticePage, conversationPage] = await Promise.all([
+      getMessageOverview(),
+      listMessageNotices({ page: 1, pageSize: 20 }),
+      listConversations({ page: 1, pageSize: 20 }),
+    ])
+
+    overview.value = overviewData
+    notices.value = noticePage.list
+    conversations.value = conversationPage.list
+  } catch (error) {
+    console.error('load message data failed', error)
+    props.showToast('消息加载失败')
+  } finally {
+    isLoading.value = false
+  }
 }
 
-function openMessage(item: { icon: string; title: string; pageId?: string }) {
-  if (item.pageId) {
-    props.navigation.navigateTo(item.pageId)
+async function markAllRead() {
+  if (activeTab.value !== 'notice' || isMarkingAllRead.value) {
     return
   }
 
-  if (item.icon === 'comment') {
+  const unreadNoticeIds = notices.value.filter((item) => !item.isRead).map((item) => item.noticeId)
+  if (!unreadNoticeIds.length) {
+    props.showToast('暂无未读通知')
+    return
+  }
+
+  isMarkingAllRead.value = true
+
+  try {
+    await markNoticesAsRead(unreadNoticeIds)
+    notices.value = notices.value.map((item) => ({
+      ...item,
+      isRead: true,
+      count: 0,
+    }))
+
+    if (overview.value) {
+      overview.value = {
+        ...overview.value,
+        unreadNoticeCount: 0,
+        latestNotices: overview.value.latestNotices.map((item) => ({
+          ...item,
+          isRead: true,
+          count: 0,
+        })),
+      }
+    }
+
+    props.showToast('已全部标记为已读')
+  } catch (error) {
+    console.error('mark all notices as read failed', error)
+    props.showToast('批量已读失败')
+  } finally {
+    isMarkingAllRead.value = false
+  }
+}
+
+async function markSingleNoticeAsRead(noticeId: string) {
+  const target = notices.value.find((item) => item.noticeId === noticeId)
+  if (!target || target.isRead) {
+    return
+  }
+
+  try {
+    await markNoticesAsRead([noticeId])
+
+    notices.value = notices.value.map((item) =>
+      item.noticeId === noticeId
+        ? {
+            ...item,
+            isRead: true,
+            count: 0,
+          }
+        : item,
+    )
+
+    if (overview.value) {
+      overview.value = {
+        ...overview.value,
+        unreadNoticeCount: Math.max(0, overview.value.unreadNoticeCount - 1),
+        latestNotices: overview.value.latestNotices.map((item) =>
+          item.noticeId === noticeId
+            ? {
+                ...item,
+                isRead: true,
+                count: 0,
+              }
+            : item,
+        ),
+      }
+    }
+  } catch (error) {
+    console.error('mark single notice as read failed', error)
+  }
+}
+
+async function markSingleConversationAsRead(conversationId: string) {
+  const target = conversations.value.find((item) => item.conversationId === conversationId)
+  if (!target || target.unreadCount <= 0) {
+    return
+  }
+
+  try {
+    await markConversationAsRead(conversationId)
+
+    conversations.value = conversations.value.map((item) =>
+      item.conversationId === conversationId
+        ? {
+            ...item,
+            unreadCount: 0,
+            count: 0,
+          }
+        : item,
+    )
+
+    if (overview.value) {
+      overview.value = {
+        ...overview.value,
+        unreadConversationCount: Math.max(0, overview.value.unreadConversationCount - 1),
+        latestConversations: overview.value.latestConversations.map((item) =>
+          item.conversationId === conversationId
+            ? {
+                ...item,
+                unreadCount: 0,
+                count: 0,
+              }
+            : item,
+        ),
+      }
+    }
+  } catch (error) {
+    console.error('mark single conversation as read failed', error)
+  }
+}
+
+function openNoticeDetail(item: NoticeSummary) {
+  if (item.type === 'COMMENT') {
     props.navigation.navigateTo('home/message-comment-detail')
     return
   }
 
-  if (item.icon === 'like') {
+  if (item.type === 'LIKE') {
     props.navigation.navigateTo('home/message-like-detail')
     return
   }
 
   props.showToast(`${item.title}详情待接入`)
+}
+
+function openConversationPage(item: ConversationSummary) {
+  if (item.scene === 'DOCTOR') {
+    props.navigation.navigateTo('home/doctor-chat')
+    return
+  }
+
+  if (item.scene === 'CUSTOMER_SERVICE') {
+    props.navigation.navigateTo('home/customer-service-chat')
+    return
+  }
+
+  props.showToast(`会话场景 ${item.scene} 暂无已确认入口`)
+}
+
+async function openMessage(item: NoticeSummary | ConversationSummary) {
+  if ('noticeId' in item) {
+    await markSingleNoticeAsRead(item.noticeId)
+    openNoticeDetail(item)
+    return
+  }
+
+  await markSingleConversationAsRead(item.conversationId)
+  openConversationPage(item)
 }
 </script>
 
@@ -87,12 +276,14 @@ function openMessage(item: { icon: string; title: string; pageId?: string }) {
     <main class="message-scroll">
       <header class="message-header">
         <h1>消息</h1>
-        <button type="button" @click="markAllRead">全部已读</button>
+        <button type="button" :disabled="activeTab !== 'notice' || isMarkingAllRead" @click="markAllRead">
+          {{ isMarkingAllRead ? '处理中...' : '全部已读' }}
+        </button>
       </header>
 
       <nav class="message-tabs" aria-label="消息分类">
         <button
-          v-for="tab in mock.tabs"
+          v-for="tab in tabs"
           :key="tab.key"
           class="message-tab"
           :class="{ active: activeTab === tab.key }"
@@ -104,6 +295,8 @@ function openMessage(item: { icon: string; title: string; pageId?: string }) {
       </nav>
 
       <section class="message-list" aria-label="消息列表">
+        <p v-if="isLoading && !messageList.length" class="message-state">消息加载中...</p>
+        <p v-else-if="showEmptyState" class="message-state">暂无消息</p>
         <article
           v-for="item in messageList"
           :key="item.id"
@@ -203,6 +396,18 @@ function openMessage(item: { icon: string; title: string; pageId?: string }) {
   border: 0;
   background: transparent;
   color: inherit;
+}
+
+.message-state {
+  margin: 0 0 12px;
+  padding: 22px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #8f96a2;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .message-header {

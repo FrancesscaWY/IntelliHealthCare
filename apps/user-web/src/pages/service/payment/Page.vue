@@ -1,213 +1,297 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import alipayIcon from "@/assets/login/zfb.png";
+import wechatIcon from "@/assets/login/wx.png";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
-import {
-  getOrderFlowState,
-  resetPaymentSnapshot,
-  setPaymentSnapshot
-} from "@/pages/service/order-flow";
 import {
   confirmPayment,
   createPayment,
   getPaymentChannels,
-  type PaymentChannelItem
+  type PaymentChannel,
+  type PaymentChannelOption
 } from "@/shared/api/payments";
+import {
+  mergeServicePaymentContext,
+  readServicePaymentContext
+} from "@/shared/payment/session";
 
 const props = defineProps<PageComponentProps>();
 
-const PAYMENT_EXPIRE_MS = 15 * 60 * 1000;
+const DEFAULT_REMAINING_TIME = "01:06:09";
 
-const selectedPayment = ref("ALIPAY");
-const submitting = ref(false);
-const channels = ref<PaymentChannelItem[]>([]);
-const countdownText = ref(mock.remainingTime);
-const orderFlowState = getOrderFlowState();
-
-let countdownTimer: ReturnType<typeof setInterval> | null = null;
-
-const paymentAmount = computed(() => {
-  const createdAmount = orderFlowState.createdOrder?.payableAmount;
-  if (typeof createdAmount === "number") {
-    return createdAmount.toFixed(2);
+const CHANNEL_META: Record<
+  PaymentChannel,
+  {
+    uiKey: string;
+    title: string;
+    icon?: string;
+    badgeText?: string;
   }
-
-  return mock.amount;
-});
-
-const isExpired = computed(() => countdownText.value === "00:00");
-
-const paymentMethods = computed(() => {
-  if (channels.value.length > 0) {
-    return channels.value.map((method) => ({
-      id: method.code,
-      name: method.name,
-      cardNo: undefined,
-      icon:
-        method.code === "ALIPAY"
-          ? mock.methods.find((item) => item.id === "ALIPAY")?.icon
-          : method.code === "WECHAT"
-            ? mock.methods.find((item) => item.id === "WECHAT")?.icon
-            : undefined
-    }));
+> = {
+  ALIPAY: {
+    uiKey: "alipay",
+    title: "\u652f\u4ed8\u5b9d",
+    icon: alipayIcon
+  },
+  WECHAT: {
+    uiKey: "wechat",
+    title: "\u5fae\u4fe1\u652f\u4ed8",
+    icon: wechatIcon
+  },
+  BALANCE: {
+    uiKey: "balance",
+    title: "\u4f59\u989d\u652f\u4ed8",
+    badgeText: "\u4f59"
+  },
+  OFFLINE: {
+    uiKey: "offline",
+    title: "\u7ebf\u4e0b\u652f\u4ed8",
+    badgeText: "\u7ebf"
   }
+};
 
-  return mock.methods;
-});
+const FALLBACK_CHANNELS: PaymentChannelOption[] = [
+  {
+    channel: "ALIPAY",
+    title: CHANNEL_META.ALIPAY.title,
+    enabled: true
+  },
+  {
+    channel: "WECHAT",
+    title: CHANNEL_META.WECHAT.title,
+    enabled: true
+  },
+  {
+    channel: "BALANCE",
+    title: CHANNEL_META.BALANCE.title,
+    enabled: true
+  }
+];
 
-function formatCountdown(ms: number) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+const UI = {
+  backAria: "\u8fd4\u56de",
+  pageTitle: "\u652f\u4ed8\u8ba2\u5355",
+  amountLabel: "\u652f\u4ed8\u91d1\u989d",
+  countdownLabel: "\u5269\u4f59\u652f\u4ed8\u65f6\u95f4",
+  orderInfoTitle: "\u8ba2\u5355\u4fe1\u606f",
+  serviceLabel: "\u670d\u52a1\u540d\u79f0",
+  orderNoLabel: "\u8ba2\u5355\u53f7",
+  methodTitle: "\u9009\u62e9\u652f\u4ed8\u65b9\u5f0f",
+  methodLoading: "\u652f\u4ed8\u6e20\u9053\u52a0\u8f7d\u4e2d...",
+  methodEmpty: "\u6682\u65e0\u53ef\u7528\u652f\u4ed8\u6e20\u9053",
+  confirmPay: "\u786e\u8ba4\u652f\u4ed8",
+  creating: "\u652f\u4ed8\u786e\u8ba4\u4e2d...",
+  serviceFallback: "\u5f85\u652f\u4ed8\u670d\u52a1",
+  orderNoFallback: "--",
+  methodFallback: "\u652f\u4ed8\u65b9\u5f0f",
+  missingOrder: "\u7f3a\u5c11\u8ba2\u5355\u4fe1\u606f\uff0c\u8bf7\u5148\u63d0\u4ea4\u8ba2\u5355",
+  legacyPendingOrder:
+    "\u8be5\u5f85\u652f\u4ed8\u8ba2\u5355\u4ecd\u662f\u539f\u6709\u793a\u4f8b\u6570\u636e\uff0c\u672a\u63a5\u5165\u540e\u7aef\u771f\u5b9e orderId\uff0c\u6682\u65f6\u65e0\u6cd5\u76f4\u63a5\u652f\u4ed8",
+  legacyPendingHint:
+    "\u5f53\u524d\u8ba2\u5355\u662f\u65e7\u7684\u5f85\u652f\u4ed8\u793a\u4f8b\u6570\u636e\uff0c\u9875\u9762\u5df2\u5e26\u51fa\u8ba2\u5355\u4fe1\u606f\uff0c\u4f46\u56e0\u4e3a\u7f3a\u5c11\u540e\u7aef\u771f\u5b9e orderId\uff0c\u8fd8\u4e0d\u80fd\u76f4\u63a5\u53d1\u8d77\u652f\u4ed8\u3002",
+  channelLoadFailed: "\u652f\u4ed8\u6e20\u9053\u52a0\u8f7d\u5931\u8d25\uff0c\u5df2\u5207\u6362\u9ed8\u8ba4\u652f\u4ed8\u65b9\u5f0f",
+  payFailed: "\u652f\u4ed8\u786e\u8ba4\u5931\u8d25"
+} as const;
+
+interface PaymentMethodView {
+  channel: PaymentChannel;
+  uiKey: string;
+  name: string;
+  icon?: string;
+  badgeText?: string;
 }
 
-function startCountdown() {
-  const createdAt = orderFlowState.createdOrder?.createdAt;
-  if (!createdAt) {
-    countdownText.value = mock.remainingTime;
-    return;
-  }
+const selectedChannel = ref<PaymentChannel>("ALIPAY");
+const isSubmitting = ref(false);
+const isLoadingChannels = ref(false);
+const hasLoadedChannels = ref(false);
+const paymentContext = ref(readServicePaymentContext());
+const paymentChannels = ref<PaymentChannelOption[]>([]);
 
-  const expireAt = new Date(createdAt).getTime() + PAYMENT_EXPIRE_MS;
-  const updateCountdown = () => {
-    const remainingMs = expireAt - Date.now();
-    countdownText.value = formatCountdown(remainingMs);
+const displayAmount = computed(() => {
+  const amount = paymentContext.value?.amount;
+  return typeof amount === "number" ? formatCurrency(amount) : UI.orderNoFallback;
+});
 
-    if (remainingMs <= 0 && countdownTimer) {
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-    }
-  };
+const displayServiceTitle = computed(
+  () => paymentContext.value?.serviceTitle ?? UI.serviceFallback
+);
 
-  updateCountdown();
-  countdownTimer = setInterval(updateCountdown, 1000);
-}
+const displayOrderNo = computed(() => paymentContext.value?.orderNo ?? UI.orderNoFallback);
+const isLegacyPendingOrder = computed(() => paymentContext.value?.isLegacyPendingOrder === true);
 
-function goBack() {
+const paymentMethods = computed<PaymentMethodView[]>(() => {
+  const source = hasLoadedChannels.value ? paymentChannels.value : FALLBACK_CHANNELS;
+
+  return source
+    .filter((channel) => channel.enabled)
+    .map((channel) => {
+      const meta = CHANNEL_META[channel.channel];
+      return {
+        channel: channel.channel,
+        uiKey: meta.uiKey,
+        name: meta.title || channel.title || UI.methodFallback,
+        icon: meta.icon,
+        badgeText: meta.badgeText
+      };
+    });
+});
+
+const goBack = () => {
   if (!props.navigation.navigateBack()) {
     props.navigation.reLaunch("service/order-confirm");
-  }
-}
-
-async function loadChannels() {
-  try {
-    const response = await getPaymentChannels();
-    channels.value = response.list || [];
-    if (channels.value.length > 0) {
-      selectedPayment.value = channels.value[0].code;
-    }
-  } catch {
-    channels.value = [];
-  }
-}
-
-async function confirmPay() {
-  const createdOrderId = orderFlowState.createdOrder?.orderId;
-  if (!createdOrderId) {
-    props.showToast("请先提交订单");
     props.navigation.reLaunch("service/order-confirm");
+  }
+};
+
+function formatCurrency(amount: number) {
+  return `\uFFE5${amount.toFixed(2)}`;
+}
+
+function syncSelectedChannel() {
+  const availableChannels = paymentMethods.value.map((method) => method.channel);
+
+  if (!availableChannels.includes(selectedChannel.value)) {
+    selectedChannel.value = availableChannels[0] ?? "ALIPAY";
+  }
+}
+
+async function loadPaymentChannels() {
+  if (isLoadingChannels.value) {
     return;
   }
-
-  if (isExpired.value) {
-    props.showToast("支付超时，请重新下单");
-    return;
-  }
-
-  if (submitting.value) {
-    return;
-  }
-
-  submitting.value = true;
 
   try {
-    resetPaymentSnapshot();
+    isLoadingChannels.value = true;
+    const channels = await getPaymentChannels();
+
+    paymentChannels.value = channels;
+    hasLoadedChannels.value = true;
+  } catch {
+    paymentChannels.value = FALLBACK_CHANNELS;
+    hasLoadedChannels.value = false;
+    props.showToast(UI.channelLoadFailed);
+  } finally {
+    isLoadingChannels.value = false;
+    syncSelectedChannel();
+  }
+}
+
+const confirmPay = async () => {
+  if (isSubmitting.value) {
+    return;
+  }
+
+  const orderId = paymentContext.value?.orderId;
+
+  if (!orderId) {
+    props.showToast(isLegacyPendingOrder.value ? UI.legacyPendingOrder : UI.missingOrder);
+    return;
+  }
+
+  try {
+    isSubmitting.value = true;
 
     const createdPayment = await createPayment({
-      orderId: createdOrderId,
-      channel: selectedPayment.value
+      orderId,
+      channel: selectedChannel.value
     });
-
     const confirmedPayment = await confirmPayment(createdPayment.paymentId);
 
-    setPaymentSnapshot({
-      paymentId: confirmedPayment.paymentId,
+    mergeServicePaymentContext({
       orderId: confirmedPayment.orderId,
-      channel: selectedPayment.value,
+      paymentId: confirmedPayment.paymentId,
+      paymentNo: confirmedPayment.paymentNo,
+      paymentStatus: confirmedPayment.status,
+      paymentChannel: confirmedPayment.channel,
       amount: confirmedPayment.amount,
-      status: confirmedPayment.status,
-      paidAt: confirmedPayment.paidAt || null
+      paidAt: confirmedPayment.paidAt,
+      createdAt: confirmedPayment.createdAt
     });
 
-    props.showToast(confirmedPayment.status === "PAID" ? "支付成功" : "支付状态已更新");
+    paymentContext.value = readServicePaymentContext();
     props.navigation.navigateTo("service/payment-result");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "支付失败";
-    props.showToast(message);
+    props.showToast(error instanceof Error ? error.message : UI.payFailed);
   } finally {
-    submitting.value = false;
+    isSubmitting.value = false;
   }
-}
+};
 
 onMounted(() => {
-  void loadChannels();
-  startCountdown();
-});
-
-onBeforeUnmount(() => {
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
-  }
+  void loadPaymentChannels();
 });
 </script>
 
 <template>
   <div class="payment-page">
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
-      <h1>支付订单</h1>
+      <button class="back-button" type="button" :aria-label="UI.backAria" @click="goBack">
+        &lt;
+      </button>
+      <h1>{{ UI.pageTitle }}</h1>
     </header>
 
     <main class="payment-content">
       <section class="amount-card">
         <div class="amount-block">
-          <span>支付金额</span>
-          <strong><small>¥</small>{{ paymentAmount }}</strong>
+          <span>{{ UI.amountLabel }}</span>
+          <strong>{{ displayAmount }}</strong>
         </div>
         <div class="countdown">
-          支付剩余时间：<span>{{ countdownText }}</span>
+          {{ UI.countdownLabel }}
+          <span>{{ DEFAULT_REMAINING_TIME }}</span>
         </div>
       </section>
 
+      <section class="order-card">
+        <h2>{{ UI.orderInfoTitle }}</h2>
+        <dl>
+          <div>
+            <dt>{{ UI.serviceLabel }}</dt>
+            <dd>{{ displayServiceTitle }}</dd>
+          </div>
+          <div>
+            <dt>{{ UI.orderNoLabel }}</dt>
+            <dd>{{ displayOrderNo }}</dd>
+          </div>
+        </dl>
+        <p v-if="isLegacyPendingOrder" class="section-hint order-hint">{{ UI.legacyPendingHint }}</p>
+      </section>
+
       <section class="method-section">
-        <h2>选择支付方式</h2>
-        <div class="method-card">
+        <h2>{{ UI.methodTitle }}</h2>
+        <p v-if="isLoadingChannels" class="section-hint">{{ UI.methodLoading }}</p>
+        <div v-if="paymentMethods.length > 0" class="method-card">
           <button
             v-for="method in paymentMethods"
-            :key="method.id"
+            :key="method.channel"
             class="method-row"
             type="button"
-            @click="selectedPayment = method.id"
+            @click="selectedChannel = method.channel"
           >
-            <span class="method-icon" :class="`method-icon--${method.id}`">
+            <span class="method-icon" :class="`method-icon--${method.uiKey}`">
               <img v-if="method.icon" :src="method.icon" :alt="method.name" />
-              <span v-else>银</span>
+              <span v-else>{{ method.badgeText }}</span>
             </span>
             <span class="method-info">
               <strong>{{ method.name }}</strong>
-              <small v-if="method.cardNo">{{ method.cardNo }}</small>
             </span>
-            <span class="radio" :class="{ active: selectedPayment === method.id }"></span>
+            <span class="radio" :class="{ active: selectedChannel === method.channel }"></span>
           </button>
         </div>
+        <p v-else class="empty-text">{{ UI.methodEmpty }}</p>
       </section>
     </main>
 
     <div class="pay-bar">
-      <button class="pay-button" type="button" :disabled="submitting || isExpired" @click="confirmPay">
-        {{ isExpired ? "支付已超时" : submitting ? "支付中..." : "确认支付" }}
+      <button
+        class="pay-button"
+        type="button"
+        :disabled="isSubmitting || paymentMethods.length === 0"
+        @click="confirmPay"
+      >
+        {{ isSubmitting ? UI.creating : UI.confirmPay }}
       </button>
     </div>
   </div>
@@ -225,6 +309,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   background: #ffffff;
   color: #34383f;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -246,9 +331,9 @@ onBeforeUnmount(() => {
   border: 0;
   background: transparent;
   color: #34383f;
-  font-size: 34px;
-  line-height: 26px;
-  font-weight: 300;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -263,6 +348,15 @@ onBeforeUnmount(() => {
 .payment-content {
   display: flex;
   flex-direction: column;
+  gap: 24px;
+}
+
+.amount-card,
+.order-card {
+  padding: 24px 22px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: #fff;
 }
 
 .amount-card {
@@ -271,10 +365,6 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: start;
-  padding: 24px 22px;
-  box-sizing: border-box;
-  border-radius: 16px;
-  background: #fff;
 }
 
 .amount-block span,
@@ -288,15 +378,11 @@ onBeforeUnmount(() => {
   display: block;
   margin-top: 18px;
   color: #006dff;
+  color: #006dff;
   font-size: 38px;
   line-height: 1;
   font-weight: 800;
   letter-spacing: 0;
-}
-
-.amount-block small {
-  margin-right: 6px;
-  font-size: 16px;
 }
 
 .countdown {
@@ -306,18 +392,60 @@ onBeforeUnmount(() => {
 }
 
 .countdown span {
+  margin-left: 6px;
   color: #2d90f0;
 }
 
-.method-section {
-  margin-top: 28px;
-}
-
+.order-card h2,
 .method-section h2 {
   margin: 0 0 20px;
-  color: #9a9da4;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 700;
+  color: #9a9da4;
+}
+
+.order-card dl {
+  margin: 0;
+}
+
+.order-card div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+  align-items: start;
+}
+
+.order-card div:last-child {
+  margin-bottom: 0;
+}
+
+.order-card dt {
+  color: #a0a3aa;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.order-card dd {
+  margin: 0;
+  color: #34383f;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.section-hint,
+.empty-text {
+  margin: 0 0 16px;
+  color: #a0a3aa;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.order-hint {
+  margin: 14px 0 0;
 }
 
 .method-card {
@@ -363,29 +491,25 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-.method-icon--BANK {
+.method-icon--balance {
   background: #d92234;
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
 }
 
-.method-info strong,
-.method-info small {
-  display: block;
+.method-icon--offline {
+  background: #6870f2;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .method-info strong {
+  display: block;
   color: #34383f;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 800;
-}
-
-.method-info small {
-  margin-top: 6px;
-  color: #c4c6cc;
-  font-size: 14px;
-  font-weight: 700;
 }
 
 .radio {
@@ -431,7 +555,7 @@ onBeforeUnmount(() => {
 }
 
 .pay-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+  opacity: 0.72;
+  cursor: default;
 }
 </style>

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import { ensureLocalRiveRuntime } from "@/shared/rive/runtime";
 
 const emit = defineEmits<{
   open: [];
@@ -19,6 +20,8 @@ const assistantRef = ref<HTMLButtonElement | null>(null);
 const assistantPosition = ref({ x: 0, y: 0 });
 const hasAssistantPosition = ref(false);
 const isDragging = ref(false);
+
+ensureLocalRiveRuntime();
 
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;

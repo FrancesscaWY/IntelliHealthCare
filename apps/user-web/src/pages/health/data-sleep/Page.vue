@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { loadSleepSource } from "../measurement-source";
 
 type ChartMode = "day" | "week" | "month";
 type SleepRecord = {
@@ -18,9 +18,27 @@ type ScheduleItem = { label: string; sleepStartHour: number; wakeTimeHour: numbe
 
 const props = defineProps<PageComponentProps>();
 const selectedChartMode = ref<ChartMode>("day");
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadSleepSource>>>({
+  list: [],
+  dailyTimeline: [],
+  weeklySummary: {
+    averageSleepTime: "00:00",
+    averageWakeTime: "00:00",
+  },
+  weeklySchedule: [],
+  monthlySummary: {
+    averageDuration: "0分钟",
+    compareText: "样本不足",
+    averageSleepTime: "00:00",
+    averageWakeTime: "00:00",
+  },
+  monthlyData: [],
+  monthlySchedule: [],
+});
 
 const healthList = computed<SleepRecord[] | null>(() =>
-  mock && Array.isArray(mock.list) && mock.list.length ? (mock.list as SleepRecord[]) : null
+  pageData.value.list.length ? (pageData.value.list as SleepRecord[]) : null
 );
 
 const sleepData = computed(() => healthList.value ?? []);
@@ -43,7 +61,7 @@ const averageSleep = computed(() => {
 const change = computed(() => Number((latest.value.sleep - previous.value.sleep).toFixed(1)));
 
 const dayLineItems = computed<LineItem[]>(() => {
-  const entry = mock.dailyTimeline?.find((item: { date: string }) => item.date === latest.value.date);
+  const entry = pageData.value.dailyTimeline.find((item: { date: string }) => item.date === latest.value.date);
   return (entry?.items ?? []).map((item: { time: string; value: number }) => ({
     label: item.time,
     value: Number(item.value ?? 0),
@@ -60,7 +78,7 @@ const weekStackItems = computed<StackItem[]>(() =>
 );
 
 const monthStackItems = computed<StackItem[]>(() =>
-  (mock.monthlyData ?? []).map((item: { label: string; deepSleep: number; lightSleep: number; remSleep: number }) => ({
+  pageData.value.monthlyData.map((item: { label: string; deepSleep: number; lightSleep: number; remSleep: number }) => ({
     label: item.label,
     deepSleep: Number(item.deepSleep ?? 0),
     lightSleep: Number(item.lightSleep ?? 0),
@@ -70,7 +88,7 @@ const monthStackItems = computed<StackItem[]>(() =>
 
 const scheduleItems = computed<ScheduleItem[]>(() =>
   (
-    selectedChartMode.value === "month" ? mock.monthlySchedule ?? [] : mock.weeklySchedule ?? []
+    selectedChartMode.value === "month" ? pageData.value.monthlySchedule : pageData.value.weeklySchedule
   ).map((item: { label: string; sleepStartHour: number; wakeTimeHour: number }) => ({
     label: item.label,
     sleepStartHour: Number(item.sleepStartHour ?? 0),
@@ -79,8 +97,9 @@ const scheduleItems = computed<ScheduleItem[]>(() =>
 );
 
 const scheduleSummary = computed(() =>
-  selectedChartMode.value === "month" ? mock.monthlySummary : mock.weeklySummary
+  selectedChartMode.value === "month" ? pageData.value.monthlySummary : pageData.value.weeklySummary
 );
+const monthlySummary = computed(() => pageData.value.monthlySummary);
 
 function formatSleep(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
@@ -230,7 +249,7 @@ const weekLabelStyle = computed(() => ({
 }));
 const monthAxisLabels = computed(() => monthStackItems.value.map((item) => item.label));
 const monthLabelStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${monthAxisLabels.value.length}, minmax(0, 1fr))`,
+  gridTemplateColumns: `repeat(${Math.max(monthAxisLabels.value.length, 1)}, minmax(0, 1fr))`,
 }));
 
 function formatChange(idx: number) {
@@ -249,8 +268,16 @@ function getChangeClass(idx: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) props.navigation.navigateTo("health/health-data");
-  else window.history.back();
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
+    return;
+  }
+
+  window.history.back();
 }
 
 function goToAddData() {
@@ -258,6 +285,18 @@ function goToAddData() {
   sessionStorage.setItem("addReturnPath", "health/data-sleep");
   props.navigation?.navigateTo?.("health/add-data");
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadSleepSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -341,8 +380,8 @@ function goToAddData() {
             <div class="month-summary">
               <span>平均睡眠时长</span>
               <div class="month-summary__row">
-                <strong>{{ mock.monthlySummary.averageDuration }}</strong>
-                <em>{{ mock.monthlySummary.compareText }}</em>
+                <strong>{{ monthlySummary.averageDuration }}</strong>
+                <em>{{ monthlySummary.compareText }}</em>
               </div>
             </div>
             <svg class="main-chart" :viewBox="'0 0 ' + monthChart.width + ' ' + monthChart.height" preserveAspectRatio="none">
@@ -417,6 +456,9 @@ function goToAddData() {
         </section>
       </template>
 
+      <div v-else-if="isLoading" class="error-card">
+        <strong>加载中...</strong>
+      </div>
       <div v-else class="error-card">
         <strong>数据加载失败</strong>
         <p>请检查 `mock.ts` 文件，确保导出了有效的 `list` 数组。</p>

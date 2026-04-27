@@ -1,18 +1,16 @@
-const avatarA =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=160";
-const avatarB =
-  "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=160";
+const avatarA = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+const avatarB = "/api/v1/assets/demo/staff/staff-1.png";
 
 const mock = {
   title: "预约看板",
-  defaultDate: "2024-05-09",
+  defaultDate: "2026-04-29",
   staffOptions: ["全部服务人员", "李医生", "王护理", "周康复", "陈护工"],
   serviceTypeOptions: ["全部类型", "康复训练", "家政护理", "上门检测"],
   timeSlots: [9, 10, 11, 12, 13, 14, 15, 16, 17],
   bookings: [
     {
       id: "booking-1",
-      date: "2024-05-09",
+      date: "2026-04-29",
       title: "肌力增强训练",
       timeLabel: "9:00-10:00",
       userName: "王强",
@@ -28,7 +26,7 @@ const mock = {
     },
     {
       id: "booking-2",
-      date: "2024-05-09",
+      date: "2026-04-29",
       title: "全屋清洁",
       timeLabel: "10:00-11:00",
       userName: "王强",
@@ -44,7 +42,7 @@ const mock = {
     },
     {
       id: "booking-3",
-      date: "2024-05-09",
+      date: "2026-04-29",
       title: "全屋清洁",
       timeLabel: "10:00-11:00",
       userName: "王强",
@@ -60,7 +58,7 @@ const mock = {
     },
     {
       id: "booking-4",
-      date: "2024-05-09",
+      date: "2026-04-29",
       title: "常规血脂检测",
       timeLabel: "12:00-13:00",
       userName: "王强",
@@ -76,7 +74,7 @@ const mock = {
     },
     {
       id: "booking-5",
-      date: "2024-05-09",
+      date: "2026-04-29",
       title: "凝血三项检测",
       timeLabel: "15:00-16:00",
       userName: "王强",

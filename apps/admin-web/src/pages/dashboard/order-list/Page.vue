@@ -3,6 +3,7 @@ import { computed, onActivated, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { getAdminOrders, type AdminOrderListItem } from "@/shared/api/orders";
 import { clearAdminAuthSession } from "@/shared/auth/session";
+import { deriveDateRange, extractDatePart } from "@/shared/date-range";
 import mock, {
   orderDetailPendingActionStorageKey,
   orderDetailStorageKey,
@@ -10,13 +11,16 @@ import mock, {
   type AdminOrderRecord
 } from "./mock";
 
+const localServiceCoverFallback = "/api/v1/assets/demo/services/service-cleaning.jpg";
+const localAvatarFallback = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+
 const props = defineProps<PageComponentProps>();
 const orders = ref<AdminOrderRecord[]>(mock.orders);
 
 const selectedServiceType = ref(mock.serviceTypes[0]);
 const paymentMethod = ref(mock.paymentOptions[0]);
-const startDate = ref("2022-12-01");
-const endDate = ref("2022-12-31");
+const startDate = ref("");
+const endDate = ref("");
 const minPrice = ref("");
 const maxPrice = ref("");
 const keyword = ref("");
@@ -235,14 +239,14 @@ function adaptOrder(item: AdminOrderListItem): AdminOrderRecord {
     settleLabel: item.paymentChannel ? "实付款" : "应付款",
     settleAmount: formatMoney(item.actualAmount ?? item.payableAmount),
     title: item.title,
-    image: item.image || "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320",
+    image: item.image || localServiceCoverFallback,
     price: formatMoney(item.payableAmount),
     originalPrice: formatMoney(item.originalAmount ?? item.payableAmount),
     discountAmount: formatMoney(item.discountAmount),
     buyerName: item.ownerName,
     buyerId: item.ownerId,
     buyerPhone: item.ownerPhone,
-    buyerAvatar: item.ownerAvatar || "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240",
+    buyerAvatar: item.ownerAvatar || localAvatarFallback,
     status,
     payment: item.paymentChannelText === "线下" ? "银行卡" : item.paymentChannelText || "-",
     serviceType: item.serviceCategoryText,
@@ -264,6 +268,7 @@ function adaptOrder(item: AdminOrderListItem): AdminOrderRecord {
     acceptedTime: item.workOrderId ? formatDateTime(item.createdAt) || undefined : undefined,
     completedTime: formatDateTime(item.completedAt) || undefined,
     closedTime: formatDateTime(item.cancelledAt) || undefined,
+    orderDate: extractDatePart(item.createdAt),
     closeReason: status === "已关闭" ? item.afterSaleReason || "系统关闭" : undefined,
     serviceCode: item.orderNo.slice(-8).toUpperCase(),
     serviceStaff: item.assigneeName || undefined,
@@ -279,6 +284,16 @@ function adaptOrder(item: AdminOrderListItem): AdminOrderRecord {
   };
 }
 
+function syncOrderDateRange(nextOrders = orders.value) {
+  if (startDate.value && endDate.value) {
+    return;
+  }
+
+  const range = deriveDateRange(nextOrders.map((order) => order.orderDate));
+  startDate.value = startDate.value || range.start;
+  endDate.value = endDate.value || range.end;
+}
+
 async function syncOrdersFromApi() {
   try {
     const response = await getAdminOrders({
@@ -290,6 +305,7 @@ async function syncOrdersFromApi() {
     if (nextOrders.length > 0) {
       orders.value = nextOrders;
       saveRemoteOrders(nextOrders);
+      syncOrderDateRange(nextOrders);
       refreshList();
     }
   } catch (error) {
@@ -307,11 +323,13 @@ async function syncOrdersFromApi() {
 }
 
 onMounted(() => {
+  syncOrderDateRange();
   refreshList();
   void syncOrdersFromApi();
 });
 
 onActivated(() => {
+  syncOrderDateRange();
   refreshList();
   void syncOrdersFromApi();
 });
@@ -326,7 +344,10 @@ const filteredOrders = computed(() =>
     const matchesStatus = activeStatus.value === "全部" || order.status === activeStatus.value;
     const matchesMin = !minPrice.value || Number(order.price) >= Number(minPrice.value);
     const matchesMax = !maxPrice.value || Number(order.price) <= Number(maxPrice.value);
-    return matchesType && matchesPayment && matchesKeyword && matchesStatus && matchesMin && matchesMax;
+    const matchesDate =
+      (!startDate.value || !order.orderDate || order.orderDate >= startDate.value) &&
+      (!endDate.value || !order.orderDate || order.orderDate <= endDate.value);
+    return matchesType && matchesPayment && matchesKeyword && matchesStatus && matchesMin && matchesMax && matchesDate;
   })),
 );
 
@@ -337,12 +358,13 @@ function searchOrders() {
 function resetFilters() {
   selectedServiceType.value = mock.serviceTypes[0];
   paymentMethod.value = mock.paymentOptions[0];
-  startDate.value = "2022-12-01";
-  endDate.value = "2022-12-31";
+  startDate.value = "";
+  endDate.value = "";
   minPrice.value = "";
   maxPrice.value = "";
   keyword.value = "";
   activeStatus.value = "全部";
+  syncOrderDateRange();
   props.showToast("筛选条件已重置");
 }
 

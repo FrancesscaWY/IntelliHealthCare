@@ -5,8 +5,19 @@ import vue from "@vitejs/plugin-vue";
 const backendTarget = process.env.IHC_BACKEND_TARGET || "http://server.mctown.online:8190";
 
 export default defineConfig({
-  base: "./",
+  base: "/",
   plugins: [vue()],
+  optimizeDeps: {
+    entries: [
+      "index.html",
+      "src/main.ts",
+      "src/app/**/*.ts",
+      "src/pages/**/*.vue",
+      "src/shared/**/*.ts",
+      "src/shared/**/*.vue"
+    ],
+    include: ["@icon-park/vue-next", "@rive-app/canvas"]
+  },
   server: {
     proxy: {
       "/api/v1": {
