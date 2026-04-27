@@ -9,9 +9,11 @@ import Down from "@icon-park/vue-next/es/icons/Down";
 import Editor from "@icon-park/vue-next/es/icons/Editor";
 import History from "@icon-park/vue-next/es/icons/History";
 import Microphone from "@icon-park/vue-next/es/icons/Microphone";
+import PauseOne from "@icon-park/vue-next/es/icons/PauseOne";
 import Refresh from "@icon-park/vue-next/es/icons/Refresh";
 import Stethoscope from "@icon-park/vue-next/es/icons/Stethoscope";
 import Up from "@icon-park/vue-next/es/icons/Up";
+import VolumeSmall from "@icon-park/vue-next/es/icons/VolumeSmall";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import AiConversationHistorySheet from "@/shared/ai/components/AiConversationHistorySheet.vue";
 import type { AssistantConversationMessage } from "@/shared/api/ai";
@@ -24,6 +26,7 @@ import {
 import { uploadUserFile } from "@/shared/api/files";
 import {
   BrowserVoiceRecorder,
+  canSpeakText,
   speakText,
   stopSpeaking,
   type VoiceCaptureResult
@@ -55,6 +58,11 @@ interface ChatMessage {
   audioUrl?: string;
   audioDurationSeconds?: number | null;
   transcript?: string | null;
+  speech?: {
+    text: string;
+    language: string;
+    autoplay: boolean;
+  } | null;
 }
 
 const DEFAULT_ASSISTANT_TOPIC = "豆沙包健康咨询";
@@ -103,6 +111,7 @@ const isQuestionCardCollapsed = ref(true);
 const isConversationHistoryOpen = ref(false);
 const isConversationLoading = ref(false);
 const isSending = ref(false);
+const speakingMessageId = ref("");
 const scrollRef = ref<HTMLElement | null>(null);
 const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
 const albumInputRef = ref<HTMLInputElement | null>(null);
@@ -234,7 +243,14 @@ function mapRemoteMessage(item: AssistantConversationMessage) {
     time: formatMessageTime(item.createdAt),
     audioUrl: item.audio?.url,
     audioDurationSeconds: item.audio?.durationSeconds ?? null,
-    transcript: item.audio?.transcript ?? null
+    transcript: item.audio?.transcript ?? null,
+    speech: item.speech
+      ? {
+          text: item.speech.text,
+          language: item.speech.language || "zh-CN",
+          autoplay: item.speech.autoplay
+        }
+      : null
   } satisfies ChatMessage;
 }
 
@@ -260,6 +276,65 @@ function changeQuestions() {
 
 function toggleQuestionCard() {
   isQuestionCardCollapsed.value = !isQuestionCardCollapsed.value;
+}
+
+function getMessageSpeechText(message: ChatMessage) {
+  if (message.role !== "assistant") {
+    return "";
+  }
+
+  return message.speech?.text || message.content;
+}
+
+function canPlayAssistantSpeech(message: ChatMessage) {
+  return message.role === "assistant" && message.type === "text" && Boolean(getMessageSpeechText(message).trim());
+}
+
+function playAssistantSpeech(message: ChatMessage, options: { silentUnsupported?: boolean } = {}) {
+  const speechText = getMessageSpeechText(message);
+
+  if (!speechText.trim()) {
+    return;
+  }
+
+  if (!canSpeakText()) {
+    if (!options.silentUnsupported) {
+      props.showToast("当前浏览器不支持语音播报");
+    }
+    return;
+  }
+
+  speakingMessageId.value = message.id;
+  const didStart = speakText(speechText, {
+    language: message.speech?.language || "zh-CN",
+    onEnd: () => {
+      if (speakingMessageId.value === message.id) {
+        speakingMessageId.value = "";
+      }
+    },
+    onError: () => {
+      if (speakingMessageId.value === message.id) {
+        speakingMessageId.value = "";
+      }
+      if (!options.silentUnsupported) {
+        props.showToast("语音播报失败，请稍后重试");
+      }
+    }
+  });
+
+  if (!didStart) {
+    speakingMessageId.value = "";
+  }
+}
+
+function toggleAssistantSpeech(message: ChatMessage) {
+  if (speakingMessageId.value === message.id) {
+    stopSpeaking();
+    speakingMessageId.value = "";
+    return;
+  }
+
+  playAssistantSpeech(message);
 }
 
 function useQuickAction(action: string) {
@@ -402,12 +477,13 @@ async function sendTextMessage(content: string, options: { speakReply?: boolean 
     });
 
     replaceMessage(optimisticMessage.id, mapRemoteMessage(response.userMessage));
-    messages.value.push(mapRemoteMessage(response.reply));
+    const replyMessage = mapRemoteMessage(response.reply);
+    messages.value.push(replyMessage);
     syncConversationHistory(response.reply.content, response.reply.createdAt);
     scrollToBottom();
 
-    if (options.speakReply) {
-      speakText(response.reply.content);
+    if (options.speakReply || replyMessage.speech?.autoplay) {
+      playAssistantSpeech(replyMessage, { silentUnsupported: false });
     }
   } catch (error) {
     messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
@@ -507,6 +583,7 @@ async function sendVoiceCapture(capture: VoiceCaptureResult) {
 
     const response = await sendAssistantMessage(currentConversationId.value, {
       contentType: "AUDIO",
+      replyMode: "VOICE",
       fileId: uploadedAudio.fileId,
       mimeType: uploadedAudio.mimeType,
       durationSeconds: capture.durationSeconds,
@@ -517,10 +594,11 @@ async function sendVoiceCapture(capture: VoiceCaptureResult) {
     });
 
     replaceMessage(optimisticMessage.id, mapRemoteMessage(response.userMessage));
-    messages.value.push(mapRemoteMessage(response.reply));
+    const replyMessage = mapRemoteMessage(response.reply);
+    messages.value.push(replyMessage);
     syncConversationHistory(response.reply.content, response.reply.createdAt);
     scrollToBottom();
-    speakText(response.reply.content);
+    playAssistantSpeech(replyMessage, { silentUnsupported: false });
   } catch (error) {
     messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
     props.showToast(getErrorMessage(error));
@@ -786,11 +864,35 @@ watch(
             </template>
             <template v-else-if="message.type === 'voice'">
               <span class="voice-message-icon" aria-hidden="true"></span>
-              <strong>{{ message.content }}</strong>
+              <div class="voice-message-copy">
+                <strong>{{ message.content }}</strong>
+                <small v-if="message.transcript">转写：{{ message.transcript }}</small>
+                <small v-else>语音消息 {{ formatDuration(message.audioDurationSeconds || 1) }}</small>
+              </div>
               <audio v-if="message.audioUrl" :src="message.audioUrl" controls></audio>
             </template>
             <template v-else>
-              {{ message.content }}
+              <span class="message-text">{{ message.content }}</span>
+              <button
+                v-if="canPlayAssistantSpeech(message)"
+                class="assistant-speech-control"
+                :class="{ 'assistant-speech-control--playing': speakingMessageId === message.id }"
+                type="button"
+                :aria-label="speakingMessageId === message.id ? '停止豆沙包语音播报' : '播放豆沙包语音回复'"
+                @click="toggleAssistantSpeech(message)"
+              >
+                <component
+                  :is="speakingMessageId === message.id ? PauseOne : VolumeSmall"
+                  theme="outline"
+                  size="15"
+                  fill="currentColor"
+                  aria-hidden="true"
+                />
+                <span>{{ speakingMessageId === message.id ? "正在播报" : "语音播放" }}</span>
+                <i aria-hidden="true"></i>
+                <i aria-hidden="true"></i>
+                <i aria-hidden="true"></i>
+              </button>
             </template>
           </div>
           <time>{{ message.time }}</time>
@@ -919,6 +1021,7 @@ watch(
 .question-list button,
 .quick-actions button,
 .image-source-panel button,
+.assistant-speech-control,
 .voice-btn,
 .camera-btn,
 .send-btn {
@@ -1266,6 +1369,59 @@ watch(
   font-weight: 400;
 }
 
+.message-text {
+  display: block;
+}
+
+.assistant-speech-control {
+  display: inline-grid;
+  grid-template-columns: 15px auto repeat(3, 3px);
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin-top: 9px;
+  padding: 0 10px;
+  border: 1px solid rgba(185, 220, 211, 0.92);
+  border-radius: 999px;
+  background: rgba(241, 250, 247, 0.96);
+  color: var(--ihc-accent-deep);
+  font-family: var(--assistant-font-family);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.assistant-speech-control :deep(.i-icon) {
+  display: block;
+}
+
+.assistant-speech-control i {
+  width: 3px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.32;
+  transform-origin: center;
+}
+
+.assistant-speech-control--playing {
+  border-color: rgba(111, 220, 145, 0.68);
+  background: rgba(232, 250, 239, 0.98);
+  color: #25945a;
+}
+
+.assistant-speech-control--playing i {
+  animation: assistant-voice-wave 0.92s ease-in-out infinite;
+}
+
+.assistant-speech-control--playing i:nth-of-type(2) {
+  animation-delay: 0.12s;
+}
+
+.assistant-speech-control--playing i:nth-of-type(3) {
+  animation-delay: 0.24s;
+}
+
 .message-bubble--image {
   padding: 7px;
   background: #ffffff;
@@ -1315,6 +1471,26 @@ watch(
 
 .voice-message-icon::after {
   left: 12px;
+}
+
+.voice-message-copy {
+  min-width: 0;
+}
+
+.voice-message-copy strong,
+.voice-message-copy small {
+  display: block;
+}
+
+.voice-message-copy small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: rgba(73, 103, 91, 0.62);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-bubble--voice audio {
@@ -1449,6 +1625,7 @@ watch(
 .quick-actions :deep(.i-icon),
 .camera-btn :deep(.i-icon),
 .voice-btn :deep(.i-icon),
+.assistant-speech-control :deep(.i-icon),
 .question-tool-btn :deep(.i-icon),
 .header-icon-btn :deep(.i-icon) {
   display: block;
@@ -1490,6 +1667,7 @@ watch(
 .question-list button,
 .quick-actions button,
 .image-source-panel button,
+.assistant-speech-control,
 .voice-btn,
 .camera-btn,
 .send-btn {
@@ -1507,6 +1685,7 @@ watch(
 .question-list button:active,
 .quick-actions button:active,
 .image-source-panel button:active,
+.assistant-speech-control:active,
 .voice-btn:active,
 .camera-btn:active,
 .send-btn:active {
@@ -1546,6 +1725,19 @@ watch(
   }
 }
 
+@keyframes assistant-voice-wave {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scaleY(0.72);
+  }
+
+  50% {
+    opacity: 0.88;
+    transform: scaleY(1.55);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .assistant-back,
   .header-icon-btn,
@@ -1553,6 +1745,8 @@ watch(
   .question-list button,
   .quick-actions button,
   .image-source-panel button,
+  .assistant-speech-control,
+  .assistant-speech-control--playing i,
   .voice-btn,
   .camera-btn,
   .send-btn,

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>智诊康养图标</title>
+  <defs>
+    <linearGradient id="bg" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a92ff" />
+      <stop offset="0.55" stop-color="#727af8" />
+      <stop offset="1" stop-color="#5f5be8" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)" />
+  <path
+    d="M32 51.5 18.1 37.8c-3.4-3.4-5.5-6.8-5.5-11.2 0-6 4.7-10.7 10.6-10.7 3.5 0 6.5 1.7 8.8 5 2.3-3.3 5.3-5 8.8-5 5.9 0 10.6 4.7 10.6 10.7 0 4.4-2.1 7.8-5.5 11.2L32 51.5Z"
+    fill="#fff"
+  />
+  <path
+    d="M32 24v13"
+    fill="none"
+    stroke="#5f5be8"
+    stroke-linecap="round"
+    stroke-width="5"
+  />
+  <path
+    d="M25.5 30.5h13"
+    fill="none"
+    stroke="#5f5be8"
+    stroke-linecap="round"
+    stroke-width="5"
+  />
+</svg>

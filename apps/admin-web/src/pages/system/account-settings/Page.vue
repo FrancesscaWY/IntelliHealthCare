@@ -7,6 +7,8 @@ import {
   updateAdminProfile,
 } from "@/shared/api/auth";
 import { handleAdminPageError } from "@/shared/api/error";
+import { currentAdminAvatarUrl, currentAdminDisplayName, updateCurrentAdminProfile } from "@/shared/current-admin-user";
+import AdminUserAvatar from "@/components/AdminUserAvatar.vue";
 import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -40,6 +42,10 @@ async function syncPageData() {
     form.role = mock.value.role;
     form.note = mock.value.note;
     avatarPreview.value = String(profile.avatarUrl ?? "");
+    updateCurrentAdminProfile({
+      avatarUrl: avatarPreview.value,
+      name: form.name,
+    });
   } catch (error) {
     handleAdminPageError(error, {
       navigation: props.navigation,
@@ -64,6 +70,9 @@ async function saveProfile() {
     form.name = String(profile.name ?? form.name);
     form.phone = String(profile.phone ?? form.phone);
     form.note = String(profile.note ?? form.note);
+    updateCurrentAdminProfile({
+      name: form.name,
+    });
     props.showToast("个人资料已保存。");
   } catch (error) {
     handleAdminPageError(error, {
@@ -99,6 +108,9 @@ async function onAvatarChange(event: Event) {
         avatarUrl,
       });
       avatarPreview.value = avatarUrl;
+      updateCurrentAdminProfile({
+        avatarUrl,
+      });
       props.showToast("头像已更新。");
     } catch (error) {
       handleAdminPageError(error, {
@@ -144,11 +156,12 @@ onMounted(() => {
             <span class="form-row__label">头像</span>
             <div class="avatar-upload">
               <div class="avatar-upload__box">
-                <img v-if="avatarPreview" :src="avatarPreview" alt="头像预览" />
-                <svg v-else viewBox="0 0 48 48" focusable="false" aria-hidden="true">
-                  <circle cx="24" cy="16" r="9" fill="currentColor" opacity="0.24" />
-                  <path d="M10 38c2.2-6.5 7.6-10.3 14-10.3S35.8 31.5 38 38" fill="currentColor" opacity="0.24" />
-                </svg>
+                <AdminUserAvatar
+                  :src="avatarPreview || currentAdminAvatarUrl"
+                  :name="form.name || currentAdminDisplayName"
+                  :size="62"
+                  alt="头像预览"
+                />
               </div>
               <button type="button" class="avatar-upload__button" @click="openAvatarPicker">
                 +点击上传
@@ -343,21 +356,7 @@ onMounted(() => {
   place-items: center;
   width: 62px;
   height: 62px;
-  border-radius: 8px;
-  background: #f5f6f7;
-  color: #c7cbd0;
-}
-
-.avatar-upload__box svg {
-  width: 40px;
-  height: 40px;
-}
-
-.avatar-upload__box img {
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
-  object-fit: cover;
+  border-radius: 50%;
 }
 
 .avatar-upload__button {

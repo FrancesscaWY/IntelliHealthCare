@@ -24,6 +24,8 @@ import {
 import {
   clearAdminAuthSession
 } from "@/shared/auth/session";
+import { currentAdminAvatarUrl, currentAdminDisplayName } from "@/shared/current-admin-user";
+import AdminUserAvatar from "@/components/AdminUserAvatar.vue";
 import PagePlaceholder from "@/components/PagePlaceholder.vue";
 import ToastViewport from "@/components/ToastViewport.vue";
 
@@ -621,18 +623,8 @@ onBeforeUnmount(() => {
             </button>
 
             <button class="account" type="button" @click="notifyAction('账号菜单')">
-              <span class="account__avatar">
-                <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
-                  <circle cx="24" cy="24" r="24" fill="currentColor" />
-                  <path d="M24 9.5v8.2" fill="none" stroke="#ffd46b" stroke-width="2.6" stroke-linecap="round" />
-                  <path d="M24 30.3v8.2" fill="none" stroke="#ffd46b" stroke-width="2.6" stroke-linecap="round" />
-                  <path d="m18.2 17.6 5.8 14.2 5.8-14.2" fill="none" stroke="#ffd46b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" />
-                  <circle cx="24" cy="24" r="2.8" fill="#ffffff" />
-                  <path d="M11.2 12.6h4.6" fill="none" stroke="#ffd46b" stroke-width="2.2" stroke-linecap="round" />
-                  <path d="M32.2 12.6h4.6" fill="none" stroke="#ffd46b" stroke-width="2.2" stroke-linecap="round" />
-                </svg>
-              </span>
-              <span class="account__name">Daisy</span>
+              <AdminUserAvatar :src="currentAdminAvatarUrl" :name="currentAdminDisplayName" :size="40" />
+              <span class="account__name">{{ currentAdminDisplayName }}</span>
               <span class="account__caret">▼</span>
             </button>
             <div v-if="isAccountMenuOpen" ref="accountMenuRef" class="account-menu__panel" role="menu">
@@ -1190,23 +1182,10 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.account__avatar {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  color: #6970f5;
-}
-
-.account__avatar svg {
-  width: 40px;
-  height: 40px;
-}
-
 .account__name {
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .account__caret {

@@ -45,6 +45,13 @@ interface AssistantAudioMetadata {
   transcript: string | null;
 }
 
+interface AssistantSpeechMetadata {
+  text: string;
+  language: string;
+  autoplay: boolean;
+  provider: "browser-speechSynthesis";
+}
+
 interface ResolvedAssistantUserMessage {
   contentType: "TEXT" | "AUDIO";
   content: Record<string, unknown>;
@@ -237,6 +244,9 @@ export class AppAgentService {
       normalizedMessage.userMessageText
     );
     const replyText = directReplyText ?? generatedReplyText;
+    const voiceReplyRequested =
+      normalizedMessage.contentType === MessageContentType.AUDIO ||
+      payload.replyMode === "VOICE";
 
     const assistantMessage = await this.prismaService.$transaction(async (tx) => {
       const created = await tx.conversationMessage.create({
@@ -246,7 +256,8 @@ export class AppAgentService {
           contentType: MessageContentType.TEXT,
           content: {
             text: replyText,
-            taskId: agent.taskId
+            taskId: agent.taskId,
+            speech: this.buildAssistantSpeech(replyText, voiceReplyRequested)
           }
         }
       });
@@ -629,6 +640,10 @@ export class AppAgentService {
     userId: string
   ) {
     const audio = this.extractAssistantAudio(item.contentType, item.content);
+    const speech =
+      item.senderId === userId
+        ? null
+        : this.extractAssistantSpeech(item.contentType, item.content);
 
     return {
       messageId: item.id,
@@ -636,6 +651,7 @@ export class AppAgentService {
       type: item.contentType === MessageContentType.AUDIO ? "voice" : "text",
       content: this.extractMessageText(item.contentType, item.content),
       audio,
+      speech,
       createdAt: toDateTimeString(item.createdAt)
     };
   }
@@ -800,6 +816,44 @@ export class AppAgentService {
           ? record.transcript.trim()
           : null
     } satisfies AssistantAudioMetadata;
+  }
+
+  private buildAssistantSpeech(text: string, autoplay: boolean) {
+    return {
+      text,
+      language: "zh-CN",
+      autoplay,
+      provider: "browser-speechSynthesis"
+    } satisfies AssistantSpeechMetadata;
+  }
+
+  private extractAssistantSpeech(contentType: MessageContentType, value: unknown) {
+    if (contentType !== MessageContentType.TEXT) {
+      return null;
+    }
+
+    const record = this.ensureRecord(value);
+    const speech = this.ensureRecord(record.speech);
+    const text =
+      typeof speech.text === "string" && speech.text.trim().length > 0
+        ? speech.text.trim()
+        : typeof record.text === "string" && record.text.trim().length > 0
+          ? record.text.trim()
+          : "";
+
+    if (!text) {
+      return null;
+    }
+
+    return {
+      text,
+      language:
+        typeof speech.language === "string" && speech.language.trim().length > 0
+          ? speech.language.trim()
+          : "zh-CN",
+      autoplay: speech.autoplay === true,
+      provider: "browser-speechSynthesis"
+    } satisfies AssistantSpeechMetadata;
   }
 
   private normalizeDurationSeconds(value: unknown) {

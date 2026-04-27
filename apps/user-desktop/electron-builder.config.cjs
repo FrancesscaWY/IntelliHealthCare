@@ -37,6 +37,7 @@ module.exports = {
   files: [
     "main.mjs",
     "preload.mjs",
+    "build/icon.png",
     {
       from: rendererBuildDir,
       to: "dist/user-web",
@@ -54,6 +55,7 @@ module.exports = {
   },
   win: {
     target: ["zip"],
+    icon: "build/icon.ico",
     signAndEditExecutable: false,
   },
   nsis: {

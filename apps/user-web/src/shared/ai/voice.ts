@@ -264,16 +264,33 @@ export function stopSpeaking() {
   window.speechSynthesis.cancel();
 }
 
-export function speakText(text: string) {
+export function speakText(
+  text: string,
+  options: {
+    language?: string;
+    onStart?: () => void;
+    onEnd?: () => void;
+    onError?: () => void;
+  } = {}
+) {
   if (!canSpeakText() || !text.trim()) {
     return false;
   }
 
   stopSpeaking();
   const utterance = new SpeechSynthesisUtterance(text.trim());
-  utterance.lang = "zh-CN";
+  utterance.lang = options.language || "zh-CN";
   utterance.rate = 0.96;
   utterance.pitch = 1;
+  utterance.onstart = () => {
+    options.onStart?.();
+  };
+  utterance.onend = () => {
+    options.onEnd?.();
+  };
+  utterance.onerror = () => {
+    options.onError?.();
+  };
   window.speechSynthesis.speak(utterance);
   return true;
 }

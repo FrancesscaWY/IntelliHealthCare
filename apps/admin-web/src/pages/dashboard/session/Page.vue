@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import {
   endAdminConversation,
@@ -8,6 +8,8 @@ import {
   sendAdminConversationMessage,
 } from "@/shared/api/messaging";
 import { handleAdminPageError } from "@/shared/api/error";
+import { currentAdminAvatarUrl, currentAdminDisplayName } from "@/shared/current-admin-user";
+import AdminUserAvatar from "@/components/AdminUserAvatar.vue";
 import { orderDetailStorageKey } from "../order-list/mock";
 import mockSeed from "./mock";
 
@@ -21,7 +23,19 @@ const goodsKeyword = ref("");
 const conversationKeyword = ref("");
 const messageDraft = ref("");
 const activeConversationId = ref("");
+const chatBodyRef = ref<HTMLElement | null>(null);
 const customerTagTones: CustomerTagTone[] = ["green", "red", "violet", "amber"];
+const customerAvatarFallback = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+
+type ConversationRow = {
+  id: string;
+  name: string;
+  preview: string;
+  time: string;
+  unread: number;
+  avatar: string;
+  active: boolean;
+};
 
 const filteredGoods = computed(() =>
   mock.value.goods.filter((item) => !goodsKeyword.value.trim() || item.title.includes(goodsKeyword.value.trim())),
@@ -65,6 +79,49 @@ function buildCustomerTags(tags: unknown) {
     : [];
 }
 
+function scrollChatToBottom() {
+  void nextTick(() => {
+    const chatBody = chatBodyRef.value;
+
+    if (chatBody) {
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+  });
+}
+
+function resolveMessageAvatar(item: Record<string, unknown>) {
+  if (item.side !== "left") {
+    return currentAdminAvatarUrl.value;
+  }
+
+  const avatar = String(item.avatar ?? "");
+
+  if (avatar) {
+    return avatar;
+  }
+
+  return mock.value.customer.avatar || customerAvatarFallback;
+}
+
+function normalizeConversationRows(rows: ConversationRow[]) {
+  const groupedRows = new Map<string, ConversationRow>();
+
+  rows.forEach((row) => {
+    const groupKey = `${row.name || row.id}:${row.avatar || "default"}`;
+    const existing = groupedRows.get(groupKey);
+
+    if (!existing) {
+      groupedRows.set(groupKey, { ...row, active: false });
+      return;
+    }
+
+    existing.unread += row.unread;
+    existing.preview = existing.preview || row.preview;
+  });
+
+  return Array.from(groupedRows.values());
+}
+
 async function syncConversationDetail(conversationId: string) {
   try {
     const detail = await getAdminConversationDetail(conversationId);
@@ -78,13 +135,13 @@ async function syncConversationDetail(conversationId: string) {
             id: String(item.id ?? ""),
             side: item.side === "left" ? "left" : "right",
             text: String(item.text ?? ""),
-            avatar: String(item.avatar ?? ""),
+            avatar: resolveMessageAvatar(item),
           }))
         : [],
       customer: detail.customer
         ? {
             name: String(detail.customer.name ?? ""),
-            avatar: String(detail.customer.avatar ?? ""),
+            avatar: String(detail.customer.avatar || customerAvatarFallback),
             tags: buildCustomerTags(detail.customer.tags),
             orderCount: Number(detail.customer.orderCount ?? 0),
             amount: String(detail.customer.amount ?? "0.00"),
@@ -113,6 +170,7 @@ async function syncConversationDetail(conversationId: string) {
         active: item.id === conversationId,
       })),
     };
+    scrollChatToBottom();
   } catch (error) {
     handleAdminPageError(error, {
       navigation: props.navigation,
@@ -129,36 +187,29 @@ async function syncConversationList() {
       pageSize: 50,
       keyword: conversationKeyword.value.trim() || undefined,
     });
-    const conversations: Array<{
-      id: string;
-      name: string;
-      preview: string;
-      time: string;
-      unread: number;
-      avatar: string;
-      active: boolean;
-    }> = Array.isArray(response.conversations)
-      ? response.conversations.map((item: Record<string, unknown>) => ({
+    const conversations = Array.isArray(response.conversations)
+      ? normalizeConversationRows(response.conversations.map((item: Record<string, unknown>) => ({
           id: String(item.id ?? ""),
           name: String(item.name ?? ""),
           preview: String(item.preview ?? ""),
           time: String(item.time ?? ""),
           unread: Number(item.unread ?? 0),
-          avatar: String(item.avatar ?? ""),
+          avatar: String(item.avatar || customerAvatarFallback),
           active: false,
-        }))
+        })))
       : [];
 
     mock.value = {
       ...mock.value,
       title: String(response.title ?? mock.value.title),
-      conversations,
+      conversations: conversations.length > 0 ? conversations : mock.value.conversations,
     };
 
+    const availableConversations = mock.value.conversations;
     const nextConversationId =
-      activeConversationId.value && conversations.some((item) => item.id === activeConversationId.value)
+      activeConversationId.value && availableConversations.some((item) => item.id === activeConversationId.value)
         ? activeConversationId.value
-        : conversations[0]?.id ?? "";
+        : availableConversations[0]?.id ?? "";
 
     if (nextConversationId) {
       await syncConversationDetail(nextConversationId);
@@ -195,6 +246,7 @@ async function sendMessage(content?: string) {
     });
     messageDraft.value = "";
     await syncConversationDetail(currentConversationId);
+    scrollChatToBottom();
   } catch (error) {
     handleAdminPageError(error, {
       navigation: props.navigation,
@@ -241,7 +293,7 @@ onMounted(() => {
       <div class="hero-card__main">
         <div class="hero-card__copy">
           <h1>{{ sessionHeroTitle }}</h1>
-          <p>统一查看用户咨询、客服响应与关联订单，让消息管理界面与前面看板页面保持一致的轻盈运营风格。</p>
+          <p>统一查看用户咨询、客服响应与关联订单。</p>
         </div>
 
         <div class="hero-card__stats">
@@ -309,17 +361,25 @@ onMounted(() => {
             <button type="button" class="ghost-button ghost-button--compact" @click="finishConversation">结束会话</button>
           </header>
 
-          <div class="chat-body">
+          <div ref="chatBodyRef" class="chat-body">
             <div class="chat-timestamp">10:10</div>
 
             <article v-for="message in mock.messages" :key="message.id" class="message" :class="`message--${message.side}`">
-              <img :src="message.avatar" :alt="message.side === 'left' ? '客服头像' : '客户头像'" />
+              <img v-if="message.side === 'left'" :src="message.avatar" alt="客户头像" />
+              <AdminUserAvatar
+                v-else
+                :src="currentAdminAvatarUrl"
+                :name="currentAdminDisplayName"
+                :size="44"
+                alt="客服头像"
+              />
               <div class="message__bubble">{{ message.text }}</div>
             </article>
           </div>
 
           <footer class="chat-input">
             <input v-model="messageDraft" type="text" placeholder="输入消息后按回车发送" @keydown.enter="sendMessage()" />
+            <button type="button" @click="sendMessage()">发送</button>
           </footer>
         </section>
 
@@ -424,9 +484,12 @@ onMounted(() => {
 <style scoped>
 .session-page {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
   width: 100%;
+  height: calc(100vh - 98px);
   min-width: 0;
+  min-height: 720px;
   color: #253244;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -506,6 +569,8 @@ onMounted(() => {
 }
 
 .session-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -553,7 +618,7 @@ onMounted(() => {
 .session-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr) 392px;
-  min-height: 780px;
+  min-height: 0;
 }
 
 .conversation-pane,
@@ -744,6 +809,7 @@ onMounted(() => {
 }
 
 .chat-body {
+  min-height: 0;
   overflow: auto;
   padding: 20px 24px 12px;
 }
@@ -767,10 +833,12 @@ onMounted(() => {
 }
 
 .message--right {
-  justify-content: flex-end;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
-.message img {
+.message img,
+.message :deep(.admin-user-avatar) {
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -779,7 +847,7 @@ onMounted(() => {
 }
 
 .message__bubble {
-  max-width: 340px;
+  max-width: min(460px, 72%);
   padding: 12px 18px;
   border-radius: 18px 18px 18px 8px;
   background: #ffffff;
@@ -797,13 +865,17 @@ onMounted(() => {
 }
 
 .chat-input {
-  padding: 18px 20px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px 18px;
   border-top: 1px solid #edf4f1;
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .chat-input input {
   width: 100%;
-  height: 56px;
+  height: 48px;
   padding: 0 18px;
   border: 1px solid #dfeae6;
   border-radius: 14px;
@@ -818,11 +890,30 @@ onMounted(() => {
   color: #bcc5cc;
 }
 
+.chat-input button {
+  width: 84px;
+  height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #5ad1ab, #35b98e);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 10px 20px rgba(53, 185, 142, 0.18);
+}
+
 .detail-pane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
   padding: 16px;
   background: linear-gradient(180deg, rgba(248, 252, 250, 0.88), rgba(255, 255, 255, 0.96));
+}
+
+.goods-panel,
+.order-list {
+  min-height: 0;
+  overflow: auto;
 }
 
 .detail-tabs {
@@ -1078,6 +1169,11 @@ onMounted(() => {
 }
 
 @media (max-width: 1220px) {
+  .session-page {
+    height: auto;
+    min-height: 0;
+  }
+
   .session-layout {
     grid-template-columns: 1fr;
   }

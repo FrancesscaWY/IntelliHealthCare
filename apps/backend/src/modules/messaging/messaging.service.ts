@@ -603,9 +603,9 @@ export class AppMessagingService {
         name: string;
         avatar: string | null;
         unread: number;
-        latestConversation: (typeof conversations)[number];
-        latestMessage: (typeof conversations)[number]["messages"][number] | null;
-        conversationIds: string[];
+        preview: string;
+        time: string;
+        lastActivity: number;
         scenes: Set<ConversationScene>;
       }
     >();
@@ -614,12 +614,16 @@ export class AppMessagingService {
       const customerParticipant = this.findAdminCustomerParticipant(item.participants);
       const customer = customerParticipant?.user ?? null;
       const latestMessage = item.messages[0] ?? null;
-      const groupKey = customer ? `user:${customer.id}` : `conversation:${item.id}`;
-      const existing = groupedRows.get(groupKey);
       const unread = item.participants.reduce(
         (sum, participant) => sum + participant.unreadCount,
         0
       );
+      const previewText = latestMessage
+        ? this.extractMessageContent(latestMessage.contentType, latestMessage.content)
+        : item.topic ?? "";
+      const groupKey = customer ? `customer:${customer.id}` : `conversation:${item.id}`;
+      const existing = groupedRows.get(groupKey);
+      const lastActivity = this.getConversationActivityTimestamp(item);
 
       if (!existing) {
         groupedRows.set(groupKey, {
@@ -627,56 +631,40 @@ export class AppMessagingService {
           name: this.getConversationDisplayName(customer, item.topic),
           avatar: customer?.avatarUrl ?? null,
           unread,
-          latestConversation: item,
-          latestMessage,
-          conversationIds: [item.id],
+          preview: this.buildAdminConversationPreview(item.scene, previewText, false),
+          time: this.formatHourMinuteFromConversation(item),
+          lastActivity,
           scenes: new Set([item.scene])
         });
         continue;
       }
 
       existing.unread += unread;
-      existing.conversationIds.push(item.id);
       existing.scenes.add(item.scene);
-
-      if (
-        this.getConversationActivityTimestamp(item) >
-        this.getConversationActivityTimestamp(existing.latestConversation)
-      ) {
+      if (lastActivity > existing.lastActivity) {
         existing.id = item.id;
-        existing.latestConversation = item;
-        existing.latestMessage = latestMessage;
+        existing.name = this.getConversationDisplayName(customer, item.topic);
+        existing.avatar = customer?.avatarUrl ?? null;
+        existing.preview = this.buildAdminConversationPreview(item.scene, previewText, false);
+        existing.time = this.formatHourMinuteFromConversation(item);
+        existing.lastActivity = lastActivity;
       }
     }
 
     const rows = Array.from(groupedRows.values())
-      .sort(
-        (left, right) =>
-          this.getConversationActivityTimestamp(right.latestConversation) -
-          this.getConversationActivityTimestamp(left.latestConversation)
-      )
-      .map((item, index) => {
-        const previewText = item.latestMessage
-          ? this.extractMessageContent(item.latestMessage.contentType, item.latestMessage.content)
-          : item.latestConversation.topic ?? "";
-
-        return {
-          id: item.id,
-          name: item.name,
-          preview: this.buildAdminConversationPreview(
-            item.latestConversation.scene,
-            previewText,
-            item.conversationIds.length > 1
-          ),
-          time: this.formatHourMinuteFromConversation(item.latestConversation),
-          unread: item.unread,
-          avatar: item.avatar,
-          active: index === 0,
-          sceneSummary: Array.from(item.scenes).map((scene) =>
-            this.getAdminConversationSceneLabel(scene)
-          )
-        };
-      })
+      .sort((left, right) => right.lastActivity - left.lastActivity)
+      .map((item, index) => ({
+        id: item.id,
+        name: item.name,
+        avatar: item.avatar,
+        unread: item.unread,
+        preview: item.preview,
+        time: item.time,
+        active: index === 0,
+        sceneSummary: Array.from(item.scenes).map((scene) =>
+          this.getAdminConversationSceneLabel(scene)
+        )
+      }))
       .filter((item) => {
         if (!normalizedKeyword) {
           return true;
@@ -1299,26 +1287,15 @@ export class AppMessagingService {
     >,
     customerId: string | null
   ) {
-    const hasMultipleScenes = new Set(
-      Array.from(conversationMap.values()).map((item) => item.scene)
-    ).size > 1;
-    let previousConversationId = "";
+    void conversationMap;
 
     return messages.map((item) => {
-      const conversation = conversationMap.get(item.conversationId);
-      const shouldPrefixScene =
-        hasMultipleScenes && previousConversationId !== item.conversationId;
       const content = this.extractMessageContent(item.contentType, item.content);
-      const text = shouldPrefixScene && conversation
-        ? `【${this.getAdminConversationSceneLabel(conversation.scene)}】 ${content}`
-        : content;
-
-      previousConversationId = item.conversationId;
 
       return {
         id: item.id,
-        side: item.senderId && customerId && item.senderId === customerId ? "right" : "left",
-        text,
+        side: item.senderId && customerId && item.senderId === customerId ? "left" : "right",
+        text: content,
         avatar: item.sender?.avatarUrl ?? null
       };
     });

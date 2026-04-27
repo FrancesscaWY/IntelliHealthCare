@@ -1,7 +1,4 @@
 const customerAvatar = "/api/v1/assets/demo/avatars/avatar-1.jpg";
-const consultantAvatar = "/api/v1/assets/demo/staff/staff-1.png";
-const nurseAvatar = "/api/v1/assets/demo/staff/staff-2.png";
-const doctorAvatar = "/api/v1/assets/demo/avatars/avatar-4.jpg";
 const productImage = "/api/v1/assets/demo/services/service-cleaning.jpg";
 
 const mock = {
@@ -19,47 +16,37 @@ const mock = {
     },
     {
       id: "c2",
-      name: "刘小华",
-      preview: "请问您要咨询什么问题呢？",
-      time: "09:09",
+      name: "王秀珍",
+      preview: "血压偏高先别急，我帮您看一下记录",
+      time: "09:22",
       unread: 0,
-      avatar: consultantAvatar,
-    },
-    {
-      id: "c3",
-      name: "赵丽珍",
-      preview: "299元",
-      time: "09:09",
-      unread: 0,
-      avatar: nurseAvatar,
-    },
-    {
-      id: "c4",
-      name: "王小倩",
-      preview: "好的",
-      time: "09:09",
-      unread: 0,
-      avatar: doctorAvatar,
+      avatar: customerAvatar,
     },
   ],
   messages: [
     {
       id: "m1",
       side: "left",
-      text: "您好！",
-      avatar: consultantAvatar,
+      text: "您好，我想咨询康复项目适合多大年龄的老人？",
+      avatar: customerAvatar,
     },
     {
       id: "m2",
       side: "right",
-      text: "请问康复项目适合多大年龄的老人？",
-      avatar: customerAvatar,
+      text: "您好，康复训练主要适合 60-85 岁有术后恢复、肌力下降或行动能力维护需求的长者。",
+      avatar: "",
     },
     {
       id: "m3",
       side: "left",
-      text: "60-80岁",
-      avatar: consultantAvatar,
+      text: "老人有高血压，可以预约吗？",
+      avatar: customerAvatar,
+    },
+    {
+      id: "m4",
+      side: "right",
+      text: "可以预约。服务前会先确认近期血压、用药和不适症状，必要时建议先做上门评估。",
+      avatar: "",
     },
   ],
   customer: {

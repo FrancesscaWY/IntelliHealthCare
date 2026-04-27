@@ -42,11 +42,18 @@ export interface AssistantConversationMessage {
     durationSeconds: number | null;
     transcript: string | null;
   } | null;
+  speech?: {
+    text: string;
+    language: string;
+    autoplay: boolean;
+    provider: "browser-speechSynthesis";
+  } | null;
   createdAt: string;
 }
 
 export interface SendAssistantMessageRequest {
   contentType?: "TEXT" | "AUDIO";
+  replyMode?: "TEXT" | "VOICE";
   content?: string;
   transcript?: string;
   fileId?: string;

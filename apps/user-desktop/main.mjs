@@ -10,6 +10,10 @@ function resolveRendererEntry() {
   return path.join(app.getAppPath(), "dist", "user-web", "index.html");
 }
 
+function resolveWindowIcon() {
+  return path.join(app.getAppPath(), "build", "icon.png");
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 420,
@@ -19,6 +23,7 @@ function createWindow() {
     maxWidth: 480,
     maxHeight: 1024,
     show: true,
+    icon: resolveWindowIcon(),
     autoHideMenuBar: true,
     backgroundColor: "#eef3fb",
     webPreferences: {

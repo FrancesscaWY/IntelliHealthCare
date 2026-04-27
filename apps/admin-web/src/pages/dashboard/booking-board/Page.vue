@@ -11,7 +11,7 @@ const selectedDate = ref("");
 const selectedStaff = ref(mock.staffOptions[0]);
 const selectedServiceType = ref(mock.serviceTypeOptions[0]);
 
-const slotHeight = 156;
+const slotHeight = 190;
 const minimumLaneCount = 1;
 
 function formatDateLabel(value: string) {
@@ -1082,8 +1082,8 @@ onMounted(() => {
 .timeline__grid {
   position: relative;
   display: grid;
-  gap: 12px;
-  min-width: max-content;
+  gap: 10px 12px;
+  min-width: 980px;
   padding: 14px;
   border-radius: 14px;
   background:
@@ -1102,9 +1102,12 @@ onMounted(() => {
   position: relative;
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 9px;
   min-width: 0;
-  padding: 16px;
+  min-height: 0;
+  height: 100%;
+  padding: 14px 16px;
+  overflow: hidden;
   text-align: left;
   cursor: pointer;
   transition:
@@ -1132,15 +1135,15 @@ onMounted(() => {
 .booking-card__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
 }
 
 .booking-card__type,
 .booking-card__status {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
+  min-height: 24px;
+  padding: 0 9px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 900;
@@ -1169,10 +1172,13 @@ onMounted(() => {
 
 .booking-card__top strong {
   display: block;
+  overflow: hidden;
   color: #263244;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 900;
-  line-height: 1.3;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .booking-card__top p {
@@ -1184,7 +1190,8 @@ onMounted(() => {
 
 .booking-card__meta {
   display: grid;
-  gap: 10px;
+  gap: 7px;
+  min-height: 0;
 }
 
 .booking-card__meta-row {
@@ -1199,10 +1206,13 @@ onMounted(() => {
 }
 
 .booking-card__meta-row strong {
+  overflow: hidden;
   color: #40505f;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
-  line-height: 1.4;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .booking-card__foot {
@@ -1211,7 +1221,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 10px;
   margin-top: auto;
-  padding-top: 8px;
+  padding-top: 7px;
   border-top: 1px solid rgba(227, 237, 233, 0.94);
 }
 
@@ -1229,8 +1239,8 @@ onMounted(() => {
 }
 
 .booking-card__avatars img {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   margin-left: -8px;
   border: 2px solid #ffffff;
   border-radius: 50%;

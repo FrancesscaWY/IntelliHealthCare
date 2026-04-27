@@ -31,6 +31,10 @@ export class SendAssistantMessageDto {
   contentType?: "TEXT" | "AUDIO";
 
   @IsOptional()
+  @IsIn(["TEXT", "VOICE"])
+  replyMode?: "TEXT" | "VOICE";
+
+  @IsOptional()
   @IsString()
   content?: string;
 

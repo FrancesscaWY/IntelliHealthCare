@@ -10,6 +10,7 @@ import {
   updateAdminAccountStatus,
 } from "@/shared/api/system";
 import { handleAdminPageError } from "@/shared/api/error";
+import AdminUserAvatar from "@/components/AdminUserAvatar.vue";
 import mockSeed, { type RoleCategory, type RoleManagementRow } from "./mock";
 
 type RoleFilter = "全部" | RoleCategory;
@@ -651,10 +652,7 @@ onMounted(() => {
               <span class="form-row__label">头像</span>
               <button class="avatar-uploader" type="button" @click="openAvatarUploader">
                 <span class="avatar-uploader__preview">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 12a4 4 0 1 0-4-4a4 4 0 0 0 4 4Z" />
-                    <path d="M4.5 19.5a7.5 7.5 0 0 1 15 0" />
-                  </svg>
+                  <AdminUserAvatar :name="form.employeeName || '登录账号'" :size="62" alt="登录账号头像" />
                 </span>
                 <span class="avatar-uploader__text">+点击上传</span>
               </button>
@@ -1458,19 +1456,7 @@ onMounted(() => {
   justify-content: center;
   width: 62px;
   height: 62px;
-  border-radius: 10px;
-  background: #f3f5f7;
-  color: #c2c8ce;
-}
-
-.avatar-uploader__preview svg {
-  width: 34px;
-  height: 34px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
+  border-radius: 50%;
 }
 
 .avatar-uploader__text {
