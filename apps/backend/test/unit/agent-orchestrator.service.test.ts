@@ -193,6 +193,73 @@ test("assistant workflow keeps general health knowledge questions on the direct-
   assert.equal(requests.length, 0);
 });
 
+test("assistant workflow does not turn recent blood pressure advice into a health summary", () => {
+  const service = createService();
+  const requests = (service as any).buildAssistantWorkflowRequests({
+    sessionId: "conversation_010",
+    userMessage: "最近血压有点高，需要注意什么？",
+    pageContext: {
+      pageId: "home/assistant-chat",
+      route: "/home/assistant-chat"
+    },
+    contextSnapshot: {
+      ownerUserId: "user_001",
+      targetUserId: "user_001",
+      authorizedScope: ["self"],
+      latestReportId: "report_001",
+      latestReportTitle: "慢病随访体检报告"
+    },
+    domainInsights: []
+  });
+  const fallback = (service as any).buildAssistantConversationFallback({
+    sessionId: "conversation_010",
+    userMessage: "最近血压有点高，需要注意什么？",
+    contextSnapshot: {
+      ownerUserId: "user_001",
+      targetUserId: "user_001",
+      authorizedScope: ["self"],
+      latestReportId: "report_001",
+      latestReportTitle: "慢病随访体检报告"
+    },
+    domainInsights: [
+      {
+        sourceTaskType: "health-summary",
+        agentName: "HealthManagementAgent",
+        title: "健康摘要",
+        summary: "健康摘要已生成，当前重点为 血压波动。",
+        highlights: ["血压波动"],
+        followUpActions: ["继续补充近期报告或自测数据"],
+        data: {}
+      }
+    ]
+  });
+
+  assert.equal(requests.length, 0);
+  assert.match(fallback.assistantReply, /连续几天|少盐|140\/90/);
+  assert.doesNotMatch(fallback.assistantReply, /健康摘要已生成|当前重点为/);
+});
+
+test("assistant workflow triggers health summary for explicit personal metric records", () => {
+  const service = createService();
+  const requests = (service as any).buildAssistantWorkflowRequests({
+    sessionId: "conversation_011",
+    userMessage: "帮我分析最近的血压记录",
+    pageContext: {
+      pageId: "home/assistant-chat",
+      route: "/home/assistant-chat"
+    },
+    contextSnapshot: {
+      ownerUserId: "user_001",
+      targetUserId: "user_001",
+      authorizedScope: ["self"]
+    },
+    domainInsights: []
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].taskType, "health-summary");
+});
+
 test("assistant workflow does not auto-trigger service recommendation for generic care knowledge questions", () => {
   const service = createService();
   const requests = (service as any).buildAssistantWorkflowRequests({

@@ -229,10 +229,14 @@ export class AppAgentService {
         }
       }
     });
-    const replyText =
+    const generatedReplyText =
       typeof agent.output.assistantReply === "string"
         ? agent.output.assistantReply
         : `${DEFAULT_ASSISTANT_NAME}在，我会继续结合当前上下文帮你整理重点。`;
+    const directReplyText = this.orchestrator.resolveAssistantDirectReply(
+      normalizedMessage.userMessageText
+    );
+    const replyText = directReplyText ?? generatedReplyText;
 
     const assistantMessage = await this.prismaService.$transaction(async (tx) => {
       const created = await tx.conversationMessage.create({

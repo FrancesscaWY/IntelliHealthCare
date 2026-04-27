@@ -322,6 +322,15 @@ export class AgentOrchestratorService {
     toolCalls: ToolCallTrace[]
   ): Promise<CoordinatedExecutionResult> {
     const input = assistantConversationInputSchema.parse(task.payload);
+    const directExecution = this.buildAssistantDirectConversationExecution(input);
+
+    if (directExecution) {
+      return {
+        execution: directExecution,
+        coordinationSteps: []
+      };
+    }
+
     const requests = this.buildAssistantWorkflowRequests(input);
     const knowledgeInsight = await this.buildAssistantKnowledgeInsight({
       definition,
@@ -1131,12 +1140,17 @@ export class AgentOrchestratorService {
       );
     }
 
+    const directExecution = this.buildAssistantDirectConversationExecution(input);
+    if (directExecution) {
+      return directExecution;
+    }
+
     const fallback = this.buildAssistantConversationFallback(input);
     const llmResponse = await this.llmGateway.generateStructuredObject({
       agentName: definition.name,
       modelTier: "light",
       systemPrompt:
-        "你是 IntelliHealthCare 用户端的康养助手“豆沙包”。只能输出 JSON。回复要自然、简短、亲切，不要机械回显用户问题，不要说“已收到你的问题”这类模板话术，不要重复自我介绍，也不要把多段固定模板直接拼接在一起。对问候、感谢、闲聊、笑话、自我介绍可以直接自然回答；涉及医学结论时保持谨慎，不伪造诊断。",
+        "你是 IntelliHealthCare 用户端的康养助手“豆沙包”。只能输出 JSON。回复要自然、简短、亲切。用户提出明确问题时，必须先直接回答这个问题；domainInsights 只能作为辅助上下文，不能替代答案。不要机械回显用户问题，不要说“已收到你的问题”这类模板话术，不要重复自我介绍，也不要把多段固定模板直接拼接在一起。除非用户明确要求生成摘要，不要用“健康摘要已生成”“当前重点为”“建议下一步”这类摘要模板开头。对问候、感谢、闲聊、笑话、自我介绍可以直接自然回答；涉及医学结论时保持谨慎，不伪造诊断。",
       userPrompt: JSON.stringify(
         {
           userMessage: input.userMessage,
@@ -1159,6 +1173,41 @@ export class AgentOrchestratorService {
         llm: llmResponse.trace
       }
     };
+  }
+
+  private buildAssistantDirectConversationExecution(
+    input: AssistantConversationInput
+  ): AgentExecutionData | null {
+    const directReply = this.resolveAssistantDirectReply(input.userMessage);
+
+    if (!directReply) {
+      return null;
+    }
+
+    return {
+      data: assistantConversationOutputSchema.parse({
+        assistantReply: directReply,
+        followUpQuestion: null,
+        navigationSuggestion: null,
+        pendingTaskHint: null,
+        referencedTaskTypes: []
+      }),
+      trace: {
+        llm: {
+          provider: "local",
+          model: "assistant-direct-answer",
+          fallbackMode: true,
+          modelTier: "light",
+          attemptedModels: ["assistant-direct-answer"],
+          strictJson: true,
+          toolCalling: false
+        }
+      }
+    };
+  }
+
+  resolveAssistantDirectReply(userMessage: string) {
+    return this.buildAssistantCommonKnowledgeReply(userMessage.trim());
   }
 
   private async executeNestedWorkflowTask(input: {
@@ -1253,8 +1302,22 @@ export class AgentOrchestratorService {
       /血压|血糖|心率|睡眠|体重|血氧|压力|步数|指标|健康|慢病|异常|风险|预警/.test(
         userMessage
       );
+    const hasHealthDataAnalysisIntent =
+      hasReportContextReference ||
+      /(?:我的|我们|家里|家属|父母|爸妈|爸爸|妈妈|爷爷|奶奶|姥姥|姥爷|外公|外婆|长辈|本人|帮我|给我|替我).*(?:报告|体检|检查|指标|数据|记录|趋势|摘要|档案|结果)/.test(
+        userMessage
+      ) ||
+      /(?:血压|血糖|心率|睡眠|体重|血氧|压力|步数|指标|慢病).*(?:记录|数据|趋势|曲线|报告|结果|档案|监测|复查|复测)/.test(
+        userMessage
+      ) ||
+      /(?:帮我|给我|替我).*(?:看|分析|解读|总结|评估).*(?:健康|血压|血糖|心率|睡眠|体重|血氧|指标|报告|体检|检查)/.test(
+        userMessage
+      ) ||
+      /(?:刚做完|刚查完|上传了|记录了|测了|量了).*(?:报告|体检|检查|指标|血压|血糖|心率|血氧)/.test(
+        userMessage
+      );
     const hasHealthIntent =
-      hasHealthTopic && (hasPersonalContextReference || hasReportContextReference);
+      hasHealthTopic && hasHealthDataAnalysisIntent;
     const wantsBooking = /预约|下单|安排|时间|档期|什么时候|上门时间/.test(userMessage);
     const requests: AssistantWorkflowRequest[] = [];
 
@@ -2278,6 +2341,7 @@ export class AgentOrchestratorService {
   private buildAssistantConversationFallback(input: AssistantConversationInput) {
     const insightReply = this.composeAssistantReplyFromInsights(input.domainInsights ?? []);
     const helperReply = this.buildAssistantHelperReply(input);
+    const directReply = this.buildAssistantCommonKnowledgeReply(input.userMessage.trim());
     const followUpQuestion = this.buildAssistantFollowUpQuestion(input.domainInsights ?? []);
     const pendingTaskHint = this.buildAssistantPendingTaskHint(input);
     const referencedTaskTypes = Array.from(
@@ -2286,7 +2350,7 @@ export class AgentOrchestratorService {
 
     return {
       assistantReply:
-        insightReply || helperReply,
+        directReply || insightReply || helperReply,
       followUpQuestion:
         followUpQuestion ??
         this.buildAssistantGenericFollowUpQuestion(input),
@@ -3732,6 +3796,18 @@ export class AgentOrchestratorService {
   private buildAssistantCommonKnowledgeReply(userMessage: string) {
     if (/HPV.*(2价|二价).*(4价|四价).*(9价|九价)|HPV.*(4价|四价).*(9价|九价)|HPV2价|HPV4价|HPV9价/.test(userMessage)) {
       return "简单说：2价主要覆盖 HPV 16、18 型；4价在此基础上增加 6、11 型；9价再增加 31、33、45、52、58 型，覆盖范围更广。怎么选主要看年龄、性别、当地可接种范围、预算和医生建议，不是价越高就一定越适合。";
+    }
+
+    if (/(血压).*(高|偏高|升高)|高血压|血压有点高/.test(userMessage)) {
+      return "血压偏高先别只看一次结果，建议连续几天在固定时间测量并记录。近期重点是少盐、少酒、睡够、避免熬夜和情绪激动；如果多次达到 140/90 mmHg 以上，或伴有头痛、胸闷、头晕、视物模糊，要尽快咨询医生。";
+    }
+
+    if (/防癌体检|肿瘤筛查|癌症筛查/.test(userMessage)) {
+      return "防癌体检要按年龄、性别、家族史和既往病史来选，不建议只买项目最多的套餐。一般可先覆盖常规体检、胸部影像、腹部/甲状腺等超声、便潜血或肠镜评估；女性再关注乳腺和宫颈筛查，男性可结合前列腺风险。";
+    }
+
+    if (/体检前.*注意|注意.*体检前|体检.*准备/.test(userMessage)) {
+      return "体检前一天尽量清淡饮食、别饮酒、别熬夜；抽血项目通常需要空腹 8-12 小时。降压药等长期用药不要自行停，糖尿病用药和胰岛素最好提前按医生要求确认。带好身份证、既往报告和正在服用的药物清单。";
     }
 
     return null;

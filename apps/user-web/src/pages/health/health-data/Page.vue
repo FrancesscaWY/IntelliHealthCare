@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { SetOff } from "@icon-park/vue-next";
+import SetOff from "@icon-park/vue-next/es/icons/SetOff";
 import avatarImage from "@/assets/community/activities/people.png";
 import { syncHealthDeviceItems } from "../device-center/state";
 import { loadHealthDataOverviewSource } from "../measurement-source";

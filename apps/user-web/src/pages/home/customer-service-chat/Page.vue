@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { AddPicture, Camera, Headset, Microphone, Phone } from "@icon-park/vue-next";
+import AddPicture from "@icon-park/vue-next/es/icons/AddPicture";
+import Camera from "@icon-park/vue-next/es/icons/Camera";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
+import Microphone from "@icon-park/vue-next/es/icons/Microphone";
+import Phone from "@icon-park/vue-next/es/icons/Phone";
 import mock from "./mock";
 
 interface ChatMessage {

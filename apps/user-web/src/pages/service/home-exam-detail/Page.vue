@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, type Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Calendar, Check, Headset, Hospital, MedicalFiles, Share, Star } from '@icon-park/vue-next'
+import Calendar from '@icon-park/vue-next/es/icons/Calendar'
+import Check from '@icon-park/vue-next/es/icons/Check'
+import Headset from '@icon-park/vue-next/es/icons/Headset'
+import Hospital from '@icon-park/vue-next/es/icons/Hospital'
+import MedicalFiles from '@icon-park/vue-next/es/icons/MedicalFiles'
+import Share from '@icon-park/vue-next/es/icons/Share'
+import Star from '@icon-park/vue-next/es/icons/Star'
 import { getHomeExamServiceDetail, getHomeExamServices, type ServiceCatalogDetail } from '@/shared/api/service-catalog'
 import {
   extractServiceTexts,

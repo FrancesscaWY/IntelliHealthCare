@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Headset, Left, More } from "@icon-park/vue-next";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
+import Left from "@icon-park/vue-next/es/icons/Left";
+import More from "@icon-park/vue-next/es/icons/More";
 import {
   formatOrderTime,
   resolveOrderAssetUrl,
@@ -29,9 +31,9 @@ function openEdit(orderId: string) {
   props.navigation.navigateTo("service/order-edit");
 }
 
-function openTrack(orderId: string) {
+function openDetail(orderId: string) {
   selectOrder(orderId);
-  props.navigation.navigateTo("service/service-track");
+  props.navigation.navigateTo("service/order-detail");
 }
 
 function openVoucher(orderId: string) {
@@ -113,7 +115,7 @@ onMounted(() => {
         <footer class="order-actions">
           <button class="ghost-button" type="button" @click="doCancel(order.orderId)">取消订单</button>
           <button class="ghost-button" type="button" @click="openEdit(order.orderId)">修改订单信息</button>
-          <button class="primary-button" type="button" @click="openTrack(order.orderId)">服务进度</button>
+          <button class="primary-button" type="button" @click="openDetail(order.orderId)">订单详情</button>
           <button class="primary-button" type="button" @click="openVoucher(order.orderId)">服务券码</button>
         </footer>
       </article>

@@ -12,15 +12,8 @@ export default defineConfig({
   base: buildBase,
   plugins: [vue()],
   optimizeDeps: {
-    entries: [
-      "index.html",
-      "src/main.ts",
-      "src/app/**/*.ts",
-      "src/pages/**/*.vue",
-      "src/shared/**/*.ts",
-      "src/shared/**/*.vue"
-    ],
-    include: ["@icon-park/vue-next", "@rive-app/canvas"]
+    entries: ["index.html"],
+    include: ["@rive-app/canvas"]
   },
   server: {
     proxy: {

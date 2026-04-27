@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Leaf, Sport, Stopwatch } from "@icon-park/vue-next";
+import Leaf from "@icon-park/vue-next/es/icons/Leaf";
+import Sport from "@icon-park/vue-next/es/icons/Sport";
+import Stopwatch from "@icon-park/vue-next/es/icons/Stopwatch";
 import stepsRingImage from "@/assets/health/img.png";
 import mock from "./mock";
 import { loadStepsSource } from "../measurement-source";

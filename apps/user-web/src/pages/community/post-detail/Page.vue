@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Like, Share, Star } from '@icon-park/vue-next'
+import Like from '@icon-park/vue-next/es/icons/Like'
+import Share from '@icon-park/vue-next/es/icons/Share'
+import Star from '@icon-park/vue-next/es/icons/Star'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()

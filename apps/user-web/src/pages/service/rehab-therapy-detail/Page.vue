@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, type Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Headset, Help, Local, MedicalFiles, Plan, Share, Star } from '@icon-park/vue-next'
+import Headset from '@icon-park/vue-next/es/icons/Headset'
+import Help from '@icon-park/vue-next/es/icons/Help'
+import Local from '@icon-park/vue-next/es/icons/Local'
+import MedicalFiles from '@icon-park/vue-next/es/icons/MedicalFiles'
+import Plan from '@icon-park/vue-next/es/icons/Plan'
+import Share from '@icon-park/vue-next/es/icons/Share'
+import Star from '@icon-park/vue-next/es/icons/Star'
 import { getRehabTherapyServiceDetail, getRehabTherapyServices, type ServiceCatalogDetail } from '@/shared/api/service-catalog'
 import {
   extractServiceTexts,

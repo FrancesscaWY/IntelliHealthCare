@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Back, Comment, Like, Male, More, Share, Star } from "@icon-park/vue-next";
+import Back from "@icon-park/vue-next/es/icons/Back";
+import Comment from "@icon-park/vue-next/es/icons/Comment";
+import Like from "@icon-park/vue-next/es/icons/Like";
+import Male from "@icon-park/vue-next/es/icons/Male";
+import More from "@icon-park/vue-next/es/icons/More";
+import Share from "@icon-park/vue-next/es/icons/Share";
+import Star from "@icon-park/vue-next/es/icons/Star";
 import coverImage from "@/assets/home/profile/cover.jpg";
 import { loadPublishedProfilePost, type ProfilePost } from "./published-post";
 import { loadUserProfileState, syncUserProfileStateFromApi } from "./profile-store";

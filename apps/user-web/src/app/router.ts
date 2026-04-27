@@ -10,6 +10,7 @@ import {
 } from "vue-router";
 import PageHost from "./PageHost.vue";
 import { getPageEntryById, getPageEntryByRoutePath, resolveRoutePathByPageId, userPageManifest } from "./page-manifest";
+import { prefetchRoutePageComponent } from "./page-loader";
 import { recordVisitedPage } from "./router-navigation";
 import { projectInfo } from "@/shared/project-info";
 import { getCurrentUser } from "@/shared/api/auth";
@@ -128,6 +129,8 @@ router.beforeEach((to) => {
   if (!pageId) {
     return true;
   }
+
+  prefetchRoutePageComponent(pageId, { immediate: true });
 
   if (!requiresUserAuth(pageId) || hasUserAuthSession()) {
     return true;

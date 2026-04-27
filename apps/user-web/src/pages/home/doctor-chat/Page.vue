@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { AddPicture, MessageEmoji, Microphone, Phone } from "@icon-park/vue-next";
+import AddPicture from "@icon-park/vue-next/es/icons/AddPicture";
+import MessageEmoji from "@icon-park/vue-next/es/icons/MessageEmoji";
+import Microphone from "@icon-park/vue-next/es/icons/Microphone";
+import Phone from "@icon-park/vue-next/es/icons/Phone";
 import { uploadUserFile } from "@/shared/api/files";
 import {
   createDoctorConversation,

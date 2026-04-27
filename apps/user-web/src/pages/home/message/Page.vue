@@ -2,7 +2,16 @@
 import { computed, onMounted, ref } from 'vue'
 import type { Component } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Comment, Headset, Like, Mail, MedicalFiles, Message, Remind, SpeakerOne, Star, User } from '@icon-park/vue-next'
+import Comment from '@icon-park/vue-next/es/icons/Comment'
+import Headset from '@icon-park/vue-next/es/icons/Headset'
+import Like from '@icon-park/vue-next/es/icons/Like'
+import Mail from '@icon-park/vue-next/es/icons/Mail'
+import MedicalFiles from '@icon-park/vue-next/es/icons/MedicalFiles'
+import Message from '@icon-park/vue-next/es/icons/Message'
+import Remind from '@icon-park/vue-next/es/icons/Remind'
+import SpeakerOne from '@icon-park/vue-next/es/icons/SpeakerOne'
+import Star from '@icon-park/vue-next/es/icons/Star'
+import User from '@icon-park/vue-next/es/icons/User'
 import {
   getMessageOverview,
   listConversations,

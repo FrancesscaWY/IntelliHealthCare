@@ -2,7 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
-import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
+import Camera from "@icon-park/vue-next/es/icons/Camera";
+import Commodity from "@icon-park/vue-next/es/icons/Commodity";
+import Editor from "@icon-park/vue-next/es/icons/Editor";
+import Stethoscope from "@icon-park/vue-next/es/icons/Stethoscope";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import AiConversationHistorySheet from "@/shared/ai/components/AiConversationHistorySheet.vue";
 import { prepareAiServiceScene } from "@/shared/ai/runtime";
@@ -36,7 +39,7 @@ const isConversationHistoryOpen = ref(false);
 const serviceResult = getAiServiceRecommendationResult("rehab");
 const quickActions = [
   { label: "更多推荐", icon: Editor },
-  { label: "商品智选", icon: Commodity },
+  { label: "服务智选", icon: Commodity },
   { label: "体检定制", icon: Stethoscope }
 ];
 
@@ -119,7 +122,7 @@ function useQuickAction(label: string) {
     return;
   }
 
-  if (label === "商品智选") {
+  if (label === "服务智选") {
     props.navigation.navigateTo("home/assistant-chat");
     return;
   }

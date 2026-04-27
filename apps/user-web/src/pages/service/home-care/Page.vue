@@ -100,16 +100,13 @@ import { getHomeCareServices, type ServiceCatalogItem } from '@/shared/api/servi
 import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 import { setOrderFlowService } from '@/pages/service/order-flow'
 
-import {
-  Home,
-  Heart,
-  Cooking,
-  Hospital,
-  HeartRate,
-  HospitalBed,
-  MedicalFiles,
-}
-from '@icon-park/vue-next'
+import Home from '@icon-park/vue-next/es/icons/Home'
+import Heart from '@icon-park/vue-next/es/icons/Heart'
+import Cooking from '@icon-park/vue-next/es/icons/Cooking'
+import Hospital from '@icon-park/vue-next/es/icons/Hospital'
+import HeartRate from '@icon-park/vue-next/es/icons/HeartRate'
+import HospitalBed from '@icon-park/vue-next/es/icons/HospitalBed'
+import MedicalFiles from '@icon-park/vue-next/es/icons/MedicalFiles'
 import mock, { type ServiceItem, type CareItem } from './mock'
 
 const props = defineProps<PageComponentProps>()

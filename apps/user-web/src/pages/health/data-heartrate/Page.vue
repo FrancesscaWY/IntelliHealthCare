@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Like } from "@icon-park/vue-next";
+import Like from "@icon-park/vue-next/es/icons/Like";
 import { loadHeartRateSource } from "../measurement-source";
 
 type ChartMode = "day" | "week" | "month" | "all";

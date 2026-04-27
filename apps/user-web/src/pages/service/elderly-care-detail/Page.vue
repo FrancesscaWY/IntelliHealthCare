@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Headset, Share, Star } from '@icon-park/vue-next'
+import Headset from '@icon-park/vue-next/es/icons/Headset'
+import Share from '@icon-park/vue-next/es/icons/Share'
+import Star from '@icon-park/vue-next/es/icons/Star'
 import {
   getElderlyCareServiceDetail,
   getElderlyCareServices,

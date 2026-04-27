@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { AtSign, Close, LocalTwo, Pound } from "@icon-park/vue-next";
+import AtSign from "@icon-park/vue-next/es/icons/AtSign";
+import Close from "@icon-park/vue-next/es/icons/Close";
+import LocalTwo from "@icon-park/vue-next/es/icons/LocalTwo";
+import Pound from "@icon-park/vue-next/es/icons/Pound";
 import blossomCover from "@/assets/community/publish/blossom.jpg";
 import { savePublishedProfilePost } from "@/pages/home/profile/published-post";
 import { uploadAppFile } from "@/shared/api/files";

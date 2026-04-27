@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Headset } from "@icon-park/vue-next";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
 import type { OrderDetailResponse } from "@/shared/api/orders";
 import {
   formatOrderTime,
@@ -36,6 +36,17 @@ const reviewSubmitting = ref(false);
 const afterSaleSubmitting = ref(false);
 
 const statusText = computed(() => currentOrder.value?.statusText || "订单详情");
+const serviceAssignment = computed(() => {
+  const workOrder = currentOrderDetail.value?.workOrders?.find(
+    (item) => item.assigneeName || item.institutionName || item.scheduleAt
+  );
+
+  return {
+    assigneeName: workOrder?.assigneeName || "--",
+    institutionName: workOrder?.institutionName || "--",
+    scheduleAt: formatOrderTime(workOrder?.scheduleAt) || "--"
+  };
+});
 const orderAddress = computed(() => {
   const address = currentOrderDetail.value?.address || null;
   const backendAddress = address
@@ -195,6 +206,18 @@ onMounted(() => {
             <dt>联系方式</dt>
             <dd>{{ orderPhone }}</dd>
           </div>
+          <div>
+            <dt>服务人员</dt>
+            <dd>{{ serviceAssignment.assigneeName }}</dd>
+          </div>
+          <div>
+            <dt>服务机构</dt>
+            <dd>{{ serviceAssignment.institutionName }}</dd>
+          </div>
+          <div>
+            <dt>服务安排</dt>
+            <dd>{{ serviceAssignment.scheduleAt }}</dd>
+          </div>
         </dl>
       </section>
 
@@ -204,6 +227,10 @@ onMounted(() => {
           <div>
             <dt>订单编号</dt>
             <dd>{{ currentOrder.orderNo }}</dd>
+          </div>
+          <div>
+            <dt>订单状态</dt>
+            <dd>{{ currentOrder.statusText }}</dd>
           </div>
           <div>
             <dt>创建时间</dt>

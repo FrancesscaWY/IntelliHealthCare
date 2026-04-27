@@ -3,15 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
-import {
-  Comment,
-  Coupon,
-  Headset,
-  Help,
-  MedicalFiles,
-  Setting,
-  Star,
-} from "@icon-park/vue-next";
+import Comment from "@icon-park/vue-next/es/icons/Comment";
+import Coupon from "@icon-park/vue-next/es/icons/Coupon";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
+import Help from "@icon-park/vue-next/es/icons/Help";
+import MedicalFiles from "@icon-park/vue-next/es/icons/MedicalFiles";
+import Setting from "@icon-park/vue-next/es/icons/Setting";
+import Star from "@icon-park/vue-next/es/icons/Star";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import { loadUserProfileState, syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";

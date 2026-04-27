@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import type { OrderListItem } from "@/shared/api/orders";
-import { Headset } from "@icon-park/vue-next";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
 import {
   getOrderCategoryLabel,
   getOrderServiceTypeKey,
@@ -90,7 +90,7 @@ async function handleAction(actionKey: string, order?: OrderListItem) {
   }
 
   if (actionKey === "record") {
-    props.navigation.navigateTo("service/service-track");
+    props.navigation.navigateTo("service/order-detail");
     return;
   }
 
@@ -124,7 +124,7 @@ function getOrderActions(order: OrderListItem) {
   }
 
   if (order.status === "COMPLETED") {
-    return [{ key: "record", label: "服务记录", type: "primary" as const }];
+    return [{ key: "record", label: "订单详情", type: "primary" as const }];
   }
 
   return [

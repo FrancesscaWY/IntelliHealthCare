@@ -17,9 +17,12 @@ const activeComponent = shallowRef<Component | null>(null);
 const activeComponentPageId = shallowRef("");
 const loadError = shallowRef("");
 const isPageLoading = shallowRef(false);
+const isPageLoadingVisible = shallowRef(false);
 const loadingProgress = shallowRef(0);
-const PAGE_LOAD_TIMEOUT_MS = 8000;
+const PAGE_LOAD_PROGRESS_MS = 8000;
+const PAGE_LOAD_INDICATOR_DELAY_MS = 220;
 let loadingFrame: number | null = null;
+let loadingIndicatorTimer: number | null = null;
 let loadingStartedAt = 0;
 let loadingProgressSeed = 0;
 
@@ -42,13 +45,20 @@ function stopLoadingProgress(finalValue = loadingProgress.value) {
   loadingProgress.value = Math.max(0, Math.min(100, Math.round(finalValue)));
 }
 
+function clearLoadingIndicatorTimer() {
+  if (loadingIndicatorTimer !== null) {
+    window.clearTimeout(loadingIndicatorTimer);
+    loadingIndicatorTimer = null;
+  }
+}
+
 function tickLoadingProgress(seed: number) {
   if (seed !== loadingProgressSeed) {
     return;
   }
 
   const elapsed = performance.now() - loadingStartedAt;
-  const ratio = Math.min(elapsed / PAGE_LOAD_TIMEOUT_MS, 1);
+  const ratio = Math.min(elapsed / PAGE_LOAD_PROGRESS_MS, 1);
   const eased = 1 - Math.pow(1 - ratio, 2.4);
   const nextProgress = 12 + eased * 84;
 
@@ -70,6 +80,29 @@ function startLoadingProgress() {
   loadingFrame = window.requestAnimationFrame(() => tickLoadingProgress(seed));
 }
 
+function scheduleLoadingIndicator() {
+  clearLoadingIndicatorTimer();
+  isPageLoading.value = true;
+  isPageLoadingVisible.value = false;
+  loadingIndicatorTimer = window.setTimeout(() => {
+    loadingIndicatorTimer = null;
+
+    if (!isPageLoading.value) {
+      return;
+    }
+
+    isPageLoadingVisible.value = true;
+    startLoadingProgress();
+  }, PAGE_LOAD_INDICATOR_DELAY_MS);
+}
+
+function finishLoadingIndicator() {
+  clearLoadingIndicatorTimer();
+  stopLoadingProgress(isPageLoadingVisible.value ? 100 : 0);
+  isPageLoading.value = false;
+  isPageLoadingVisible.value = false;
+}
+
 watch(
   () => props.pageId,
   async (pageId) => {
@@ -78,6 +111,8 @@ watch(
     activeComponentPageId.value = "";
     loadError.value = "";
     isPageLoading.value = false;
+    isPageLoadingVisible.value = false;
+    clearLoadingIndicatorTimer();
     stopLoadingProgress(0);
 
     if (!pageEntry.value) {
@@ -91,18 +126,10 @@ watch(
       return;
     }
 
-    isPageLoading.value = true;
-    startLoadingProgress();
+    scheduleLoadingIndicator();
 
     try {
-      const component = await Promise.race([
-        loadRoutePageComponent(currentPageId),
-        new Promise<null>((_, reject) => {
-          window.setTimeout(() => {
-            reject(new Error(`Page module timed out while loading: ${currentPageId}`));
-          }, PAGE_LOAD_TIMEOUT_MS);
-        }),
-      ]);
+      const component = await loadRoutePageComponent(currentPageId);
 
       if (props.pageId !== currentPageId) {
         return;
@@ -117,10 +144,12 @@ watch(
       }
 
       loadError.value = error instanceof Error ? error.message : "Failed to load page component.";
-      stopLoadingProgress(100);
+      if (isPageLoadingVisible.value) {
+        stopLoadingProgress(100);
+      }
     } finally {
       if (props.pageId === currentPageId) {
-        isPageLoading.value = false;
+        finishLoadingIndicator();
       }
     }
   },
@@ -129,6 +158,7 @@ watch(
 
 onBeforeUnmount(() => {
   loadingProgressSeed += 1;
+  clearLoadingIndicatorTimer();
   stopLoadingProgress(0);
 });
 
@@ -149,6 +179,7 @@ const pageProps = computed(() => {
 
 <template>
   <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="pageEntry?.id" v-bind="pageProps" />
+  <section v-else-if="pageEntry && isPageLoading && !isPageLoadingVisible" class="page-loading-placeholder" aria-hidden="true"></section>
   <section v-else-if="pageEntry && isPageLoading" class="page-loader">
     <div class="page-loader__panel">
       <div class="page-loader__signal" aria-hidden="true">
@@ -182,25 +213,34 @@ const pageProps = computed(() => {
 </template>
 
 <style scoped>
+.page-loading-placeholder {
+  min-height: calc(var(--ihc-page-min-height) - 36px);
+}
+
 .page-loader {
   min-height: calc(var(--ihc-page-min-height) - 36px);
   display: grid;
   place-items: center;
   padding: 10px 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .page-loader__panel {
   position: relative;
   width: min(100%, 332px);
   padding: 28px 24px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 28px;
+  border: 1px solid rgba(181, 230, 224, 0.68);
+  border-radius: 18px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(244, 251, 249, 0.98) 100%);
+    linear-gradient(180deg, rgba(246, 253, 251, 0.72) 0%, rgba(239, 250, 247, 0.66) 100%);
   box-shadow:
-    0 24px 56px rgba(44, 124, 118, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    0 18px 42px rgba(44, 124, 118, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .page-loader__panel::before {
