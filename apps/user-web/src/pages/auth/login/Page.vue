@@ -85,59 +85,6 @@ function createDeviceId(prefix: string) {
   return `${prefix}-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
 }
 
-function isAuthServiceUnavailable(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : "";
-
-  return (
-    message.includes("502") ||
-    message.includes("bad gateway") ||
-    message.includes("failed to fetch") ||
-    message.includes("无法连接后端接口")
-  );
-}
-
-function createDemoSession(phone: string): LoginResponse | null {
-  const normalizedPhone = phone.trim();
-
-  if (state.loginMode !== "password" || state.password.trim() !== "123456") {
-    return null;
-  }
-
-  if (normalizedPhone === "13900139000") {
-    return {
-      accessToken: "demo-access-token-user-family",
-      refreshToken: "demo-refresh-token-user-family",
-      tokenType: "Bearer",
-      expiresIn: 7200,
-      user: {
-        userId: "demo-user-family",
-        phone: normalizedPhone,
-        type: "FAMILY",
-        roles: ["user"],
-        realName: "王兰"
-      }
-    };
-  }
-
-  if (normalizedPhone === "13800138000") {
-    return {
-      accessToken: "demo-access-token-user-elder",
-      refreshToken: "demo-refresh-token-user-elder",
-      tokenType: "Bearer",
-      expiresIn: 7200,
-      user: {
-        userId: "demo-user-elder",
-        phone: normalizedPhone,
-        type: "ELDER",
-        roles: ["user"],
-        realName: "张爱萍"
-      }
-    };
-  }
-
-  return null;
-}
-
 async function redirectAfterLogin(session: LoginResponse) {
   props.navigation.reLaunch(resolvePostLoginPageId(Boolean(session.user.realName)));
 }

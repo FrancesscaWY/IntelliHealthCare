@@ -2,7 +2,10 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { getCurrentUser, submitRealName, updateUserProfile } from "@/shared/api/auth";
-import { DEFAULT_AUTHENTICATED_PAGE_ID } from "@/shared/auth/navigation";
+import {
+  DEFAULT_AUTHENTICATED_PAGE_ID,
+  resolvePostLoginPageId
+} from "@/shared/auth/navigation";
 import mock from "./mock";
 import { lastLoginPhone } from "../session";
 
@@ -117,7 +120,7 @@ async function saveProfile() {
       birthday: form.birthday
     });
     props.showToast("实名认证已提交");
-    props.navigation.reLaunch(DEFAULT_AUTHENTICATED_PAGE_ID);
+    props.navigation.reLaunch(resolvePostLoginPageId(true));
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {

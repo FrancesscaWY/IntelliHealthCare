@@ -38,8 +38,7 @@ export interface AfterSaleDetailViewModel {
   serviceStaff: string;
 }
 
-const defaultBuyerAvatar =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
+const defaultBuyerAvatar = "/api/v1/assets/demo/avatars/avatar-1.jpg";
 
 const mock = {
   title: "售后详情",
@@ -169,7 +168,7 @@ export function getActiveAfterSaleRow() {
 }
 
 export function getLinkedOrder(row: AfterSaleRow | null) {
-  return row ? getOrderById(row.orderNo) ?? null : null;
+  return row ? getOrderById(row.orderId || row.orderNo) ?? null : null;
 }
 
 export function buildAfterSaleDetail(row: AfterSaleRow, order: AdminOrderRecord | null): AfterSaleDetailViewModel {

@@ -3,14 +3,26 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import * as echarts from "echarts";
 import type { ECharts, EChartsOption } from "echarts";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAnalyticsDataBoard } from "@/shared/api/analytics";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 type RangeKey = (typeof mock.rangeOptions)[number]["key"];
+type DistributionItem = {
+  label: string;
+  value: number;
+  color: string;
+  highlightColor?: string;
+};
+
+type DataBoardPageData = typeof mock & {
+  activeRange?: RangeKey;
+};
 
 const props = defineProps<PageComponentProps>();
-
+const pageData = ref<DataBoardPageData>(mock);
 const currentRange = ref<RangeKey>(mock.rangeOptions[0].key);
-const activePeriod = computed(() => mock.periods[currentRange.value]);
+const activePeriod = computed(() => pageData.value.periods[currentRange.value]);
 
 const lineChartEl = ref<HTMLElement | null>(null);
 const ageChartEl = ref<HTMLElement | null>(null);
@@ -163,65 +175,143 @@ function createLineOption(): EChartsOption {
 function createRingOption(
   title: string,
   total: number,
-  items: ReadonlyArray<{ label: string; value: number; color: string }>,
+  items: ReadonlyArray<DistributionItem>,
+  centerText: string,
+  centerSubtext: string,
 ): EChartsOption {
+  const ringData = items.map((item) => {
+    const baseColor = item.color;
+    const highlightColor = item.highlightColor || item.color;
+
+    return {
+      name: item.label,
+      value: item.value,
+      itemStyle: {
+        color: {
+          type: "linear" as const,
+          x: 0,
+          y: 0,
+          x2: 1,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: highlightColor },
+            { offset: 1, color: baseColor },
+          ],
+        },
+        shadowBlur: 14,
+        shadowColor: `${baseColor}80`,
+        shadowOffsetY: 6,
+      },
+      emphasis: {
+        itemStyle: {
+          color: {
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "#ffffff" },
+              { offset: 0.42, color: highlightColor },
+              { offset: 1, color: baseColor },
+            ],
+          },
+          shadowBlur: 24,
+          shadowColor: `${baseColor}a8`,
+          shadowOffsetY: 8,
+        },
+      },
+    };
+  });
+
   return {
-    animationDuration: 500,
+    animationDuration: 650,
+    color: items.map((item) => item.color),
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(255,255,255,0.96)",
-      borderColor: "#e5efea",
+      borderColor: "#dfeeea",
       borderWidth: 1,
+      padding: [9, 12],
       textStyle: {
         color: "#2f3946",
         fontSize: 12,
+        fontWeight: 700,
       },
-      formatter: "{b}：{c}",
-    },
-    title: {
-      text: `${total}`,
-      subtext: "用户总数",
-      left: "center",
-      top: "35%",
-      itemGap: 10,
-      textStyle: {
-        color: "#2f3946",
-        fontSize: 26,
-        fontWeight: 600,
-      },
-      subtextStyle: {
-        color: "#98a2ad",
-        fontSize: 12,
-        fontWeight: 400,
+      formatter(params: unknown) {
+        const record = params as { name?: string; value?: number; marker?: string };
+        const value = record.value ?? 0;
+        return `${record.marker || ""}${record.name || ""}<br/>${formatCount(value)} (${formatPercent(value, total)})`;
       },
     },
+    graphic: [
+      {
+        type: "text",
+        left: "center",
+        top: "44%",
+        style: {
+          text: centerText,
+          fill: "#23302e",
+          fontSize: 20,
+          fontWeight: 900,
+          align: "center",
+        },
+      },
+      {
+        type: "text",
+        left: "center",
+        top: "57%",
+        style: {
+          text: centerSubtext,
+          fill: "#41515e",
+          fontSize: 12,
+          fontWeight: 800,
+          align: "center",
+        },
+      },
+    ],
     series: [
       {
         name: title,
         type: "pie",
-        radius: ["60%", "78%"],
-        center: ["50%", "48%"],
+        radius: ["68%", "100%"],
+        center: ["50%", "52%"],
         avoidLabelOverlap: false,
+        itemStyle: {
+          borderWidth: 0,
+          borderColor: "transparent",
+        },
         label: {
           show: false,
+          position: "center",
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 36,
+            fontWeight: "bold",
+            color: "#1f7b70",
+          },
         },
         labelLine: {
           show: false,
         },
-        itemStyle: {
-          borderColor: "#ffffff",
-          borderWidth: 4,
-        },
-        data: items.map((item) => ({
-          name: item.label,
-          value: item.value,
-          itemStyle: {
-            color: item.color,
-          },
-        })),
+        data: ringData,
       },
     ],
   };
+}
+
+function formatCount(value: number) {
+  return value.toLocaleString("zh-CN");
+}
+
+function formatPercent(value: number, total: number) {
+  if (!total) {
+    return "0%";
+  }
+
+  return `${((value / total) * 100).toFixed(1).replace(/\.0$/, "")}%`;
 }
 
 function renderCharts() {
@@ -235,6 +325,8 @@ function renderCharts() {
       activePeriod.value.ageDistribution.title,
       activePeriod.value.ageDistribution.total,
       activePeriod.value.ageDistribution.items,
+      formatCount(activePeriod.value.ageDistribution.total),
+      "在册用户",
     ),
     true,
   );
@@ -243,6 +335,8 @@ function renderCharts() {
       activePeriod.value.genderDistribution.title,
       activePeriod.value.genderDistribution.total,
       activePeriod.value.genderDistribution.items,
+      formatCount(activePeriod.value.genderDistribution.total),
+      "用户总数",
     ),
     true,
   );
@@ -273,14 +367,35 @@ function triggerAction(label: string) {
   props.showToast(`${label}为演示状态。`);
 }
 
-watch(currentRange, async () => {
+async function syncPageData(range = currentRange.value) {
+  try {
+    const response = (await getAnalyticsDataBoard({
+      range,
+    })) as DataBoardPageData;
+    pageData.value = response;
+    currentRange.value = response.activeRange ?? range;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "用户概况加载失败，已回退到演示数据",
+    });
+  }
+
   await nextTick();
   renderCharts();
+}
+
+watch(currentRange, (range, previousRange) => {
+  if (range === previousRange) {
+    return;
+  }
+
+  void syncPageData(range);
 });
 
 onMounted(async () => {
-  await nextTick();
-  renderCharts();
+  await syncPageData();
   window.addEventListener("resize", handleResize);
 });
 
@@ -291,20 +406,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="analytics-dashboard">
-    <article class="dashboard-shell">
-      <header class="dashboard-shell__header">
-        <div class="dashboard-shell__title">
-          <span class="dashboard-shell__accent"></span>
-          <div>
-            <h1>{{ mock.title }}</h1>
-            <p>{{ mock.subtitle }}</p>
-          </div>
+  <section class="trade-overview-page user-overview-page">
+    <article class="trade-hero">
+        <div class="trade-hero__main">
+        <div class="trade-hero__copy">
+          <h1>{{ pageData.title }}</h1>
+          <p class="trade-hero__description">{{ pageData.subtitle }}</p>
         </div>
 
-        <div class="range-switch" role="tablist" aria-label="数据周期">
+        <div class="range-switch range-switch--hero" role="tablist" aria-label="数据周期">
           <button
-            v-for="option in mock.rangeOptions"
+            v-for="option in pageData.rangeOptions"
             :key="option.key"
             class="range-switch__item"
             :class="{ 'range-switch__item--active': currentRange === option.key }"
@@ -316,146 +428,178 @@ onBeforeUnmount(() => {
             <span>{{ option.caption }}</span>
           </button>
         </div>
+      </div>
+    </article>
+
+    <section class="metrics-panel" aria-label="用户核心指标">
+      <header class="metrics-panel__head">
+        <h2>用户核心指标</h2>
       </header>
 
-      <section class="summary-strip">
+      <div class="metric-grid metric-grid--user">
         <article
           v-for="item in activePeriod.summary"
           :key="item.label"
-          class="summary-card"
+          class="metric-card"
+          :class="`metric-card--${item.tone}`"
         >
-          <span class="summary-card__label">{{ item.label }}</span>
-          <strong class="summary-card__value">{{ item.value }}</strong>
-          <span class="summary-card__delta" :class="`summary-card__delta--${item.tone}`">{{ item.delta }}</span>
-        </article>
-      </section>
-
-      <section class="chart-card chart-card--line">
-        <header class="chart-card__header">
-          <div>
-            <h2>用户趋势统计</h2>
-            <p>{{ activePeriod.updatedAt }} 更新</p>
+          <div class="metric-copy">
+            <strong>{{ item.value }}</strong>
+            <h2>{{ item.label }}</h2>
+            <p>{{ item.delta }}</p>
           </div>
+        </article>
+      </div>
+    </section>
 
-          <div class="chart-card__tools">
-            <button class="date-range" type="button" @click="triggerAction('日期筛选')">
-              <span class="date-range__label">选择日期</span>
-              <strong>{{ activePeriod.rangeLabel }}</strong>
-              <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
-              </svg>
-            </button>
-            <button class="ghost-button" type="button" @click="triggerAction('导出报表')">导出报表</button>
+    <section class="panel chart-panel chart-panel--line">
+      <header class="panel-head panel-head--between">
+        <div>
+          <h2>用户趋势统计 <small>（阶段变化）</small></h2>
+          <p class="panel-subtitle">{{ activePeriod.updatedAt }} 更新</p>
+        </div>
+
+        <div class="chart-card__tools">
+          <button class="date-range" type="button" @click="triggerAction('日期筛选')">
+            <span class="date-range__label">选择日期</span>
+            <strong>{{ activePeriod.rangeLabel }}</strong>
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M7 3v3M17 3v3M4 9h16M6 6h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+            </svg>
+          </button>
+          <button class="ghost-button" type="button" @click="triggerAction('导出报表')">导出报表</button>
+        </div>
+      </header>
+
+      <div ref="lineChartEl" class="chart-box chart-box--line"></div>
+
+      <div class="chart-legend">
+        <span class="chart-legend__dot"></span>
+        <span>{{ activePeriod.trend.seriesName }}</span>
+      </div>
+    </section>
+
+    <section class="trade-grid trade-grid--user">
+      <article class="panel chart-panel">
+        <header class="panel-head">
+          <div>
+            <h2>{{ activePeriod.ageDistribution.title }} <small>（结构分布）</small></h2>
+            <p class="panel-subtitle">按年龄层查看用户覆盖结构</p>
           </div>
         </header>
 
-        <div ref="lineChartEl" class="chart-card__canvas chart-card__canvas--line"></div>
-
-        <div class="chart-note">
-          <span class="chart-note__dot"></span>
-          <span>{{ activePeriod.trend.seriesName }}</span>
-        </div>
-      </section>
-
-      <section class="donut-grid">
-        <article class="chart-card">
-          <header class="chart-card__header chart-card__header--compact">
-            <div>
-              <h2>{{ activePeriod.ageDistribution.title }}</h2>
-              <p>按年龄层查看用户覆盖结构</p>
-            </div>
-          </header>
-
+        <div class="ring-panel">
           <div ref="ageChartEl" class="chart-card__canvas chart-card__canvas--ring"></div>
 
-          <div class="ring-legend">
-            <span
+          <div class="side-legend">
+            <div
               v-for="item in activePeriod.ageDistribution.items"
               :key="item.label"
-              class="ring-legend__item"
+              class="side-legend__row"
             >
               <i :style="{ backgroundColor: item.color }"></i>
               <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </span>
-          </div>
-        </article>
-
-        <article class="chart-card">
-          <header class="chart-card__header chart-card__header--compact">
-            <div>
-              <h2>{{ activePeriod.genderDistribution.title }}</h2>
-              <p>按性别查看用户分布占比</p>
+              <strong>{{ formatCount(item.value) }}</strong>
+              <em>({{ formatPercent(item.value, activePeriod.ageDistribution.total) }})</em>
             </div>
-          </header>
+          </div>
+        </div>
+      </article>
 
+      <article class="panel chart-panel">
+        <header class="panel-head">
+          <div>
+            <h2>{{ activePeriod.genderDistribution.title }} <small>（结构分布）</small></h2>
+            <p class="panel-subtitle">按性别查看用户分布占比</p>
+          </div>
+        </header>
+
+        <div class="ring-panel">
           <div ref="genderChartEl" class="chart-card__canvas chart-card__canvas--ring"></div>
 
-          <div class="ring-legend ring-legend--compact">
-            <span
+          <div class="side-legend">
+            <div
               v-for="item in activePeriod.genderDistribution.items"
               :key="item.label"
-              class="ring-legend__item"
+              class="side-legend__row"
             >
               <i :style="{ backgroundColor: item.color }"></i>
               <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </span>
+              <strong>{{ formatCount(item.value) }}</strong>
+              <em>({{ formatPercent(item.value, activePeriod.genderDistribution.total) }})</em>
+            </div>
           </div>
-        </article>
-      </section>
-    </article>
+        </div>
+      </article>
+    </section>
   </section>
 </template>
 
 <style scoped>
-.analytics-dashboard {
-  font-family: var(--admin-font-family);
-  color: #2f3946;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.dashboard-shell {
+.user-overview-page {
   display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid rgba(22, 53, 45, 0.06);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 28px rgba(24, 51, 45, 0.04);
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  color: #253244;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
-.dashboard-shell__header {
+.trade-hero,
+.metrics-panel,
+.metric-card,
+.panel {
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
+}
+
+.trade-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(170, 235, 255, 0.34), transparent 26%),
+    radial-gradient(circle at left top, rgba(102, 214, 174, 0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 251, 248, 0.96));
+}
+
+.trade-hero::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -52px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(95, 224, 186, 0.2), rgba(95, 224, 186, 0));
+  pointer-events: none;
+}
+
+.trade-hero__main {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 18px;
 }
 
-.dashboard-shell__title {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.dashboard-shell__accent {
-  width: 6px;
-  height: 28px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #46d1aa 0%, #22a375 100%);
-}
-
-.dashboard-shell__title h1 {
+.trade-hero h1 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  color: #1f6f67;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.15;
 }
 
-.dashboard-shell__title p {
-  margin: 4px 0 0;
-  color: #8b96a1;
-  font-size: 12px;
+.trade-hero__description {
+  max-width: 680px;
+  margin: 12px 0 0;
+  color: #5d6876;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .range-switch {
@@ -464,7 +608,12 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 4px;
   border-radius: 14px;
-  background: #f2f8f5;
+  background: rgba(242, 248, 245, 0.92);
+}
+
+.range-switch--hero {
+  min-width: 242px;
+  box-shadow: 0 6px 18px rgba(66, 122, 116, 0.08);
 }
 
 .range-switch__item {
@@ -481,11 +630,12 @@ onBeforeUnmount(() => {
 
 .range-switch__item strong {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .range-switch__item span {
   font-size: 11px;
+  font-weight: 700;
 }
 
 .range-switch__item--active {
@@ -494,89 +644,135 @@ onBeforeUnmount(() => {
   box-shadow: 0 6px 14px rgba(24, 51, 45, 0.06);
 }
 
-.summary-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.summary-card {
-  display: grid;
-  gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid #edf3ef;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fbfdfc 0%, #f7fbf9 100%);
-}
-
-.summary-card__label {
-  color: #8c97a2;
-  font-size: 11px;
-}
-
-.summary-card__value {
-  color: #2f3946;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.summary-card__delta {
-  width: fit-content;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.summary-card__delta--green {
-  background: #eaf9f3;
-  color: #1f9d72;
-}
-
-.summary-card__delta--teal {
-  background: #eaf8fb;
-  color: #249ba3;
-}
-
-.summary-card__delta--amber {
-  background: #fff7e8;
-  color: #d69a2b;
-}
-
-.chart-card {
+.metrics-panel {
   padding: 16px;
-  border: 1px solid rgba(22, 53, 45, 0.06);
-  border-radius: 18px;
-  background: #ffffff;
 }
 
-.chart-card--line {
-  padding-bottom: 12px;
+.metrics-panel__head {
+  margin-bottom: 12px;
 }
 
-.chart-card__header {
+.metrics-panel__head h2 {
+  margin: 0;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.metric-grid--user {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric-card {
+  position: relative;
+  min-height: 108px;
+  padding: 14px 16px;
+  overflow: hidden;
+}
+
+.metric-card::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  bottom: -16px;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 16%, #ffffff), transparent 72%);
+}
+
+.metric-card--green {
+  --tone: #4dbc8c;
+}
+
+.metric-card--teal {
+  --tone: #43bfa8;
+}
+
+.metric-card--amber {
+  --tone: #ffa63d;
+}
+
+.metric-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.metric-copy strong {
+  display: block;
+  color: #263244;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.metric-copy h2 {
+  margin: 10px 0 0;
+  color: #55616f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.metric-copy p {
+  margin: 8px 0 0;
+  color: var(--tone);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.panel-head {
+  margin-bottom: 12px;
+}
+
+.panel-head--between {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: 14px;
 }
 
-.chart-card__header--compact {
-  margin-bottom: 0;
-}
-
-.chart-card__header h2 {
+.panel-head h2 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  color: #1f6f67;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
 }
 
-.chart-card__header p {
-  margin: 4px 0 0;
-  color: #8b96a1;
-  font-size: 11px;
+.panel-head small {
+  color: #557c77;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.panel-subtitle {
+  margin: 8px 0 0;
+  color: #697483;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chart-panel {
+  display: grid;
+  align-content: start;
+}
+
+.chart-panel--line {
+  background:
+    radial-gradient(circle at top left, rgba(145, 226, 178, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 249, 0.96));
 }
 
 .chart-card__tools {
@@ -589,22 +785,23 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 14px;
-  border: 1px solid #dfe9e4;
+  border: 1px solid rgba(218, 236, 231, 0.95);
   border-radius: 12px;
   background: #ffffff;
   color: #43515d;
 }
 
 .date-range__label {
-  color: #9aa4af;
+  color: #8b96a1;
   font-size: 11px;
+  font-weight: 800;
 }
 
 .date-range strong {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .date-range svg {
@@ -618,121 +815,142 @@ onBeforeUnmount(() => {
 }
 
 .ghost-button {
-  height: 40px;
-  padding: 0 14px;
+  min-width: 118px;
+  height: 44px;
+  padding: 0 16px;
   border: 1px solid #dfe9e4;
   border-radius: 12px;
   background: #ffffff;
-  color: #44515d;
-  font-size: 12px;
-  font-weight: 500;
+  color: #33404d;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.chart-card__canvas {
+.chart-box {
   width: 100%;
 }
 
-.chart-card__canvas--line {
+.chart-box--line {
   height: 360px;
 }
 
 .chart-card__canvas--ring {
-  height: 320px;
+  height: 260px;
 }
 
-.chart-note {
+.chart-legend {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 2px auto 0;
+  margin: 6px auto 0;
   color: #64707b;
   font-size: 12px;
+  font-weight: 800;
 }
 
-.chart-note__dot {
+.chart-legend__dot {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #41d1a7;
+  background: linear-gradient(135deg, #91e2b2, #4dbc8c);
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
 }
 
-.donut-grid {
+.trade-grid--user {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
-.ring-legend {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px 24px;
-  margin-top: -8px;
+.ring-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.96fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
 }
 
-.ring-legend--compact {
-  gap: 14px 28px;
+.side-legend {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
 }
 
-.ring-legend__item {
-  display: inline-flex;
+.side-legend__row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  color: #697580;
-  font-size: 12px;
+  padding: 12px;
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(244, 251, 247, 0.98), rgba(255, 255, 255, 0.96));
+  color: #5d6876;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
-.ring-legend__item i {
-  width: 12px;
-  height: 12px;
+.side-legend__row i {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
 }
 
-.ring-legend__item strong {
-  color: #394754;
-  font-size: 12px;
-  font-weight: 500;
+.side-legend__row span {
+  overflow: hidden;
+  color: #495765;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-@media (max-width: 1180px) {
-  .summary-strip,
-  .donut-grid {
+.side-legend__row strong,
+.side-legend__row em {
+  color: #697483;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .metric-grid--user {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chart-card__header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .chart-card__tools {
-    flex-wrap: wrap;
+  .trade-grid--user,
+  .ring-panel {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 760px) {
-  .dashboard-shell__header {
+@media (max-width: 780px) {
+  .trade-hero__main,
+  .panel-head--between {
     flex-direction: column;
   }
 
-  .range-switch,
-  .summary-strip,
-  .donut-grid {
+  .range-switch--hero,
+  .metric-grid--user {
     width: 100%;
+  }
+
+  .metric-grid--user {
     grid-template-columns: 1fr;
   }
 
-  .chart-card__canvas--line {
-    height: 300px;
+  .chart-card__tools {
+    width: 100%;
+    flex-wrap: wrap;
   }
 
-  .chart-card__canvas--ring {
-    height: 280px;
-  }
-
-  .date-range {
+  .date-range,
+  .ghost-button {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .chart-box--line,
+  .chart-card__canvas--ring {
+    height: 300px;
   }
 }
 </style>

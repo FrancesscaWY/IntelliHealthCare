@@ -64,8 +64,12 @@ function formatNumber(num: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("health/health-data");
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
     return;
   }
 

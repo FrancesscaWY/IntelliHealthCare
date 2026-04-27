@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { updateAdminPassword } from "@/shared/api/auth";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
 
 const form = reactive({
   oldPassword: "",
@@ -11,7 +14,7 @@ const form = reactive({
   confirmPassword: "",
 });
 
-function submitForm() {
+async function submitForm() {
   if (!form.oldPassword || !form.newPassword || !form.confirmPassword) {
     props.showToast("请完整填写密码信息。");
     return;
@@ -22,7 +25,23 @@ function submitForm() {
     return;
   }
 
-  props.showToast("密码修改成功。");
+  try {
+    await updateAdminPassword({
+      oldPassword: form.oldPassword,
+      newPassword: form.newPassword,
+      confirmPassword: form.confirmPassword,
+    });
+    form.oldPassword = "";
+    form.newPassword = "";
+    form.confirmPassword = "";
+    props.showToast("密码修改成功。");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "密码修改失败，请稍后重试",
+    });
+  }
 }
 </script>
 

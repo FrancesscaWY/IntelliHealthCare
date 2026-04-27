@@ -596,27 +596,85 @@ export class AppMessagingService {
       orderBy: { updatedAt: "desc" }
     });
 
-    const rows = conversations
+    const groupedRows = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        avatar: string | null;
+        unread: number;
+        latestConversation: (typeof conversations)[number];
+        latestMessage: (typeof conversations)[number]["messages"][number] | null;
+        conversationIds: string[];
+        scenes: Set<ConversationScene>;
+      }
+    >();
+
+    for (const item of conversations) {
+      const customerParticipant = this.findAdminCustomerParticipant(item.participants);
+      const customer = customerParticipant?.user ?? null;
+      const latestMessage = item.messages[0] ?? null;
+      const groupKey = customer ? `user:${customer.id}` : `conversation:${item.id}`;
+      const existing = groupedRows.get(groupKey);
+      const unread = item.participants.reduce(
+        (sum, participant) => sum + participant.unreadCount,
+        0
+      );
+
+      if (!existing) {
+        groupedRows.set(groupKey, {
+          id: item.id,
+          name: this.getConversationDisplayName(customer, item.topic),
+          avatar: customer?.avatarUrl ?? null,
+          unread,
+          latestConversation: item,
+          latestMessage,
+          conversationIds: [item.id],
+          scenes: new Set([item.scene])
+        });
+        continue;
+      }
+
+      existing.unread += unread;
+      existing.conversationIds.push(item.id);
+      existing.scenes.add(item.scene);
+
+      if (
+        this.getConversationActivityTimestamp(item) >
+        this.getConversationActivityTimestamp(existing.latestConversation)
+      ) {
+        existing.id = item.id;
+        existing.latestConversation = item;
+        existing.latestMessage = latestMessage;
+      }
+    }
+
+    const rows = Array.from(groupedRows.values())
+      .sort(
+        (left, right) =>
+          this.getConversationActivityTimestamp(right.latestConversation) -
+          this.getConversationActivityTimestamp(left.latestConversation)
+      )
       .map((item, index) => {
-        const customerParticipant =
-          item.participants.find((participant) =>
-            ["ELDER", "FAMILY"].includes(participant.user.type)
-          ) ?? item.participants[0];
-        const customer = customerParticipant?.user;
-        const latestMessage = item.messages[0] ?? null;
+        const previewText = item.latestMessage
+          ? this.extractMessageContent(item.latestMessage.contentType, item.latestMessage.content)
+          : item.latestConversation.topic ?? "";
 
         return {
           id: item.id,
-          name: customer
-            ? customer.realName ?? customer.nickname ?? customer.phone
-            : item.topic ?? "未知客户",
-          preview: latestMessage
-            ? this.extractMessageContent(latestMessage.contentType, latestMessage.content)
-            : item.topic ?? "",
-          time: item.lastMessageAt ? this.formatHourMinute(item.lastMessageAt) : "",
-          unread: item.participants.reduce((sum, participant) => sum + participant.unreadCount, 0),
-          avatar: customer?.avatarUrl ?? null,
-          active: index === 0
+          name: item.name,
+          preview: this.buildAdminConversationPreview(
+            item.latestConversation.scene,
+            previewText,
+            item.conversationIds.length > 1
+          ),
+          time: this.formatHourMinuteFromConversation(item.latestConversation),
+          unread: item.unread,
+          avatar: item.avatar,
+          active: index === 0,
+          sceneSummary: Array.from(item.scenes).map((scene) =>
+            this.getAdminConversationSceneLabel(scene)
+          )
         };
       })
       .filter((item) => {
@@ -624,7 +682,7 @@ export class AppMessagingService {
           return true;
         }
 
-        return [item.name, item.preview, item.id].some((field) =>
+        return [item.name, item.preview, item.id, item.sceneSummary.join(" ")].some((field) =>
           String(field).toLowerCase().includes(normalizedKeyword)
         );
       });
@@ -639,67 +697,65 @@ export class AppMessagingService {
   }
 
   async getAdminConversationDetail(conversationId: string) {
-    const [conversation, messages, services] = await Promise.all([
-      this.prismaService.conversation.findUnique({
-        where: { id: conversationId },
-        include: {
-          participants: {
+    const bundle = await this.getAdminConversationBundle(conversationId);
+    const [customer, messages, services] = await Promise.all([
+      bundle.customerId
+        ? this.prismaService.user.findUnique({
+            where: { id: bundle.customerId },
             include: {
-              user: {
+              archive: true,
+              ownedOrders: {
                 include: {
-                  archive: true,
-                  ownedOrders: {
-                    include: {
-                      service: true
-                    },
-                    orderBy: { createdAt: "desc" },
-                    take: 5
-                  }
-                }
+                  service: true
+                },
+                orderBy: { createdAt: "desc" },
+                take: 5
               }
             }
-          }
-        }
-      }),
+          })
+        : Promise.resolve(null),
       this.prismaService.conversationMessage.findMany({
-        where: { conversationId },
+        where: { conversationId: { in: bundle.conversationIds } },
         include: { sender: true },
         orderBy: { createdAt: "asc" }
       }),
       this.prismaService.serviceItem.findMany({
         where: { enabled: true },
         orderBy: [{ salesVolume: "desc" }, { rating: "desc" }],
-        take: 6
+        take: 12
       })
     ]);
 
-    if (!conversation) {
-      throw new NotFoundException("Conversation not found");
-    }
-
-    const customer =
-      conversation.participants.find((participant) =>
-        ["ELDER", "FAMILY"].includes(participant.user.type)
-      )?.user ?? conversation.participants[0]?.user;
-    const consultant =
-      conversation.participants.find((participant) =>
-        ["ADMIN", "STAFF", "ORG_MANAGER"].includes(participant.user.type)
-      )?.user ?? null;
+    const messageConversationMap = new Map(
+      bundle.conversations.map((item) => [item.id, item] as const)
+    );
+    const mergedMessages = this.buildAdminConversationTimelineMessages(
+      messages,
+      messageConversationMap,
+      bundle.customerId
+    );
+    const sceneLabels = bundle.conversations.map((item) =>
+      this.getAdminConversationSceneLabel(item.scene)
+    );
+    const recommendedServices = this.rankAdminConversationServices(
+      services,
+      customer,
+      bundle.conversations
+    ).slice(0, 6);
 
     return {
       title: "会话",
       currentSessionName: customer
         ? customer.realName ?? customer.nickname ?? customer.phone
-        : conversation.topic ?? "会话",
-      conversationId: conversation.id,
-      topic: conversation.topic,
-      metadata: conversation.metadata,
-      messages: messages.map((item) => ({
-        id: item.id,
-        side: item.senderId === consultant?.id ? "left" : "right",
-        text: this.extractMessageContent(item.contentType, item.content),
-        avatar: item.sender?.avatarUrl ?? null
-      })),
+        : bundle.latestConversation.topic ?? "会话",
+      conversationId: bundle.latestConversation.id,
+      topic: bundle.latestConversation.topic,
+      metadata: {
+        ...ensureRecord(bundle.latestConversation.metadata),
+        mergedConversationIds: bundle.conversationIds,
+        sceneLabels
+      },
+      messages: mergedMessages,
       customer: customer
         ? {
             name: customer.realName ?? customer.nickname ?? customer.phone,
@@ -707,7 +763,12 @@ export class AppMessagingService {
             tags: ensureRecord(customer.archive).riskTags ?? [],
             orderCount: customer.ownedOrders.length,
             amount: customer.ownedOrders
-              .reduce((sum, item) => sum + (toNumber(item.payableAmount) ?? 0), 0)
+              .reduce(
+                (sum, item) =>
+                  sum +
+                  (toNumber(item.actualAmount) ?? toNumber(item.payableAmount) ?? 0),
+                0
+              )
               .toFixed(2)
           }
         : null,
@@ -718,9 +779,11 @@ export class AppMessagingService {
           title: item.service.title,
           image: item.service.coverUrl,
           time: this.toDisplayDateTime(item.createdAt),
-          amount: `${(toNumber(item.payableAmount) ?? 0).toFixed(2)}元`
+          amount: `${(
+            toNumber(item.actualAmount) ?? toNumber(item.payableAmount) ?? 0
+          ).toFixed(2)}元`
         })) ?? [],
-      goods: services.map((item) => ({
+      goods: recommendedServices.map((item) => ({
         id: item.id,
         title: item.title,
         image: item.coverUrl,
@@ -734,18 +797,27 @@ export class AppMessagingService {
     page: number,
     pageSize: number
   ) {
+    const bundle = await this.getAdminConversationBundle(conversationId);
     const messages = await this.prismaService.conversationMessage.findMany({
-      where: { conversationId },
+      where: { conversationId: { in: bundle.conversationIds } },
       include: { sender: true },
       orderBy: { createdAt: "asc" }
     });
+    const conversationMap = new Map(
+      bundle.conversations.map((item) => [item.id, item] as const)
+    );
+    const timeline = this.buildAdminConversationTimelineMessages(
+      messages,
+      conversationMap,
+      bundle.customerId
+    );
 
     return paginate(
-      messages.map((item) => ({
+      messages.map((item, index) => ({
         messageId: item.id,
         id: item.id,
         contentType: item.contentType,
-        content: this.extractMessageContent(item.contentType, item.content),
+        content: timeline[index]?.text ?? this.extractMessageContent(item.contentType, item.content),
         createdAt: toDateTimeString(item.createdAt),
         sender: item.sender
           ? {
@@ -1066,6 +1138,262 @@ export class AppMessagingService {
       return "yellow";
     }
     return "blue";
+  }
+
+  private findAdminCustomerParticipant<
+    T extends {
+      userId: string;
+      user: {
+        id: string;
+        type: string;
+        realName: string | null;
+        nickname: string | null;
+        phone: string;
+        avatarUrl: string | null;
+      };
+    }
+  >(participants: T[]) {
+    return (
+      participants.find((participant) =>
+        ["ELDER", "FAMILY"].includes(participant.user.type)
+      ) ??
+      participants[0] ??
+      null
+    );
+  }
+
+  private getConversationDisplayName(
+    customer:
+      | {
+          realName: string | null;
+          nickname: string | null;
+          phone: string;
+        }
+      | null
+      | undefined,
+    fallbackTopic: string | null | undefined
+  ) {
+    return customer?.realName ?? customer?.nickname ?? customer?.phone ?? fallbackTopic ?? "未知客户";
+  }
+
+  private getConversationActivityTimestamp(item: {
+    lastMessageAt: Date | null;
+    updatedAt: Date;
+    createdAt: Date;
+  }) {
+    return (item.lastMessageAt ?? item.updatedAt ?? item.createdAt).getTime();
+  }
+
+  private formatHourMinuteFromConversation(item: {
+    lastMessageAt: Date | null;
+    updatedAt: Date;
+    createdAt: Date;
+  }) {
+    return this.formatHourMinute(item.lastMessageAt ?? item.updatedAt ?? item.createdAt);
+  }
+
+  private buildAdminConversationPreview(
+    scene: ConversationScene,
+    previewText: string,
+    grouped: boolean
+  ) {
+    const content = previewText.trim();
+    if (!grouped) {
+      return content;
+    }
+
+    const sceneLabel = this.getAdminConversationSceneLabel(scene);
+    return content ? `【${sceneLabel}】${content}` : sceneLabel;
+  }
+
+  private getAdminConversationSceneLabel(scene: ConversationScene) {
+    if (scene === ConversationScene.DOCTOR) {
+      return "医生咨询";
+    }
+    if (scene === ConversationScene.ASSISTANT) {
+      return "豆沙包";
+    }
+    if (scene === ConversationScene.AFTER_SALE) {
+      return "售后跟进";
+    }
+    return "客服会话";
+  }
+
+  private async getAdminConversationBundle(conversationId: string) {
+    const seedConversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        participants: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    if (!seedConversation) {
+      throw new NotFoundException("Conversation not found");
+    }
+
+    const customerParticipant = this.findAdminCustomerParticipant(
+      seedConversation.participants
+    );
+    const customerId = customerParticipant?.userId ?? null;
+    const conversations = await this.prismaService.conversation.findMany({
+      where: customerId
+        ? {
+            participants: {
+              some: {
+                userId: customerId
+              }
+            }
+          }
+        : { id: conversationId },
+      include: {
+        participants: {
+          include: {
+            user: true
+          }
+        }
+      },
+      orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }, { createdAt: "desc" }]
+    });
+
+    const resolvedConversations = conversations.length ? conversations : [seedConversation];
+    const latestConversation =
+      resolvedConversations[0] ??
+      seedConversation;
+
+    return {
+      customerId,
+      conversationIds: resolvedConversations.map((item) => item.id),
+      conversations: resolvedConversations,
+      latestConversation
+    };
+  }
+
+  private buildAdminConversationTimelineMessages(
+    messages: Array<{
+      id: string;
+      conversationId: string;
+      senderId: string | null;
+      contentType: MessageContentType;
+      content: unknown;
+      createdAt: Date;
+      sender:
+        | {
+            id: string;
+            realName: string | null;
+            nickname: string | null;
+            phone: string;
+            avatarUrl: string | null;
+          }
+        | null;
+    }>,
+    conversationMap: Map<
+      string,
+      {
+        scene: ConversationScene;
+        topic: string | null;
+      }
+    >,
+    customerId: string | null
+  ) {
+    const hasMultipleScenes = new Set(
+      Array.from(conversationMap.values()).map((item) => item.scene)
+    ).size > 1;
+    let previousConversationId = "";
+
+    return messages.map((item) => {
+      const conversation = conversationMap.get(item.conversationId);
+      const shouldPrefixScene =
+        hasMultipleScenes && previousConversationId !== item.conversationId;
+      const content = this.extractMessageContent(item.contentType, item.content);
+      const text = shouldPrefixScene && conversation
+        ? `【${this.getAdminConversationSceneLabel(conversation.scene)}】 ${content}`
+        : content;
+
+      previousConversationId = item.conversationId;
+
+      return {
+        id: item.id,
+        side: item.senderId && customerId && item.senderId === customerId ? "right" : "left",
+        text,
+        avatar: item.sender?.avatarUrl ?? null
+      };
+    });
+  }
+
+  private rankAdminConversationServices(
+    services: Array<{
+      id: string;
+      title: string;
+      category: string;
+      coverUrl: string | null;
+      price: unknown;
+      salesVolume: number;
+      rating: unknown;
+    }>,
+    customer:
+      | {
+          archive: unknown;
+          ownedOrders: Array<{
+            serviceId: string;
+            service: {
+              category: string;
+            };
+          }>;
+        }
+      | null,
+    conversations: Array<{
+      scene: ConversationScene;
+    }>
+  ) {
+    const orderedServiceIds = new Set(customer?.ownedOrders.map((item) => item.serviceId) ?? []);
+    const preferredCategories = new Set(
+      customer?.ownedOrders.map((item) => item.service.category) ?? []
+    );
+    const riskText = JSON.stringify(ensureRecord(customer?.archive).riskTags ?? []);
+    const scenes = new Set(conversations.map((item) => item.scene));
+
+    return services
+      .map((item) => {
+        let score = item.salesVolume * 0.04 + (toNumber(item.rating) ?? 0) * 12;
+
+        if (orderedServiceIds.has(item.id)) {
+          score += scenes.has(ConversationScene.AFTER_SALE) ? 120 : 70;
+        }
+
+        if (preferredCategories.has(item.category)) {
+          score += 56;
+        }
+
+        if (/高血压|血压/.test(riskText) && /(体检|陪诊|慢病)/.test(item.title)) {
+          score += 38;
+        }
+
+        if (/糖尿病|血糖/.test(riskText) && /(体检|慢病|营养)/.test(item.title)) {
+          score += 34;
+        }
+
+        if (/脑卒中|膝|康复|术后/.test(riskText) && /康复/.test(item.title)) {
+          score += 42;
+        }
+
+        if (scenes.has(ConversationScene.DOCTOR) && /(体检|陪诊|康复)/.test(item.title)) {
+          score += 24;
+        }
+
+        if (scenes.has(ConversationScene.ASSISTANT) && item.category === "HOME_EXAM") {
+          score += 18;
+        }
+
+        return {
+          ...item,
+          score
+        };
+      })
+      .sort((left, right) => right.score - left.score);
   }
 
   private formatMonthDay(value: Date) {

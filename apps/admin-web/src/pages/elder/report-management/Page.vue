@@ -37,8 +37,7 @@ function adaptRow(item: AdminReportListItem) {
     id: item.reportId,
     uploadedAt: formatDateTime(item.createdAt),
     userName: item.elderName || item.elderPhone || "未命名用户",
-    avatar:
-      "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240",
+    avatar: "/api/v1/assets/demo/avatars/avatar-1.jpg",
     reportName: item.title,
     reportType: item.typeText,
     source: item.source,

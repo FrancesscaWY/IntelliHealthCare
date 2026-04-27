@@ -1,104 +1,124 @@
-import { ApiClientError, request } from "@/shared/api/client";
+import { request } from "@/shared/api/client";
 
-export type FileCategory = "REPORT" | "AVATAR" | "POST_IMAGE" | "CHAT_IMAGE";
+export type UserFileCategory =
+  | "REPORT"
+  | "AVATAR"
+  | "POST_IMAGE"
+  | "CHAT_IMAGE"
+  | "CHAT_AUDIO"
+  | "CONTENT_COVER"
+  | "ACTIVITY_BANNER";
 
-export interface FilePresignRequest {
-  category: FileCategory;
-  fileName: string;
-  mimeType: string;
-  size: number;
-}
-
-export interface FilePresignResponse {
+export interface PresignedUploadResponse {
   uploadId: string;
   bucket: string;
   objectKey: string;
-  method: string;
+  method: "PUT";
   uploadUrl: string;
   headers: Record<string, string>;
   expiresInSeconds: number;
   uploaderId: string;
 }
 
-export interface CompleteFileUploadRequest {
-  category: FileCategory;
+export interface UploadedFileAsset {
+  fileId: string;
+  category: UserFileCategory;
+  fileName: string;
+  objectKey: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  createdAt: string;
+}
+
+export interface FileAssetInfo extends UploadedFileAsset {
+  bucket: string;
+  metadata: unknown;
+}
+
+export function createUserFilePresign(payload: {
+  category: UserFileCategory;
+  fileName: string;
+  mimeType: string;
+  size: number;
+}) {
+  return request<PresignedUploadResponse>("/app/files/presign", {
+    method: "POST",
+    auth: true,
+    body: payload
+  });
+}
+
+export const createFilePresign = createUserFilePresign;
+
+export function completeUserFileUpload(payload: {
+  category: UserFileCategory;
   fileName: string;
   objectKey: string;
   mimeType: string;
   size: number;
   metadata?: Record<string, unknown>;
-}
-
-export interface FileInfoResponse {
-  fileId: string;
-  category: string;
-  fileName: string;
-  objectKey: string;
-  mimeType: string;
-  size: number;
-  bucket?: string;
-  url: string;
-  metadata?: Record<string, unknown> | null;
-  createdAt: string;
-}
-
-export function createFilePresign(payload: FilePresignRequest) {
-  return request<FilePresignResponse>("/app/files/presign", {
+}) {
+  return request<UploadedFileAsset>("/app/files/complete", {
     method: "POST",
     auth: true,
     body: payload
   });
 }
 
-export function completeFileUpload(payload: CompleteFileUploadRequest) {
-  return request<FileInfoResponse>("/app/files/complete", {
-    method: "POST",
-    auth: true,
-    body: payload
-  });
-}
+export const completeFileUpload = completeUserFileUpload;
 
 export function getFileInfo(fileId: string) {
-  return request<FileInfoResponse>(`/app/files/${fileId}`, {
+  return request<FileAssetInfo>(`/app/files/${fileId}`, {
     auth: true
   });
 }
 
-export async function uploadFileByPresign(presign: FilePresignResponse, file: File) {
-  const response = await fetch(presign.uploadUrl, {
-    method: presign.method || "PUT",
-    headers: presign.headers,
+export async function uploadFileByPresign(presign: PresignedUploadResponse, file: File) {
+  const headers = new Headers(presign.headers);
+  if (!headers.has("content-type")) {
+    headers.set("content-type", file.type || "application/octet-stream");
+  }
+
+  const uploadResponse = await fetch(presign.uploadUrl, {
+    method: presign.method,
+    headers,
     body: file
   });
 
-  if (!response.ok) {
-    throw new ApiClientError(`文件上传失败 (${response.status})`, {
-      status: response.status
-    });
+  if (!uploadResponse.ok) {
+    throw new Error(`文件上传失败 (${uploadResponse.status})`);
   }
 }
 
-export async function uploadAppFile(
-  category: FileCategory,
+export async function uploadUserFile(input: {
+  category: UserFileCategory;
+  file: File;
+  metadata?: Record<string, unknown>;
+}) {
+  const presign = await createUserFilePresign({
+    category: input.category,
+    fileName: input.file.name,
+    mimeType: input.file.type || "application/octet-stream",
+    size: input.file.size
+  });
+
+  await uploadFileByPresign(presign, input.file);
+
+  return completeUserFileUpload({
+    category: input.category,
+    fileName: input.file.name,
+    objectKey: presign.objectKey,
+    mimeType: input.file.type || "application/octet-stream",
+    size: input.file.size,
+    metadata: input.metadata
+  });
+}
+
+export function uploadAppFile(
+  category: UserFileCategory,
   file: File,
   metadata?: Record<string, unknown>
 ) {
-  const mimeType = file.type || "application/octet-stream";
-  const presign = await createFilePresign({
-    category,
-    fileName: file.name,
-    mimeType,
-    size: file.size
-  });
-
-  await uploadFileByPresign(presign, file);
-
-  return completeFileUpload({
-    category,
-    fileName: file.name,
-    objectKey: presign.objectKey,
-    mimeType,
-    size: file.size,
-    metadata
-  });
+  return uploadUserFile({ category, file, metadata });
 }

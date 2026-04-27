@@ -30,6 +30,7 @@ Hermes 不应被理解成：
 - `LLM Gateway`：支持 `DeepSeek 官方直连 / OpenRouter / openai-compatible` 网关，内置主模型、轻量模型、结构化输出和 tool-calling 接口
 - `Embedding Gateway`：统一承接向量模型调用，未配置时回退到确定性占位向量，供后续检索链路继续兜底
 - `Agent Orchestrator`：默认入口已从“只路由到单 Specialist”升级为受控多 Agent 分工，支持健康理解补风险研判、风险任务补健康背景、后台 Copilot 汇总多域摘要
+- `AssistantConversationAgent`：用户端对话入口已调整为“assistant-first”，优先走直接回答与知识检索，只在明确涉及个人报告、个人指标、服务决策或预约推进时才触发 Specialist
 - 多 Agent trace：`AgentTask.result.trace.coordination.steps` 会记录每一步 handoff 的 Agent、任务类型、输出摘要、模型信息和该步工具调用
 - 审计结果：路由、工具调用、模型信息、失败原因全部写回 `AgentTask.result`
 - 高风险治理：命中 `SafetyReviewAgent` 或高风险输出标记后，会生成 `AgentHumanReview` 复核工单，并同步写入 `AgentAuditLog`
@@ -110,6 +111,7 @@ Hermes 不应被理解成：
 
 - `GET /api/v1/internal/agents/blueprint`
 - `GET /api/v1/internal/agents/definitions`
+- `GET /api/v1/internal/agents/runtime-status`
 - `POST /api/v1/internal/agents/tasks`
 - `GET /api/v1/internal/agents/tasks`
 - `GET /api/v1/internal/agents/tasks/:taskId`
@@ -152,6 +154,7 @@ Hermes 不应被理解成：
 
 - `blueprint` 返回统一多智能体蓝图，包括定位、原则、能力、Agent、工作流、治理规则、Hermes 规划和实施路线图
 - `definitions` 返回当前代码里真正已注册、可执行的 Agent 定义
+- `runtime-status` 返回 `LLM / Embedding` 是否已配置真实网关、当前是否处于确定性回退模式，以及当前生效模型名
 
 ## RAG 检索接入
 
@@ -226,6 +229,8 @@ Hermes 不应被理解成：
 - embedding：推荐单独走 `openai-compatible` 或 `OpenRouter` 兼容 embedding 网关；未配置时继续走确定性向量兜底
 
 DeepSeek 官方直连模式下，网关会自动把 `deepseek/deepseek-chat` 归一化为 `deepseek-chat`，并将严格 `JSON Schema` 请求降级为 `json_object` 兼容模式，最终仍由服务端 `zod` schema 做结构校验。
+
+若 `AGENT_LLM_PROVIDER=deepseek` 且 `AGENT_LLM_BASE_URL` 在环境文件中被留空，配置校验阶段会自动恢复为官方默认地址 `https://api.deepseek.com`，避免因为空字符串覆盖默认值而意外进入确定性回退。
 
 如果不希望把 Key 写入项目内 `.env`，可以直接通过系统环境变量提供 `DEEPSEEK_API_KEY`；当 `AGENT_LLM_API_KEY` 为空时，后端会自动回退读取该变量。
 

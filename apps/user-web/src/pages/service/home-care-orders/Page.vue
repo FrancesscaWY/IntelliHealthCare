@@ -35,6 +35,28 @@ function openEdit(orderId: string) {
   props.navigation.navigateTo("service/order-edit");
 }
 
+function openPayment(orderId: string) {
+  selectOrder(orderId);
+  const order = getHomeCareOrderById(orderId);
+
+  if (order) {
+    writeServicePaymentContext({
+      orderNo: order.orderNo,
+      amount: order.actualAmount,
+      serviceTitle: order.title,
+      isLegacyPendingOrder: true,
+      legacySource: "service/home-care-orders"
+    });
+  }
+
+  props.navigation.navigateTo("service/payment");
+}
+
+function openVoucher(orderId: string) {
+  selectOrder(orderId);
+  props.navigation.navigateTo("service/payment-result");
+}
+
 function openTrack(orderId: string) {
   selectOrder(orderId);
   const order = getHomeCareOrderById(orderId);

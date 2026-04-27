@@ -4,6 +4,8 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import { getAiEvaluationWaitMs } from "./evaluation";
+import { prepareAiReportAnalysis, resolveAiReportId } from "@/shared/ai/runtime";
+import { selectedAiReportId } from "@/shared/ai/state";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -21,6 +23,7 @@ let finishTimer: ReturnType<typeof setTimeout> | null = null;
 let progressFrame: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let startTime = 0;
+let destroyed = false;
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -69,7 +72,30 @@ onMounted(() => {
   const waitMs = getAiEvaluationWaitMs();
   startTime = performance.now();
   progressFrame = requestAnimationFrame(updateProgress);
-  finishTimer = setTimeout(goToAnalysis, waitMs);
+  void Promise.allSettled([
+    (async () => {
+      const reportId = selectedAiReportId.value || (await resolveAiReportId());
+
+      if (!reportId) {
+        throw new Error("暂无可用于 AI 解读的体检报告");
+      }
+
+      await prepareAiReportAnalysis(reportId);
+    })(),
+    new Promise<void>((resolve) => {
+      finishTimer = setTimeout(() => resolve(), waitMs);
+    })
+  ]).then((results) => {
+    if (destroyed) {
+      return;
+    }
+
+    if (results[0].status === "rejected") {
+      props.showToast(results[0].reason instanceof Error ? results[0].reason.message : "AI 报告解读生成失败");
+    }
+
+    goToAnalysis();
+  });
 
   if (canvasRef.value) {
     riveInstance = new Rive({
@@ -94,6 +120,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  destroyed = true;
   if (progressFrame !== null) {
     cancelAnimationFrame(progressFrame);
   }
