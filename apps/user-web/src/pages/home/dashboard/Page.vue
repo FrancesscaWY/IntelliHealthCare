@@ -20,36 +20,11 @@ import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const searchValue = ref("");
-
-type DashboardArticle = {
-  id: string;
-  newsId: string;
-  title: string;
-  desc: string;
-  likes: number;
-  stars: number;
-  comments: number;
-  isLiked: boolean;
-  isStarred: boolean;
-  images: string[];
-};
-
-function createFallbackArticles(): DashboardArticle[] {
-  return mock.articles.map((item, index) => ({
-    id: `article-${index + 1}`,
-    newsId: `mock-article-${index + 1}`,
-    title: item.title,
-    desc: item.desc,
-    likes: item.likes,
-    stars: item.stars,
-    comments: item.comments,
-    isLiked: false,
-    isStarred: false,
-    images: []
-  }));
-}
-
-const articles = ref<DashboardArticle[]>(createFallbackArticles());
+const homeCity = ref(mock.city);
+const serviceCards = ref([...mock.services]);
+const healthReminder = ref({ ...mock.reminder });
+const hotDiseases = ref([...mock.diseases]);
+const articles = ref(createArticleState(mock.articles));
 const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
 const activeFeaturePage = ref(0);
 const isSubmittingSearch = ref(false);
@@ -492,7 +467,7 @@ async function toggleStar(articleId: string) {
 }
 
 onMounted(() => {
-  void loadHealthNews();
+  void loadDashboard();
 });
 </script>
 
@@ -614,25 +589,21 @@ onMounted(() => {
 
         <div class="article-list">
           <article v-for="item in articles" :key="item.id" class="article-card">
-            <button class="article-entry" type="button" :aria-label="`鏌ョ湅${item.title}`" @click="openHealthNewsDetail(item.newsId)">
-              <section class="article-copy">
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.desc }}</p>
-              </section>
+            <section class="article-copy">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.desc }}</p>
+            </section>
 
-              <div class="article-photos" aria-hidden="true">
-                <template v-if="item.images.length > 0">
-                  <span v-for="(image, index) in item.images" :key="`${item.id}-${index}`" class="article-photo">
-                    <img class="article-photo-image" :src="image" :alt="item.title" draggable="false" @error="applyFallbackImage" />
-                  </span>
-                </template>
-                <template v-else>
-                  <span class="article-photo article-photo--fruit"></span>
-                  <span class="article-photo article-photo--needle"></span>
-                  <span class="article-photo article-photo--food"></span>
-                </template>
-              </div>
-            </button>
+            <div class="article-cover-wrap">
+              <img
+                v-if="item.coverUrl"
+                class="article-cover"
+                :src="item.coverUrl"
+                :alt="item.title"
+                draggable="false"
+              />
+              <div v-else class="article-cover article-cover--empty">暂无封面</div>
+            </div>
 
             <footer class="article-actions">
               <button class="article-action article-action--share" type="button" aria-label="鍒嗕韩" @click.stop="recordArticleShare(item.id)">
@@ -1274,73 +1245,13 @@ onMounted(() => {
   user-select: none;
 }
 
-.article-photo-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.article-photo--fruit {
-  background:
-    radial-gradient(circle at 38% 50%, #d71f24 0 12%, transparent 13%),
-    radial-gradient(circle at 57% 42%, #e33a35 0 11%, transparent 12%),
-    radial-gradient(circle at 70% 62%, #c91520 0 9%, transparent 10%),
-    radial-gradient(circle at 24% 66%, #ef3e37 0 10%, transparent 11%),
-    radial-gradient(ellipse at 55% 78%, rgba(92, 183, 87, 0.9) 0 20%, transparent 22%),
-    linear-gradient(135deg, #f8fbff 0%, #d9eff0 100%);
-}
-
-.article-photo--fruit::before {
-  position: absolute;
-  top: 25px;
-  left: 37px;
-  width: 42px;
-  height: 4px;
-  content: "";
-  border-radius: 999px;
-  background: #8cc849;
-  transform: rotate(-23deg);
-}
-
-.article-photo--needle {
-  background:
-    linear-gradient(90deg, transparent 0 36%, #2d8fe6 36% 39%, transparent 39%),
-    linear-gradient(24deg, transparent 0 51%, #df555b 51% 54%, transparent 54%),
-    radial-gradient(circle at 27% 69%, #45a9f0 0 16%, transparent 17%),
-    linear-gradient(135deg, #daf8ff 0%, #98e0ef 100%);
-}
-
-.article-photo--needle::before {
-  position: absolute;
-  right: 26px;
-  bottom: 21px;
-  width: 54px;
-  height: 16px;
-  content: "";
-  border-radius: 10px;
-  background: #2f84d4;
-  transform: rotate(-18deg);
-}
-
-.article-photo--food {
-  background:
-    radial-gradient(circle at 72% 22%, #e4302c 0 7%, transparent 8%),
-    radial-gradient(circle at 82% 31%, #f26522 0 8%, transparent 9%),
-    radial-gradient(circle at 63% 46%, #df4050 0 6%, transparent 7%),
-    radial-gradient(circle at 43% 53%, rgba(255, 120, 116, 0.45) 0 18%, transparent 19%),
-    linear-gradient(150deg, #fff9e5 0 37%, #ffe6a7 38% 49%, #ffffff 50% 100%);
-}
-
-.article-photo--food::before {
-  position: absolute;
-  top: 32px;
-  left: 31px;
-  width: 32px;
-  height: 32px;
-  content: "";
-  border: 2px solid rgba(247, 124, 133, 0.8);
-  border-radius: 50%;
+.article-cover--empty {
+  display: grid;
+  place-items: center;
+  color: #8d95a2;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px dashed #d9dfeb;
 }
 
 .article-actions {

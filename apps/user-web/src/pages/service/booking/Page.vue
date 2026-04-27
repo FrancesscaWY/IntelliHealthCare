@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
-import { getOrderFlowState, updateOrderFlowBooking } from "@/pages/service/order-flow";
-import { getOrderBookingOptions } from "@/shared/api/orders";
-// import { ref } from 'vue'
-// import type { PageComponentProps } from '@ihc/page-core/types'
+import { ref } from 'vue'
+import type { PageComponentProps } from '@ihc/page-core/types'
 import { getServiceDetailPageId, readSelectedServiceContext } from '@/shared/service/catalog'
-// import mock from './mock'
+import mock from './mock'
 
 const props = defineProps<PageComponentProps>();
 const orderFlowState = getOrderFlowState();
@@ -98,7 +93,14 @@ async function loadBookingOptions() {
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch(currentService.value?.detailPageId || "service/home-care-detail");
+    const selectedService = readSelectedServiceContext()
+
+    if (selectedService) {
+      props.navigation.reLaunch(getServiceDetailPageId(selectedService.categorySlug))
+      return
+    }
+
+    props.navigation.reLaunch('service/home-care-detail')
   }
 }
 

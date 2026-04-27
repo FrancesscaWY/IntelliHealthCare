@@ -1,39 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import type { PageComponentProps } from "@ihc/page-core/types";
-import { Headset } from "@icon-park/vue-next";
-import mock from "./mock";
-import {
-  formatOrderTime,
-  getOrderCategoryLabel,
-  getOrderServiceTypeKey,
-  resolveOrderBookingText,
-  resolveOrderAssetUrl,
-  useOrderCenter
-} from "@/pages/service/order-center";
-
-// const props = defineProps<PageComponentProps>();
-const {
-  orders,
-  ensureOrdersLoaded,
-  selectOrder,
-  cancelCurrentOrder,
-  isOrdersLoading,
-  ordersError
-} = useOrderCenter();
-// import { computed, ref } from 'vue'
-// import type { PageComponentProps } from '@ihc/page-core/types'
-// import { Headset } from '@icon-park/vue-next'
-// import mock from './mock'
+import { computed, ref } from 'vue'
+import type { PageComponentProps } from '@ihc/page-core/types'
+import { Headset } from '@icon-park/vue-next'
+import mock from './mock'
 import { writeServicePaymentContext } from '@/shared/payment/session'
 
 const props = defineProps<PageComponentProps>()
 type ServiceKey = keyof typeof mock.ordersByService
 type LegacyOrderItem = (typeof mock.ordersByService)[ServiceKey][number]
 
-// type ServiceKey = "homeCare" | "therapy" | "exam";
-const activeService = ref<ServiceKey>("therapy");
-const activeTab = ref("all");
+const activeService = ref<ServiceKey>('therapy')
+const activeTab = ref('all')
 
 const currentOrders = computed(() =>
   orders.value.filter((item) => getOrderServiceTypeKey(item.serviceCategory) === activeService.value)
@@ -74,6 +51,11 @@ function handleAction(actionKey: string, order?: LegacyOrderItem) {
     }
 
     props.navigation.navigateTo('service/payment')
+    return
+  }
+
+  if (actionKey === 'edit') {
+    props.navigation.navigateTo('service/order-edit')
     return
   }
 
@@ -189,7 +171,7 @@ onMounted(() => {
             class="action-button"
             :class="{ primary: action.type === 'primary' }"
             type="button"
-            @click="handleAction(action.key, order.orderId)"
+            @click="handleAction(action.key, order)"
           >
             {{ action.label }}
           </button>

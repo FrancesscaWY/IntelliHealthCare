@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { getPayment, type PaymentChannel, type PaymentStatus } from "@/shared/api/payments";
 import {
@@ -8,26 +9,6 @@ import {
 } from "@/shared/payment/session";
 
 const props = defineProps<PageComponentProps>();
-const orderFlowState = getOrderFlowState();
-const { selectOrder } = useOrderCenter();
-const paymentStatus = ref(orderFlowState.payment?.status || "PAID");
-const paymentAmount = ref<number | null>(orderFlowState.payment?.amount ?? null);
-
-const paymentStatusText = computed(() => {
-  if (paymentStatus.value === "PAID") {
-    return "支付成功";
-  }
-  if (paymentStatus.value === "PENDING") {
-    return "支付处理中";
-  }
-  return "支付结果待确认";
-});
-
-const paymentDescription = computed(() => {
-  const amountText =
-    typeof paymentAmount.value === "number" ? `订单金额 ¥${paymentAmount.value.toFixed(2)}` : "订单金额待确认";
-  return `${amountText}，请前往订单页查看最新状态`;
-});
 
 const STATUS_COPY: Record<
   PaymentStatus,

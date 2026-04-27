@@ -59,7 +59,19 @@ function openVoucher(orderId: string) {
 
 function openTrack(orderId: string) {
   selectOrder(orderId);
-  props.navigation.navigateTo("service/service-track");
+  const order = getHomeCareOrderById(orderId);
+
+  if (order) {
+    writeServicePaymentContext({
+      orderNo: order.orderNo,
+      amount: order.actualAmount,
+      serviceTitle: order.title,
+      isLegacyPendingOrder: true,
+      legacySource: "service/home-care-orders"
+    });
+  }
+
+  props.navigation.navigateTo("service/payment");
 }
 
 function openVoucher(orderId: string) {

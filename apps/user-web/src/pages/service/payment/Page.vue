@@ -137,74 +137,9 @@ const paymentMethods = computed<PaymentMethodView[]>(() => {
     });
 });
 
-const selectedPayment = ref("ALIPAY");
-const submitting = ref(false);
-const channels = ref<PaymentChannelItem[]>([]);
-const countdownText = ref(mock.remainingTime);
-const orderFlowState = getOrderFlowState();
-
-let countdownTimer: ReturnType<typeof setInterval> | null = null;
-
-const paymentAmount = computed(() => {
-  const createdAmount = orderFlowState.createdOrder?.payableAmount;
-  if (typeof createdAmount === "number") {
-    return createdAmount.toFixed(2);
-  }
-
-  return mock.amount;
-});
-
-const isExpired = computed(() => countdownText.value === "00:00");
-
-const paymentMethods = computed(() => {
-  if (channels.value.length > 0) {
-    return channels.value.map((method) => ({
-      id: method.code,
-      name: method.name,
-      cardNo: undefined,
-      icon:
-        method.code === "ALIPAY"
-          ? mock.methods.find((item) => item.id === "ALIPAY")?.icon
-          : method.code === "WECHAT"
-            ? mock.methods.find((item) => item.id === "WECHAT")?.icon
-            : undefined
-    }));
-  }
-
-  return mock.methods;
-});
-
-function formatCountdown(ms: number) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function startCountdown() {
-  const createdAt = orderFlowState.createdOrder?.createdAt;
-  if (!createdAt) {
-    countdownText.value = mock.remainingTime;
-    return;
-  }
-
-  const expireAt = new Date(createdAt).getTime() + PAYMENT_EXPIRE_MS;
-  const updateCountdown = () => {
-    const remainingMs = expireAt - Date.now();
-    countdownText.value = formatCountdown(remainingMs);
-
-    if (remainingMs <= 0 && countdownTimer) {
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-    }
-  };
-
-  updateCountdown();
-  countdownTimer = setInterval(updateCountdown, 1000);
-}
-
-function goBack() {
+const goBack = () => {
   if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch("service/order-confirm");
     props.navigation.reLaunch("service/order-confirm");
   }
 };
@@ -375,6 +310,7 @@ onMounted(() => {
   background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -441,6 +377,7 @@ onMounted(() => {
 .amount-block strong {
   display: block;
   margin-top: 18px;
+  color: #006dff;
   color: #006dff;
   font-size: 38px;
   line-height: 1;

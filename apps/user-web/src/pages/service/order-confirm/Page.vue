@@ -198,45 +198,9 @@ const bookingPhoneText = computed(
   () => selectedAddress.value?.receiverPhone ?? (isLoadingPreview.value ? UI.loading : UI.unknownPhone)
 );
 
-const bookingInfo = computed(() => ({
-  address: orderFlowState.booking?.addressText || orderFlowState.service?.addressText || mock.booking.address,
-  time: orderFlowState.booking
-    ? `${orderFlowState.booking.bookingDate} ${orderFlowState.booking.bookingTimeSlot}`
-    : mock.booking.time,
-  phone: orderFlowState.booking?.contactPhone || orderFlowState.service?.contactPhone || mock.booking.phone
-}));
-
-async function loadPreview() {
-  const service = orderFlowState.service;
-  const booking = orderFlowState.booking;
-
-  if (!service || !booking?.addressId) {
-    return;
-  }
-
-  try {
-    const preview = await previewOrder({
-      serviceId: service.serviceId,
-      addressId: booking.addressId,
-      elderId: booking.elderId || undefined,
-      bookingDate: booking.bookingDate || undefined,
-      bookingTimeSlot: booking.bookingTimeSlot || undefined,
-      couponId: booking.couponId || undefined,
-      remark: booking.remark || undefined
-    });
-
-    previewAmount.value = {
-      total: preview.originalAmount,
-      coupon: -preview.discountAmount,
-      subtotal: preview.payableAmount
-    };
-  } catch {
-    previewAmount.value = null;
-  }
-}
-
-function goBack() {
+const goBack = () => {
   if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch("service/booking");
     props.navigation.reLaunch("service/booking");
   }
 };
@@ -457,6 +421,7 @@ onMounted(() => {
   background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .page-header {
@@ -531,6 +496,7 @@ onMounted(() => {
 
 .product-info span {
   color: #006dff;
+  color: #006dff;
   font-size: 17px;
   font-weight: 700;
 }
@@ -553,6 +519,7 @@ onMounted(() => {
 
 .price-row strong {
   color: #006dff;
+  color: #006dff;
   font-size: 18px;
 }
 
@@ -567,6 +534,7 @@ onMounted(() => {
 }
 
 .subtotal strong {
+  color: #006dff;
   color: #006dff;
   font-size: 24px;
 }
@@ -649,6 +617,7 @@ dd {
 }
 
 .total strong {
+  color: #006dff;
   color: #006dff;
   font-size: 32px;
   line-height: 1;
