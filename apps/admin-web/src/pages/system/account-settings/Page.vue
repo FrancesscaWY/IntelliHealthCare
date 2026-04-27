@@ -197,13 +197,16 @@ onMounted(() => {
 
 <style scoped>
 .profile-page {
+  min-height: 100%;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .profile-panel {
-  min-height: 920px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 100%;
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 6px 20px rgba(59, 103, 82, 0.05);
@@ -233,7 +236,9 @@ onMounted(() => {
 }
 
 .profile-form {
-  padding: 28px 14px 0;
+  display: grid;
+  align-content: start;
+  padding: 28px 14px 36px;
 }
 
 .form-grid {
@@ -382,8 +387,7 @@ onMounted(() => {
 }
 
 .profile-footer {
-  margin-top: 280px;
-  padding: 30px 14px 60px;
+  padding: 24px 14px 40px;
   border-top: 1px solid #eef2ef;
 }
 
@@ -416,7 +420,6 @@ onMounted(() => {
   }
 
   .profile-footer {
-    margin-top: 120px;
     padding: 24px 16px 32px;
   }
 }

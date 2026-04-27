@@ -3,6 +3,7 @@ import { normalizePageId } from "@ihc/page-core/runtime";
 import type { PageEntry } from "@ihc/page-core/types";
 import {
   createRouter,
+  createWebHashHistory,
   createWebHistory,
   type RouteLocationNormalized,
   type RouteRecordRaw,
@@ -11,6 +12,7 @@ import PageHost from "./PageHost.vue";
 import { getPageEntryById, getPageEntryByRoutePath, resolveRoutePathByPageId, userPageManifest } from "./page-manifest";
 import { recordVisitedPage } from "./router-navigation";
 import { projectInfo } from "@/shared/project-info";
+import { getCurrentUser } from "@/shared/api/auth";
 import {
   DEFAULT_AUTHENTICATED_PAGE_ID,
   LOGIN_PAGE_ID,
@@ -22,6 +24,7 @@ import {
   currentUserAuthSession,
   getUserAuthSession,
   hasUserAuthSession,
+  updateUserAuthSessionRealNameVerified,
 } from "@/shared/auth/session";
 
 declare module "vue-router" {
@@ -32,16 +35,16 @@ declare module "vue-router" {
   }
 }
 
-function isRealNameVerified() {
-  return Boolean(getUserAuthSession()?.user.realName);
-}
-
 function resolveDefaultPageId() {
   if (!hasUserAuthSession()) {
     return projectInfo.homePageId;
   }
 
-  return isRealNameVerified() ? DEFAULT_AUTHENTICATED_PAGE_ID : REAL_NAME_PAGE_ID;
+  if (getUserAuthSession()?.user.realNameVerified === false) {
+    return REAL_NAME_PAGE_ID;
+  }
+
+  return DEFAULT_AUTHENTICATED_PAGE_ID;
 }
 
 function stripLegacyPreviewQuery(
@@ -101,8 +104,16 @@ const routes: RouteRecordRaw[] = [
   },
 ];
 
+function createAppHistory() {
+  if (typeof window !== "undefined" && window.location.protocol === "file:") {
+    return createWebHashHistory();
+  }
+
+  return createWebHistory();
+}
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: createAppHistory(),
   routes,
   scrollBehavior() {
     return {
@@ -146,10 +157,38 @@ router.afterEach((to) => {
 });
 
 export function installAuthSessionRouteSync() {
+  async function syncAuthenticatedRealNameRouteState() {
+    if (!hasUserAuthSession()) {
+      return;
+    }
+
+    try {
+      const currentUser = await getCurrentUser();
+      const currentPageId = resolvePageIdFromRoute(router.currentRoute.value);
+      updateUserAuthSessionRealNameVerified(currentUser.realNameVerified);
+
+      if (!currentUser.realNameVerified) {
+        if (currentPageId && currentPageId !== REAL_NAME_PAGE_ID && requiresUserAuth(currentPageId)) {
+          rememberPostLoginPageId(currentPageId);
+          await router.replace({ name: REAL_NAME_PAGE_ID });
+        }
+
+        return;
+      }
+
+      if (currentPageId === REAL_NAME_PAGE_ID) {
+        await router.replace({ name: DEFAULT_AUTHENTICATED_PAGE_ID });
+      }
+    } catch {
+      // Keep the current route when user profile sync is temporarily unavailable.
+    }
+  }
+
   watch(
     currentUserAuthSession,
     (session) => {
       if (session?.accessToken) {
+        void syncAuthenticatedRealNameRouteState();
         return;
       }
 
@@ -163,6 +202,10 @@ export function installAuthSessionRouteSync() {
     },
     { flush: "sync" },
   );
+
+  if (hasUserAuthSession()) {
+    void syncAuthenticatedRealNameRouteState();
+  }
 }
 
 export default router;

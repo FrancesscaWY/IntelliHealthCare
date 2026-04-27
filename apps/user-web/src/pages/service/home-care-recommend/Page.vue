@@ -245,9 +245,9 @@ onBeforeUnmount(() => {
         ></canvas>
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
-          <strong>您好！我是豆沙包</strong>
-          <strong>这是我为您推荐的项目</strong>
-          <p>推荐仅供参考，您可以根据实际需求继续调整</p>
+          <strong>我先按当前情况筛了一轮</strong>
+          <strong>这些家政护理项目更贴近需求</strong>
+          <p>推荐仅供参考，您也可以继续告诉我更具体的照护需求</p>
         </div>
         <button
           class="history-btn"

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import {
@@ -37,9 +37,10 @@ const { activePage, navigation } = usePageNavigation({
 });
 const { items: toastItems, showToast } = useToastQueue();
 
-const activeComponent = shallowRef<Component | null>(null);
-const activeComponentPageId = shallowRef("");
-const loadError = shallowRef("");
+  const activeComponent = shallowRef<Component | null>(null);
+  const activeComponentPageId = shallowRef("");
+  const loadError = shallowRef("");
+  const isPageLoading = shallowRef(false);
 const searchKeyword = ref("");
 const isAccountMenuOpen = ref(false);
 const isNotificationOpen = ref(false);
@@ -108,6 +109,11 @@ const resolvedComponent = computed(() => {
   }
 
   return activeComponent.value;
+});
+
+const isShowPageLoading = computed(() => {
+  if (!activePage.value) return false;
+  return isPageLoading.value && activeComponentPageId.value !== activePage.value.id;
 });
 
 const railItems: Array<{ key: PrimaryNavKey; label: string; pageId: string; icon: Component }> = [
@@ -299,13 +305,24 @@ watch(
   activePage,
   async (pageEntry) => {
     const currentPageId = pageEntry?.id || "";
-    activeComponent.value = null;
-    activeComponentPageId.value = "";
     loadError.value = "";
 
     if (!pageEntry) {
+      activeComponent.value = null;
+      activeComponentPageId.value = "";
       return;
     }
+
+    const cachedComponent = activeComponent.value;
+    const cachedPageId = activeComponentPageId.value;
+
+    // 如果是新页面且没有缓存，先清空旧组件以避免显示旧页面内容
+    if (cachedPageId !== currentPageId) {
+      activeComponent.value = null;
+      activeComponentPageId.value = "";
+    }
+
+    isPageLoading.value = true;
 
     try {
       const component = await loadPageComponent(pageEntry.id);
@@ -321,6 +338,10 @@ watch(
       }
 
       loadError.value = error instanceof Error ? error.message : "页面组件加载失败，请检查 Vue 文件语法。";
+      activeComponent.value = null;
+      activeComponentPageId.value = "";
+    } finally {
+      isPageLoading.value = false;
     }
   },
   { immediate: true, flush: "sync" },
@@ -503,33 +524,35 @@ onBeforeUnmount(() => {
 
     <template v-else>
       <aside v-if="config.mode === 'app'" class="rail">
-        <button class="rail__logo" type="button" aria-label="返回首页" @click="openPage('dashboard/overview')">
-          <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
-            <path
-              d="M24 39.5 10.7 26.4c-3.3-3.3-5.3-6.4-5.3-10.7 0-5.7 4.5-10.2 10.1-10.2 3.4 0 6.1 1.6 8.5 4.8 2.4-3.2 5.1-4.8 8.5-4.8 5.6 0 10.1 4.5 10.1 10.2 0 4.3-2 7.4-5.3 10.7L24 39.5Z"
-            />
-            <path d="M24 14.6v10.5" fill="none" stroke="#111432" stroke-linecap="round" stroke-width="3.5" />
-            <path d="M18.7 19.85h10.6" fill="none" stroke="#111432" stroke-linecap="round" stroke-width="3.5" />
-          </svg>
-        </button>
+        <div class="rail__header">
+          <button
+            class="rail__collapse rail__collapse--leading"
+            type="button"
+            :aria-label="isSidebarCollapsed ? '展开左侧导航' : '收起左侧导航'"
+            :title="isSidebarCollapsed ? '展开左侧导航' : '收起左侧导航'"
+            @click="toggleSidebar"
+          >
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
 
-        <div class="rail__brand">
-          <span class="rail__brand-mark">智诊康养—后台端</span>
-          <small>IntelliHealthCare</small>
+          <button class="rail__brand" type="button" aria-label="返回首页" @click="openPage('dashboard/overview')">
+            <span class="rail__brand-main">
+              <span class="rail__brand-mark">智诊康养</span>
+              <span class="rail__logo" aria-hidden="true">
+                <svg viewBox="0 0 48 48" focusable="false">
+                  <path
+                    d="M24 39.5 10.7 26.4c-3.3-3.3-5.3-6.4-5.3-10.7 0-5.7 4.5-10.2 10.1-10.2 3.4 0 6.1 1.6 8.5 4.8 2.4-3.2 5.1-4.8 8.5-4.8 5.6 0 10.1 4.5 10.1 10.2 0 4.3-2 7.4-5.3 10.7L24 39.5Z"
+                  />
+                  <path d="M24 14.6v10.5" fill="none" stroke="#111432" stroke-linecap="round" stroke-width="3.5" />
+                  <path d="M18.7 19.85h10.6" fill="none" stroke="#111432" stroke-linecap="round" stroke-width="3.5" />
+                </svg>
+              </span>
+            </span>
+            <small>IntelliHealthCare</small>
+          </button>
         </div>
-
-        <button
-          class="rail__collapse"
-          type="button"
-          :aria-label="isSidebarCollapsed ? '展开左侧导航' : '收起左侧导航'"
-          :title="isSidebarCollapsed ? '展开左侧导航' : '收起左侧导航'"
-          @click="toggleSidebar"
-        >
-          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-            <path d="M8 6h9M8 12h9M8 18h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-            <path d="m5 8-3.5 4L5 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
 
         <nav class="rail__nav" aria-label="主导航">
           <button
@@ -627,8 +650,12 @@ onBeforeUnmount(() => {
         </header>
 
         <section class="admin-content">
+          <div v-if="isShowPageLoading" class="page-loading">
+            <div class="page-loading__spinner"></div>
+            <p>页面加载中...</p>
+          </div>
           <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activePage?.id" v-bind="pageProps" />
-          <PagePlaceholder v-else-if="activePage" :page-entry="activePage" :error-message="loadError || undefined" />
+          <PagePlaceholder v-else-if="activePage && !isShowPageLoading" :page-entry="activePage" :error-message="loadError || undefined" />
           <section v-else class="empty-state">当前没有可加载的页面，请检查页面清单配置。</section>
         </section>
       </section>
@@ -672,19 +699,23 @@ onBeforeUnmount(() => {
   display: grid;
   width: 100%;
   min-width: 0;
+  height: 100vh;
+  height: 100svh;
   min-height: 100vh;
+  min-height: 100svh;
+  overflow: hidden;
 }
 
 .admin-shell--app {
-  --rail-bg: #111432;
-  --rail-bg-end: #171d48;
+  --rail-bg: #1e293b;
+  --rail-bg-end: #0f172a;
   --rail-surface: rgba(255, 255, 255, 0.06);
-  --rail-text: rgba(255, 255, 255, 0.78);
-  --rail-muted: rgba(219, 229, 255, 0.62);
-  --rail-accent: #45d1ac;
-  --rail-accent-strong: #2ec8a1;
+  --rail-text: rgba(255, 255, 255, 0.72);
+  --rail-muted: rgba(148, 163, 184, 0.65);
+  --rail-accent: #5eead4;
+  --rail-accent-strong: #2dd4bf;
   grid-template-columns: 180px 184px minmax(0, 1fr);
-  background: #f0fdf9;
+  background: #f8fafc;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
@@ -704,9 +735,34 @@ onBeforeUnmount(() => {
   display: block;
   width: 100%;
   min-width: 0;
+  height: 100vh;
+  height: 100svh;
   min-height: 100vh;
   min-height: 100svh;
   background: #ffffff;
+  overflow: hidden;
+}
+
+.page-loading {
+  display: grid;
+  place-items: center;
+  gap: 16px;
+  padding: 60px 20px;
+  color: var(--admin-muted);
+  font-size: 14px;
+}
+
+.page-loading__spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(42, 157, 110, 0.15);
+  border-top-color: var(--admin-brand);
+  border-radius: 50%;
+  animation: page-spin 0.8s linear infinite;
+}
+
+@keyframes page-spin {
+  to { transform: rotate(360deg); }
 }
 
 .auth-stage {
@@ -714,9 +770,11 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 100%;
   min-width: 0;
-  min-height: 100vh;
-  min-height: 100svh;
+  height: 100%;
+  min-height: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .auth-stage__content {
@@ -729,10 +787,10 @@ onBeforeUnmount(() => {
 .rail {
   grid-column: 1;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto 1fr;
   align-content: start;
-  gap: 12px;
-  padding: 16px 12px 16px;
+  gap: 16px;
+  padding: 14px 12px 16px;
   background: linear-gradient(180deg, var(--rail-bg) 0%, var(--rail-bg-end) 100%);
   overflow: hidden;
   transition:
@@ -740,59 +798,79 @@ onBeforeUnmount(() => {
     width 0.2s ease;
 }
 
-.rail__logo {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  background: var(--rail-surface);
-  color: #8eeab6;
-}
-
-.rail__logo svg {
-  width: 32px;
-  height: 32px;
-  fill: currentColor;
+.rail__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .rail__brand {
   display: grid;
-  gap: 4px;
-  width: 100%;
-  padding: 0 2px;
+  flex: 1 1 auto;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #ffffff;
   text-align: left;
 }
 
+.rail__brand:hover {
+  opacity: 0.96;
+}
+
+.rail__brand-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rail__logo {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--rail-surface);
+  color: #b7f2c9;
+}
+
+.rail__logo svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
 .rail__brand-mark {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.3;
   letter-spacing: 0.02em;
 }
 
 .rail__brand small {
   color: var(--rail-muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .rail__collapse {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 34px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.76);
+  border: 0;
+  border-radius: 10px;
+  background: var(--rail-surface);
+  color: rgba(255, 255, 255, 0.82);
   transition:
     background-color 0.2s ease,
     color 0.2s ease,
@@ -800,13 +878,13 @@ onBeforeUnmount(() => {
 }
 
 .rail__collapse:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 
 .rail__collapse svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .rail__nav {
@@ -878,6 +956,7 @@ onBeforeUnmount(() => {
   display: grid;
   align-content: start;
   min-width: 0;
+  min-height: 0;
   width: 100%;
   background: #ffffff;
   border-right: 1px solid #edf3ef;
@@ -960,9 +1039,8 @@ onBeforeUnmount(() => {
   padding: 14px 8px;
 }
 
-.admin-shell--sidebar-collapsed .rail__logo {
-  width: 42px;
-  height: 42px;
+.admin-shell--sidebar-collapsed .rail__header {
+  justify-content: center;
 }
 
 .admin-shell--sidebar-collapsed .rail__brand {
@@ -1011,6 +1089,8 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .topbar {
@@ -1283,17 +1363,20 @@ onBeforeUnmount(() => {
 .admin-content {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   padding: 26px 28px 16px;
-  background: #f0fdf9;
+  background: transparent;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .empty-state {
   padding: 24px;
   border-radius: 16px;
-  background: #ffffff;
-  color: #7f8994;
+  background: var(--admin-surface-strong);
+  color: var(--admin-muted);
+  box-shadow: var(--admin-shadow);
 }
 
 @media (max-width: 1280px) {

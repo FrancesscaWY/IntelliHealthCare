@@ -284,17 +284,17 @@ function adaptOrder(item: AdminOrderListItem): AdminOrderRecord {
   };
 }
 
-function syncOrderDateRange(nextOrders = orders.value) {
-  if (startDate.value && endDate.value) {
+function syncOrderDateRange(nextOrders = orders.value, force = false) {
+  if (!force && startDate.value && endDate.value) {
     return;
   }
 
   const range = deriveDateRange(nextOrders.map((order) => order.orderDate));
-  startDate.value = startDate.value || range.start;
-  endDate.value = endDate.value || range.end;
+  startDate.value = range.start;
+  endDate.value = range.end;
 }
 
-async function syncOrdersFromApi() {
+async function syncOrdersFromApi(options: { resetDateRange?: boolean } = {}) {
   try {
     const response = await getAdminOrders({
       page: 1,
@@ -305,7 +305,7 @@ async function syncOrdersFromApi() {
     if (nextOrders.length > 0) {
       orders.value = nextOrders;
       saveRemoteOrders(nextOrders);
-      syncOrderDateRange(nextOrders);
+      syncOrderDateRange(nextOrders, options.resetDateRange);
       refreshList();
     }
   } catch (error) {
@@ -323,13 +323,13 @@ async function syncOrdersFromApi() {
 }
 
 onMounted(() => {
-  syncOrderDateRange();
   refreshList();
-  void syncOrdersFromApi();
+  void syncOrdersFromApi({
+    resetDateRange: true,
+  });
 });
 
 onActivated(() => {
-  syncOrderDateRange();
   refreshList();
   void syncOrdersFromApi();
 });
@@ -364,7 +364,7 @@ function resetFilters() {
   maxPrice.value = "";
   keyword.value = "";
   activeStatus.value = "全部";
-  syncOrderDateRange();
+  syncOrderDateRange(orders.value, true);
   props.showToast("筛选条件已重置");
 }
 

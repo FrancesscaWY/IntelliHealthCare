@@ -59,7 +59,7 @@ interface ChatMessage {
 }
 
 const DEFAULT_ASSISTANT_TOPIC = "豆沙包健康咨询";
-const DEFAULT_ASSISTANT_WELCOME = "您好，我是豆沙包。";
+const DEFAULT_ASSISTANT_WELCOME = "你好，我在。你可以直接和我聊报告、健康变化，或者服务怎么选。";
 const questionGroups = [
   [
     "HPV2价、4价、9价有什么区别？",
@@ -705,7 +705,7 @@ watch(
             <canvas ref="assistantCanvasRef" class="assistant-avatar__canvas" width="56" height="56"></canvas>
           </div>
           <div class="assistant-copy">
-            <strong>您好，我是豆沙包</strong>
+            <strong>豆沙包在线</strong>
             <p v-if="voiceEntryHint" class="voice-entry-hint">{{ voiceEntryHint }}</p>
           </div>
         </div>
@@ -821,7 +821,7 @@ watch(
         >
           <Camera theme="outline" size="23" fill="currentColor" aria-hidden="true" />
         </button>
-        <input v-model="draft" type="text" placeholder="有任何健康、医学相关问题，请随时问我～" @keyup.enter="sendMessage" />
+        <input v-model="draft" type="text" placeholder="直接说说你的情况，报告、健康、服务都可以" @keyup.enter="sendMessage" />
         <button class="send-btn" :disabled="isSending" type="button" @click="sendMessage">
           {{ isSending ? "发送中" : "发送" }}
         </button>
@@ -844,14 +844,14 @@ watch(
 
 <style scoped>
 .assistant-chat-page {
-  --ihc-accent: #5b97da;
-  --ihc-accent-deep: #2f6ea9;
-  --ihc-text-primary: #22314d;
-  --ihc-text-secondary: rgba(53, 68, 96, 0.74);
-  --ihc-text-tertiary: rgba(75, 91, 120, 0.56);
-  --ihc-border-soft: rgba(212, 223, 237, 0.96);
-  --ihc-shadow-soft: 0 8px 20px rgba(78, 102, 142, 0.08);
-  --ihc-shadow-float: 0 12px 28px rgba(78, 102, 142, 0.1);
+  --ihc-accent: var(--brand);
+  --ihc-accent-deep: var(--brand-dark);
+  --ihc-text-primary: #24372e;
+  --ihc-text-secondary: rgba(56, 92, 79, 0.78);
+  --ihc-text-tertiary: rgba(81, 114, 103, 0.58);
+  --ihc-border-soft: rgba(193, 227, 220, 0.96);
+  --ihc-shadow-soft: 0 10px 24px rgba(53, 161, 152, 0.08);
+  --ihc-shadow-float: 0 14px 30px rgba(53, 161, 152, 0.12);
   position: relative;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -859,12 +859,12 @@ watch(
   justify-self: stretch;
   width: 100%;
   max-width: none;
-  height: auto;
+  height: var(--ihc-page-min-height);
   min-height: var(--ihc-page-min-height);
-  max-height: none;
+  max-height: var(--ihc-page-min-height);
   margin: 0;
   overflow: hidden;
-  background: linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
+  background: var(--bg-gradient-strong);
   color: var(--ihc-text-primary);
   font-family: var(--ihc-font-family);
   -webkit-font-smoothing: antialiased;
@@ -877,8 +877,10 @@ watch(
   justify-content: space-between;
   gap: 8px;
   padding: 12px 14px 8px;
-  background: #f5f8fc;
-  border-bottom: 1px solid rgba(213, 223, 236, 0.84);
+  background: rgba(243, 250, 248, 0.86);
+  border-bottom: 1px solid rgba(193, 227, 220, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .assistant-back,
@@ -912,16 +914,16 @@ watch(
   height: 30px;
   padding: 0;
   border-radius: 50%;
-  color: rgba(62, 80, 112, 0.92);
+  color: rgba(51, 91, 78, 0.92);
   background: #ffffff;
-  box-shadow: 0 3px 10px rgba(79, 102, 140, 0.07);
+  box-shadow: 0 4px 12px rgba(53, 161, 152, 0.12);
 }
 
 .assistant-back span {
   width: 10px;
   height: 10px;
-  border-bottom: 2.5px solid rgba(34, 49, 77, 0.6);
-  border-left: 2.5px solid rgba(34, 49, 77, 0.6);
+  border-bottom: 2.5px solid rgba(36, 55, 46, 0.62);
+  border-left: 2.5px solid rgba(36, 55, 46, 0.62);
   transform: rotate(45deg);
 }
 
@@ -939,7 +941,7 @@ watch(
   width: 22px;
   height: 22px;
   padding: 0;
-  color: rgba(62, 80, 112, 0.92);
+  color: rgba(51, 91, 78, 0.92);
   background: transparent;
   box-shadow: none;
 }
@@ -992,7 +994,7 @@ watch(
 
 .assistant-copy p {
   margin: 0;
-  color: rgba(75, 91, 120, 0.48);
+  color: rgba(76, 104, 94, 0.48);
   font-size: 10px;
   font-weight: 500;
   line-height: 1.3;
@@ -1066,8 +1068,8 @@ watch(
   height: 28px;
   padding: 0;
   border-radius: 50%;
-  background: #f8fbff;
-  color: rgba(76, 102, 138, 0.9);
+  background: rgba(236, 248, 245, 0.94);
+  color: rgba(26, 174, 186, 0.9);
   box-shadow: none;
 }
 
@@ -1082,9 +1084,9 @@ watch(
   align-items: center;
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid rgba(221, 229, 241, 0.92);
+  border: 1px solid rgba(193, 227, 220, 0.92);
   border-radius: 12px;
-  background: #fbfdff;
+  background: #fbfffe;
   box-shadow: none;
   text-align: left;
 }
@@ -1099,7 +1101,7 @@ watch(
 .question-list strong {
   display: -webkit-box;
   overflow: hidden;
-  color: #3a4860;
+  color: #355043;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
@@ -1111,8 +1113,8 @@ watch(
 .question-list i {
   width: 7px;
   height: 7px;
-  border-top: 2px solid rgba(64, 80, 111, 0.28);
-  border-right: 2px solid rgba(64, 80, 111, 0.28);
+  border-top: 2px solid rgba(56, 92, 79, 0.28);
+  border-right: 2px solid rgba(56, 92, 79, 0.28);
   transform: rotate(45deg);
 }
 
@@ -1126,8 +1128,9 @@ watch(
 
 .assistant-chat-main {
   min-height: 0;
-  padding: 8px 14px 12px;
+  padding: 8px 14px 16px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -1155,21 +1158,21 @@ watch(
   max-width: 270px;
   padding: 11px 13px;
   border-radius: 20px 20px 8px 20px;
-  background: linear-gradient(110deg, #73d1ce 0%, #84d8a9 100%);
+  background: linear-gradient(115deg, var(--brand) 0%, var(--brand-light) 100%);
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.45;
-  box-shadow: 0 8px 16px rgba(92, 173, 167, 0.14);
+  box-shadow: 0 10px 20px rgba(53, 161, 152, 0.18);
   text-wrap: pretty;
 }
 
 .message-bubble--assistant {
-  border: 1px solid rgba(221, 229, 241, 0.92);
+  border: 1px solid rgba(193, 227, 220, 0.92);
   border-radius: 20px 20px 20px 8px;
   background: #ffffff;
-  color: #364055;
-  box-shadow: 0 8px 16px rgba(77, 104, 142, 0.06);
+  color: #355043;
+  box-shadow: 0 8px 16px rgba(53, 161, 152, 0.06);
 }
 
 .message-bubble--image {
@@ -1192,14 +1195,14 @@ watch(
   align-items: center;
   min-width: 198px;
   background: #ffffff;
-  color: #364055;
+  color: #355043;
 }
 
 .voice-message-icon {
   position: relative;
   width: 22px;
   height: 22px;
-  border: 2px solid #75a7f7;
+  border: 2px solid var(--brand);
   border-radius: 50%;
 }
 
@@ -1210,7 +1213,7 @@ watch(
   width: 2px;
   height: 8px;
   border-radius: 999px;
-  background: #75a7f7;
+  background: var(--brand);
   content: "";
 }
 
@@ -1229,28 +1232,32 @@ watch(
 }
 
 .chat-message time {
-  color: rgba(90, 102, 126, 0.5);
+  color: rgba(83, 108, 98, 0.5);
   font-size: 10px;
   font-weight: 800;
 }
 
 .chat-footer {
-  position: relative;
-  padding: 10px 14px 14px;
-  background: #f5f8fc;
-  border-top: 1px solid rgba(213, 223, 236, 0.84);
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(241, 250, 247, 0.68) 0%, rgba(238, 249, 245, 0.94) 18%, rgba(238, 249, 245, 0.98) 100%);
+  border-top: 1px solid rgba(193, 227, 220, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .image-source-panel {
   position: absolute;
   right: 92px;
-  bottom: 88px;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   z-index: 2;
   display: grid;
   gap: 8px;
   width: 112px;
   padding: 12px;
-  border: 1px solid rgba(221, 229, 241, 0.92);
+  border: 1px solid rgba(193, 227, 220, 0.92);
   border-radius: 18px;
   background: #ffffff;
   box-shadow: var(--ihc-shadow-float);
@@ -1259,8 +1266,8 @@ watch(
 .image-source-panel button {
   height: 34px;
   border-radius: 12px;
-  background: #f6f9fd;
-  color: #364055;
+  background: #f4fbf9;
+  color: #355043;
   font-size: 13px;
   font-weight: 900;
 }
@@ -1278,11 +1285,11 @@ watch(
   justify-content: center;
   gap: 6px;
   height: 34px;
-  border: 1px solid rgba(221, 229, 241, 0.92);
+  border: 1px solid rgba(193, 227, 220, 0.92);
   border-radius: 14px;
   background: #ffffff;
   box-shadow: none;
-  color: #364055;
+  color: #355043;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1294,10 +1301,10 @@ watch(
   gap: 6px;
   min-height: 48px;
   padding: 5px 5px 5px 7px;
-  border: 1px solid rgba(221, 229, 241, 0.96);
+  border: 1px solid rgba(193, 227, 220, 0.96);
   border-radius: 24px;
   background: #ffffff;
-  box-shadow: 0 8px 20px rgba(78, 102, 142, 0.08);
+  box-shadow: 0 8px 20px rgba(53, 161, 152, 0.08);
 }
 
 .voice-btn {
@@ -1315,8 +1322,8 @@ watch(
 }
 
 .voice-btn.recording span {
-  border-color: #75d6df;
-  background: #75d6df;
+  border-color: var(--brand);
+  background: var(--brand);
 }
 
 .voice-btn.recording span::before,
@@ -1328,7 +1335,7 @@ watch(
   position: absolute;
   top: -14px;
   left: 50%;
-  color: #2d90f0;
+  color: var(--brand);
   font-size: 10px;
   font-style: normal;
   font-weight: 900;
@@ -1340,7 +1347,7 @@ watch(
   display: inline-block;
   width: 24px;
   height: 24px;
-  border: 2px solid #596575;
+  border: 2px solid #4c6a5f;
   border-radius: 50%;
 }
 
@@ -1351,7 +1358,7 @@ watch(
   width: 2px;
   height: 8px;
   border-radius: 999px;
-  background: #596575;
+  background: #4c6a5f;
   content: "";
 }
 
@@ -1370,11 +1377,11 @@ watch(
   height: 34px;
   padding: 0;
   border-radius: 50%;
-  color: #596575;
+  color: #4c6a5f;
 }
 
 .camera-btn.active {
-  color: #2d90f0;
+  color: var(--brand);
 }
 
 .quick-actions :deep(.i-icon),
@@ -1390,24 +1397,24 @@ watch(
   border: 0;
   outline: 0;
   background: transparent;
-  color: #2d344b;
+  color: #294036;
   font-size: 12px;
   font-weight: 600;
 }
 
 .message-bar input::placeholder {
-  color: rgba(92, 104, 126, 0.42);
+  color: rgba(87, 111, 101, 0.42);
   opacity: 1;
 }
 
 .send-btn {
   height: 36px;
   border-radius: 999px;
-  background: linear-gradient(110deg, #74d5d6 0%, #83d8a4 100%);
+  background: linear-gradient(110deg, var(--brand) 0%, var(--brand-light) 100%);
   color: #ffffff;
   font-size: 13px;
   font-weight: 700;
-  box-shadow: 0 8px 16px rgba(84, 176, 171, 0.16);
+  box-shadow: 0 10px 18px rgba(53, 161, 152, 0.18);
 }
 
 .send-btn:disabled {

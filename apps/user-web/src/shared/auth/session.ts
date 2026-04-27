@@ -11,6 +11,7 @@ export interface UserAuthSessionUser {
   type: string;
   roles: string[];
   realName: string | null;
+  realNameVerified: boolean | null;
 }
 
 export interface UserAuthSession {
@@ -78,8 +79,24 @@ function isValidSession(value: unknown): value is UserAuthSession {
     typeof session.tokenType === "string" &&
     typeof session.user?.userId === "string" &&
     typeof session.user?.phone === "string" &&
-    Array.isArray(session.user?.roles)
+    Array.isArray(session.user?.roles) &&
+    (typeof session.user?.realNameVerified === "boolean" ||
+      session.user?.realNameVerified === null ||
+      typeof session.user?.realNameVerified === "undefined")
   );
+}
+
+function normalizeUserAuthSession(session: UserAuthSession): UserAuthSession {
+  return {
+    ...session,
+    user: {
+      ...session.user,
+      realNameVerified:
+        typeof session.user.realNameVerified === "boolean"
+          ? session.user.realNameVerified
+          : null,
+    },
+  };
 }
 
 function loadUserAuthSession() {
@@ -95,7 +112,7 @@ function loadUserAuthSession() {
 
   try {
     const parsedValue = JSON.parse(rawValue);
-    return isValidSession(parsedValue) ? parsedValue : null;
+    return isValidSession(parsedValue) ? normalizeUserAuthSession(parsedValue) : null;
   } catch {
     if (canUseStorage()) {
       window.localStorage.removeItem(USER_AUTH_STORAGE_KEY);
@@ -129,15 +146,32 @@ export function getUserAuthorizationValue() {
 }
 
 export function saveUserAuthSession(session: UserAuthSession) {
-  currentUserAuthSession.value = session;
+  const normalizedSession = normalizeUserAuthSession(session);
+  currentUserAuthSession.value = normalizedSession;
 
   if (!canUseStorage()) {
-    writeCookie(USER_AUTH_COOKIE_KEY, JSON.stringify(session));
+    writeCookie(USER_AUTH_COOKIE_KEY, JSON.stringify(normalizedSession));
     return;
   }
 
-  window.localStorage.setItem(USER_AUTH_STORAGE_KEY, JSON.stringify(session));
-  writeCookie(USER_AUTH_COOKIE_KEY, JSON.stringify(session));
+  window.localStorage.setItem(USER_AUTH_STORAGE_KEY, JSON.stringify(normalizedSession));
+  writeCookie(USER_AUTH_COOKIE_KEY, JSON.stringify(normalizedSession));
+}
+
+export function updateUserAuthSessionRealNameVerified(realNameVerified: boolean) {
+  const currentSession = currentUserAuthSession.value;
+
+  if (!currentSession) {
+    return;
+  }
+
+  saveUserAuthSession({
+    ...currentSession,
+    user: {
+      ...currentSession.user,
+      realNameVerified,
+    },
+  });
 }
 
 export function clearUserAuthSession() {

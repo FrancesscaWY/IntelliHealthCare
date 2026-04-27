@@ -1136,7 +1136,7 @@ export class AgentOrchestratorService {
       agentName: definition.name,
       modelTier: "light",
       systemPrompt:
-        "你是 IntelliHealthCare 用户端的康养助手“豆沙包”。只能输出 JSON。回复要自然、简短、亲切，不要机械回显用户问题，不要说“已收到你的问题”这类模板话术。对问候、感谢、闲聊、笑话、自我介绍可以直接自然回答；涉及医学结论时保持谨慎，不伪造诊断。",
+        "你是 IntelliHealthCare 用户端的康养助手“豆沙包”。只能输出 JSON。回复要自然、简短、亲切，不要机械回显用户问题，不要说“已收到你的问题”这类模板话术，不要重复自我介绍，也不要把多段固定模板直接拼接在一起。对问候、感谢、闲聊、笑话、自我介绍可以直接自然回答；涉及医学结论时保持谨慎，不伪造诊断。",
       userPrompt: JSON.stringify(
         {
           userMessage: input.userMessage,
@@ -3165,15 +3165,15 @@ export class AgentOrchestratorService {
     const lines = [segments.join(" ")];
 
     if (recommendationTitles.length > 0) {
-      lines.push(`可优先关注：${recommendationTitles.join("、")}。`);
+      lines.push(`如果你想先看具体项目，可以先从 ${recommendationTitles.join("、")} 看起。`);
     }
 
     if (highlights.length > 0) {
-      lines.push(`当前重点：${highlights.join("；")}。`);
+      lines.push(`我先帮你抓到的重点有：${highlights.join("；")}。`);
     }
 
     if (followUpActions.length > 0) {
-      lines.push(`建议下一步：${followUpActions.join("；")}。`);
+      lines.push(`接下来可以考虑：${followUpActions.join("；")}。`);
     }
 
     return lines.filter(Boolean).join(" ").trim();
@@ -3195,7 +3195,7 @@ export class AgentOrchestratorService {
       return null;
     }
 
-    return `如果继续帮你推进，可以再补充：${missingFields.join("、")}。`;
+    return `如果继续帮你往下看，还可以再补充：${missingFields.join("、")}。`;
   }
 
   private buildAssistantPendingTaskHint(input: AssistantConversationInput) {
@@ -3220,8 +3220,9 @@ export class AgentOrchestratorService {
 
   private buildAssistantHelperReply(input: AssistantConversationInput) {
     const userMessage = input.userMessage.trim();
+    const rawContextHint = this.buildAssistantContextHint(input);
     const contextHint = this.shouldUseAssistantContextHint(userMessage)
-      ? this.buildAssistantContextHint(input)
+      ? rawContextHint
       : "";
     const capabilitySummary = this.buildAssistantCapabilitySummary(input);
 
@@ -3235,32 +3236,32 @@ export class AgentOrchestratorService {
     }
 
     if (this.isAssistantIdentityQuestion(userMessage)) {
-      return [
-        "我是豆沙包。平时可以陪你聊天，也擅长养老照护、慢病管理、报告解读和服务选择这类问题。",
-        contextHint || capabilitySummary
-      ]
-        .filter(Boolean)
-        .join(" ");
+      return this.joinAssistantReplySegments(
+        "我是豆沙包，一个陪你看健康、报告和照护服务的康养助手。",
+        rawContextHint || capabilitySummary
+      );
     }
 
     if (this.isAssistantGreeting(userMessage)) {
-      return contextHint
-        ? `你好，我在。${contextHint}`
-        : `你好，我在。${capabilitySummary}`;
+      return this.joinAssistantReplySegments(
+        "你好，我在。",
+        contextHint || "你可以直接告诉我，想聊报告、健康情况，还是服务安排。"
+      );
     }
 
     if (this.isAssistantCapabilityQuestion(userMessage)) {
-      return `${capabilitySummary}${contextHint ? ` ${contextHint}` : ""}`.trim();
+      return this.joinAssistantReplySegments(capabilitySummary, contextHint);
     }
 
     if (this.isAssistantThanks(userMessage)) {
-      return contextHint
-        ? `不客气。${contextHint}`
-        : "不客气。我可以继续帮你解读报告、梳理近期健康情况，或筛选合适的上门服务。";
+      return this.joinAssistantReplySegments(
+        "不客气。",
+        contextHint || "如果你愿意，我们可以继续把报告、健康重点或服务安排往下聊。"
+      );
     }
 
     if (this.isAssistantCompanionSmallTalk(userMessage)) {
-      return "那我陪你聊会儿。你想轻松随便聊，还是想问个健康、照护、体检、服务相关的问题？";
+      return "可以，我陪你聊会儿。想轻松说说话也行，想认真看看健康、照护、体检或服务问题也行。";
     }
 
     if (this.isAssistantJokeRequest(userMessage)) {
@@ -3268,14 +3269,14 @@ export class AgentOrchestratorService {
     }
 
     if (this.isAssistantComfortRequest(userMessage)) {
-      return "辛苦了，先别急，我们一件件来。你可以直接告诉我现在最困扰你的是报告、症状，还是服务安排，我帮你先拆开看。";
+      return "辛苦了，先缓一口气。你把现在最困扰你的事告诉我，我陪你一件件拆开看。";
     }
 
     if (this.isAssistantFarewell(userMessage)) {
       return "好，先这样。你随时叫我，我都在。";
     }
 
-    return `${this.pickAssistantHint(userMessage)}${contextHint ? ` ${contextHint}` : ""}`.trim();
+    return this.joinAssistantReplySegments(this.pickAssistantHint(userMessage), contextHint);
   }
 
   private buildAssistantGenericFollowUpQuestion(input: AssistantConversationInput) {
@@ -3304,40 +3305,35 @@ export class AgentOrchestratorService {
   }
 
   private buildAssistantCapabilitySummary(input: AssistantConversationInput) {
-    const capabilities = [
-      "解读体检或康复报告",
-      "整理近期健康指标和风险重点",
-      "推荐上门服务并给出预约建议"
-    ];
     const routeText = `${input.pageContext?.route ?? ""} ${input.pageContext?.pageId ?? ""}`;
 
     if (/health|metric|diet|report/i.test(routeText)) {
-      return `我是豆沙包，可以像一位康养顾问一样陪你聊，也能帮你${capabilities[0]}，并结合当前页面继续${capabilities[1]}。`;
+      return "我能结合当前页面帮你看报告，也能把近期指标变化和需要留意的风险重点梳理清楚。";
     }
 
     if (/service|order/i.test(routeText)) {
-      return `我是豆沙包，可以陪你把需求聊清楚，再帮你${capabilities[2]}，也能结合报告和健康情况一起判断服务是否合适。`;
+      return "我能先陪你把需求聊清楚，再一起筛服务、看适不适合，也能补上预约前要准备的信息。";
     }
 
-    return `我是豆沙包，平时可以陪你聊天答疑，也可以帮你${capabilities.join("，")}。`;
+    return "我可以陪你聊日常，也能帮你解读报告、整理健康重点、挑选更合适的康养服务。";
   }
 
   private buildAssistantContextHint(input: AssistantConversationInput) {
     const selectedReportTitle = input.contextSnapshot?.latestReportTitle;
 
     if (selectedReportTitle) {
-      return `我看到你当前关联了《${selectedReportTitle}》，可以直接继续做解读、提炼重点和后续建议。`;
+      return `你现在关联着《${selectedReportTitle}》，想继续的话可以直接围绕这份报告往下问。`;
     }
 
     switch (input.contextSnapshot?.preferredServiceCategory) {
       case ServiceCategory.REHAB_THERAPY:
-        return "如果你现在在看康复理疗服务，我可以继续帮你比较项目、筛选对象，并补充预约建议。";
+        return "你现在在看康复理疗，我可以直接帮你比较项目、适用人群和预约前要问的问题。";
       case ServiceCategory.HOME_EXAM:
-        return "如果你现在在看上门体检，我可以继续帮你筛选项目，并结合慢病情况整理准备事项。";
+        return "你现在在看上门体检，我可以继续帮你筛项目，并把体检前要准备的事一起列出来。";
       case ServiceCategory.ELDERLY_CARE:
-        return "如果你现在在看养老机构，我可以继续帮你比对照护需求、入住条件和服务侧重点。";
+        return "你现在在看养老机构，我可以继续帮你对照照护需求、入住条件和服务侧重点。";
       case ServiceCategory.HOME_CARE:
-        return "如果你现在在看家政护理，我可以继续帮你筛选服务、梳理需求，并生成预约草稿。";
+        return "你现在在看家政护理，我可以继续帮你梳理需求、筛服务，或者顺手生成预约草稿。";
       default:
         return "";
     }
@@ -3661,18 +3657,26 @@ export class AgentOrchestratorService {
 
   private pickAssistantHint(userMessage: string) {
     if (/报告|体检|检查/.test(userMessage)) {
-      return "这更像报告解读场景，我可以先帮你提炼关键结论，再整理后续建议。";
+      return "把报告里的结论、指标或你看不懂的地方发我，我先帮你抓重点。";
     }
 
     if (/服务|上门|预约|护理/.test(userMessage)) {
-      return "这更像服务协同场景，我可以先给你筛服务，再补预约建议。";
+      return "你把想解决的问题告诉我，我先帮你缩小服务范围，再看怎么约更合适。";
     }
 
     if (/风险|异常|预警/.test(userMessage)) {
-      return "这更像风险提醒场景，我可以先帮你归纳风险重点，再看是否需要继续跟进。";
+      return "你先把异常或预警说给我，我帮你分清现在最该留意哪一项。";
     }
 
-    return "你直接把问题告诉我就行，我会结合当前页面和已有上下文接着帮你看。";
+    return "你直接把情况告诉我就行，我会结合当前页面和已有信息一起看。";
+  }
+
+  private joinAssistantReplySegments(...segments: Array<string | null | undefined>) {
+    return segments
+      .map((segment) => (typeof segment === "string" ? segment.trim() : ""))
+      .filter(Boolean)
+      .join(" ")
+      .trim();
   }
 
   private isAssistantGreeting(userMessage: string) {

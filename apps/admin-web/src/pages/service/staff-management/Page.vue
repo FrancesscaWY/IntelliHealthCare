@@ -31,17 +31,17 @@ const filteredRows = computed(() =>
   }),
 );
 
-function syncJoinDateRange() {
-  if (joinStart.value && joinEnd.value) {
+function syncJoinDateRange(nextRows = mock.value.rows, force = false) {
+  if (!force && joinStart.value && joinEnd.value) {
     return;
   }
 
-  const range = deriveDateRange(mock.value.rows.map((row) => row.joinTime));
-  joinStart.value = joinStart.value || range.start;
-  joinEnd.value = joinEnd.value || range.end;
+  const range = deriveDateRange(nextRows.map((row) => row.joinTime));
+  joinStart.value = range.start;
+  joinEnd.value = range.end;
 }
 
-async function syncPageData() {
+async function syncPageData(options: { resetDateRange?: boolean } = {}) {
   try {
     mock.value = (await getAdminStaffs({
       page: 1,
@@ -58,7 +58,7 @@ async function syncPageData() {
       selectedTag.value = mock.value.tagOptions[0];
     }
 
-    syncJoinDateRange();
+    syncJoinDateRange(mock.value.rows, options.resetDateRange);
   } catch (error) {
     handleAdminPageError(error, {
       navigation: props.navigation,
@@ -79,8 +79,9 @@ function resetFilters() {
   joinStart.value = "";
   joinEnd.value = "";
   keyword.value = "";
-  syncJoinDateRange();
-  void syncPageData();
+  void syncPageData({
+    resetDateRange: true,
+  });
   props.showToast("筛选条件已重置");
 }
 
@@ -116,8 +117,9 @@ async function toggleEnabled(id: string) {
 }
 
 onMounted(() => {
-  syncJoinDateRange();
-  void syncPageData();
+  void syncPageData({
+    resetDateRange: true,
+  });
 });
 </script>
 

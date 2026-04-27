@@ -1,5 +1,6 @@
 import defaultAvatar from "@/assets/home/profile/avatar.jpg";
 import { getCurrentUser, getCurrentUserProfile } from "@/shared/api/auth";
+import { updateUserAuthSessionRealNameVerified } from "@/shared/auth/session";
 
 export interface UserProfileState {
   avatarUrl: string;
@@ -88,6 +89,7 @@ function isInvalidNickname(value: string | null | undefined) {
 export async function syncUserProfileStateFromApi() {
   const [currentUser, currentProfile] = await Promise.all([getCurrentUser(), getCurrentUserProfile()]);
   const currentState = loadUserProfileState();
+  updateUserAuthSessionRealNameVerified(currentUser.realNameVerified);
   const resolvedNickname = !isInvalidNickname(currentProfile.nickname)
     ? (currentProfile.nickname || "")
     : currentUser.name || currentState.nickname || defaultState.nickname;

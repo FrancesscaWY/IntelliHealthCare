@@ -12,7 +12,7 @@ import {
 import type { LoginResponse } from "@/shared/api/auth";
 import { ApiClientError } from "@/shared/api/client";
 import { resolvePostLoginPageId } from "@/shared/auth/navigation";
-import { saveUserAuthSession } from "@/shared/auth/session";
+import { getUserAuthSession, saveUserAuthSession } from "@/shared/auth/session";
 import { syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
@@ -86,13 +86,19 @@ function createDeviceId(prefix: string) {
   return `${prefix}-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
 }
 
-async function redirectAfterLogin(session: LoginResponse) {
-  props.navigation.reLaunch(resolvePostLoginPageId(Boolean(session.user.realName)));
-}
-
 function storeSession(session: LoginResponse) {
   saveUserAuthSession(session);
   setLastLoginPhone(session.user.phone);
+}
+
+function resolvePostLoginTargetPageId(session: LoginResponse) {
+  const syncedRealNameVerified = getUserAuthSession()?.user.realNameVerified;
+  const realNameVerified =
+    typeof syncedRealNameVerified === "boolean"
+      ? syncedRealNameVerified
+      : session.user.realNameVerified === true;
+
+  return resolvePostLoginPageId(realNameVerified);
 }
 
 function getErrorMessage(error: unknown) {
@@ -114,7 +120,8 @@ function createDemoSession(phone: string): LoginResponse {
       phone,
       type: "ELDERLY",
       roles: ["USER"],
-      realName: null
+      realName: null,
+      realNameVerified: false
     }
   };
 }
@@ -215,7 +222,7 @@ async function submitForm() {
     storeSession(session);
     await trySyncProfile();
     props.showToast("登录成功");
-    await redirectAfterLogin(session);
+    props.navigation.reLaunch(resolvePostLoginTargetPageId(session));
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -243,7 +250,7 @@ async function handleThirdPartyLogin(provider: string, label: string) {
     storeSession(session);
     await trySyncProfile();
     props.showToast(`${label}登录成功`);
-    await redirectAfterLogin(session);
+    props.navigation.reLaunch(resolvePostLoginTargetPageId(session));
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -468,8 +475,8 @@ onBeforeUnmount(() => {
   width: 48px;
   height: 48px;
   border-radius: 15px;
-  background: linear-gradient(180deg, #7280ff 0%, #f07b82 100%);
-  box-shadow: 0 18px 36px rgba(108, 117, 235, 0.16);
+  background: linear-gradient(180deg, #8391ff 0%, #6965f0 100%);
+  box-shadow: 0 18px 36px rgba(96, 103, 228, 0.22);
 }
 
 .brand-heart {

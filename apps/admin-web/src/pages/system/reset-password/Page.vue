@@ -75,13 +75,16 @@ async function submitForm() {
 
 <style scoped>
 .reset-page {
+  min-height: 100%;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .reset-panel {
-  min-height: 920px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 100%;
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 6px 20px rgba(59, 103, 82, 0.05);
@@ -112,9 +115,12 @@ async function submitForm() {
 
 .reset-form {
   display: grid;
+  align-content: start;
   gap: 30px;
   width: min(720px, 100%);
-  margin: 112px auto 0;
+  padding: clamp(40px, 8vh, 112px) 28px 48px;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 
 .form-row {
@@ -158,8 +164,7 @@ async function submitForm() {
 }
 
 .reset-footer {
-  margin-top: 360px;
-  padding: 30px 28px 60px;
+  padding: 24px 28px 40px;
   border-top: 1px solid #eef2ef;
 }
 
@@ -178,8 +183,7 @@ async function submitForm() {
 @media (max-width: 980px) {
   .reset-form {
     width: 100%;
-    margin-top: 48px;
-    padding: 0 16px;
+    padding: 40px 16px 32px;
   }
 
   .form-row {
@@ -192,7 +196,6 @@ async function submitForm() {
   }
 
   .reset-footer {
-    margin-top: 120px;
     padding: 24px 16px 32px;
   }
 }

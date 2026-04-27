@@ -79,11 +79,16 @@ export interface AiServiceRecommendationState {
 export interface AiReportAnalysisState {
   reportId: string;
   reportTitle: string;
+  keywords: string[];
   summaryLines: string[];
   highlights: string[];
   interpretation: string;
+  evaluationSummary: string;
+  evaluationPoints: string[];
   riskSignals: string[];
+  riskReminderItems: string[];
   followUpSuggestions: string[];
+  followUpItems: string[];
   latestRiskAlert: AiRiskAlertDetail | null;
   fetchedAt: string;
   errorMessage: string;

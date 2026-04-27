@@ -33,23 +33,6 @@ const resolvedComponent = computed(() => {
   return activeComponent.value;
 });
 
-const loadingHeadline = computed(() => `${pageEntry.value?.title || "页面"} 加载中`);
-const loadingDescription = computed(() => {
-  return loadingProgress.value < 82 ? "请稍候" : "马上完成";
-});
-
-const loadingStageLabel = computed(() => {
-  if (loadingProgress.value < 30) {
-    return "载入中";
-  }
-
-  if (loadingProgress.value < 68) {
-    return "准备中";
-  }
-
-  return "即将完成";
-});
-
 function stopLoadingProgress(finalValue = loadingProgress.value) {
   if (loadingFrame !== null) {
     window.cancelAnimationFrame(loadingFrame);
@@ -174,9 +157,7 @@ const pageProps = computed(() => {
         <span class="page-loader__signal-core"></span>
       </div>
 
-      <p class="page-loader__eyebrow">LOADING</p>
-      <strong>{{ loadingHeadline }}</strong>
-      <p>{{ loadingDescription }}</p>
+      <strong>加载中</strong>
 
       <div
         class="page-loader__progress"
@@ -184,20 +165,9 @@ const pageProps = computed(() => {
         :aria-valuenow="loadingProgress"
         aria-valuemin="0"
         aria-valuemax="100"
-        :aria-valuetext="`${loadingStageLabel} ${loadingProgress}%`"
+        :aria-valuetext="`加载中 ${loadingProgress}%`"
       >
         <span class="page-loader__progress-fill" :style="{ width: `${loadingProgress}%` }"></span>
-      </div>
-
-      <div class="page-loader__meta">
-        <span>{{ loadingStageLabel }}</span>
-        <strong class="page-loader__percent">{{ loadingProgress }}%</strong>
-      </div>
-
-      <div class="page-loader__steps" aria-hidden="true">
-        <span :class="{ 'is-active': loadingProgress >= 14 }">载入</span>
-        <span :class="{ 'is-active': loadingProgress >= 46 }">准备</span>
-        <span :class="{ 'is-active': loadingProgress >= 78 }">完成</span>
       </div>
     </div>
   </section>
@@ -222,14 +192,14 @@ const pageProps = computed(() => {
 .page-loader__panel {
   position: relative;
   width: min(100%, 332px);
-  padding: 28px 24px 24px;
+  padding: 28px 24px 30px;
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 28px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(246, 251, 255, 0.98) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(244, 251, 249, 0.98) 100%);
   box-shadow:
-    0 24px 56px rgba(46, 90, 132, 0.12),
+    0 24px 56px rgba(44, 124, 118, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
@@ -266,7 +236,7 @@ const pageProps = computed(() => {
 .page-loader__signal-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(92, 170, 212, 0.16);
+  border: 1px solid rgba(82, 179, 170, 0.2);
   animation: page-loader-pulse 2s ease-in-out infinite;
 }
 
@@ -285,22 +255,11 @@ const pageProps = computed(() => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #75d6df 0%, #7be28e 100%);
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
   box-shadow:
-    0 0 0 10px rgba(117, 214, 223, 0.12),
-    0 14px 28px rgba(64, 152, 164, 0.26);
+    0 0 0 10px rgba(117, 214, 223, 0.14),
+    0 14px 28px rgba(53, 161, 152, 0.22);
   animation: page-loader-core 1.9s ease-in-out infinite;
-}
-
-.page-loader__eyebrow {
-  position: relative;
-  z-index: 1;
-  margin: 0 0 10px;
-  color: #57a6ba;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.22em;
-  text-align: center;
 }
 
 .page-loader strong,
@@ -312,11 +271,6 @@ const pageProps = computed(() => {
   text-align: center;
 }
 
-.page-error strong {
-  font-size: 18px;
-}
-
-.page-loader p,
 .page-error p {
   position: relative;
   z-index: 1;
@@ -326,9 +280,12 @@ const pageProps = computed(() => {
   text-align: center;
 }
 
-.page-loader p {
-  margin-bottom: 18px;
-  font-size: 14px;
+.page-loader strong {
+  margin-bottom: 16px;
+}
+
+.page-error strong {
+  font-size: 18px;
 }
 
 .page-loader__progress {
@@ -338,8 +295,8 @@ const pageProps = computed(() => {
   height: 12px;
   overflow: hidden;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(117, 214, 223, 0.12) 0%, rgba(123, 226, 142, 0.18) 100%);
-  box-shadow: inset 0 1px 3px rgba(69, 101, 129, 0.08);
+  background: linear-gradient(180deg, rgba(117, 214, 223, 0.14) 0%, rgba(123, 226, 142, 0.18) 100%);
+  box-shadow: inset 0 1px 3px rgba(47, 145, 138, 0.08);
 }
 
 .page-loader__progress-fill {
@@ -347,8 +304,8 @@ const pageProps = computed(() => {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #75d6df 0%, #68b8f3 48%, #7be28e 100%);
-  box-shadow: 0 8px 18px rgba(91, 178, 210, 0.24);
+  background: linear-gradient(90deg, var(--brand) 0%, #69d9cb 48%, var(--brand-light) 100%);
+  box-shadow: 0 8px 18px rgba(53, 161, 152, 0.22);
   transition: width 180ms ease;
 }
 
@@ -361,62 +318,13 @@ const pageProps = computed(() => {
   animation: page-loader-sheen 1.6s ease-in-out infinite;
 }
 
-.page-loader__meta {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 12px;
-  color: #5f728c;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.page-loader__percent {
-  color: #2f9eb4;
-  font-size: 14px;
-}
-
-.page-loader__steps {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.page-loader__steps span {
-  display: grid;
-  place-items: center;
-  min-height: 34px;
-  border-radius: 12px;
-  background: rgba(239, 245, 253, 0.9);
-  color: #9aa9bc;
-  font-size: 12px;
-  font-weight: 900;
-  transition:
-    background 180ms ease,
-    color 180ms ease,
-    transform 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.page-loader__steps span.is-active {
-  background: rgba(117, 214, 223, 0.16);
-  color: #2d92a9;
-  box-shadow: inset 0 0 0 1px rgba(117, 214, 223, 0.16);
-  transform: translateY(-1px);
-}
-
 .page-error {
   display: grid;
   gap: 8px;
   padding: 24px 20px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
+  box-shadow: 0 18px 42px rgba(44, 124, 118, 0.1);
 }
 
 @keyframes page-loader-pulse {
@@ -454,11 +362,6 @@ const pageProps = computed(() => {
   .page-loader__signal-core,
   .page-loader__progress-fill::after {
     animation: none;
-  }
-
-  .page-loader__progress-fill,
-  .page-loader__steps span {
-    transition: none;
   }
 }
 </style>

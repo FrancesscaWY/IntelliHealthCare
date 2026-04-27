@@ -165,6 +165,7 @@ const child =
         },
       })
     : spawn("npm", extraArgs, {
+        detached: true,
         stdio: "inherit",
         env: {
           ...process.env,
@@ -184,6 +185,23 @@ async function openPublicTunnel() {
 
 void openPublicTunnel();
 
+function terminateChild(signal = "SIGTERM") {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Fall back to terminating only the direct child.
+    }
+  }
+
+  child.kill(signal);
+}
+
 child.on("exit", (code) => {
   process.exit(code ?? 0);
 });
@@ -195,6 +213,6 @@ child.on("error", (error) => {
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
-    child.kill(signal);
+    terminateChild(signal);
   });
 }

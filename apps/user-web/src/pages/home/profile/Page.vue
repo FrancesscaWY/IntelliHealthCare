@@ -211,7 +211,7 @@ function imageStyle(src: string, position = "center") {
   gap: 10px;
   margin: -18px;
   padding-bottom: 18px;
-  background: linear-gradient(180deg, #ece6dc 0%, #f7f4ef 30%, #faf9f7 100%);
+  background: var(--bg-gradient-strong);
   color: #332a22;
 }
 

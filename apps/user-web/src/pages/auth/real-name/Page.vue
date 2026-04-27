@@ -6,6 +6,7 @@ import {
   DEFAULT_AUTHENTICATED_PAGE_ID,
   resolvePostLoginPageId
 } from "@/shared/auth/navigation";
+import { updateUserAuthSessionRealNameVerified } from "@/shared/auth/session";
 import mock from "./mock";
 import { lastLoginPhone } from "../session";
 
@@ -111,7 +112,7 @@ async function saveProfile() {
 
   try {
     form.saving = true;
-    await submitRealName({
+    const realNameSubmission = await submitRealName({
       realName: form.realName.trim(),
       idCard: form.idCard.trim()
     });
@@ -119,8 +120,16 @@ async function saveProfile() {
       gender: mapGenderToApi(form.gender),
       birthday: form.birthday
     });
-    props.showToast("实名认证已提交");
-    props.navigation.reLaunch(resolvePostLoginPageId(true));
+    const realNameVerified = realNameSubmission.realNameStatus === "VERIFIED";
+    updateUserAuthSessionRealNameVerified(realNameVerified);
+
+    if (realNameVerified) {
+      props.showToast("实名认证已完成");
+      props.navigation.reLaunch(resolvePostLoginPageId(true));
+      return;
+    }
+
+    props.showToast("实名认证资料已提交，待审核，可先点击右上角跳过进入首页");
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -131,6 +140,13 @@ async function saveProfile() {
 onMounted(async () => {
   try {
     const currentUser = await getCurrentUser();
+    updateUserAuthSessionRealNameVerified(currentUser.realNameVerified);
+
+    if (currentUser.realNameVerified) {
+      props.navigation.reLaunch(resolvePostLoginPageId(true));
+      return;
+    }
+
     profilePhone.value = currentUser.phone;
     form.gender = mapGenderFromApi(currentUser.gender);
     form.birthday = currentUser.birthday || "";
@@ -164,13 +180,13 @@ onMounted(async () => {
           <defs>
             <linearGradient id="shieldBody" x1="22" y1="18" x2="106" y2="112" gradientUnits="userSpaceOnUse">
               <stop offset="0" stop-color="#e5ecff" />
-              <stop offset="0.5" stop-color="#6f8dff" />
-              <stop offset="1" stop-color="#8c6cf5" />
+              <stop offset="0.5" stop-color="#75d6df" />
+              <stop offset="1" stop-color="#7be28e" />
             </linearGradient>
             <linearGradient id="shieldFace" x1="33" y1="23" x2="98" y2="105" gradientUnits="userSpaceOnUse">
               <stop offset="0" stop-color="#f7fbff" stop-opacity="0.72" />
-              <stop offset="0.52" stop-color="#7692ff" stop-opacity="0.72" />
-              <stop offset="1" stop-color="#8a72fb" stop-opacity="0.78" />
+              <stop offset="0.52" stop-color="#7ddfd4" stop-opacity="0.72" />
+              <stop offset="1" stop-color="#87e7b0" stop-opacity="0.78" />
             </linearGradient>
             <linearGradient id="shieldCheck" x1="43" y1="64" x2="87" y2="64" gradientUnits="userSpaceOnUse">
               <stop offset="0" stop-color="#ecfbff" />
@@ -274,7 +290,9 @@ onMounted(async () => {
   transform: translateX(-50%);
   overflow: hidden;
   background:
-    linear-gradient(180deg, #4f6ff5 0, #6287ff 118px, #83b8ff 248px, #f6f7fb 328px, #f6f7fb 100%);
+    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #4dbfbe 0, #6fd2c6 118px, #a6ead8 248px, #f6fbfa 328px, #f6fbfa 100%);
   color: #333333;
   font-family: var(--ihc-font-family);
 }
@@ -340,7 +358,7 @@ onMounted(async () => {
   place-items: center;
   width: 168px;
   height: 168px;
-  filter: drop-shadow(0 24px 24px rgba(40, 72, 164, 0.24));
+  filter: drop-shadow(0 24px 24px rgba(34, 128, 120, 0.22));
   transform: translate(-18px, 0) rotate(-8deg);
 }
 
@@ -366,7 +384,7 @@ onMounted(async () => {
 }
 
 .shield-split {
-  fill: rgba(68, 82, 223, 0.16);
+  fill: rgba(39, 153, 141, 0.16);
 }
 
 .shield-check {
@@ -375,7 +393,7 @@ onMounted(async () => {
   stroke-width: 12;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 5px 5px rgba(65, 86, 188, 0.28));
+  filter: drop-shadow(0 5px 5px rgba(39, 153, 141, 0.2));
 }
 
 .verify-hero h2 {
@@ -485,8 +503,8 @@ onMounted(async () => {
   height: 50px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #9b73ff 0%, #5269f8 100%);
-  box-shadow: 0 14px 30px rgba(93, 105, 248, 0.22);
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-light) 100%);
+  box-shadow: 0 14px 30px rgba(41, 169, 162, 0.2);
   color: #ffffff;
   font-size: 17px;
   font-weight: 500;
@@ -551,7 +569,7 @@ onMounted(async () => {
 .picker-header span {
   border: 0;
   background: transparent;
-  color: #6670f0;
+  color: var(--brand-dark);
   font-size: 18px;
 }
 
@@ -581,7 +599,7 @@ onMounted(async () => {
 }
 
 .gender-option--active {
-  color: #6670f0 !important;
+  color: var(--brand-dark) !important;
   font-weight: 600;
 }
 

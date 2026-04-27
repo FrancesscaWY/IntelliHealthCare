@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { logout as logoutRequest } from "@/shared/api/auth";
+import { clearPostLoginPageId } from "@/shared/auth/navigation";
 import { clearUserAuthSession } from "@/shared/auth/session";
 import mock, { type SettingItem } from "./mock";
 
@@ -31,6 +32,7 @@ async function logout() {
     // 即使后端退出接口失败，也要清理本地登录态。
   } finally {
     clearUserAuthSession();
+    clearPostLoginPageId();
     props.showToast("已退出账号");
     props.navigation.reLaunch("auth/login");
   }
@@ -76,7 +78,7 @@ async function logout() {
   width: min(390px, 100vw);
   min-height: var(--ihc-page-min-height);
   margin: -18px 0;
-  background: #f5f6f7;
+  background: var(--bg-gradient-strong);
   color: #253126;
   font-family: "HarmonyOS Sans SC", "MiSans", var(--ihc-font-family);
   transform: translateX(-50%);
@@ -89,7 +91,7 @@ async function logout() {
   padding: 14px 16px;
   overflow: hidden;
   border-radius: 0 0 28px 28px;
-  background: linear-gradient(180deg, #eef1f3 0%, #e7ebef 100%);
+  background: linear-gradient(180deg, rgba(117, 214, 223, 0.18) 0%, rgba(123, 226, 142, 0.14) 100%);
   color: #2e342f;
 }
 
@@ -186,7 +188,7 @@ async function logout() {
   bottom: 0;
   left: 0;
   padding: 16px 14px 18px;
-  background: linear-gradient(180deg, rgba(245, 246, 247, 0) 0%, #f5f6f7 34%);
+  background: linear-gradient(180deg, rgba(238, 248, 244, 0) 0%, rgba(238, 248, 244, 0.96) 34%);
 }
 
 .logout-btn {

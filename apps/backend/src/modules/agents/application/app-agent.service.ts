@@ -55,7 +55,7 @@ interface ResolvedAssistantUserMessage {
 const DEFAULT_ASSISTANT_NAME = "豆沙包";
 const DEFAULT_ASSISTANT_TOPIC = "豆沙包健康咨询";
 const DEFAULT_ASSISTANT_WELCOME_MESSAGE =
-  "您好，我是豆沙包。我可以帮您解读报告、梳理健康重点，也能一起挑选合适的服务。";
+  "你好，我在。你可以直接和我聊报告、健康变化，或者服务怎么选。";
 
 @Injectable()
 export class AppAgentService {
@@ -417,23 +417,30 @@ export class AppAgentService {
         includeLatestMetrics: true
       }
     });
+    const interpretation =
+      this.toNullableString(task.output.conclusion) ??
+      this.toNullableString(task.output.healthSummary) ??
+      "";
+    const highlights = this.pickFirstNonEmptyStringArray(
+      task.output.reportHighlights,
+      task.output.keyFindings
+    );
+    const riskSignals = this.ensureStringArray(task.output.riskSignals);
+    const followUpSuggestions = this.pickFirstNonEmptyStringArray(
+      task.output.followUpActions,
+      task.output.followUpSuggestions
+    );
 
     return {
       taskId: task.taskId,
       reportId,
-      interpretation:
-        this.toNullableString(task.output.conclusion) ??
-        this.toNullableString(task.output.healthSummary) ??
-        "",
-      highlights: this.pickFirstNonEmptyStringArray(
-        task.output.reportHighlights,
-        task.output.keyFindings
-      ),
-      riskSignals: this.ensureStringArray(task.output.riskSignals),
-      followUpSuggestions: this.pickFirstNonEmptyStringArray(
-        task.output.followUpActions,
-        task.output.followUpSuggestions
-      ),
+      interpretation,
+      highlights,
+      keywords: this.buildReportKeywords(highlights, riskSignals, followUpSuggestions, [
+        interpretation
+      ]),
+      riskSignals,
+      followUpSuggestions,
       humanReviewRequired: Boolean(
         task.output.requiresHumanReview ?? task.output.humanReviewRequired
       ),
@@ -1108,6 +1115,50 @@ export class AppAgentService {
       return primaryRows;
     }
     return this.ensureStringArray(fallback);
+  }
+
+  private buildReportKeywords(...groups: string[][]) {
+    const keywords: string[] = [];
+
+    for (const value of groups.flat()) {
+      for (const candidate of this.splitKeywordCandidates(value)) {
+        if (keywords.includes(candidate)) {
+          continue;
+        }
+
+        keywords.push(candidate);
+
+        if (keywords.length >= 4) {
+          return keywords;
+        }
+      }
+    }
+
+    return keywords;
+  }
+
+  private splitKeywordCandidates(value: string) {
+    const normalized = this.normalizeKeywordText(value);
+
+    if (!normalized) {
+      return [];
+    }
+
+    const segments = normalized
+      .split(/[；;、，,]/u)
+      .map((item) => this.normalizeKeywordText(item))
+      .filter(Boolean);
+    const nextSegments = segments.length > 1 ? segments : [normalized];
+
+    return nextSegments.filter((item) => item.length >= 2 && item.length <= 18);
+  }
+
+  private normalizeKeywordText(value: string) {
+    return value
+      .replace(/^(内容评估|风险提醒|后续建议|建议|提示|摘要|结论|分析|重点)[：:]\s*/u, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[。；;、，,]+$/u, "");
   }
 
   private toNullableString(value: unknown) {

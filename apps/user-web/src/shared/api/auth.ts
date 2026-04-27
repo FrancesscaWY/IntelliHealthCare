@@ -28,6 +28,7 @@ export interface LoginResponse {
     type: string;
     roles: string[];
     realName: string | null;
+    realNameVerified: boolean;
   };
 }
 
@@ -52,6 +53,12 @@ export interface CurrentUserProfileResponse {
   city: string | null;
   gender: string | null;
   birthday: string | null;
+  realNameStatus: string | null;
+}
+
+export interface SubmitRealNameResponse {
+  userId: string;
+  realName: string | null;
   realNameStatus: string | null;
 }
 
@@ -136,7 +143,7 @@ export function getCurrentUserProfile() {
 }
 
 export function submitRealName(payload: { realName: string; idCard: string }) {
-  return request<{ verified?: boolean }>("/app/users/me/real-name", {
+  return request<SubmitRealNameResponse>("/app/users/me/real-name", {
     method: "PUT",
     auth: true,
     body: payload

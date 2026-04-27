@@ -94,31 +94,275 @@ function ensureStringArray(value: unknown) {
     : [];
 }
 
-function flattenSummaryRecord(value: unknown): string[] {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+function ensureRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function normalizeSummaryLookupKey(key: string) {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .trim()
+    .toLowerCase();
+}
+
+const summaryLabelMap: Record<string, string> = {
+  hospital: "检查机构",
+  department: "检查科室",
+  diagnosis: "检查结论",
+  result: "结果",
+  note: "补充说明",
+  notes: "补充说明",
+  summary: "摘要",
+  recommendation: "建议",
+  recommendations: "建议",
+  suggestion: "建议",
+  suggestions: "建议",
+  advice: "建议",
+  follow_up: "后续跟进",
+  follow_up_suggestions: "后续建议",
+  follow_up_actions: "后续建议",
+  blood_pressure: "血压",
+  blood_glucose: "血糖",
+  blood_lipid: "血脂",
+  heart_rate: "心率",
+  oxygen: "血氧",
+  weight: "体重"
+};
+
+const hiddenSummaryKeys = new Set([
+  "conclusion",
+  "highlight",
+  "highlights",
+  "report_highlights",
+  "advice",
+  "suggestion",
+  "suggestions",
+  "recommendation",
+  "recommendations",
+  "follow_up",
+  "follow_up_suggestions",
+  "follow_up_actions",
+  "patient",
+  "doctor"
+]);
+
+function resolveSummaryLabel(key: string) {
+  const lookupKey = normalizeSummaryLookupKey(key);
+
+  if (summaryLabelMap[lookupKey]) {
+    return summaryLabelMap[lookupKey];
+  }
+
+  return /[A-Za-z]/.test(key) ? "" : key.trim();
+}
+
+function collectSummaryTextList(value: unknown) {
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim());
+}
+
+function formatSummaryLine(label: string, text: string) {
+  return label ? `${label}：${text}` : text;
+}
+
+function extractReportSummaryLines(value: unknown): string[] {
+  const summary = ensureRecord(value);
+
+  if (!summary) {
     return [];
   }
 
   const lines: string[] = [];
+  const conclusion = collectSummaryTextList(summary.conclusion);
 
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === "string" && entry.trim()) {
-      lines.push(entry.trim());
+  if (conclusion.length > 0) {
+    lines.push(...conclusion);
+  }
+
+  for (const [key, entry] of Object.entries(summary)) {
+    const normalizedKey = normalizeSummaryLookupKey(key);
+
+    if (hiddenSummaryKeys.has(normalizedKey)) {
       continue;
     }
 
-    if (Array.isArray(entry)) {
-      const items = entry
-        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        .map((item) => item.trim());
+    const label = resolveSummaryLabel(key);
+    const textItems = collectSummaryTextList(entry);
 
-      if (items.length > 0) {
-        lines.push(`${key}：${items.join("、")}`);
+    if (textItems.length > 0) {
+      lines.push(formatSummaryLine(label, textItems.join("、")));
+      continue;
+    }
+
+    const nestedRecord = ensureRecord(entry);
+
+    if (!nestedRecord) {
+      continue;
+    }
+
+    const outerLabel = resolveSummaryLabel(key);
+
+    for (const [nestedKey, nestedValue] of Object.entries(nestedRecord)) {
+      const nestedLabel = resolveSummaryLabel(nestedKey);
+      const nestedTextItems = collectSummaryTextList(nestedValue);
+
+      if (nestedTextItems.length === 0) {
+        continue;
+      }
+
+      const combinedLabel = [outerLabel, nestedLabel].filter(Boolean).join(" / ");
+      lines.push(formatSummaryLine(combinedLabel, nestedTextItems.join("、")));
+    }
+  }
+
+  return uniqueStrings(lines);
+}
+
+function extractSummaryFieldList(value: unknown, candidateKeys: string[]) {
+  const summary = ensureRecord(value);
+
+  if (!summary) {
+    return [];
+  }
+
+  const wantedKeys = new Set(candidateKeys.map((key) => normalizeSummaryLookupKey(key)));
+  const list: string[] = [];
+
+  for (const [key, entry] of Object.entries(summary)) {
+    if (!wantedKeys.has(normalizeSummaryLookupKey(key))) {
+      continue;
+    }
+
+    list.push(...collectSummaryTextList(entry));
+  }
+
+  return uniqueStrings(list);
+}
+
+function normalizeReportText(value: string) {
+  return value
+    .replace(/^[\s•·\-]+/u, "")
+    .replace(/^[（(]?\d+[）).、]\s*/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeReportSentence(value: string) {
+  return normalizeReportText(value)
+    .replace(/^(内容评估|风险提醒|后续建议|建议|提示|摘要|结论|分析|重点)[：:]\s*/u, "")
+    .replace(/[；;、，,]+$/u, "")
+    .trim();
+}
+
+function ensureReportSentence(value: string) {
+  const normalized = normalizeReportSentence(value);
+
+  if (!normalized) {
+    return "";
+  }
+
+  return /[。！？!?]$/u.test(normalized) ? normalized : `${normalized}。`;
+}
+
+function isDisplayEvaluationLine(value: string) {
+  return !/^(检查机构|检查科室|医院|科室)[：:]/u.test(value.trim());
+}
+
+function splitKeywordCandidates(value: string) {
+  const normalized = normalizeReportSentence(value);
+
+  if (!normalized) {
+    return [];
+  }
+
+  const segments = normalized
+    .split(/[；;、，,]/u)
+    .map((item) => normalizeReportSentence(item))
+    .filter(Boolean);
+  const nextSegments = segments.length > 1 ? segments : [normalized];
+
+  return nextSegments.filter((item) => item.length >= 2 && item.length <= 18);
+}
+
+function buildReportKeywords(values: string[]) {
+  const keywords: string[] = [];
+
+  for (const value of values) {
+    for (const candidate of splitKeywordCandidates(value)) {
+      if (keywords.includes(candidate)) {
+        continue;
+      }
+
+      keywords.push(candidate);
+
+      if (keywords.length >= 4) {
+        return keywords;
       }
     }
   }
 
-  return lines;
+  return keywords;
+}
+
+function buildEvaluationSummary(
+  interpretation: string,
+  highlights: string[],
+  summaryLines: string[]
+) {
+  const preferred = [
+    ensureReportSentence(interpretation),
+    ...highlights.map((item) => ensureReportSentence(item)),
+    ...summaryLines
+      .filter((item) => isDisplayEvaluationLine(item))
+      .map((item) => ensureReportSentence(item))
+  ].find(Boolean);
+
+  return preferred || "本次体检报告已完成智能评估，建议结合既往病史持续观察重点指标变化。";
+}
+
+function buildEvaluationPoints(highlights: string[], summaryLines: string[]) {
+  return uniqueStrings(
+    [
+      ...highlights.map((item) => ensureReportSentence(item)),
+      ...summaryLines
+        .filter((item) => isDisplayEvaluationLine(item))
+        .map((item) => ensureReportSentence(item))
+    ].filter(Boolean)
+  ).slice(0, 3);
+}
+
+function buildRiskReminderItems(riskSignals: string[]) {
+  const items = uniqueStrings(riskSignals.map((item) => ensureReportSentence(item)).filter(Boolean));
+
+  if (items.length > 0) {
+    return items.slice(0, 3);
+  }
+
+  return ["当前未识别到需要立即处置的高风险提示，建议继续保持规律监测。"];
+}
+
+function buildFollowUpItems(followUpSuggestions: string[]) {
+  const items = uniqueStrings(
+    followUpSuggestions.map((item) => ensureReportSentence(item)).filter(Boolean)
+  );
+
+  if (items.length > 0) {
+    return items.slice(0, 3);
+  }
+
+  return ["建议按既定周期复查重点指标，并在出现不适或指标波动时及时咨询医生。"];
 }
 
 function uniqueStrings(items: string[]) {
@@ -246,27 +490,59 @@ export async function prepareAiReportAnalysis(reportId: string) {
     }
   }
 
+  const summaryLines = extractReportSummaryLines(reportDetail?.summary);
+  const summaryHighlights = extractSummaryFieldList(reportDetail?.summary, [
+    "highlights",
+    "highlight",
+    "reportHighlights"
+  ]);
+  const summaryFollowUps = extractSummaryFieldList(reportDetail?.summary, [
+    "advice",
+    "suggestions",
+    "recommendations",
+    "followUpSuggestions",
+    "followUpActions"
+  ]);
+  const highlights = uniqueStrings([
+    ...summaryHighlights,
+    ...(interpretation?.highlights ?? [])
+  ]);
+  const reportInterpretation =
+    interpretation?.interpretation ||
+    summaryLines[0] ||
+    "暂无 AI 报告解读结果。";
+  const riskSignals = uniqueStrings([
+    ...(interpretation?.riskSignals ?? []),
+    ...(followUp?.riskSignals ?? []),
+    ...(latestRiskAlert ? [latestRiskAlert.summary] : [])
+  ]);
+  const followUpSuggestions = uniqueStrings([
+    ...(interpretation?.followUpSuggestions ?? []),
+    ...(followUp?.followUpSuggestions ?? []),
+    ...summaryFollowUps
+  ]);
+  const keywords = uniqueStrings([
+    ...((interpretation?.keywords ?? []).map((item) => normalizeReportSentence(item)).filter(Boolean)),
+    ...buildReportKeywords([
+      ...highlights,
+      ...riskSignals,
+      ...followUpSuggestions
+    ])
+  ]).slice(0, 4);
+
   const reportState: AiReportAnalysisState = {
     reportId,
     reportTitle: reportDetail?.title || "体检报告",
-    summaryLines: flattenSummaryRecord(reportDetail?.summary),
-    highlights: uniqueStrings([
-      ...ensureStringArray((reportDetail?.summary as Record<string, unknown> | undefined)?.highlights),
-      ...(interpretation?.highlights ?? [])
-    ]),
-    interpretation:
-      interpretation?.interpretation ||
-      flattenSummaryRecord(reportDetail?.summary)[0] ||
-      "暂无 AI 报告解读结果。",
-    riskSignals: uniqueStrings([
-      ...(interpretation?.riskSignals ?? []),
-      ...(followUp?.riskSignals ?? []),
-      ...(latestRiskAlert ? [latestRiskAlert.summary] : [])
-    ]),
-    followUpSuggestions: uniqueStrings([
-      ...(interpretation?.followUpSuggestions ?? []),
-      ...(followUp?.followUpSuggestions ?? [])
-    ]),
+    keywords,
+    summaryLines,
+    highlights,
+    interpretation: reportInterpretation,
+    evaluationSummary: buildEvaluationSummary(reportInterpretation, highlights, summaryLines),
+    evaluationPoints: buildEvaluationPoints(highlights, summaryLines),
+    riskSignals,
+    riskReminderItems: buildRiskReminderItems(riskSignals),
+    followUpSuggestions,
+    followUpItems: buildFollowUpItems(followUpSuggestions),
     latestRiskAlert,
     fetchedAt: new Date().toISOString(),
     errorMessage: collectSettledErrorMessage(settledResults)

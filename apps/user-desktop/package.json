@@ -1,0 +1,23 @@
+{
+  "name": "@ihc/user-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Desktop shell for IntelliHealthCare user web",
+  "author": "IntelliHealthCare",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FrancesscaWY/IntelliHealthCare.git"
+  },
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "build": "node ./scripts/build.mjs --dir --win --x64",
+    "dist": "node ./scripts/build.mjs --win zip --x64",
+    "dist:nsis": "node ./scripts/build.mjs --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

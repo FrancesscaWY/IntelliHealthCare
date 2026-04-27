@@ -13,6 +13,7 @@ const LOOK_ANIMATION_NAME = "look";
 const BLINK_TRIGGER_NAME = "blinkTrigger";
 const MIN_BLINK_DELAY = 5000;
 const MAX_BLINK_DELAY = 8000;
+const DEFAULT_RIGHT_OVERFLOW = 50;
 const DEBUG_RIVE = import.meta.env.DEV;
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -117,8 +118,12 @@ function syncInitialPosition() {
   }
 
   const rect = assistant.getBoundingClientRect();
+  const appCanvas = assistant.closest(".app-canvas") as HTMLElement | null;
+  const appCanvasRect = appCanvas?.getBoundingClientRect();
   assistantPosition.value = {
-    x: rect.left,
+    x: appCanvasRect
+      ? appCanvasRect.right - rect.width + DEFAULT_RIGHT_OVERFLOW
+      : rect.left,
     y: rect.top,
   };
   hasAssistantPosition.value = true;

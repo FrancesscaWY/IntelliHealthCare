@@ -1740,7 +1740,14 @@ export class AdminService {
 
     return {
       title: "全部服务人员",
-      serviceTypeOptions: ["请选择", "家政护工", "康复理疗", "上门体检"],
+      serviceTypeOptions: [
+        "请选择",
+        "家政护工",
+        "康复理疗",
+        "上门体检",
+        "客服接待",
+        "平台运营"
+      ],
       tagOptions: ["请选择", ...Array.from(new Set(rows.map((item) => item.tag)))],
       rows: result.list,
       ...result
@@ -1785,7 +1792,32 @@ export class AdminService {
       this.prismaService.staff.findMany()
     ]);
 
+    const reviewerIds = Array.from(
+      new Set(
+        applications
+          .map((item) => item.reviewerUserId)
+          .filter((item): item is string => Boolean(item))
+      )
+    );
+    const reviewers =
+      reviewerIds.length > 0
+        ? await this.prismaService.user.findMany({
+            where: {
+              id: {
+                in: reviewerIds
+              }
+            },
+            select: {
+              id: true,
+              realName: true,
+              nickname: true,
+              phone: true
+            }
+          })
+        : [];
+
     const staffMap = new Map(staffs.map((item) => [item.id, item]));
+    const reviewerMap = new Map(reviewers.map((item) => [item.id, item]));
     const rows = applications
       .map((item) => {
         const staff = staffMap.get(item.staffId);
@@ -1801,7 +1833,10 @@ export class AdminService {
           serviceType: this.getStaffServiceTypeLabel(staff.role),
           status: this.getStaffApplicationStatusText(item.status),
           phone: staff.phone,
-          reviewer: item.reviewerUserId ?? "待审核",
+          reviewer: this.getStaffApplicationReviewerText(
+            item.reviewerUserId,
+            reviewerMap
+          ),
           applyTime: this.toDisplayDateTime(item.createdAt),
           reviewTime: item.reviewedAt ? this.toDisplayDateTime(item.reviewedAt) : "-"
         };
@@ -1816,7 +1851,14 @@ export class AdminService {
     return {
       title: "审核管理",
       statuses: ["全部状态", "待审核", "已通过", "已驳回"],
-      serviceTypes: ["全部类型", "家政护工", "康复理疗", "上门体检"],
+      serviceTypes: [
+        "全部类型",
+        "家政护工",
+        "康复理疗",
+        "上门体检",
+        "客服接待",
+        "平台运营"
+      ],
       rows: result.list,
       ...result
     };
@@ -1885,7 +1927,7 @@ export class AdminService {
       data: {
         status,
         reviewRemark: remark ?? null,
-        reviewerUserId: reviewer.realName ?? reviewer.phone,
+        reviewerUserId: reviewer.id,
         reviewedAt: new Date()
       }
     });
@@ -3531,6 +3573,26 @@ export class AdminService {
       case StaffApplicationStatus.REJECTED:
         return "已驳回";
     }
+  }
+
+  private getStaffApplicationReviewerText(
+    reviewerUserId: string | null | undefined,
+    reviewerMap: Map<
+      string,
+      {
+        id: string;
+        realName: string | null;
+        nickname: string | null;
+        phone: string;
+      }
+    >
+  ) {
+    if (!reviewerUserId) {
+      return "待审核";
+    }
+
+    const reviewer = reviewerMap.get(reviewerUserId);
+    return reviewer?.realName ?? reviewer?.nickname ?? reviewer?.phone ?? reviewerUserId;
   }
 
   private getMemberTagTone(label: string, index: number) {

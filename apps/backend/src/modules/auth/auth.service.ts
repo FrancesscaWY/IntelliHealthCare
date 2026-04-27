@@ -31,6 +31,7 @@ interface AuthUserRecord {
   phone: string;
   type: UserType;
   realName: string | null;
+  realNameVerified: boolean;
   passwordHash: string | null;
   roles: string[];
 }
@@ -364,7 +365,8 @@ export class AuthService {
         phone: user.phone,
         type: user.type,
         roles: user.roles,
-        realName: user.realName
+        realName: user.realName,
+        realNameVerified: user.realNameVerified
       }
     };
   }
@@ -409,6 +411,7 @@ export class AuthService {
       phone: user.phone,
       type: user.type,
       realName: user.realName,
+      realNameVerified: user.realNameStatus === "VERIFIED",
       passwordHash: user.passwordHash,
       roles: user.roles.map((item) => item.role.code)
     } satisfies AuthUserRecord;
@@ -435,6 +438,7 @@ export class AuthService {
       phone: user.phone,
       type: user.type,
       realName: user.realName,
+      realNameVerified: user.realNameStatus === "VERIFIED",
       passwordHash: user.passwordHash,
       roles: user.roles.map((item) => item.role.code)
     } satisfies AuthUserRecord;

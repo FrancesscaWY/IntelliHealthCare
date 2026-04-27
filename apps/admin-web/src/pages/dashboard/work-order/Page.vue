@@ -92,27 +92,31 @@ function adaptRow(item: AdminWorkOrderListItem) {
   };
 }
 
-function syncDateRanges(nextRows = rows.value) {
-  if (!assignStart.value || !assignEnd.value) {
+function syncDateRanges(nextRows = rows.value, force = false) {
+  if (force || !assignStart.value || !assignEnd.value) {
     const range = deriveDateRange(nextRows.map((row) => row.assignDate));
-    assignStart.value = assignStart.value || range.start;
-    assignEnd.value = assignEnd.value || range.end;
+    assignStart.value = range.start;
+    assignEnd.value = range.end;
   }
 
-  if (!bookingStart.value || !bookingEnd.value) {
+  if (force || !bookingStart.value || !bookingEnd.value) {
     const bookingDates = nextRows
       .map((row) => row.bookingDate)
       .filter((value) => Boolean(value));
 
     if (bookingDates.length > 0) {
       const range = deriveDateRange(bookingDates);
-      bookingStart.value = bookingStart.value || range.start;
-      bookingEnd.value = bookingEnd.value || range.end;
+      bookingStart.value = range.start;
+      bookingEnd.value = range.end;
+      return;
     }
+
+    bookingStart.value = "";
+    bookingEnd.value = "";
   }
 }
 
-async function syncWorkOrdersFromApi() {
+async function syncWorkOrdersFromApi(options: { resetDateRanges?: boolean } = {}) {
   try {
     const response = await getAdminWorkOrders({
       page: 1,
@@ -122,7 +126,7 @@ async function syncWorkOrdersFromApi() {
 
     if (nextRows.length > 0) {
       rows.value = nextRows;
-      syncDateRanges(nextRows);
+      syncDateRanges(nextRows, options.resetDateRanges);
     }
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
@@ -139,8 +143,9 @@ async function syncWorkOrdersFromApi() {
 }
 
 onMounted(() => {
-  syncDateRanges();
-  void syncWorkOrdersFromApi();
+  void syncWorkOrdersFromApi({
+    resetDateRanges: true,
+  });
 });
 
 const filteredRows = computed(() =>
@@ -172,7 +177,7 @@ function resetFilters() {
   bookingEnd.value = "";
   keyword.value = "";
   activeStatus.value = mock.statusTabs[0];
-  syncDateRanges();
+  syncDateRanges(rows.value, true);
   props.showToast("筛选条件已重置");
 }
 

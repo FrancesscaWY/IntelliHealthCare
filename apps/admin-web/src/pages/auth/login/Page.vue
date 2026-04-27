@@ -81,7 +81,7 @@ function getErrorMessage(error: unknown) {
 }
 
 async function redirectAfterLogin() {
-  await getCurrentAdmin();
+  void getCurrentAdmin().catch(() => undefined);
   props.navigation.reLaunch(resolvePostLoginPageId());
 }
 
@@ -285,8 +285,8 @@ async function submitLogin() {
   --line-soft: rgba(158, 198, 180, 0.2);
   --card-border: rgba(210, 233, 223, 0.8);
   --card-shadow: 0 32px 70px rgba(57, 103, 82, 0.14);
-  --primary: #2f9b6e;
-  --primary-soft: #eaf7f0;
+  --primary: #59b886;
+  --primary-soft: #effbf3;
   --surface-soft: #f7fcf9;
   position: relative;
   isolation: isolate;
@@ -296,14 +296,12 @@ async function submitLogin() {
   justify-content: center;
   gap: clamp(28px, 4vw, 60px);
   width: 100%;
-  max-width: 1248px;
   min-width: 0;
   min-height: 100vh;
   min-height: 100svh;
   min-height: max(720px, 100svh);
-  padding: 40px 56px 68px;
+  padding: 40px clamp(24px, 5vw, 72px) 68px;
   box-sizing: border-box;
-  margin-inline: auto;
   overflow-x: hidden;
   overflow-y: visible;
   background:
@@ -357,7 +355,6 @@ async function submitLogin() {
   justify-items: stretch;
   gap: 24px;
   width: 100%;
-  max-width: 600px;
   align-self: center;
   padding-right: 0;
   min-height: 100%;
@@ -365,7 +362,7 @@ async function submitLogin() {
 }
 
 .showcase-copy {
-  max-width: 520px;
+  max-width: 100%;
 }
 
 .showcase-kicker {
@@ -400,7 +397,6 @@ async function submitLogin() {
   display: grid;
   gap: 18px;
   width: 100%;
-  max-width: 560px;
   padding: 24px 24px 18px;
   border: 1px solid rgba(206, 228, 218, 0.9);
   border-radius: 30px;
@@ -511,9 +507,9 @@ async function submitLogin() {
   width: 56px;
   height: 56px;
   border-radius: 18px;
-  background: linear-gradient(180deg, #58bb84 0%, #2f9b6e 100%);
+  background: linear-gradient(180deg, #a7e8bf 0%, #59b886 100%);
   color: #ffffff;
-  box-shadow: 0 14px 28px rgba(47, 155, 110, 0.2);
+  box-shadow: 0 14px 28px rgba(89, 184, 134, 0.22);
 }
 
 .logo-mark svg {
@@ -745,7 +741,7 @@ async function submitLogin() {
   }
 
   .showcase-panel {
-    max-width: 520px;
+    max-width: 100%;
   }
 }
 
@@ -778,7 +774,7 @@ async function submitLogin() {
 
   .showcase-panel {
     width: 100%;
-    max-width: 420px;
+    max-width: 100%;
     padding: 18px 18px 14px;
     text-align: left;
   }

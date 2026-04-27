@@ -132,6 +132,7 @@ export interface AiReportInterpretationResponse {
   reportId: string;
   interpretation: string;
   highlights: string[];
+  keywords?: string[];
   riskSignals: string[];
   followUpSuggestions: string[];
   humanReviewRequired: boolean;

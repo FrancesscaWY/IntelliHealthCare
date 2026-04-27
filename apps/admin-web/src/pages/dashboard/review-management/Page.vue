@@ -37,23 +37,27 @@ const filteredRows = computed(() =>
   }),
 );
 
-function syncDateRanges() {
-  if (!applyStart.value || !applyEnd.value) {
-    const range = deriveDateRange(mock.value.rows.map((row) => row.applyTime));
-    applyStart.value = applyStart.value || range.start;
-    applyEnd.value = applyEnd.value || range.end;
+function syncDateRanges(nextRows = mock.value.rows, force = false) {
+  if (force || !applyStart.value || !applyEnd.value) {
+    const range = deriveDateRange(nextRows.map((row) => row.applyTime));
+    applyStart.value = range.start;
+    applyEnd.value = range.end;
   }
 
-  if (!reviewStart.value || !reviewEnd.value) {
-    const reviewDates = mock.value.rows
+  if (force || !reviewStart.value || !reviewEnd.value) {
+    const reviewDates = nextRows
       .map((row) => (row.reviewTime === "-" ? "" : row.reviewTime))
       .filter((value) => Boolean(extractDatePart(value)));
 
     if (reviewDates.length > 0) {
       const range = deriveDateRange(reviewDates);
-      reviewStart.value = reviewStart.value || range.start;
-      reviewEnd.value = reviewEnd.value || range.end;
+      reviewStart.value = range.start;
+      reviewEnd.value = range.end;
+      return;
     }
+
+    reviewStart.value = "";
+    reviewEnd.value = "";
   }
 }
 
@@ -73,7 +77,7 @@ function mapStatusLabelToCode(status: string) {
   return undefined;
 }
 
-async function syncPageData() {
+async function syncPageData(options: { resetDateRanges?: boolean } = {}) {
   try {
     mock.value = (await getAdminStaffApplications({
       page: 1,
@@ -81,7 +85,7 @@ async function syncPageData() {
       status: mapStatusLabelToCode(selectedStatus.value),
       serviceType: selectedServiceType.value !== mock.value.serviceTypes[0] ? selectedServiceType.value : undefined,
     })) as typeof mockSeed;
-    syncDateRanges();
+    syncDateRanges(mock.value.rows, options.resetDateRanges);
   } catch (error) {
     handleAdminPageError(error, {
       navigation: props.navigation,
@@ -104,8 +108,9 @@ function resetFilters() {
   reviewStart.value = "";
   reviewEnd.value = "";
   keyword.value = "";
-  syncDateRanges();
-  void syncPageData();
+  void syncPageData({
+    resetDateRanges: true,
+  });
   props.showToast("筛选条件已重置");
 }
 
@@ -122,8 +127,9 @@ function openReviewDetail(applicationId: string) {
 }
 
 onMounted(() => {
-  syncDateRanges();
-  void syncPageData();
+  void syncPageData({
+    resetDateRanges: true,
+  });
 });
 </script>
 
