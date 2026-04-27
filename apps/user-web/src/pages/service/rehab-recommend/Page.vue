@@ -18,7 +18,7 @@ import {
   setActiveAssistantConversation
 } from "@/shared/ai/state";
 import mock from "./mock";
-import { setOrderFlowService } from "@/pages/service/order-flow";
+import { setOrderFlowAiSummary, setOrderFlowService } from "@/pages/service/order-flow";
 
 const props = defineProps<PageComponentProps>();
 
@@ -64,23 +64,27 @@ const projectList = computed<ProjectCard[]>(() => {
   }));
 });
 
-const pageIntro = computed(() => {
-  return (
-    serviceResult.value?.healthSummary?.summary ||
-    serviceResult.value?.conclusion ||
-    "已根据您的康复需求，为您筛选出更适合的康复理疗项目。您可以先查看推荐理由，再选择需要预约的项目。"
-  );
-});
-
-const summarySignals = computed(() => {
-  return [
-    ...(serviceResult.value?.matchingSignals ?? []),
-    ...(serviceResult.value?.metricBrief?.keyFindings ?? [])
-  ].slice(0, 6);
-});
-
 const bookingPrefill = computed(() => serviceResult.value?.bookingPrefill || null);
 const knowledgeResults = computed(() => serviceResult.value?.knowledgeResults ?? []);
+const bookingDraftText = computed(() => {
+  const draft = bookingPrefill.value;
+
+  if (!draft) {
+    return "";
+  }
+
+  const lines = ["预约草稿", draft.title || "已生成预约建议"];
+
+  if (draft.suggestedSlots.length) {
+    lines.push(`建议时段：${draft.suggestedSlots.join("、")}`);
+  }
+
+  if (draft.missingFields.length) {
+    lines.push(`仍需补充：${draft.missingFields.join("、")}`);
+  }
+
+  return lines.join("\n");
+});
 
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;
@@ -90,6 +94,24 @@ let resizeObserver: ResizeObserver | null = null;
 function resolveProjectPrice(item: ProjectCard, fallbackPrice: number) {
   const matched = item.priceLabel?.match(/(\d+(?:\.\d+)?)/);
   return matched ? Number(matched[1]) : fallbackPrice;
+}
+
+function buildOrderAiSummary(item: ProjectCard) {
+  const result = serviceResult.value;
+
+  return {
+    scene: "rehab",
+    title: result?.title || "康复理疗 AI 推荐",
+    serviceId: item.serviceId,
+    serviceTitle: item.title,
+    recommendationReason: item.reason,
+    matchingSignals: result?.matchingSignals ?? [],
+    rankingReasons: result?.rankingReasons ?? [],
+    suggestedSlots: result?.bookingPrefill?.suggestedSlots ?? [],
+    missingFields: result?.bookingPrefill?.missingFields ?? [],
+    knowledgeTitles: (result?.knowledgeResults ?? []).map((entry) => entry.document.title),
+    sourcePageId: props.pageEntry.id
+  };
 }
 
 function goBack() {
@@ -113,6 +135,7 @@ function buyProject(item: ProjectCard) {
     contactName: "王秀琴",
     contactPhone: "13800138000"
   });
+  setOrderFlowAiSummary(buildOrderAiSummary(item));
   props.navigation.navigateTo("service/booking");
 }
 
@@ -142,6 +165,19 @@ function sendMessage() {
   requestAssistantTextEntry(text, props.pageEntry.id);
   draft.value = "";
   props.navigation.navigateTo("home/assistant-chat");
+}
+
+async function copyBookingDraft() {
+  if (!bookingDraftText.value) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(bookingDraftText.value);
+    props.showToast("预约草稿已复制");
+  } catch {
+    props.showToast("复制失败，请手动选择内容");
+  }
 }
 
 function openVoiceAssistant() {
@@ -248,9 +284,7 @@ onBeforeUnmount(() => {
         ></canvas>
         <span class="hi-badge">Hi</span>
         <div class="welcome-bubble">
-          <strong>我先按当前情况筛了一轮</strong>
-          <strong>这些康复理疗项目更贴近需求</strong>
-          <p>推荐仅供参考，您也可以继续告诉我目前最想改善的功能问题</p>
+          <strong>为您推荐以下服务~</strong>
         </div>
         <button
           class="history-btn"
@@ -273,14 +307,6 @@ onBeforeUnmount(() => {
           <span></span>
         </div>
 
-        <div class="section">
-          <p>{{ pageIntro }}</p>
-        </div>
-
-        <div v-if="summarySignals.length" class="signal-section">
-          <span v-for="signal in summarySignals" :key="signal">{{ signal }}</span>
-        </div>
-
         <section class="project-card">
           <article v-for="item in projectList" :key="item.serviceId" class="project-item">
             <img :src="item.imageUrl" :alt="item.title" />
@@ -296,7 +322,10 @@ onBeforeUnmount(() => {
 
         <section v-if="bookingPrefill || knowledgeResults.length" class="insight-card">
           <article v-if="bookingPrefill" class="insight-block">
-            <strong>预约草稿</strong>
+            <div class="insight-block__header">
+              <strong>预约草稿</strong>
+              <button type="button" @click="copyBookingDraft">复制</button>
+            </div>
             <p>{{ bookingPrefill.title || "已生成预约建议" }}</p>
             <span v-if="bookingPrefill.suggestedSlots.length">
               建议时段：{{ bookingPrefill.suggestedSlots.join("、") }}
@@ -351,10 +380,12 @@ onBeforeUnmount(() => {
 .recommend-page {
   position: relative;
   left: 50%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   width: min(402px, 100vw);
-  height: auto;
-  min-height: var(--ihc-page-min-height);
-  max-height: none;
+  height: var(--ihc-viewport-height);
+  min-height: var(--ihc-viewport-height);
+  max-height: var(--ihc-viewport-height);
   margin: -18px 0;
   overflow: hidden;
   background:
@@ -368,8 +399,8 @@ onBeforeUnmount(() => {
 }
 
 .recommend-main {
-  height: calc(100% - 126px);
-  padding: 8px 14px 0;
+  min-height: 0;
+  padding: 6px 14px 14px;
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: none;
@@ -382,10 +413,10 @@ onBeforeUnmount(() => {
 .assistant-hero {
   position: relative;
   display: grid;
-  grid-template-columns: 148px minmax(0, 1fr) 44px;
-  align-items: start;
-  min-height: 134px;
-  padding-top: 8px;
+  grid-template-columns: 126px minmax(0, 1fr) 44px;
+  align-items: center;
+  min-height: 108px;
+  padding: 4px 0 0;
 }
 
 .assistant-back,
@@ -449,16 +480,17 @@ onBeforeUnmount(() => {
 .assistant-avatar {
   grid-column: 1;
   display: block;
-  width: 200px;
-  height: 200px;
-  margin: 2px 0 0 -20px;
+  align-self: center;
+  width: 154px;
+  height: 154px;
+  margin: -2px 0 0 -16px;
   filter: drop-shadow(0 12px 18px rgba(50, 112, 167, 0.16));
 }
 
 .hi-badge {
   position: absolute;
-  top: 50px;
-  left: 110px;
+  top: 39px;
+  left: 88px;
   color: #95a6c0;
   font-size: 20px;
   font-weight: 900;
@@ -466,19 +498,24 @@ onBeforeUnmount(() => {
 
 .welcome-bubble {
   grid-column: 2;
-  min-height: 74px;
-  margin: 24px 4px 0 0;
-  padding: 12px 14px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  min-height: 62px;
+  margin: 0 4px 0 -8px;
+  padding: 10px 14px;
   border-radius: 17px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 14px 32px rgba(61, 103, 152, 0.08);
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  font-weight: 400;
 }
 
 .welcome-bubble strong {
   display: block;
   color: #25305a;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 400;
   line-height: 1.35;
 }
 
@@ -486,12 +523,12 @@ onBeforeUnmount(() => {
   margin: 8px 0 0;
   color: rgba(90, 102, 126, 0.58);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.35;
 }
 
 .project-section {
-  margin-top: -28px;
+  margin-top: -2px;
 }
 
 .section-title {
@@ -499,7 +536,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr auto 1fr;
   gap: 10px;
   align-items: center;
-  margin: 0 12px 12px;
+  margin: 0 12px 8px;
 }
 
 .section-title span {
@@ -514,37 +551,11 @@ onBeforeUnmount(() => {
   letter-spacing: 0.08em;
 }
 
-.section p {
-  margin: 0 0 12px;
-  padding: 0 0 0 2px;
-  color: rgba(45, 55, 79, 0.68);
-  font-size: 17px;
-  font-weight: 800;
-  line-height: 1.75;
-  text-align: justify;
-}
-
-.signal-section {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.signal-section span {
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(117, 214, 223, 0.16);
-  color: #2f89a6;
-  font-size: 12px;
-  font-weight: 900;
-}
-
 .project-card,
 .insight-card {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 8px;
+  padding: 12px;
   border-radius: 6px;
   background:
     radial-gradient(circle at 14% 0%, rgba(117, 214, 223, 0.28), transparent 28%),
@@ -554,28 +565,29 @@ onBeforeUnmount(() => {
 }
 
 .insight-card {
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .project-item,
 .insight-block {
   display: grid;
-  gap: 12px;
-  padding: 10px;
+  gap: 8px;
+  padding: 9px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
 }
 
 .project-item {
-  grid-template-columns: 86px minmax(0, 1fr);
-  min-height: 112px;
+  position: relative;
+  grid-template-columns: 76px minmax(0, 1fr);
+  min-height: 96px;
 }
 
 .project-item img {
-  width: 86px;
-  height: 92px;
-  border-radius: 10px;
+  width: 76px;
+  height: 82px;
+  border-radius: 9px;
   object-fit: cover;
 }
 
@@ -594,13 +606,21 @@ onBeforeUnmount(() => {
   line-height: 1.35;
 }
 
+.project-info h2 {
+  padding-right: 92px;
+}
+
 .project-info p,
 .insight-block p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: rgba(63, 75, 99, 0.68);
   font-size: 12px;
   font-weight: 800;
-  line-height: 1.55;
+  line-height: 1.45;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .project-info small,
@@ -610,70 +630,85 @@ onBeforeUnmount(() => {
   color: rgba(48, 52, 63, 0.56);
   font-size: 12px;
   font-weight: 800;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .project-item button {
-  justify-self: end;
-  align-self: end;
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  min-width: 82px;
   height: 30px;
   padding: 0 14px;
+  border: 1px solid rgba(83, 190, 199, 0.42);
   border-radius: 999px;
-  background: #75d6df;
-  color: #1f2a44;
+  background:
+    linear-gradient(180deg, rgba(246, 255, 255, 0.54) 0%, rgba(111, 217, 226, 0.36) 100%),
+    rgba(117, 214, 223, 0.28);
+  color: #183c4b;
   font-size: 13px;
   font-weight: 900;
-  box-shadow: 0 8px 16px rgba(78, 169, 171, 0.16);
+  box-shadow:
+    0 8px 18px rgba(67, 172, 183, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .chat-footer {
-  position: absolute;
-  right: 0;
+  position: sticky;
   bottom: 0;
-  left: 0;
-  padding: 0 16px 14px;
+  z-index: 6;
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: rgba(244, 251, 248, 0.98);
+  border-top: 1px solid rgba(203, 224, 218, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .quick-actions button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   height: 34px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 8px 18px rgba(52, 87, 126, 0.06);
-  color: #364055;
-  font-size: 13px;
-  font-weight: 900;
+  border: 1px solid rgba(193, 227, 220, 0.92);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+  color: #355043;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .message-bar {
   display: grid;
-  grid-template-columns: 36px 36px minmax(0, 1fr) 67px;
+  grid-template-columns: 34px 34px minmax(0, 1fr) 64px;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 4px 5px 4px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 28px rgba(61, 103, 152, 0.1);
+  min-height: 48px;
+  padding: 5px 6px;
+  border: 1px solid rgba(179, 212, 204, 0.98);
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(53, 161, 152, 0.07);
 }
 
 .voice-btn {
   position: relative;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
+  border-radius: 0;
 }
 
 .voice-btn span {
@@ -706,10 +741,11 @@ onBeforeUnmount(() => {
 .camera-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  color: #596575;
+  border-radius: 0;
+  color: #4c6a5f;
 }
 
 .quick-actions :deep(.i-icon),
@@ -725,7 +761,7 @@ onBeforeUnmount(() => {
   background: transparent;
   color: #2d344b;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .message-bar input::placeholder {
@@ -735,10 +771,28 @@ onBeforeUnmount(() => {
 
 .send-btn {
   height: 36px;
-  border-radius: 999px;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  border-radius: 0;
+  background: var(--brand);
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.insight-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.insight-block__header button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(117, 214, 223, 0.52);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #287a86;
+  font-size: 12px;
+  font-weight: 700;
 }
 </style>

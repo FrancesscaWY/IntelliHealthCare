@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import Camera from "@icon-park/vue-next/es/icons/Camera";
@@ -24,11 +24,14 @@ const props = defineProps<PageComponentProps>();
 const STATE_MACHINE_NAME = "State Machine 1";
 const BLINK_TRIGGER_NAME = "blinkTrigger";
 const canvasRef = ref<HTMLCanvasElement | null>(null);
+const analysisScrollRef = ref<HTMLElement | null>(null);
 const draft = ref("");
+const typedText = ref("");
 const isConversationHistoryOpen = ref(false);
+const shouldStickToReportBottom = ref(true);
 const quickActions = [
   { label: "报告解读", icon: Editor },
-  { label: "商品智选", icon: Commodity },
+  { label: "服务智选", icon: Commodity },
   { label: "体检定制", icon: Stethoscope }
 ];
 
@@ -41,23 +44,12 @@ interface ReportKeywordItem {
   tone: ReportKeywordTone;
 }
 
-function uniqueStrings(items: string[]) {
-  return Array.from(new Set(items.filter((item) => item.trim().length > 0)));
-}
-
-function normalizeReportText(value: string) {
-  return value
-    .replace(/^[\s•·\-]+/u, "")
-    .replace(/^[（(]?\d+[）).、]\s*/u, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function normalizeKeywordText(value: string) {
-  return normalizeReportText(value)
-    .replace(/^(内容评估|风险提醒|后续建议|后续跟进|建议|当前重点|体检结论|检查结论|结论|摘要|提示|需关注)[：:]\s*/u, "")
-    .replace(/[。；;、，,]+$/u, "")
-    .trim();
+  return value
+    .replace(/^(后续建议|建议|风险提醒|当前重点|体检结论|检查结论|结论|摘要|提示|需关注)[：:]\s*/u, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[。；;、，,]+$/u, "");
 }
 
 function splitKeywordCandidates(value: string) {
@@ -67,53 +59,52 @@ function splitKeywordCandidates(value: string) {
     return [];
   }
 
-  const segments = normalizeReportText(normalized)
+  const segments = normalized
     .split(/[；;、，,]/u)
     .map((item) => normalizeKeywordText(item))
     .filter(Boolean);
   const nextSegments = segments.length > 1 ? segments : [normalized];
 
-  return nextSegments.filter((item) => item.length >= 2 && item.length <= 18);
+  return nextSegments.filter((item) => item.length >= 2 && item.length <= 22);
 }
 
-function buildKeywordList(
+function appendKeywordItems(
+  store: Map<string, ReportKeywordTone>,
   values: string[],
-  limit = 4
+  tone: ReportKeywordTone,
+  limit = 10
 ) {
-  const list: string[] = [];
-
   for (const value of values) {
     for (const item of splitKeywordCandidates(value)) {
-      if (list.includes(item)) {
-        continue;
+      const currentTone = store.get(item);
+
+      if (!currentTone || (currentTone !== "warning" && tone === "warning")) {
+        store.set(item, tone);
       }
 
-      list.push(item);
-
-      if (list.length >= limit) {
-        return list;
+      if (store.size >= limit) {
+        return;
       }
     }
   }
-
-  return list;
 }
 
-function ensureReportSentence(value: string) {
-  const normalized = normalizeKeywordText(value);
+const reportParagraphs = computed(() => {
+  const paragraphs = [
+    reportState.value?.interpretation || "",
+    ...(reportState.value?.summaryLines ?? []),
+    ...((reportState.value?.followUpSuggestions ?? []).map(
+      (item, index) => `建议 ${index + 1}：${item}`
+    ))
+  ]
+    .map((item) => item.trim())
+    .filter(Boolean);
 
-  if (!normalized) {
-    return "";
-  }
-
-  return /[。！？!?]$/u.test(normalized) ? normalized : `${normalized}。`;
-}
-
-function isDisplayEvaluationLine(value: string) {
-  return !/^(检查机构|检查科室|医院|科室)[：:]/u.test(value.trim());
-}
-
+  return Array.from(new Set(paragraphs));
+});
+const typedParagraphs = computed(() => typedText.value.split("\n\n").filter(Boolean));
 const reportTitle = computed(() => reportState.value?.reportTitle || "体检报告");
+const reportNarrative = computed(() => reportParagraphs.value.join("\n\n"));
 const riskSignals = computed(() => {
   const latestAlertSummary = reportState.value?.latestRiskAlert?.summary?.trim() || "";
 
@@ -121,97 +112,48 @@ const riskSignals = computed(() => {
     (item) => item.trim().length > 0 && item.trim() !== latestAlertSummary
   );
 });
-const evaluationSummary = computed(() => {
-  const currentState = reportState.value;
-
-  if (!currentState) {
-    return "AI 正在整理本次体检报告，请稍候查看正式评估内容。";
-  }
-
-  return (
-    currentState.evaluationSummary?.trim() ||
-    ensureReportSentence(currentState.interpretation) ||
-    "本次体检报告已完成智能评估，建议结合既往病史持续观察重点指标变化。"
-  );
-});
-const evaluationPoints = computed(() => {
-  const currentState = reportState.value;
-
-  if (!currentState) {
-    return [];
-  }
-
-  const fallbackItems = uniqueStrings([
-    ...(currentState.highlights ?? []),
-    ...((currentState.summaryLines ?? []).filter((item) => isDisplayEvaluationLine(item)))
-  ]);
-  const items = currentState.evaluationPoints?.length
-    ? currentState.evaluationPoints
-    : fallbackItems;
-
-  return uniqueStrings(items.map((item) => ensureReportSentence(item)).filter(Boolean)).slice(0, 3);
-});
-const riskReminderItems = computed(() => {
-  const currentState = reportState.value;
-  const items = currentState?.riskReminderItems?.length
-    ? currentState.riskReminderItems
-    : riskSignals.value;
-
-  if (items.length === 0) {
-    return ["当前未识别到需要立即处置的高风险提示，建议继续保持规律监测。"];
-  }
-
-  return uniqueStrings(items.map((item) => ensureReportSentence(item)).filter(Boolean)).slice(0, 3);
-});
-const followUpItems = computed(() => {
-  const currentState = reportState.value;
-  const items = currentState?.followUpItems?.length
-    ? currentState.followUpItems
-    : currentState?.followUpSuggestions ?? [];
-
-  if (items.length === 0) {
-    return ["建议按既定周期复查重点指标，并在出现不适或指标波动时及时咨询医生。"];
-  }
-
-  return uniqueStrings(items.map((item) => ensureReportSentence(item)).filter(Boolean)).slice(0, 3);
-});
 const reportKeywordItems = computed<ReportKeywordItem[]>(() => {
   const currentState = reportState.value;
+  const store = new Map<string, ReportKeywordTone>();
 
   if (!currentState) {
     return [];
   }
 
-  const keywords = buildKeywordList([
-    ...(currentState.keywords ?? []),
-    ...(currentState.highlights ?? []),
-    ...riskSignals.value,
-    ...(currentState.followUpSuggestions ?? [])
-  ]);
+  appendKeywordItems(store, currentState.highlights ?? [], "brand");
+  appendKeywordItems(store, riskSignals.value, "warning");
 
-  return keywords.map((text) => {
-    const tone: ReportKeywordTone = riskReminderItems.value.some((item) => item.includes(text))
-      ? "warning"
-      : currentState.keywords?.includes(text)
-        ? "brand"
-        : "muted";
+  if (currentState.latestRiskAlert?.title) {
+    appendKeywordItems(store, [currentState.latestRiskAlert.title], "warning");
+  }
 
-    return {
+  if (store.size < 8) {
+    appendKeywordItems(store, (currentState.summaryLines ?? []).slice(0, 2), "muted");
+  }
+
+  if (store.size < 8) {
+    appendKeywordItems(store, currentState.followUpSuggestions ?? [], "muted");
+  }
+
+  return Array.from(store.entries())
+    .slice(0, 10)
+    .map(([text, tone]) => ({
       text,
       tone
-    };
-  });
+    }));
 });
 const reportKeywordHint = computed(() =>
   reportKeywordItems.value.length > 0
-    ? "保留 3-4 个重点关键词，便于快速查看本次报告结论。"
+    ? "关键词来自本次 AI 评估结果，可快速查看当前重点。"
     : "AI 正在提炼本次评估关键词。"
 );
 
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
+let typingTimer: ReturnType<typeof setTimeout> | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let typingIndex = 0;
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -234,7 +176,7 @@ function useQuickAction(label: string) {
     return;
   }
 
-  if (label === "商品智选") {
+  if (label === "服务智选") {
     props.navigation.navigateTo("service/home-care-recommend-waiting");
     return;
   }
@@ -272,6 +214,88 @@ function createConversationFromHistory() {
   setActiveAssistantConversation("");
   isConversationHistoryOpen.value = false;
   props.navigation.navigateTo("home/assistant-chat");
+}
+
+function nextTypingSize(text: string) {
+  const current = text[typingIndex] ?? "";
+
+  if (current === "\n") {
+    return text[typingIndex + 1] === "\n" ? 2 : 1;
+  }
+
+  const nextChar = text[typingIndex + 1] ?? "";
+  if (/^[\u4e00-\u9fa5A-Za-z0-9]$/.test(current) && /^[\u4e00-\u9fa5A-Za-z0-9]$/.test(nextChar)) {
+    return Math.random() > 0.5 ? 2 : 1;
+  }
+
+  return 1;
+}
+
+function typeNextChunk() {
+  const source = reportNarrative.value;
+
+  if (typingIndex >= source.length) {
+    return;
+  }
+
+  const size = nextTypingSize(source);
+  typedText.value += source.slice(typingIndex, typingIndex + size);
+  typingIndex += size;
+  typingTimer = setTimeout(typeNextChunk, 34 + Math.random() * 42);
+}
+
+function restartTyping() {
+  clearTimeout(typingTimer ?? undefined);
+  typedText.value = "";
+  typingIndex = 0;
+  shouldStickToReportBottom.value = true;
+
+  void nextTick(() => {
+    const container = analysisScrollRef.value;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTop = 0;
+  });
+
+  if (!reportNarrative.value) {
+    return;
+  }
+
+  typingTimer = setTimeout(typeNextChunk, 180);
+}
+
+function updateReportScrollStickiness() {
+  const container = analysisScrollRef.value;
+
+  if (!container) {
+    return;
+  }
+
+  shouldStickToReportBottom.value =
+    container.scrollTop + container.clientHeight >= container.scrollHeight - 56;
+}
+
+function scrollReportToBottom(force = false) {
+  void nextTick(() => {
+    const container = analysisScrollRef.value;
+
+    if (!container) {
+      return;
+    }
+
+    if (!force && !shouldStickToReportBottom.value) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  });
+}
+
+function handleReportScroll() {
+  updateReportScrollStickiness();
 }
 
 function bindStateMachineInputs() {
@@ -320,6 +344,14 @@ async function refreshReportAnalysis(showErrorToast = true) {
   }
 }
 
+watch(reportNarrative, restartTyping, { immediate: true });
+watch(
+  () => typedText.value.length,
+  () => {
+    scrollReportToBottom();
+  }
+);
+
 onMounted(() => {
   void refreshReportAnalysis(!reportState.value).catch((error) => {
     if (reportState.value) {
@@ -357,6 +389,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(blinkTimer ?? undefined);
+  clearTimeout(typingTimer ?? undefined);
   resizeObserver?.disconnect();
   resizeObserver = null;
   blinkTrigger = null;
@@ -398,7 +431,7 @@ onBeforeUnmount(() => {
       </button>
     </header>
 
-    <main class="analysis-main">
+    <main ref="analysisScrollRef" class="analysis-main" @scroll="handleReportScroll">
       <section class="report-section" aria-label="报告分析">
         <div class="section-title">
           <span></span>
@@ -426,55 +459,9 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="report-panels">
-            <article class="report-panel">
-              <div class="report-panel__header">
-                <span class="report-panel__index">01</span>
-                <div>
-                  <h3>内容评估</h3>
-                  <p>结合本次体检摘要与 AI 解读生成</p>
-                </div>
-              </div>
-
-              <p class="report-panel__summary">{{ evaluationSummary }}</p>
-
-              <div v-if="evaluationPoints.length" class="evaluation-list">
-                <p v-for="item in evaluationPoints" :key="item">{{ item }}</p>
-              </div>
-            </article>
-
-            <article class="report-panel report-panel--risk">
-              <div class="report-panel__header">
-                <span class="report-panel__index">02</span>
-                <div>
-                  <h3>风险提醒</h3>
-                  <p>重点保留需要持续关注的风险信号</p>
-                </div>
-              </div>
-
-              <ul class="risk-list">
-                <li v-for="item in riskReminderItems" :key="item">
-                  <span aria-hidden="true"></span>
-                  <p>{{ item }}</p>
-                </li>
-              </ul>
-            </article>
-
-            <article class="report-panel report-panel--follow-up">
-              <div class="report-panel__header">
-                <span class="report-panel__index">03</span>
-                <div>
-                  <h3>后续建议</h3>
-                  <p>建议按照轻重缓急逐项处理</p>
-                </div>
-              </div>
-
-              <ol class="follow-up-list">
-                <li v-for="item in followUpItems" :key="item">
-                  <p>{{ item }}</p>
-                </li>
-              </ol>
-            </article>
+          <div class="analysis-text">
+            <p v-for="paragraph in typedParagraphs" :key="paragraph">{{ paragraph }}</p>
+            <i v-if="typedText.length < reportNarrative.length" aria-hidden="true"></i>
           </div>
         </section>
       </section>
@@ -541,12 +528,11 @@ onBeforeUnmount(() => {
 
 .analysis-main {
   min-height: 0;
-  padding: 0 14px 16px;
+  padding: 0 14px 18px;
   box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  scroll-padding-bottom: 20px;
 }
 
 .analysis-main::-webkit-scrollbar {
@@ -556,9 +542,9 @@ onBeforeUnmount(() => {
 .assistant-hero {
   position: relative;
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) 40px;
-  align-items: center;
-  min-height: 112px;
+  grid-template-columns: 148px minmax(0, 1fr) 44px;
+  align-items: start;
+  min-height: 134px;
   padding: 8px 14px 0;
 }
 
@@ -596,15 +582,15 @@ onBeforeUnmount(() => {
 
 .history-btn {
   position: absolute;
-  top: 10px;
+  top: 12px;
   right: 0;
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.74);
   box-shadow: 0 10px 24px rgba(65, 96, 136, 0.12);
 }
@@ -622,37 +608,38 @@ onBeforeUnmount(() => {
 .assistant-avatar {
   grid-column: 1;
   display: block;
-  width: 170px;
-  height: 170px;
-  margin: -12px 0 0 -18px;
+  width: 200px;
+  height: 200px;
+  margin: 2px 0 0 -20px;
   filter: drop-shadow(0 12px 18px rgba(50, 112, 167, 0.16));
 }
 
 .hi-badge {
   position: absolute;
-  top: 42px;
-  left: 96px;
+  top: 50px;
+  left: 110px;
   color: #95a6c0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
 }
 
 .welcome-bubble {
   grid-column: 2;
-  align-self: center;
-  min-height: 68px;
-  margin: 14px 4px 0 0;
+  min-height: 74px;
+  margin: 24px 4px 0 0;
   padding: 12px 14px;
-  border-radius: 16px;
+  border-radius: 17px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 14px 32px rgba(61, 103, 152, 0.08);
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  font-weight: 400;
 }
 
 .welcome-bubble strong {
   display: block;
   color: #25305a;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.35;
 }
 
@@ -665,8 +652,7 @@ onBeforeUnmount(() => {
 }
 
 .report-section {
-  margin-top: -10px;
-  padding: 0 0 8px;
+  padding: 4px 0 6px;
 }
 
 .section-title {
@@ -674,7 +660,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr auto 1fr;
   gap: 10px;
   align-items: center;
-  margin: 0 12px 10px;
+  margin: 0 12px 12px;
 }
 
 .section-title span {
@@ -690,15 +676,13 @@ onBeforeUnmount(() => {
 }
 
 .report-card {
-  padding: 14px 14px 16px;
+  padding: 14px;
   border-radius: 24px;
   background:
     radial-gradient(circle at 14% 0%, rgba(117, 214, 223, 0.28), transparent 28%),
-    radial-gradient(circle at 86% 4%, rgba(116, 132, 255, 0.12), transparent 30%),
-    rgba(255, 255, 255, 0.68);
-  box-shadow:
-    0 18px 34px rgba(74, 103, 142, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.74);
+    radial-gradient(circle at 86% 4%, rgba(190, 45, 234, 0.14), transparent 30%),
+    rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 
 .report-card__header {
@@ -729,30 +713,30 @@ onBeforeUnmount(() => {
   margin: 8px 0 0;
   color: rgba(86, 98, 124, 0.66);
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .keyword-section {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .keyword-cloud {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .keyword-pill {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
-  min-height: 32px;
-  padding: 7px 13px;
+  min-height: 34px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 8px 18px rgba(76, 108, 151, 0.06);
   color: #27939a;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
   text-wrap: pretty;
@@ -768,63 +752,17 @@ onBeforeUnmount(() => {
   color: #5f6a83;
 }
 
-.report-panels {
-  display: grid;
-  gap: 12px;
-}
-
-.report-panel {
-  padding: 14px;
+.analysis-text {
+  min-height: 0;
+  padding: 18px 16px 22px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.93);
-  box-shadow: 0 12px 26px rgba(76, 108, 151, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
 }
 
-.report-panel--risk {
-  background: linear-gradient(180deg, rgba(247, 251, 255, 0.97) 0%, rgba(240, 246, 255, 0.95) 100%);
-}
-
-.report-panel--follow-up {
-  background: linear-gradient(180deg, rgba(248, 252, 251, 0.97) 0%, rgba(242, 249, 247, 0.95) 100%);
-}
-
-.report-panel__header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  margin-bottom: 10px;
-}
-
-.report-panel__index {
-  display: inline-grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  background: rgba(117, 214, 223, 0.18);
-  color: #2c8f98;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.report-panel__header h3 {
-  margin: 0;
-  color: #25305a;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.report-panel__header p {
-  margin: 4px 0 0;
-  color: rgba(86, 98, 124, 0.66);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.report-panel__summary {
-  margin: 0;
-  color: rgba(43, 54, 80, 0.86);
+.analysis-text p {
+  margin: 0 0 14px;
+  color: rgba(45, 55, 79, 0.8);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.82;
@@ -832,96 +770,31 @@ onBeforeUnmount(() => {
   text-wrap: pretty;
 }
 
-.evaluation-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
+.analysis-text p:last-of-type {
+  margin-bottom: 0;
 }
 
-.evaluation-list p {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(245, 249, 255, 0.96);
-  color: rgba(58, 70, 96, 0.84);
-  font-size: 13px;
-  line-height: 1.72;
-  text-wrap: pretty;
+.analysis-text i {
+  display: inline-block;
+  width: 7px;
+  height: 17px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #75d6df;
+  vertical-align: -3px;
+  animation: blink-cursor 0.82s steps(2, start) infinite;
 }
 
-.risk-list,
-.follow-up-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.risk-list {
-  display: grid;
-  gap: 8px;
-}
-
-.risk-list li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.risk-list span {
-  width: 8px;
-  height: 8px;
-  margin-top: 7px;
-  border-radius: 50%;
-  background: #5b7be6;
-}
-
-.risk-list p,
-.follow-up-list p {
-  margin: 0;
-  color: rgba(58, 70, 96, 0.84);
-  font-size: 13px;
-  line-height: 1.72;
-  text-wrap: pretty;
-}
-
-.follow-up-list {
-  display: grid;
-  gap: 8px;
-  counter-reset: follow-up;
-}
-
-.follow-up-list li {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 11px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
-}
-
-.follow-up-list li::before {
-  counter-increment: follow-up;
-  content: counter(follow-up, decimal-leading-zero);
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 12px;
-  background: rgba(123, 226, 142, 0.18);
-  color: #2c9660;
-  font-size: 12px;
-  font-weight: 700;
+@keyframes blink-cursor {
+  50% {
+    opacity: 0;
+  }
 }
 
 .chat-footer {
   position: relative;
   z-index: 1;
-  padding: 8px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 16px 14px;
   background:
     linear-gradient(180deg, rgba(238, 245, 255, 0) 0%, rgba(238, 245, 255, 0.88) 26px, rgba(238, 245, 255, 0.98) 100%);
   backdrop-filter: blur(10px);

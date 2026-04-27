@@ -2,7 +2,10 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import * as echarts from "echarts";
 import type { ECharts, EChartsOption } from "echarts";
+import type { PageComponentProps } from "@ihc/page-core/types";
 import shanghaiGeoJson from "@/assets/map/shanghai.json";
+import { getAdminDashboardOverview } from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 type ChartItem = {
@@ -13,6 +16,8 @@ type ChartItem = {
   count?: string;
   percent?: string;
 };
+
+const props = defineProps<PageComponentProps>();
 
 const iconMarkup: Record<string, string> = {
   users: `
@@ -72,6 +77,7 @@ const ageChartEl = ref<HTMLElement | null>(null);
 const healthChartEl = ref<HTMLElement | null>(null);
 const trendChartEl = ref<HTMLElement | null>(null);
 const mapChartEl = ref<HTMLElement | null>(null);
+const pageData = ref<typeof mock>(mock);
 
 const serviceChart = shallowRef<ECharts | null>(null);
 const ageChart = shallowRef<ECharts | null>(null);
@@ -286,7 +292,7 @@ function createTrendOption(): EChartsOption {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: mock.serviceTrend.labels,
+      data: pageData.value.serviceTrend.labels,
       axisLine: {
         lineStyle: {
           color: "#edf3f1",
@@ -329,7 +335,7 @@ function createTrendOption(): EChartsOption {
       {
         name: "服务人次",
         type: "line",
-        data: mock.serviceTrend.values,
+        data: pageData.value.serviceTrend.values,
         smooth: true,
         symbol: "circle",
         symbolSize: 9,
@@ -354,7 +360,7 @@ function createTrendOption(): EChartsOption {
 }
 
 function createMapOption(): EChartsOption {
-  const values = mock.mapPoints.map((item) => item.value);
+  const values = pageData.value.mapPoints.map((item) => item.value);
   const mapLayout = {
     roam: false,
     zoom: 1,
@@ -364,7 +370,7 @@ function createMapOption(): EChartsOption {
     left: -22,
     right: -22,
   };
-  const centerPointData = mock.mapPoints.map((item) => ({
+  const centerPointData = pageData.value.mapPoints.map((item) => ({
     name: item.name,
     value: [...item.coordinate, item.value],
   }));
@@ -449,7 +455,7 @@ function createMapOption(): EChartsOption {
             shadowOffsetY: 6,
           },
         },
-        data: mock.mapPoints,
+        data: pageData.value.mapPoints,
       },
       {
         name: "区域中心点",
@@ -498,9 +504,9 @@ function renderCharts() {
   trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
   mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
 
-  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次"), true);
-  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户"), true);
-  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好"), true);
+  serviceChart.value?.setOption(createRingOption("服务类型分布", pageData.value.serviceTypes, pageData.value.serviceTotal, "服务人次"), true);
+  ageChart.value?.setOption(createRingOption("用户年龄结构", pageData.value.ageGroups, pageData.value.registeredTotal, "在册用户"), true);
+  healthChart.value?.setOption(createRingOption("健康状态分布", pageData.value.healthStatus, pageData.value.healthScore, "健康/良好"), true);
   trendChart.value?.setOption(createTrendOption(), true);
   mapChart.value?.setOption(createMapOption(), true);
 }
@@ -514,6 +520,17 @@ function resizeCharts() {
 }
 
 onMounted(async () => {
+  try {
+    pageData.value = (await getAdminDashboardOverview()) as typeof mock;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "后台首页加载失败，已保留演示数据"
+    });
+    pageData.value = mock;
+  }
+
   await nextTick();
   renderCharts();
 
@@ -544,7 +561,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="overview-dashboard">
     <section class="metric-grid" aria-label="核心指标">
-      <article v-for="(item, index) in mock.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
+      <article v-for="(item, index) in pageData.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
         <span class="metric-icon" aria-hidden="true">
           <svg viewBox="0 0 44 44" focusable="false">
             <g v-html="renderIcon(item.icon)"></g>
@@ -590,7 +607,7 @@ onBeforeUnmount(() => {
         <div class="ring-with-list">
           <div ref="serviceChartEl" class="echart echart--ring"></div>
           <div class="side-legend side-legend--service">
-            <div v-for="item in mock.serviceTypes" :key="item.label" class="side-legend__row">
+            <div v-for="item in pageData.serviceTypes" :key="item.label" class="side-legend__row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
               <strong>{{ item.count }}</strong>
@@ -614,7 +631,7 @@ onBeforeUnmount(() => {
         <div class="ring-with-list">
           <div ref="ageChartEl" class="echart echart--ring"></div>
           <div class="side-legend side-legend--service">
-            <div v-for="item in mock.ageGroups" :key="item.label" class="side-legend__row">
+            <div v-for="item in pageData.ageGroups" :key="item.label" class="side-legend__row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
               <strong>{{ item.count }}</strong>
@@ -630,7 +647,7 @@ onBeforeUnmount(() => {
         </header>
         <div class="trend-chart">
           <div ref="trendChartEl" class="echart echart--trend"></div>
-          <strong>{{ mock.serviceTrend.current }}</strong>
+          <strong>{{ pageData.serviceTrend.current }}</strong>
         </div>
       </article>
 
@@ -641,7 +658,7 @@ onBeforeUnmount(() => {
         <div class="ring-with-list">
           <div ref="healthChartEl" class="echart echart--ring"></div>
           <div class="side-legend side-legend--service">
-            <div v-for="item in mock.healthStatus" :key="item.label" class="side-legend__row">
+            <div v-for="item in pageData.healthStatus" :key="item.label" class="side-legend__row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
               <strong>{{ item.count }}</strong>
@@ -657,11 +674,11 @@ onBeforeUnmount(() => {
         </header>
         <div class="satisfaction-layout">
           <div class="satisfaction-score">
-            <strong>{{ mock.userTags.total }}<small>人</small></strong>
+            <strong>{{ pageData.userTags.total }}<small>人</small></strong>
             <span>标签总数</span>
           </div>
           <div class="satisfaction-bars">
-            <div v-for="item in mock.userTags.items" :key="item.label">
+            <div v-for="item in pageData.userTags.items" :key="item.label">
               <span>{{ item.label }}</span>
               <i><b :style="{ width: item.value }"></b></i>
               <em>{{ item.count }}</em>
@@ -675,7 +692,7 @@ onBeforeUnmount(() => {
           <h2>预警提醒 <small>（今日）</small></h2>
         </header>
         <div class="alert-grid">
-          <article v-for="item in mock.alerts" :key="item.label" class="alert-card" :class="`alert-card--${item.tone}`">
+          <article v-for="item in pageData.alerts" :key="item.label" class="alert-card" :class="`alert-card--${item.tone}`">
             <span aria-hidden="true">
               <svg viewBox="0 0 44 44" focusable="false">
                 <g v-html="renderIcon(item.icon)"></g>
@@ -693,7 +710,7 @@ onBeforeUnmount(() => {
           <h2>支付榜商品排行TOP5</h2>
         </header>
         <div class="workload-list">
-          <div v-for="item in mock.workloadTop" :key="item.rank">
+          <div v-for="item in pageData.workloadTop" :key="item.rank">
             <strong>{{ item.rank }}</strong>
             <span>{{ item.name }}</span>
             <i><b :style="{ width: item.rate }"></b></i>

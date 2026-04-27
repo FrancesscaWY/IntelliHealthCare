@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, shallowRef, watch } from "vue";
+import { computed, shallowRef, watch } from "vue";
 import type { Component } from "vue";
 import type { PageEntry } from "@ihc/page-core/types";
 import { loadRoutePageComponent, peekRoutePageComponent } from "./page-loader";
@@ -15,107 +15,37 @@ const navigation = usePageRouterNavigation();
 const { showToast } = useToastQueue();
 const activeComponent = shallowRef<Component | null>(null);
 const activeComponentPageId = shallowRef("");
+const activePageEntry = shallowRef<PageEntry | null>(null);
 const loadError = shallowRef("");
 const isPageLoading = shallowRef(false);
-const isPageLoadingVisible = shallowRef(false);
-const loadingProgress = shallowRef(0);
-const PAGE_LOAD_PROGRESS_MS = 8000;
-const PAGE_LOAD_INDICATOR_DELAY_MS = 220;
-let loadingFrame: number | null = null;
-let loadingIndicatorTimer: number | null = null;
-let loadingStartedAt = 0;
-let loadingProgressSeed = 0;
+const PAGE_INSTANCE_CACHE_MAX = 24;
 
 const pageEntry = computed<PageEntry | null>(() => getPageEntryById(props.pageId));
 
 const resolvedComponent = computed(() => {
-  if (!pageEntry.value || activeComponentPageId.value !== pageEntry.value.id) {
+  if (!activePageEntry.value || !activeComponent.value) {
     return null;
   }
 
   return activeComponent.value;
 });
 
-function stopLoadingProgress(finalValue = loadingProgress.value) {
-  if (loadingFrame !== null) {
-    window.cancelAnimationFrame(loadingFrame);
-    loadingFrame = null;
-  }
-
-  loadingProgress.value = Math.max(0, Math.min(100, Math.round(finalValue)));
-}
-
-function clearLoadingIndicatorTimer() {
-  if (loadingIndicatorTimer !== null) {
-    window.clearTimeout(loadingIndicatorTimer);
-    loadingIndicatorTimer = null;
-  }
-}
-
-function tickLoadingProgress(seed: number) {
-  if (seed !== loadingProgressSeed) {
-    return;
-  }
-
-  const elapsed = performance.now() - loadingStartedAt;
-  const ratio = Math.min(elapsed / PAGE_LOAD_PROGRESS_MS, 1);
-  const eased = 1 - Math.pow(1 - ratio, 2.4);
-  const nextProgress = 12 + eased * 84;
-
-  loadingProgress.value = Math.max(loadingProgress.value, Math.min(96, Math.round(nextProgress)));
-
-  if (loadingProgress.value >= 96) {
-    loadingFrame = null;
-    return;
-  }
-
-  loadingFrame = window.requestAnimationFrame(() => tickLoadingProgress(seed));
-}
-
-function startLoadingProgress() {
-  loadingProgressSeed += 1;
-  stopLoadingProgress(12);
-  loadingStartedAt = performance.now();
-  const seed = loadingProgressSeed;
-  loadingFrame = window.requestAnimationFrame(() => tickLoadingProgress(seed));
-}
-
-function scheduleLoadingIndicator() {
-  clearLoadingIndicatorTimer();
-  isPageLoading.value = true;
-  isPageLoadingVisible.value = false;
-  loadingIndicatorTimer = window.setTimeout(() => {
-    loadingIndicatorTimer = null;
-
-    if (!isPageLoading.value) {
-      return;
-    }
-
-    isPageLoadingVisible.value = true;
-    startLoadingProgress();
-  }, PAGE_LOAD_INDICATOR_DELAY_MS);
-}
-
-function finishLoadingIndicator() {
-  clearLoadingIndicatorTimer();
-  stopLoadingProgress(isPageLoadingVisible.value ? 100 : 0);
+function finishLoading() {
   isPageLoading.value = false;
-  isPageLoadingVisible.value = false;
 }
 
 watch(
   () => props.pageId,
   async (pageId) => {
-    const currentPageId = pageEntry.value?.id || pageId;
-    activeComponent.value = null;
-    activeComponentPageId.value = "";
+    const targetPageEntry = pageEntry.value;
+    const currentPageId = targetPageEntry?.id || pageId;
     loadError.value = "";
-    isPageLoading.value = false;
-    isPageLoadingVisible.value = false;
-    clearLoadingIndicatorTimer();
-    stopLoadingProgress(0);
 
-    if (!pageEntry.value) {
+    if (!targetPageEntry) {
+      if (!activeComponent.value) {
+        activeComponentPageId.value = "";
+        activePageEntry.value = null;
+      }
       return;
     }
 
@@ -123,10 +53,12 @@ watch(
     if (cachedComponent !== undefined) {
       activeComponent.value = cachedComponent;
       activeComponentPageId.value = cachedComponent ? currentPageId : "";
+      activePageEntry.value = cachedComponent ? targetPageEntry : null;
+      finishLoading();
       return;
     }
 
-    scheduleLoadingIndicator();
+    isPageLoading.value = !activeComponent.value;
 
     try {
       const component = await loadRoutePageComponent(currentPageId);
@@ -137,38 +69,34 @@ watch(
 
       activeComponent.value = component;
       activeComponentPageId.value = component ? currentPageId : "";
-      stopLoadingProgress(100);
+      activePageEntry.value = component ? targetPageEntry : null;
     } catch (error) {
       if (props.pageId !== currentPageId) {
         return;
       }
 
-      loadError.value = error instanceof Error ? error.message : "Failed to load page component.";
-      if (isPageLoadingVisible.value) {
-        stopLoadingProgress(100);
+      const message = error instanceof Error ? error.message : "Failed to load page component.";
+      loadError.value = message;
+
+      if (activeComponent.value) {
+        showToast(`页面加载失败：${message}`);
       }
     } finally {
       if (props.pageId === currentPageId) {
-        finishLoadingIndicator();
+        finishLoading();
       }
     }
   },
   { immediate: true, flush: "sync" },
 );
 
-onBeforeUnmount(() => {
-  loadingProgressSeed += 1;
-  clearLoadingIndicatorTimer();
-  stopLoadingProgress(0);
-});
-
 const pageProps = computed(() => {
-  if (!pageEntry.value) {
+  if (!activePageEntry.value) {
     return null;
   }
 
   return {
-    pageEntry: pageEntry.value,
+    pageEntry: activePageEntry.value,
     mode: "app" as const,
     manifest: userPageManifest,
     navigation,
@@ -178,9 +106,10 @@ const pageProps = computed(() => {
 </script>
 
 <template>
-  <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="pageEntry?.id" v-bind="pageProps" />
-  <section v-else-if="pageEntry && isPageLoading && !isPageLoadingVisible" class="page-loading-placeholder" aria-hidden="true"></section>
-  <section v-else-if="pageEntry && isPageLoading" class="page-loader">
+  <KeepAlive :max="PAGE_INSTANCE_CACHE_MAX">
+    <component v-if="resolvedComponent && pageProps" :is="resolvedComponent" :key="activeComponentPageId" v-bind="pageProps" />
+  </KeepAlive>
+  <section v-if="!resolvedComponent && pageEntry && isPageLoading" class="page-loader">
     <div class="page-loader__panel">
       <div class="page-loader__signal" aria-hidden="true">
         <span class="page-loader__signal-ring page-loader__signal-ring--outer"></span>
@@ -189,34 +118,19 @@ const pageProps = computed(() => {
       </div>
 
       <strong>加载中</strong>
-
-      <div
-        class="page-loader__progress"
-        role="progressbar"
-        :aria-valuenow="loadingProgress"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        :aria-valuetext="`加载中 ${loadingProgress}%`"
-      >
-        <span class="page-loader__progress-fill" :style="{ width: `${loadingProgress}%` }"></span>
-      </div>
     </div>
   </section>
-  <section v-else-if="pageEntry" class="page-error">
+  <section v-else-if="!resolvedComponent && pageEntry" class="page-error">
     <strong>页面加载失败</strong>
     <p>{{ loadError || "页面组件不可用，请检查模块导出和模板语法。" }}</p>
   </section>
-  <section v-else class="page-error">
+  <section v-else-if="!resolvedComponent" class="page-error">
     <strong>页面不存在</strong>
     <p>当前访问地址没有对应的用户端页面，请检查路由配置。</p>
   </section>
 </template>
 
 <style scoped>
-.page-loading-placeholder {
-  min-height: calc(var(--ihc-page-min-height) - 36px);
-}
-
 .page-loader {
   min-height: calc(var(--ihc-page-min-height) - 36px);
   display: grid;
@@ -328,36 +242,6 @@ const pageProps = computed(() => {
   font-size: 18px;
 }
 
-.page-loader__progress {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 12px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(117, 214, 223, 0.14) 0%, rgba(123, 226, 142, 0.18) 100%);
-  box-shadow: inset 0 1px 3px rgba(47, 145, 138, 0.08);
-}
-
-.page-loader__progress-fill {
-  position: relative;
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--brand) 0%, #69d9cb 48%, var(--brand-light) 100%);
-  box-shadow: 0 8px 18px rgba(53, 161, 152, 0.22);
-  transition: width 180ms ease;
-}
-
-.page-loader__progress-fill::after {
-  position: absolute;
-  inset: 0;
-  content: "";
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.36) 48%, transparent 100%);
-  transform: translateX(-100%);
-  animation: page-loader-sheen 1.6s ease-in-out infinite;
-}
-
 .page-error {
   display: grid;
   gap: 8px;
@@ -391,16 +275,9 @@ const pageProps = computed(() => {
   }
 }
 
-@keyframes page-loader-sheen {
-  100% {
-    transform: translateX(160%);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .page-loader__signal-ring,
-  .page-loader__signal-core,
-  .page-loader__progress-fill::after {
+  .page-loader__signal-core {
     animation: none;
   }
 }

@@ -36,9 +36,12 @@ export interface AdminOrderListItem {
   contactPhone: string;
   addressText: string;
   remark: string | null;
+  healthSummary?: unknown;
+  aiSummary?: unknown;
   workOrderId: string | null;
   workOrderStatus: string | null;
   assigneeName: string | null;
+  agentDispatchSuggestion?: unknown;
   afterSaleId: string | null;
   afterSaleStatus: string | null;
   afterSaleReason: string | null;

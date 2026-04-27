@@ -129,6 +129,7 @@ export interface CreateOrderParams {
   contactPhone?: string;
   remark?: string;
   couponId?: string;
+  aiSummary?: Record<string, unknown>;
 }
 
 export interface CreateOrderResponse {
@@ -161,6 +162,7 @@ export interface OrderDetailResponse extends OrderListItem {
     contactPhone: string;
   } | null;
   healthSummary: unknown;
+  aiSummary?: unknown;
   payments: Array<{
     paymentId: string;
     paymentNo: string;
@@ -175,6 +177,7 @@ export interface OrderDetailResponse extends OrderListItem {
     assigneeName: string | null;
     institutionName: string | null;
     scheduleAt: string | null;
+    agentDispatchSuggestion?: unknown;
   }>;
   reports: Array<{
     reportId: string;

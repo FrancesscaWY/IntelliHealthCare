@@ -2,7 +2,6 @@ import { normalizePageId } from "@ihc/page-core/runtime";
 import type { NavigationApi } from "@ihc/page-core/types";
 import { useRouter } from "vue-router";
 import { getPageEntryById } from "./page-manifest";
-import { prefetchRoutePageComponent } from "./page-loader";
 
 const visitedPageIdsByPosition: string[] = [];
 
@@ -49,8 +48,6 @@ export function usePageRouterNavigation(): NavigationApi {
     if (!targetLocation) {
       return false;
     }
-
-    prefetchRoutePageComponent(pageId, { immediate: true });
 
     const navigationTask = replace
       ? router.replace(targetLocation)

@@ -273,7 +273,7 @@ onMounted(() => {
     </main>
 
     <div class="buy-bar">
-      <button class="buy-button" type="button" @click="buyNow">立即购买</button>
+      <button class="buy-button" type="button" @click="buyNow">立即预约</button>
     </div>
   </div>
 </template>

@@ -27,6 +27,12 @@ export interface AdminReportListResponse {
   hasMore: boolean;
 }
 
+export interface AdminReportDetail extends AdminReportListItem {
+  summary: Record<string, unknown>;
+  attachment: unknown;
+  reviewedAt: string | null;
+}
+
 export interface AdminReportsQuery {
   page?: number;
   pageSize?: number;
@@ -37,6 +43,31 @@ export interface AdminReportsQuery {
 
 export function getAdminReports(query: AdminReportsQuery = {}) {
   return request<AdminReportListResponse>(`/admin/reports${buildQueryString(query)}`, {
+    auth: true
+  });
+}
+
+export function getAdminReportDetail(reportId: string) {
+  return request<AdminReportDetail>(`/admin/reports/${reportId}`, {
+    auth: true
+  });
+}
+
+export function reviewAdminReport(reportId: string, status: string) {
+  return request<AdminReportListItem>(`/admin/reports/${reportId}/review`, {
+    method: "PUT",
+    auth: true,
+    body: { status }
+  });
+}
+
+export function getAdminReportDownloadMetadata(reportId: string) {
+  return request<{
+    reportId: string;
+    fileId: string | null;
+    fileName: string;
+    url: string | null;
+  }>(`/admin/reports/${reportId}/download-metadata`, {
     auth: true
   });
 }

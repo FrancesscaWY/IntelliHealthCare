@@ -5,8 +5,11 @@ import {
   NotFoundException
 } from "@nestjs/common";
 import {
+  AlertLevel,
+  AlertStatus,
   AfterSaleStatus,
   AfterSaleType,
+  MetricType,
   OrderStatus,
   PaymentChannel,
   Prisma,
@@ -22,7 +25,8 @@ import {
   paginate,
   toDateString,
   toDateTimeString,
-  toNumber
+  toNumber,
+  toPrismaJson
 } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
@@ -184,6 +188,7 @@ export class OrdersService {
       contactPhone?: string;
       remark?: string;
       couponId?: string;
+      aiSummary?: Record<string, unknown>;
     }
   ) {
     const preview = await this.previewOrder(currentUser, payload);
@@ -211,7 +216,7 @@ export class OrdersService {
             phone: payload.contactPhone ?? preview.address.receiverPhone
           },
           healthSummarySnapshot: preview.healthSummary ?? Prisma.JsonNull,
-          aiSummary: Prisma.JsonNull
+          aiSummary: payload.aiSummary ? toPrismaJson(payload.aiSummary) : Prisma.JsonNull
         }
       });
 
@@ -264,6 +269,7 @@ export class OrdersService {
       address: order.addressSnapshot,
       contact: order.contactSnapshot,
       healthSummary: order.healthSummarySnapshot,
+      aiSummary: order.aiSummary,
       payments: order.payments.map((item) => ({
         paymentId: item.id,
         paymentNo: item.paymentNo,
@@ -277,7 +283,8 @@ export class OrdersService {
         status: item.status,
         assigneeName: item.assigneeName,
         institutionName: item.institutionName,
-        scheduleAt: toDateTimeString(item.scheduleAt)
+        scheduleAt: toDateTimeString(item.scheduleAt),
+        agentDispatchSuggestion: item.agentDispatchSuggestion
       })),
       reports: order.reports.map((item) => ({
         reportId: item.id,
@@ -669,9 +676,12 @@ export class OrdersService {
           contactPhone: String(contactSnapshot.contactPhone ?? contactSnapshot.phone ?? ""),
           addressText: this.buildAddressText(addressSnapshot),
           remark: item.remark,
+          healthSummary: item.healthSummarySnapshot,
+          aiSummary: item.aiSummary,
           workOrderId: latestWorkOrder?.id ?? null,
           workOrderStatus: latestWorkOrder?.status ?? null,
           assigneeName: latestWorkOrder?.assignee?.name ?? latestWorkOrder?.assigneeName ?? null,
+          agentDispatchSuggestion: latestWorkOrder?.agentDispatchSuggestion ?? null,
           afterSaleId: latestAfterSale?.id ?? null,
           afterSaleStatus: latestAfterSale?.status ?? null,
           afterSaleReason: latestAfterSale?.reason ?? null
@@ -780,7 +790,10 @@ export class OrdersService {
       assigneeName: latestWorkOrder?.assignee?.name ?? latestWorkOrder?.assigneeName ?? null,
       afterSaleId: latestAfterSale?.id ?? null,
       afterSaleStatus: latestAfterSale?.status ?? null,
-      afterSaleReason: latestAfterSale?.reason ?? null
+      afterSaleReason: latestAfterSale?.reason ?? null,
+      healthSummary: order.healthSummarySnapshot,
+      aiSummary: order.aiSummary,
+      agentDispatchSuggestion: latestWorkOrder?.agentDispatchSuggestion ?? null
     };
     const orderRow = this.buildAdminOrderListRow(detailCard);
 
@@ -811,6 +824,8 @@ export class OrdersService {
       remark: order.remark,
       contactSnapshot: order.contactSnapshot,
       addressSnapshot: order.addressSnapshot,
+      healthSummary: order.healthSummarySnapshot,
+      aiSummary: order.aiSummary,
       payments: order.payments.map((item) => ({
         paymentId: item.id,
         paymentNo: item.paymentNo,
@@ -829,7 +844,8 @@ export class OrdersService {
         scheduleAt: toDateTimeString(item.scheduleAt),
         startedAt: toDateTimeString(item.startedAt),
         completedAt: toDateTimeString(item.completedAt),
-        dispatchNote: item.dispatchNote
+        dispatchNote: item.dispatchNote,
+        agentDispatchSuggestion: item.agentDispatchSuggestion
       })),
       reports: order.reports.map((item) => ({
         reportId: item.id,
@@ -1387,7 +1403,8 @@ export class OrdersService {
             owner: true
           }
         },
-        assignee: true
+        assignee: true,
+        institution: true
       },
       orderBy: { createdAt: "desc" }
     });
@@ -1411,19 +1428,29 @@ export class OrdersService {
         return matchesCategory && matchesKeyword;
       })
       .map((item) => ({
-        id: item.id,
+        workOrderId: item.id,
+        orderId: item.orderId,
         orderNo: item.order.orderNo,
-        title: item.order.service.title,
-        cover: item.order.service.coverUrl,
-        project: item.order.service.summary ?? item.order.service.title,
-        amount: (toNumber(item.order.payableAmount) ?? 0).toFixed(2),
-        staff: item.assignee?.name ?? item.assigneeName ?? "待分配",
+        status: item.status,
+        statusText: this.getAdminWorkOrderStatusText(item.status),
+        serviceCategory: item.order.service.category,
+        serviceCategoryText: this.getServiceCategoryText(item.order.service.category),
+        serviceTitle: item.order.service.title,
+        serviceSummary: item.order.service.summary,
+        serviceCover: item.order.service.coverUrl,
+        assigneeName: item.assignee?.name ?? item.assigneeName ?? null,
+        institutionName: item.institution?.name ?? item.institutionName ?? null,
         customerName:
           item.order.owner.realName ?? item.order.owner.nickname ?? item.order.owner.phone,
         customerPhone: item.order.owner.phone,
         customerAvatar: item.order.owner.avatarUrl,
-        assignTime: this.toDisplayDateTime(item.createdAt),
-        status: this.getAdminWorkOrderStatusText(item.status),
+        bookingDate: toDateString(item.order.bookingDate),
+        bookingTimeSlot: item.order.bookingTimeSlot,
+        scheduleAt: toDateTimeString(item.scheduleAt),
+        createdAt: toDateTimeString(item.createdAt),
+        payableAmount: toNumber(item.order.payableAmount),
+        dispatchNote: item.dispatchNote,
+        agentDispatchSuggestion: item.agentDispatchSuggestion,
         actions: this.buildAdminWorkOrderActions(item.status)
       }));
 
@@ -1493,6 +1520,109 @@ export class OrdersService {
         description: item.description,
         createdAt: toDateTimeString(item.createdAt)
       }))
+    };
+  }
+
+  async listAdminHealthAlerts(
+    page: number,
+    pageSize: number,
+    level?: AlertLevel,
+    status?: AlertStatus,
+    keyword?: string
+  ) {
+    const normalizedKeyword = keyword?.trim().toLowerCase();
+    const alerts = await this.prismaService.healthAlert.findMany({
+      where: {
+        level: level ?? undefined,
+        status: status ?? undefined
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            realName: true,
+            nickname: true,
+            phone: true,
+            avatarUrl: true
+          }
+        },
+        metricRecord: true,
+        handler: true
+      },
+      orderBy: { triggeredAt: "desc" }
+    });
+
+    const rows = alerts
+      .map((item) => this.toAdminHealthAlertRow(item))
+      .filter((item) => {
+        if (!normalizedKeyword) {
+          return true;
+        }
+
+        return [
+          item.title,
+          item.summary,
+          item.ownerName,
+          item.ownerPhone,
+          item.relatedMetric
+        ]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedKeyword));
+      });
+    const result = paginate(rows, page, pageSize);
+
+    return {
+      title: "健康告警",
+      summary: "生命体征异常、重点长者关注、报告复核和干预闭环。",
+      levelOptions: ["全部等级", "高风险", "中风险", "低风险"],
+      statusOptions: ["全部状态", "待回访", "处理中", "已关闭"],
+      ...result
+    };
+  }
+
+  async getAdminHealthAlertDetail(alertId: string) {
+    const alert = await this.prismaService.healthAlert.findUnique({
+      where: { id: alertId },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            realName: true,
+            nickname: true,
+            phone: true,
+            avatarUrl: true
+          }
+        },
+        archive: true,
+        metricRecord: true,
+        handler: true
+      }
+    });
+
+    if (!alert) {
+      throw new NotFoundException("Health alert not found");
+    }
+
+    const row = this.toAdminHealthAlertRow(alert);
+    const suggestion = ensureRecord(alert.suggestion);
+
+    return {
+      ...row,
+      suggestion,
+      riskSignals: this.readSuggestionList(suggestion, [
+        "riskSignals",
+        "signals",
+        "异常信号"
+      ]),
+      followUpSuggestions: this.readSuggestionList(suggestion, [
+        "followUpSuggestions",
+        "recommendedActions",
+        "actions",
+        "回访建议"
+      ]),
+      archiveTags: ensureArray<string>(alert.archive?.riskTags),
+      metricValue: alert.metricRecord?.value ?? null,
+      handlerName: alert.handler?.name ?? null
     };
   }
 
@@ -2485,6 +2615,114 @@ export class OrdersService {
     }
   }
 
+  private toAdminHealthAlertRow(alert: {
+    id: string;
+    level: AlertLevel;
+    status: AlertStatus;
+    sourceType: string;
+    title: string;
+    summary: string;
+    suggestion: unknown;
+    triggeredAt: Date;
+    handledAt: Date | null;
+    owner: {
+      id: string;
+      realName: string | null;
+      nickname: string | null;
+      phone: string;
+      avatarUrl?: string | null;
+    };
+    metricRecord?: {
+      metricType: MetricType;
+    } | null;
+  }) {
+    const suggestion = ensureRecord(alert.suggestion);
+    const actions = this.readSuggestionList(suggestion, [
+      "followUpSuggestions",
+      "recommendedActions",
+      "actions",
+      "回访建议"
+    ]);
+
+    return {
+      alertId: alert.id,
+      level: alert.level,
+      levelText: this.getAlertLevelText(alert.level),
+      status: alert.status,
+      statusText: this.getAlertStatusText(alert.status),
+      sourceType: alert.sourceType,
+      title: alert.title,
+      summary: alert.summary,
+      relatedMetric: alert.metricRecord ? this.metricLabel(alert.metricRecord.metricType) : null,
+      ownerId: alert.owner.id,
+      ownerName: alert.owner.realName ?? alert.owner.nickname ?? alert.owner.phone,
+      ownerPhone: alert.owner.phone,
+      ownerAvatar: alert.owner.avatarUrl ?? null,
+      followUpSuggestion:
+        actions[0] ?? String(suggestion.summary ?? suggestion.suggestion ?? "建议客服进行人工回访确认。"),
+      triggeredAt: toDateTimeString(alert.triggeredAt),
+      handledAt: toDateTimeString(alert.handledAt)
+    };
+  }
+
+  private getAlertLevelText(level: AlertLevel) {
+    switch (level) {
+      case AlertLevel.CRITICAL:
+        return "紧急风险";
+      case AlertLevel.HIGH:
+        return "高风险";
+      case AlertLevel.MEDIUM:
+        return "中风险";
+      case AlertLevel.LOW:
+        return "低风险";
+    }
+  }
+
+  private getAlertStatusText(status: AlertStatus) {
+    switch (status) {
+      case AlertStatus.OPEN:
+        return "待回访";
+      case AlertStatus.ACKNOWLEDGED:
+        return "处理中";
+      case AlertStatus.RESOLVED:
+        return "已关闭";
+      case AlertStatus.CLOSED:
+        return "已关闭";
+    }
+  }
+
+  private readSuggestionList(record: Record<string, unknown>, keys: string[]) {
+    for (const key of keys) {
+      const value = record[key];
+
+      if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+      }
+
+      if (typeof value === "string" && value.trim()) {
+        return [value.trim()];
+      }
+    }
+
+    return [];
+  }
+
+  private metricLabel(metricType: MetricType) {
+    const labels: Record<MetricType, string> = {
+      [MetricType.STEPS]: "步数",
+      [MetricType.HEART_RATE]: "心率",
+      [MetricType.SLEEP]: "睡眠",
+      [MetricType.WEIGHT]: "体重",
+      [MetricType.BLOOD_GLUCOSE]: "血糖",
+      [MetricType.BLOOD_PRESSURE]: "血压",
+      [MetricType.OXYGEN]: "血氧",
+      [MetricType.STRESS]: "压力",
+      [MetricType.TEMPERATURE]: "体温"
+    };
+
+    return labels[metricType] ?? metricType;
+  }
+
   private getServiceCategoryText(category: ServiceCategory) {
     switch (category) {
       case ServiceCategory.HOME_CARE:
@@ -2542,6 +2780,9 @@ export class OrdersService {
     serviceDurationText?: string | null;
     remark: string | null;
     assigneeName: string | null;
+    healthSummary?: unknown;
+    aiSummary?: unknown;
+    agentDispatchSuggestion?: unknown;
     afterSaleId: string | null;
     afterSaleStatus: AfterSaleStatus | null;
     afterSaleReason: string | null;
@@ -2593,6 +2834,9 @@ export class OrdersService {
       afterSaleStatus: item.afterSaleStatus
         ? this.getAdminAfterSaleStatusText(item.afterSaleStatus)
         : undefined,
+      healthSummary: item.healthSummary,
+      aiSummary: item.aiSummary,
+      agentDispatchSuggestion: item.agentDispatchSuggestion,
       paymentDeadlineAt:
         item.status === OrderStatus.PENDING_PAYMENT && item.createdAt
           ? new Date(new Date(item.createdAt).getTime() + 15 * 60 * 1000).toISOString()

@@ -8,6 +8,7 @@ import {
   readSelectedServiceContext,
   type SelectedServiceContext
 } from "@/shared/service/catalog";
+import { getOrderFlowState } from "@/pages/service/order-flow";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -243,9 +244,14 @@ async function resolveOrderContext() {
 
   const serviceId = resolvedServiceId.value;
   const bookingOptions = await getBookingOptions(serviceId);
-  const address = bookingOptions.addresses[0];
-  const bookingDate = bookingOptions.availableDates[0]?.date;
-  const bookingTimeSlot = bookingOptions.availableDates[0]?.timeSlots[0];
+  const flowState = getOrderFlowState();
+  const bookingDraft = flowState.booking;
+  const address =
+    bookingOptions.addresses.find((item) => item.addressId === bookingDraft?.addressId) ||
+    bookingOptions.addresses[0];
+  const bookingDate = bookingDraft?.bookingDate || bookingOptions.availableDates[0]?.date;
+  const bookingTimeSlot =
+    bookingDraft?.bookingTimeSlot || bookingOptions.availableDates[0]?.timeSlots[0];
 
   if (!address?.addressId) {
     throw new Error(TOASTS.noAddress);
@@ -259,7 +265,10 @@ async function resolveOrderContext() {
     serviceId,
     addressId: address.addressId,
     bookingDate,
-    bookingTimeSlot
+    bookingTimeSlot,
+    elderId: bookingDraft?.elderId,
+    couponId: bookingDraft?.couponId,
+    remark: bookingDraft?.remark
   });
 
   selectedAddress.value = address;
@@ -306,8 +315,12 @@ const submitOrder = async () => {
       addressId: address.addressId,
       bookingDate,
       bookingTimeSlot,
-      contactName: address.receiverName,
-      contactPhone: address.receiverPhone
+      elderId: getOrderFlowState().booking?.elderId,
+      couponId: getOrderFlowState().booking?.couponId,
+      contactName: getOrderFlowState().booking?.contactName || address.receiverName,
+      contactPhone: getOrderFlowState().booking?.contactPhone || address.receiverPhone,
+      remark: getOrderFlowState().booking?.remark,
+      aiSummary: getOrderFlowState().aiSummary ?? undefined
     });
 
     writeServicePaymentContext({

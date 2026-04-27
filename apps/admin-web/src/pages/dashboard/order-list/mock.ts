@@ -55,6 +55,9 @@ export interface AdminOrderRecord {
   afterSaleNo?: string;
   afterSaleReason?: string;
   afterSaleStatus?: string;
+  healthSummary?: unknown;
+  aiSummary?: unknown;
+  agentDispatchSuggestion?: unknown;
   paymentDeadlineAt?: string;
   detailTitle: string;
   detailDescription: string;

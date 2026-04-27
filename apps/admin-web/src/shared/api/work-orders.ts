@@ -23,6 +23,7 @@ export interface AdminWorkOrderListItem {
   createdAt: string | null;
   payableAmount: number | null;
   dispatchNote: string | null;
+  agentDispatchSuggestion?: unknown;
 }
 
 export interface AdminWorkOrderListResponse {

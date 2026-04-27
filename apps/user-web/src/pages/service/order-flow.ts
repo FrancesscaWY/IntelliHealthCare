@@ -29,6 +29,20 @@ export interface OrderBookingDraft {
   couponId?: string;
 }
 
+export interface OrderAiSummary extends Record<string, unknown> {
+  scene?: string;
+  title?: string;
+  serviceId?: string;
+  serviceTitle?: string;
+  recommendationReason?: string;
+  matchingSignals?: string[];
+  rankingReasons?: string[];
+  suggestedSlots?: string[];
+  missingFields?: string[];
+  knowledgeTitles?: string[];
+  sourcePageId?: string;
+}
+
 export interface CreatedOrderSnapshot {
   orderId: string;
   status: string;
@@ -50,6 +64,7 @@ export interface OrderFlowState {
   booking: OrderBookingDraft | null;
   createdOrder: CreatedOrderSnapshot | null;
   payment: PaymentSnapshot | null;
+  aiSummary?: OrderAiSummary | null;
 }
 
 const ORDER_FLOW_STORAGE_KEY = "ihc:user-web:order-flow";
@@ -73,7 +88,8 @@ function loadOrderFlowState(): OrderFlowState {
       service: null,
       booking: null,
       createdOrder: null,
-      payment: null
+      payment: null,
+      aiSummary: null
     };
   }
 
@@ -83,7 +99,8 @@ function loadOrderFlowState(): OrderFlowState {
       service: null,
       booking: null,
       createdOrder: null,
-      payment: null
+      payment: null,
+      aiSummary: null
     };
   }
 
@@ -139,7 +156,14 @@ export function setOrderFlowService(service: OrderServiceSummary) {
       remark: ""
     },
     createdOrder: null,
-    payment: null
+    payment: null,
+    aiSummary: null
+  });
+}
+
+export function setOrderFlowAiSummary(aiSummary: OrderAiSummary | null) {
+  updateOrderFlowState({
+    aiSummary
   });
 }
 

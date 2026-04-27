@@ -123,6 +123,75 @@ const detail = computed(() => {
   const order = selectedOrder.value;
   return order ? buildOrderDetail(order) : null;
 });
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function readStringList(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+
+    if (Array.isArray(value)) {
+      const list = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+
+      if (list.length > 0) {
+        return list;
+      }
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      return [value.trim()];
+    }
+  }
+
+  return [];
+}
+
+const aiOrderEvidence = computed(() => {
+  const order = selectedOrder.value;
+
+  if (!order) {
+    return null;
+  }
+
+  const aiSummary = asRecord(order.aiSummary);
+  const healthSummary = asRecord(order.healthSummary);
+  const dispatchSuggestion = asRecord(order.agentDispatchSuggestion);
+  const matchingSignals = [
+    ...readStringList(aiSummary, ["matchingSignals", "rankingReasons", "suggestedSlots"]),
+    ...readStringList(healthSummary, ["riskTags", "chronicDiseases", "careNeeds"])
+  ].slice(0, 5);
+  const dispatchReasons = readStringList(dispatchSuggestion, ["reasons", "signals", "rankingReasons", "suggestions"]);
+
+  return {
+    title: readString(aiSummary, ["title", "serviceTitle"]) || order.title,
+    reason:
+      readString(aiSummary, ["recommendationReason", "reason", "summary"]) ||
+      `依据预约时段、服务类型和用户档案生成结构化订单摘要。`,
+    matchingSignals:
+      matchingSignals.length > 0
+        ? matchingSignals
+        : [`服务类型：${order.serviceType}`, `预约时段：${order.appointmentTime}`, `服务地址：${order.serviceAddress}`],
+    knowledgeTitles: readStringList(aiSummary, ["knowledgeTitles", "sources"]).slice(0, 4),
+    dispatchSuggestion:
+      readString(dispatchSuggestion, ["summary", "suggestion", "reason"]) ||
+      dispatchReasons[0] ||
+      `建议优先安排熟悉${order.serviceType}的人员，并在服务前电话确认上门细节。`
+  };
+});
 const currentAfterSaleRecord = computed(() => {
   const afterSaleNo = selectedOrder.value?.afterSaleNo;
   return afterSaleNo ? getAfterSaleRowByNo(afterSaleNo) ?? null : null;
@@ -922,6 +991,33 @@ function triggerFooterAction(label: string) {
         <button class="text-button" type="button" @click="editRemark">编辑备注</button>
       </section>
 
+      <section v-if="aiOrderEvidence" class="ai-order-card">
+        <header class="block-head">
+          <span class="block-head__accent"></span>
+          <h2>AI 订单摘要</h2>
+        </header>
+        <div class="ai-order-card__grid">
+          <article>
+            <span>推荐服务</span>
+            <strong>{{ aiOrderEvidence.title }}</strong>
+            <p>{{ aiOrderEvidence.reason }}</p>
+          </article>
+          <article>
+            <span>关注事项</span>
+            <div class="ai-chip-list">
+              <em v-for="item in aiOrderEvidence.matchingSignals" :key="item">{{ item }}</em>
+            </div>
+          </article>
+          <article>
+            <span>推荐派单理由</span>
+            <p>{{ aiOrderEvidence.dispatchSuggestion }}</p>
+            <div v-if="aiOrderEvidence.knowledgeTitles.length" class="ai-source-list">
+              <small v-for="item in aiOrderEvidence.knowledgeTitles" :key="item">知识依据：{{ item }}</small>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="detail-section">
         <header class="block-head">
           <span class="block-head__accent"></span>
@@ -1596,6 +1692,78 @@ function triggerFooterAction(label: string) {
   color: #46515d;
   font-size: 14px;
   line-height: 1.7;
+}
+
+.ai-order-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #dcefeb;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f5fffb 0%, #ffffff 100%);
+}
+
+.ai-order-card__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+
+.ai-order-card__grid article {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e7f2ef;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.ai-order-card__grid span {
+  color: #7c8a96;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ai-order-card__grid strong {
+  display: block;
+  margin-top: 8px;
+  color: #24313f;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ai-order-card__grid p {
+  margin: 8px 0 0;
+  color: #54616f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-chip-list,
+.ai-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ai-chip-list em,
+.ai-source-list small {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef9f5;
+  color: #218b70;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.ai-source-list small {
+  background: #f1f6fb;
+  color: #4d6d8b;
 }
 
 .text-button,
@@ -2382,6 +2550,10 @@ function triggerFooterAction(label: string) {
 
 @media (max-width: 1380px) {
   .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-order-card__grid {
     grid-template-columns: 1fr;
   }
 

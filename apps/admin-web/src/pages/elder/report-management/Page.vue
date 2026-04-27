@@ -1,16 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { getAdminReports, type AdminReportListItem } from "@/shared/api/reports";
+import {
+  getAdminReportDetail,
+  getAdminReportDownloadMetadata,
+  getAdminReports,
+  reviewAdminReport,
+  type AdminReportDetail,
+  type AdminReportListItem
+} from "@/shared/api/reports";
 import { clearAdminAuthSession } from "@/shared/auth/session";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
-const rows = ref(mock.rows);
+type ReportRow = (typeof mock.rows)[number] & {
+  status?: string;
+  reportId?: string;
+};
+
+const rows = ref<ReportRow[]>(mock.rows);
 
 const selectedType = ref(mock.reportTypes[0]);
 const keyword = ref("");
 const selectedIds = ref<string[]>([]);
+const detailOpen = ref(false);
+const activeReport = ref<AdminReportDetail | null>(null);
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) {
@@ -43,9 +57,22 @@ function adaptRow(item: AdminReportListItem) {
     source: item.source,
     uploader: item.uploader,
     ticketNo: item.orderNo || "-",
-    reportDate: item.reportDate || "-"
+    reportDate: item.reportDate || "-",
+    status: item.status,
+    reportId: item.reportId
   };
 }
+
+const reportSummaryItems = computed(() => {
+  const summary = activeReport.value?.summary ?? {};
+  return Object.entries(summary)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .slice(0, 8)
+    .map(([key, value]) => ({
+      key,
+      value: Array.isArray(value) ? value.join("、") : typeof value === "object" ? JSON.stringify(value) : String(value)
+    }));
+});
 
 async function syncReportsFromApi() {
   try {
@@ -112,6 +139,74 @@ function resetFilters() {
 
 function openAction(label: string, value?: string) {
   props.showToast(value ? `${label}：${value}` : `${label}功能为演示状态`);
+}
+
+async function openReportDetail(row: ReportRow) {
+  try {
+    activeReport.value = await getAdminReportDetail(row.reportId || row.id);
+  } catch {
+    activeReport.value = {
+      reportId: row.reportId || row.id,
+      title: row.reportName,
+      type: row.reportType,
+      typeText: row.reportType,
+      status: row.status || "PUBLISHED",
+      createdAt: row.uploadedAt,
+      publishedAt: row.reportDate,
+      reviewedAt: row.uploadedAt,
+      elderId: null,
+      elderName: row.userName,
+      elderPhone: null,
+      source: row.source,
+      uploader: row.uploader,
+      orderId: null,
+      orderNo: row.ticketNo === "-" ? null : row.ticketNo,
+      reportDate: row.reportDate,
+      summary: {
+        报告摘要: "血脂相关指标已完成结构化归档，可用于后续健康评估与服务推荐。",
+        关联工单: row.ticketNo,
+        处理建议: "建议结合近期血压、血糖和用药记录做一次电话回访。"
+      },
+      attachment: null
+    };
+  }
+
+  detailOpen.value = true;
+}
+
+function closeReportDetail() {
+  detailOpen.value = false;
+  activeReport.value = null;
+}
+
+async function reviewReport(status: "PUBLISHED" | "ARCHIVED") {
+  const report = activeReport.value;
+
+  if (!report) {
+    return;
+  }
+
+  try {
+    await reviewAdminReport(report.reportId, status);
+    activeReport.value = {
+      ...report,
+      status,
+      reviewedAt: new Date().toISOString(),
+      publishedAt: status === "PUBLISHED" ? new Date().toISOString() : report.publishedAt
+    };
+    props.showToast(status === "PUBLISHED" ? "报告已审核发布" : "报告已归档");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "报告审核失败");
+  }
+}
+
+async function downloadReport(row: ReportRow) {
+  try {
+    const metadata = await getAdminReportDownloadMetadata(row.reportId || row.id);
+    props.showToast(`下载报告：${metadata.fileName}`);
+  } catch {
+    props.showToast(`下载报告：${row.reportName}`);
+  }
 }
 </script>
 
@@ -211,7 +306,8 @@ function openAction(label: string, value?: string) {
               <td>{{ row.reportDate }}</td>
               <td>
                 <div class="table-actions">
-                  <button type="button" class="table-link table-link--green" @click="openAction('下载报告', row.reportName)">下载</button>
+                  <button type="button" class="table-link table-link--green" @click="openReportDetail(row)">详情</button>
+                  <button type="button" class="table-link table-link--green" @click="downloadReport(row)">下载</button>
                   <button type="button" class="table-link table-link--red" @click="openAction('删除报告', row.reportName)">删除</button>
                 </div>
               </td>
@@ -220,6 +316,51 @@ function openAction(label: string, value?: string) {
         </table>
       </div>
     </article>
+
+    <section v-if="detailOpen && activeReport" class="dialog-mask" @click.self="closeReportDetail">
+      <article class="report-dialog">
+        <header class="report-dialog__head">
+          <div>
+            <span>报告详情</span>
+            <h2>{{ activeReport.title }}</h2>
+          </div>
+          <button type="button" aria-label="关闭报告详情" @click="closeReportDetail">×</button>
+        </header>
+
+        <div class="report-dialog__meta">
+          <article>
+            <span>所属用户</span>
+            <strong>{{ activeReport.elderName || "未命名用户" }}</strong>
+            <p>{{ activeReport.elderPhone || "手机号未记录" }}</p>
+          </article>
+          <article>
+            <span>关联工单</span>
+            <strong>{{ activeReport.orderNo || "未关联" }}</strong>
+            <p>{{ activeReport.source }}</p>
+          </article>
+          <article>
+            <span>审核状态</span>
+            <strong>{{ activeReport.status }}</strong>
+            <p>审核：{{ activeReport.reviewedAt || "待审核" }} / 发布：{{ activeReport.publishedAt || "未发布" }}</p>
+          </article>
+        </div>
+
+        <section class="report-summary">
+          <h3>报告摘要</h3>
+          <dl>
+            <div v-for="item in reportSummaryItems" :key="item.key">
+              <dt>{{ item.key }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <footer class="report-dialog__actions">
+          <button type="button" class="toolbar-button" @click="reviewReport('ARCHIVED')">归档</button>
+          <button type="button" class="toolbar-button toolbar-button--primary" @click="reviewReport('PUBLISHED')">审核发布</button>
+        </footer>
+      </article>
+    </section>
   </section>
 </template>
 
@@ -473,6 +614,127 @@ function openAction(label: string, value?: string) {
   color: #ff8c86;
 }
 
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.report-dialog {
+  width: min(760px, 100%);
+  padding: 20px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(21, 37, 50, 0.22);
+}
+
+.report-dialog__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.report-dialog__head span,
+.report-dialog__meta span,
+.report-summary h3 {
+  color: #8f9aa6;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.report-dialog__head h2 {
+  margin: 8px 0 0;
+  color: #263244;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.report-dialog__head button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #edf5f2;
+  color: #53606c;
+  font-size: 24px;
+}
+
+.report-dialog__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.report-dialog__meta article {
+  padding: 14px;
+  border: 1px solid #edf2ef;
+  border-radius: 10px;
+  background: #fbfcfc;
+}
+
+.report-dialog__meta strong {
+  display: block;
+  margin-top: 8px;
+  color: #263244;
+  font-size: 15px;
+}
+
+.report-dialog__meta p {
+  margin: 6px 0 0;
+  color: #6f7b87;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.report-summary {
+  margin-top: 18px;
+}
+
+.report-summary h3 {
+  margin: 0 0 10px;
+}
+
+.report-summary dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.report-summary dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: #f7fbfa;
+}
+
+.report-summary dt,
+.report-summary dd {
+  margin: 0;
+  color: #53606c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.report-summary dt {
+  color: #2f3946;
+  font-weight: 600;
+}
+
+.report-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 @media (max-width: 1180px) {
   .filters {
     grid-template-columns: 1fr;
@@ -485,6 +747,11 @@ function openAction(label: string, value?: string) {
 
   .toolbar__actions {
     justify-content: flex-end;
+  }
+
+  .report-dialog__meta,
+  .report-summary dl div {
+    grid-template-columns: 1fr;
   }
 }
 </style>

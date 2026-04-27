@@ -204,7 +204,8 @@ async function syncPageData(query: {
   serviceType?: string;
 } = {}) {
   try {
-    pageData.value = (await getAdminBookingBoard(query)) as typeof mock;
+    const response = (await getAdminBookingBoard(query)) as typeof mock;
+    pageData.value = response.bookings.length > 0 ? response : mock;
   } catch (error) {
     handleAdminPageError(error, {
       navigation: props.navigation,

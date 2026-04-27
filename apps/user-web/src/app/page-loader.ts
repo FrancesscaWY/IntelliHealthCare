@@ -1,12 +1,24 @@
 import type { Component } from "vue";
 import { normalizePageId } from "@ihc/page-core/runtime";
+import HomeCareRecommendWaitingPage from "../pages/service/home-care-recommend-waiting/Page.vue";
+import HomeExamRecommendWaitingPage from "../pages/service/home-exam-recommend-waiting/Page.vue";
+import RehabRecommendWaitingPage from "../pages/service/rehab-recommend-waiting/Page.vue";
 
-const pageModules = import.meta.glob("../pages/**/Page.vue");
+const pageModules = import.meta.glob([
+  "../pages/**/Page.vue",
+  "!../pages/service/home-care-recommend-waiting/Page.vue",
+  "!../pages/service/home-exam-recommend-waiting/Page.vue",
+  "!../pages/service/rehab-recommend-waiting/Page.vue"
+]);
 const componentCache = new Map<string, Component | null>();
 const loadingCache = new Map<string, Promise<Component | null>>();
 const prefetchQueue: string[] = [];
 const queuedPrefetchPageIds = new Set<string>();
 let prefetchScheduled = false;
+
+componentCache.set("service/home-care-recommend-waiting", HomeCareRecommendWaitingPage);
+componentCache.set("service/home-exam-recommend-waiting", HomeExamRecommendWaitingPage);
+componentCache.set("service/rehab-recommend-waiting", RehabRecommendWaitingPage);
 
 export function peekRoutePageComponent(pageId: string) {
   const normalizedPageId = normalizePageId(pageId);

@@ -17,6 +17,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Max,
@@ -30,6 +31,8 @@ import {
   ApiTags
 } from "@nestjs/swagger";
 import {
+  AlertLevel,
+  AlertStatus,
   AfterSaleType,
   OrderStatus,
   PaymentChannel,
@@ -127,6 +130,18 @@ class CreateOrderDto extends PreviewOrderDto {
   @IsOptional()
   @IsString()
   contactPhone?: string;
+
+  @ApiPropertyOptional({
+    description: "AI 推荐与预约草稿摘要，用于后台订单辅助分流展示。",
+    example: {
+      scene: "rehab",
+      serviceTitle: "脑卒中术后康复套餐",
+      recommendationReason: "结合康复需求优先推荐。"
+    }
+  })
+  @IsOptional()
+  @IsObject()
+  aiSummary?: Record<string, unknown>;
 }
 
 class OrdersQueryDto extends PaginationQueryDto {
@@ -385,6 +400,34 @@ class AdminBookingBoardQueryDto {
   @IsOptional()
   @IsString()
   staffId?: string;
+}
+
+class AdminHealthAlertsQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: "风险等级筛选。",
+    enum: AlertLevel,
+    example: AlertLevel.HIGH
+  })
+  @IsOptional()
+  @IsEnum(AlertLevel)
+  level?: AlertLevel;
+
+  @ApiPropertyOptional({
+    description: "处理状态筛选。",
+    enum: AlertStatus,
+    example: AlertStatus.OPEN
+  })
+  @IsOptional()
+  @IsEnum(AlertStatus)
+  status?: AlertStatus;
+
+  @ApiPropertyOptional({
+    description: "关键字，可匹配标题、摘要、长者姓名或手机号。",
+    example: "血压"
+  })
+  @IsOptional()
+  @IsString()
+  keyword?: string;
 }
 
 class UpdateAdminOrderPriceDto {
@@ -908,6 +951,30 @@ export class AdminOrdersController {
     @Body() body: UpdateWorkOrderStatusDto
   ) {
     return this.ordersService.updateWorkOrderStatus(user, workOrderId, body.status);
+  }
+
+  @Get("health-alerts")
+  @ApiOperation({
+    summary: "获取后台健康告警列表",
+    description: "health/alert-center 页面接口。"
+  })
+  listHealthAlerts(@Query() query: AdminHealthAlertsQueryDto) {
+    return this.ordersService.listAdminHealthAlerts(
+      query.page,
+      query.pageSize,
+      query.level,
+      query.status,
+      query.keyword
+    );
+  }
+
+  @Get("health-alerts/:alertId")
+  @ApiOperation({
+    summary: "获取后台健康告警详情",
+    description: "健康告警详情弹层接口，包含回访建议和处理状态。"
+  })
+  getHealthAlertDetail(@Param("alertId") alertId: string) {
+    return this.ordersService.getAdminHealthAlertDetail(alertId);
   }
 
   @Get("after-sales")

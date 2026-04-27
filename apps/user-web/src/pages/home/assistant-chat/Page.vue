@@ -1245,14 +1245,9 @@ watch(
   border-radius: 10px;
   background: #6fdc91;
   color: #ffffff;
-  font-family:
-    "Songti SC",
-    "SimSun",
-    "STSong",
-    "Noto Serif CJK SC",
-    serif;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 400;
   line-height: 1.62;
   box-shadow: 0 5px 14px rgba(53, 161, 152, 0.1);
   text-wrap: pretty;
@@ -1263,8 +1258,12 @@ watch(
   border-color: rgba(202, 224, 218, 0.88);
   background: rgba(255, 255, 255, 0.96);
   color: #31483e;
-  font-weight: 600;
+  font-weight: 400;
   box-shadow: 0 3px 10px rgba(53, 161, 152, 0.045);
+}
+
+.message-bubble strong {
+  font-weight: 400;
 }
 
 .message-bubble--image {

@@ -12,7 +12,6 @@ import {
   loadLastAuthenticatedPageId,
   saveLastAuthenticatedPageId
 } from "@/shared/auth/page-session";
-import { prefetchRoutePageComponent } from "./page-loader";
 
 interface UsePageNavigationOptions {
   manifest: PageEntry[];
@@ -79,7 +78,6 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
       return false;
     }
 
-    prefetchRoutePageComponent(normalizedPageId, { immediate: true });
     setStack([...stack.value, normalizedPageId]);
     return true;
   };
@@ -96,7 +94,6 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
         return;
       }
 
-      prefetchRoutePageComponent(normalizedPageId, { immediate: true });
       const nextStack = stack.value.length > 0 ? [...stack.value.slice(0, -1), normalizedPageId] : [normalizedPageId];
       setStack(nextStack);
     },
@@ -106,7 +103,6 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
         return;
       }
 
-      prefetchRoutePageComponent(normalizedPageId, { immediate: true });
       setStack([normalizedPageId]);
     },
     navigateBack() {
