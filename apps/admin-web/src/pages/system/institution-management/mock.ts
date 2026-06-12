@@ -1,0 +1,155 @@
+export interface InstitutionRow {
+  id: string;
+  institutionNo: string;
+  name: string;
+  region: string;
+  address: string;
+  contactName: string;
+  contactPhone: string;
+  serviceTags: string[];
+  shareCount: number;
+  favoriteCount: number;
+  updatedBy: string;
+  updatedAt: string;
+  note: string;
+  published: boolean;
+}
+
+const mock = {
+  title: "机构列表",
+  summary: "管理机构展示信息、特色服务和发布状态。",
+  statusOptions: ["全部", "已发布", "未发布"],
+  regionOptions: ["浦东新区", "静安区", "徐汇区", "黄浦区", "长宁区"],
+  rows: [
+    {
+      id: "institution-1",
+      institutionNo: "JG2024001",
+      name: "金慧福养老机构（朝阳店）",
+      region: "浦东新区",
+      address: "浦东新区张杨路188号3层",
+      contactName: "李慧",
+      contactPhone: "17655551001",
+      serviceTags: ["24h监护", "特殊护理"],
+      shareCount: 100,
+      favoriteCount: 35,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-09 10:09:09",
+      note: "覆盖日间照护、夜间值守和重点长者护理服务。",
+      published: true,
+    },
+    {
+      id: "institution-2",
+      institutionNo: "JG2024002",
+      name: "金慧福养老机构（静安店）",
+      region: "静安区",
+      address: "静安区延平路66号2层",
+      contactName: "陈倩",
+      contactPhone: "17655551002",
+      serviceTags: ["康复理疗", "陪诊服务"],
+      shareCount: 86,
+      favoriteCount: 29,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-09 10:09:09",
+      note: "以康复训练、术后跟进和上门陪诊为主。",
+      published: true,
+    },
+    {
+      id: "institution-3",
+      institutionNo: "JG2024003",
+      name: "安心康养机构（徐汇店）",
+      region: "徐汇区",
+      address: "徐汇区漕溪北路120号5层",
+      contactName: "周婷",
+      contactPhone: "17655551003",
+      serviceTags: ["营养餐", "慢病管理"],
+      shareCount: 72,
+      favoriteCount: 24,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-08 15:26:30",
+      note: "支持营养餐搭配和慢病稳定管理服务。",
+      published: true,
+    },
+    {
+      id: "institution-4",
+      institutionNo: "JG2024004",
+      name: "颐康照护中心（黄浦店）",
+      region: "黄浦区",
+      address: "黄浦区人民路88号1层",
+      contactName: "林洁",
+      contactPhone: "17655551004",
+      serviceTags: ["日间照料", "心理陪伴"],
+      shareCount: 64,
+      favoriteCount: 18,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-07 11:35:42",
+      note: "偏重社区日间照料和情绪关怀服务。",
+      published: false,
+    },
+    {
+      id: "institution-5",
+      institutionNo: "JG2024005",
+      name: "乐龄康护机构（长宁店）",
+      region: "长宁区",
+      address: "长宁区仙霞路210号4层",
+      contactName: "王薇",
+      contactPhone: "17655551005",
+      serviceTags: ["失能照护", "夜间值守"],
+      shareCount: 118,
+      favoriteCount: 41,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-06 09:18:06",
+      note: "提供失能长者护理和夜间值守服务。",
+      published: true,
+    },
+    {
+      id: "institution-6",
+      institutionNo: "JG2024006",
+      name: "慧养养老机构（浦东旗舰店）",
+      region: "浦东新区",
+      address: "浦东新区博成路518号6层",
+      contactName: "赵敏",
+      contactPhone: "17655551006",
+      serviceTags: ["上门护理", "康复训练"],
+      shareCount: 93,
+      favoriteCount: 32,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-05 08:45:10",
+      note: "覆盖院内与上门护理双场景。",
+      published: true,
+    },
+    {
+      id: "institution-7",
+      institutionNo: "JG2024007",
+      name: "安宁长者服务站（虹桥店）",
+      region: "长宁区",
+      address: "长宁区虹桥路312号2层",
+      contactName: "何雯",
+      contactPhone: "17655551007",
+      serviceTags: ["认知训练", "膳食管理"],
+      shareCount: 57,
+      favoriteCount: 16,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-04 16:12:28",
+      note: "侧重认知训练和日常膳食干预。",
+      published: false,
+    },
+    {
+      id: "institution-8",
+      institutionNo: "JG2024008",
+      name: "福寿康护机构（静安中心）",
+      region: "静安区",
+      address: "静安区万航渡路128号3层",
+      contactName: "吴倩",
+      contactPhone: "17655551008",
+      serviceTags: ["24h监护", "康复理疗"],
+      shareCount: 105,
+      favoriteCount: 38,
+      updatedBy: "李明明",
+      updatedAt: "2024-10-03 13:40:55",
+      note: "聚焦高龄长者监护与康复理疗服务。",
+      published: true,
+    },
+  ] satisfies InstitutionRow[],
+};
+
+export default mock;

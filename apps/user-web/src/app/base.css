@@ -1,16 +1,58 @@
 :root {
   color-scheme: light;
-  --text: #162033;
-  --muted: #66758b;
-  --brand: #2361eb;
-  --accent: #ff7d4d;
-  --surface: rgba(255, 255, 255, 0.94);
-  --surface-strong: rgba(255, 255, 255, 0.98);
-  --line: rgba(35, 82, 173, 0.12);
-  --shadow: 0 18px 42px rgba(34, 67, 118, 0.1);
+  --ihc-viewport-height: 100vh;
+  --ihc-viewport-height: 100dvh;
+  --ihc-page-min-height: calc(var(--ihc-viewport-height) - 36px);
+
+  /* 主色调 - 青绿 */
+  --brand: #75d6df;
+  --brand-light: #7be28e;
+  --brand-dark: #1aaeba;
+  --brand-ghost: rgba(117, 214, 223, 0.14);
+
+  /* 辅助色调 */
+  --accent: #ff9d84;
+  --accent-light: #ffd9ca;
+
+  /* 文字色 */
+  --text: #252939;
+  --text-secondary: #8088a0;
+  --text-muted: #b2bad0;
+
+  /* 表面色 */
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: #ffffff;
+  --surface-ghost: rgba(255, 255, 255, 0.64);
+
+  /* 分割线 */
+  --line: rgba(77, 154, 160, 0.12);
+  --line-strong: rgba(77, 154, 160, 0.2);
+
+  /* 阴影 */
+  --shadow-sm: 0 8px 18px rgba(48, 142, 147, 0.08);
+  --shadow: 0 16px 34px rgba(48, 142, 147, 0.12);
+  --shadow-lg: 0 24px 52px rgba(48, 142, 147, 0.16);
+
+  /* 圆角 */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-full: 999px;
+
+  /* 背景渐变 */
+  --bg-gradient:
+    radial-gradient(circle at top left, rgba(117, 214, 223, 0.22), transparent 26%),
+    radial-gradient(circle at right 10%, rgba(123, 226, 142, 0.16), transparent 24%),
+    linear-gradient(180deg, #edf8f7 0%, #f7fbfb 46%, #edf8f2 100%);
+  --bg-gradient-strong:
+    radial-gradient(circle at 12% 6%, rgba(117, 214, 223, 0.26), transparent 28%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #eef8f8 0%, #f7fcfb 48%, #edf8f2 100%);
+
   --ihc-font-family:
     -apple-system,
     BlinkMacSystemFont,
+    "SF Pro Display",
     "Helvetica Neue",
     Helvetica,
     Arial,
@@ -33,11 +75,14 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(55, 110, 255, 0.16), transparent 24%),
-    radial-gradient(circle at right 12%, rgba(255, 125, 77, 0.12), transparent 22%),
-    linear-gradient(180deg, #eef3fb 0%, #f8fafc 48%, #eef4fb 100%);
+  background: var(--bg-gradient);
   color: var(--text);
+}
+
+body {
+  min-height: var(--ihc-viewport-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body,
@@ -58,25 +103,26 @@ a {
 }
 
 #app {
-  min-height: 100vh;
+  min-height: var(--ihc-viewport-height);
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: var(--ihc-viewport-height);
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-items: start;
 }
 
 .app-canvas {
   width: min(100%, 402px);
-  min-height: 874px;
+  min-height: var(--ihc-viewport-height);
   overflow-x: hidden;
-  overflow-y: auto;
-  background: linear-gradient(180deg, #e8f0ff 0%, #f8fbff 48%, #f0f5fb 100%);
+  overflow-y: visible;
+  background: var(--bg-gradient-strong);
 }
 
 .mobile-page-root {
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   padding: 18px;
 }
 
@@ -84,60 +130,65 @@ a {
   margin: 0;
   color: var(--brand);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .command-chip {
-  padding: 8px 12px;
-  border: 1px dashed rgba(36, 87, 245, 0.22);
-  border-radius: 999px;
-  background: rgba(36, 87, 245, 0.06);
-  color: #2742a5;
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.command-chip:hover {
+  box-shadow: var(--shadow-sm);
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .status-pill--implemented {
-  background: rgba(45, 167, 116, 0.12);
-  color: #1a7d53;
+  background: rgba(91, 184, 166, 0.1);
+  color: var(--brand-dark);
 }
 
 .status-pill--in-progress {
-  background: rgba(36, 97, 235, 0.1);
-  color: #2357c8;
+  background: var(--brand-ghost);
+  color: var(--brand-dark);
 }
 
 .status-pill--planned {
-  background: rgba(255, 125, 77, 0.12);
-  color: #cf5b2d;
+  background: rgba(240, 168, 106, 0.1);
+  color: #c2783a;
 }
 
 .page-loader {
-  padding: 24px 18px;
-  border-radius: 20px;
-  background: var(--surface);
+  padding: 28px 20px;
+  border-radius: var(--radius);
+  background: var(--surface-strong);
   box-shadow: var(--shadow);
-  color: var(--muted);
-  line-height: 1.6;
+  color: var(--text-secondary);
+  line-height: 1.7;
 }
 
 @media (max-width: 560px) {
   .app-canvas {
     width: 100%;
-    min-height: 100vh;
+    min-height: var(--ihc-viewport-height);
   }
 
   .mobile-page-root {
-    min-height: 100vh;
+    min-height: var(--ihc-page-min-height);
   }
 }

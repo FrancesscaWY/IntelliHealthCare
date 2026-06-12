@@ -1,5 +1,10 @@
 import { createApp } from "vue";
 import App from "./app/App.vue";
+import router, { installAuthSessionRouteSync } from "./app/router";
 import "./app/base.css";
 
-createApp(App).mount("#app");
+const app = createApp(App);
+
+app.use(router);
+installAuthSessionRouteSync();
+app.mount("#app");

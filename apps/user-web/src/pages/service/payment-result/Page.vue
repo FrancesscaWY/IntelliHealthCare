@@ -1,139 +1,234 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { getActiveHomeCareOrder } from "../home-care-orders/store";
+import { getPayment, type PaymentChannel, type PaymentStatus } from "@/shared/api/payments";
+import {
+  mergeServicePaymentContext,
+  readServicePaymentContext
+} from "@/shared/payment/session";
 
 const props = defineProps<PageComponentProps>();
 
-const activeOrder = computed(() => getActiveHomeCareOrder());
+const STATUS_COPY: Record<
+  PaymentStatus,
+  {
+    title: string;
+    description: string;
+    tone: "success" | "pending" | "warning";
+    symbol: string;
+  }
+> = {
+  PENDING: {
+    title: "\u652f\u4ed8\u5904\u7406\u4e2d",
+    description: "\u652f\u4ed8\u5355\u5df2\u521b\u5efa\uff0c\u8bf7\u7a0d\u540e\u5237\u65b0\u67e5\u770b\u652f\u4ed8\u7ed3\u679c",
+    tone: "pending",
+    symbol: "..."
+  },
+  PAID: {
+    title: "\u652f\u4ed8\u6210\u529f",
+    description: "\u60a8\u7684\u8ba2\u5355\u5df2\u652f\u4ed8\u6210\u529f",
+    tone: "success",
+    symbol: "OK"
+  },
+  FAILED: {
+    title: "\u652f\u4ed8\u5931\u8d25",
+    description: "\u652f\u4ed8\u672a\u6210\u529f\uff0c\u8bf7\u8fd4\u56de\u91cd\u8bd5",
+    tone: "warning",
+    symbol: "!"
+  },
+  REFUNDED: {
+    title: "\u5df2\u9000\u6b3e",
+    description: "\u8be5\u652f\u4ed8\u5355\u5df2\u9000\u6b3e",
+    tone: "warning",
+    symbol: "!"
+  },
+  CLOSED: {
+    title: "\u652f\u4ed8\u5df2\u5173\u95ed",
+    description: "\u8be5\u652f\u4ed8\u5355\u5df2\u5173\u95ed",
+    tone: "warning",
+    symbol: "!"
+  }
+};
 
-const codeGroups = computed(() => {
-  const serviceCode = activeOrder.value?.serviceCode || "";
-  return serviceCode ? serviceCode.split(" ") : [];
+const CHANNEL_COPY: Record<PaymentChannel, string> = {
+  WECHAT: "\u5fae\u4fe1\u652f\u4ed8",
+  ALIPAY: "\u652f\u4ed8\u5b9d",
+  BALANCE: "\u4f59\u989d\u652f\u4ed8",
+  OFFLINE: "\u7ebf\u4e0b\u652f\u4ed8"
+};
+
+const UI = {
+  backAria: "\u8fd4\u56de",
+  pageTitle: "\u652f\u4ed8\u7ed3\u679c",
+  resultAria: "\u652f\u4ed8\u7ed3\u679c",
+  loading: "\u7ed3\u679c\u52a0\u8f7d\u4e2d...",
+  viewOrder: "\u67e5\u770b\u8ba2\u5355",
+  paymentNoLabel: "\u652f\u4ed8\u5355\u53f7",
+  orderLabel: "\u8ba2\u5355\u4fe1\u606f",
+  channelLabel: "\u652f\u4ed8\u65b9\u5f0f",
+  statusLabel: "\u652f\u4ed8\u72b6\u6001",
+  amountLabel: "\u652f\u4ed8\u91d1\u989d",
+  createdAtLabel: "\u521b\u5efa\u65f6\u95f4",
+  paidAtLabel: "\u652f\u4ed8\u65f6\u95f4",
+  serviceLabel: "\u670d\u52a1\u540d\u79f0",
+  emptyValue: "--",
+  missingOrder: "\u672a\u627e\u5230\u8ba2\u5355\u4fe1\u606f",
+  missingPayment: "\u672a\u627e\u5230\u652f\u4ed8\u5355",
+  loadFailed: "\u652f\u4ed8\u7ed3\u679c\u52a0\u8f7d\u5931\u8d25"
+} as const;
+
+const paymentContext = ref(readServicePaymentContext());
+const paymentStatus = ref<PaymentStatus>(paymentContext.value?.paymentStatus ?? "PENDING");
+const isLoading = ref(false);
+const loadError = ref<string | null>(null);
+
+const resultCopy = computed(() => STATUS_COPY[paymentStatus.value]);
+
+const displayAmount = computed(() => {
+  const amount = paymentContext.value?.amount;
+  return typeof amount === "number" ? formatCurrency(amount) : UI.emptyValue;
 });
 
-const qrCodeUrl = computed(() => {
-  const order = activeOrder.value;
-  if (!order) {
-    return "";
+const displayChannel = computed(() => {
+  const channel = paymentContext.value?.paymentChannel;
+  return channel ? CHANNEL_COPY[channel] : UI.emptyValue;
+});
+
+const displayStatus = computed(() => STATUS_COPY[paymentStatus.value].title);
+
+const displayOrderText = computed(() => {
+  const serviceTitle = paymentContext.value?.serviceTitle;
+  const orderNo = paymentContext.value?.orderNo;
+
+  if (serviceTitle && orderNo) {
+    return `${serviceTitle} / ${orderNo}`;
   }
 
-  const qrPayload = [
-    "IHC_SERVICE_VOUCHER",
-    `orderNo=${order.orderNo}`,
-    `serviceCode=${order.serviceCode.replace(/\s+/g, "")}`,
-    `bookingDate=${order.bookingDate}`,
-    `weekday=${order.bookingWeekday}`,
-    `timeSlot=${order.bookingTimeSlot}`,
-    `contactPhone=${order.contactPhone}`,
-  ].join(";");
-
-  const searchParams = new URLSearchParams({
-    data: qrPayload,
-    size: "156x156",
-    format: "png",
-    ecc: "M",
-    qzone: "2",
-    margin: "0",
-    "charset-source": "UTF-8",
-    "charset-target": "UTF-8",
-    color: "1d2024",
-    bgcolor: "ffffff",
-  });
-
-  return `https://api.qrserver.com/v1/create-qr-code/?${searchParams.toString()}`;
-});
-
-const barcodeUrl = computed(() => {
-  const order = activeOrder.value;
-  if (!order) {
-    return "";
+  if (serviceTitle) {
+    return serviceTitle;
   }
 
-  const searchParams = new URLSearchParams({
-    includetext: "",
-    height: "46",
-  });
+  if (orderNo) {
+    return orderNo;
+  }
 
-  return `https://barcodeapi.org/api/128/${encodeURIComponent(order.orderNo)}?${searchParams.toString()}`;
+  return paymentContext.value?.orderId ?? UI.emptyValue;
 });
+
+function formatCurrency(amount: number) {
+  return `\uFFE5${amount.toFixed(2)}`;
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
-    props.navigation.reLaunch("service/home-care-orders");
+    props.navigation.reLaunch(
+      paymentContext.value?.orderId ? "service/payment" : "service/order-confirm"
+    );
   }
 }
 
 function viewOrder() {
+  const orderId = paymentContext.value?.orderId;
+
+  if (!orderId) {
+    props.showToast(UI.missingOrder);
+    return;
+  }
+
   props.navigation.navigateTo("service/order-detail");
 }
+
+onMounted(async () => {
+  const paymentId = paymentContext.value?.paymentId;
+
+  if (!paymentId) {
+    loadError.value = UI.missingPayment;
+    return;
+  }
+
+  try {
+    isLoading.value = true;
+    loadError.value = null;
+
+    const payment = await getPayment(paymentId);
+    paymentStatus.value = payment.status;
+
+    mergeServicePaymentContext({
+      orderId: payment.orderId,
+      paymentId: payment.paymentId,
+      paymentNo: payment.paymentNo,
+      paymentStatus: payment.status,
+      paymentChannel: payment.channel,
+      amount: payment.amount,
+      paidAt: payment.paidAt,
+      createdAt: payment.createdAt
+    });
+
+    paymentContext.value = readServicePaymentContext();
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : UI.loadFailed;
+  } finally {
+    isLoading.value = false;
+  }
+});
 </script>
 
 <template>
   <div class="payment-result-page">
     <header class="page-header">
-      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
-      <h1>支付结果</h1>
+      <button class="back-button" type="button" :aria-label="UI.backAria" @click="goBack">
+        &lt;
+      </button>
+      <h1>{{ UI.pageTitle }}</h1>
     </header>
 
-    <main class="voucher-content">
-      <section v-if="activeOrder" class="voucher-card">
-        <div class="voucher-top">
+    <main class="result-content" :aria-label="UI.resultAria">
+      <div class="status-icon" :class="`status-icon--${resultCopy.tone}`" aria-hidden="true">
+        <span class="status-symbol">{{ resultCopy.symbol }}</span>
+      </div>
+      <h2>{{ isLoading ? UI.loading : resultCopy.title }}</h2>
+      <p>{{ loadError || resultCopy.description }}</p>
+
+      <section class="detail-card">
+        <dl>
           <div>
-            <span class="voucher-label">家政护理</span>
-            <h2>{{ activeOrder.title }}</h2>
+            <dt>{{ UI.paymentNoLabel }}</dt>
+            <dd>{{ paymentContext?.paymentNo || UI.emptyValue }}</dd>
           </div>
-          <strong>￥{{ activeOrder.actualAmount.toFixed(2) }}</strong>
-        </div>
-
-        <div class="voucher-meta">
-          <span>服务时间</span>
-          <p>{{ activeOrder.bookingDate }} {{ activeOrder.bookingWeekday }} {{ activeOrder.bookingTimeSlot }}</p>
-        </div>
-        <div class="voucher-meta">
-          <span>服务地址</span>
-          <p>{{ activeOrder.address }}</p>
-        </div>
-
-        <div class="code-block">
-          <div class="code-number">
-            <span v-for="group in codeGroups" :key="group">{{ group }}</span>
+          <div>
+            <dt>{{ UI.orderLabel }}</dt>
+            <dd>{{ displayOrderText }}</dd>
           </div>
-          <p>{{ activeOrder.serviceCodeHint }}</p>
-        </div>
-
-        <div class="scan-card">
-          <div class="qr-code">
-            <img
-              v-if="qrCodeUrl"
-              class="qr-code__image"
-              :src="qrCodeUrl"
-              :alt="`${activeOrder.title}服务二维码`"
-              loading="eager"
-              referrerpolicy="no-referrer"
-            />
+          <div>
+            <dt>{{ UI.channelLabel }}</dt>
+            <dd>{{ displayChannel }}</dd>
           </div>
-          <div class="barcode">
-            <img
-              v-if="barcodeUrl"
-              class="barcode__image"
-              :src="barcodeUrl"
-              :alt="`${activeOrder.orderNo}服务条形码`"
-              loading="eager"
-              referrerpolicy="no-referrer"
-            />
+          <div>
+            <dt>{{ UI.statusLabel }}</dt>
+            <dd>{{ displayStatus }}</dd>
           </div>
-        </div>
-      </section>
-
-      <section v-else class="empty-card">
-        <h2>未找到订单</h2>
-        <p>当前没有可展示的服务券信息，请返回订单列表重新进入。</p>
+          <div>
+            <dt>{{ UI.amountLabel }}</dt>
+            <dd>{{ displayAmount }}</dd>
+          </div>
+          <div>
+            <dt>{{ UI.createdAtLabel }}</dt>
+            <dd>{{ paymentContext?.createdAt || UI.emptyValue }}</dd>
+          </div>
+          <div>
+            <dt>{{ UI.paidAtLabel }}</dt>
+            <dd>{{ paymentContext?.paidAt || UI.emptyValue }}</dd>
+          </div>
+          <div>
+            <dt>{{ UI.serviceLabel }}</dt>
+            <dd>{{ paymentContext?.serviceTitle || UI.emptyValue }}</dd>
+          </div>
+        </dl>
       </section>
     </main>
 
     <div class="result-bar">
-      <button class="result-button" type="button" @click="viewOrder">查看订单</button>
+      <button class="result-button" type="button" @click="viewOrder">{{ UI.viewOrder }}</button>
     </div>
   </div>
 </template>
@@ -143,12 +238,12 @@ function viewOrder() {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
-  padding: 16px 14px 96px;
+  padding: 16px 14px 120px;
   box-sizing: border-box;
-  background: #f5f6f7;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
@@ -157,7 +252,6 @@ function viewOrder() {
   height: 58px;
   display: flex;
   align-items: center;
-  margin-bottom: 26px;
 }
 
 .back-button {
@@ -166,14 +260,14 @@ function viewOrder() {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 8px 0 -4px;
+  margin: 0 16px 0 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: #34383f;
-  font-size: 34px;
-  line-height: 26px;
-  font-weight: 300;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -181,139 +275,104 @@ function viewOrder() {
   margin: 0;
   color: #34383f;
   font-size: 22px;
+  line-height: 1;
   font-weight: 600;
   letter-spacing: 0;
 }
 
-.voucher-content {
+.result-content {
   display: flex;
   flex-direction: column;
-}
-
-.voucher-card,
-.empty-card {
-  padding: 24px 22px;
-  border-radius: 16px;
-  background: #fff;
-}
-
-.voucher-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.voucher-label {
-  display: inline-block;
-  margin-bottom: 10px;
-  color: #6870f2;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.voucher-top h2 {
-  margin: 0;
-  font-size: 22px;
-  line-height: 1.4;
-}
-
-.voucher-top strong {
-  color: #f1736d;
-  font-size: 24px;
-  white-space: nowrap;
-}
-
-.voucher-meta {
-  margin-top: 18px;
-}
-
-.voucher-meta span {
-  display: block;
-  margin-bottom: 8px;
-  color: #9fa2a9;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.voucher-meta p,
-.code-block p,
-.empty-card p {
-  margin: 0;
-  color: #34383f;
-  font-size: 16px;
-  line-height: 1.6;
-}
-
-.code-block {
-  margin-top: 24px;
-  padding: 18px;
-  border-radius: 14px;
-  background: #f6f7fb;
-  text-align: center;
-}
-
-.code-number {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.code-number span {
-  min-width: 60px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.scan-card {
-  margin-top: 24px;
-  padding: 18px 0 6px;
-  border-top: 1px solid #ededee;
-}
-
-.qr-code {
-  width: 156px;
-  height: 156px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto;
-  padding: 10px;
-  border-radius: 14px;
-  background: #f5f5f4;
+  align-items: center;
+  padding-top: 72px;
   box-sizing: border-box;
 }
 
-.qr-code__image {
-  display: block;
-  width: 136px;
-  height: 136px;
-  border-radius: 10px;
-  background: #ffffff;
+.status-icon {
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 
-.barcode {
-  display: grid;
-  place-items: center;
-  margin: 14px auto 0;
-  padding: 0 8px;
+.status-icon--success {
+  background: #75d6df;
 }
 
-.barcode__image {
-  display: block;
+.status-icon--pending {
+  background: #f5c75b;
+}
+
+.status-icon--warning {
+  background: #f08a7c;
+}
+
+.status-symbol {
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.result-content h2 {
+  margin: 32px 0 0;
+  color: #34383f;
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.result-content p {
+  margin: 18px 0 0;
+  color: #a8adb4;
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 600;
+  text-align: center;
+}
+
+.detail-card {
   width: 100%;
-  max-width: 270px;
-  height: 46px;
-  object-fit: fill;
-  background: #ffffff;
+  margin-top: 28px;
+  padding: 22px;
+  border-radius: 16px;
+  background: #fff;
+  box-sizing: border-box;
 }
 
-.empty-card h2 {
-  margin: 0 0 10px;
-  font-size: 22px;
+.detail-card dl {
+  margin: 0;
+}
+
+.detail-card div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+  align-items: start;
+}
+
+.detail-card div:last-child {
+  margin-bottom: 0;
+}
+
+.detail-card dt {
+  color: #a0a3aa;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.detail-card dd {
+  margin: 0;
+  color: #34383f;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: right;
+  word-break: break-all;
 }
 
 .result-bar {
@@ -321,25 +380,24 @@ function viewOrder() {
   left: 50%;
   bottom: 0;
   z-index: 20;
-  width: 100%;
-  max-width: 402px;
-  padding: 12px 26px 28px;
-  box-sizing: border-box;
+  width: min(402px, 100vw);
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -8px 20px rgba(20, 24, 36, 0.04);
+  padding: 16px 16px 28px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-top: 1px solid #f0f1f3;
 }
 
 .result-button {
-  width: 350px;
+  width: 100%;
   max-width: 100%;
-  height: 48px;
+  height: 52px;
   display: block;
   margin: 0 auto;
   border: 0;
-  border-radius: 8px;
-  background: #6870f2;
-  color: #fff;
+  border-radius: 12px;
+  background: #75d6df;
+  color: #ffffff;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0;

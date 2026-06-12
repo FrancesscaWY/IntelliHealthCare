@@ -67,7 +67,7 @@ const goBack = () => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
   padding: 16px 20px 28px;

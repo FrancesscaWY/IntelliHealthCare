@@ -1,25 +1,54 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import SetOff from "@icon-park/vue-next/es/icons/SetOff";
+import avatarImage from "@/assets/community/activities/people.png";
+import { getAiHealthMetricExplanations } from "@/shared/api/ai";
+import { syncHealthDeviceItems } from "../device-center/state";
+import { loadHealthDataOverviewSource } from "../measurement-source";
 import { takeHealthDataBackTarget } from "./source";
-import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 
 const metricColorMap: Record<string, string> = {
-  steps: "#ff7b64",
-  heartRate: "#ff9a6c",
-  sleep: "#33b18a",
-  weight: "#6670f0",
-  bloodSugar: "#f3c44c",
-  bloodPressure: "#5c6cfa",
-  oxygen: "#16a085",
-  stress: "#f0b90b",
+  steps: "#66cfa7",
+  heartRate: "#ff8a98",
+  sleep: "#69d5d1",
+  weight: "#9da7f2",
+  bloodSugar: "#e9b957",
+  bloodPressure: "#75a7f7",
+  oxygen: "#56c9b3",
+  stress: "#d9b46a",
 };
 
-type HealthDataItem = (typeof mock.list)[number];
+type HealthDataItem = Awaited<ReturnType<typeof loadHealthDataOverviewSource>>["list"][number];
 
-const dataList = computed<HealthDataItem[]>(() => mock.list);
+const emptyHealthDataItem: HealthDataItem = {
+  date: "",
+  steps: 0,
+  sleep: 0,
+  weight: 0,
+  heartRate: 0,
+  bloodSugar: 0,
+  bloodPressure: "0/0",
+  oxygen: 0,
+  stress: 0
+};
+
+const overviewData = ref<{ list: HealthDataItem[] }>({
+  list: []
+});
+const aiMetricBrief = ref<{
+  brief: string;
+  keyFindings: string[];
+  riskSignals: string[];
+  followUpSuggestions: string[];
+  source: "api" | "fallback";
+} | null>(null);
+
+const dataList = computed<HealthDataItem[]>(() =>
+  overviewData.value.list.length ? overviewData.value.list : [emptyHealthDataItem]
+);
 const latest = computed(() => dataList.value[dataList.value.length - 1]);
 const previous = computed(() => dataList.value[dataList.value.length - 2] ?? latest.value);
 
@@ -132,13 +161,20 @@ const scoreLabel = computed(() => {
 });
 
 const addDevicePageId = "health/add-device-placeholder";
+const deviceCount = ref(3);
+const linkedDevices = ref([
+  { id: "watch-alpha", name: "智能手表 A" },
+  { id: "watch-beta", name: "智能手表 B" },
+  { id: "watch-gamma", name: "智能手表 C" }
+]);
 
 const profileSummary = computed(() => ({
-  name: "JOY",
+  name: "张爱清",
+  avatar: avatarImage,
   age: 65,
   height: 172,
   weight: latest.value.weight.toFixed(1),
-  deviceCount: 3,
+  deviceCount: deviceCount.value,
 }));
 
 const healthAlerts = computed(() =>
@@ -149,7 +185,41 @@ const healthAlerts = computed(() =>
     .map((item) => `${item.label}偏高`)
 );
 
-const linkedDevices = [
+const aiMetricCard = computed(() => {
+  if (aiMetricBrief.value) {
+    return aiMetricBrief.value;
+  }
+
+  const current = latest.value;
+  const bloodPressure = String(current.bloodPressure || "0/0");
+  const systolic = Number(bloodPressure.split("/")[0] || 0);
+  const diastolic = Number(bloodPressure.split("/")[1] || 0);
+  const bloodPressureHint =
+    systolic > 140 || diastolic > 90
+      ? "血压读数偏高，建议连续记录并关注睡眠、盐分摄入和服药情况。"
+      : "血压处于可观察区间，建议继续保持规律记录。";
+  const bloodSugarHint =
+    current.bloodSugar > 6
+      ? "血糖较前期略高，适合结合饮食记录继续观察。"
+      : "血糖记录整体平稳。";
+
+  return {
+    brief: `AI 健康解释：${bloodPressureHint}`,
+    keyFindings: [
+      `血压 ${bloodPressure} mmHg`,
+      `血糖 ${current.bloodSugar} mmol/L`,
+      `心率 ${current.heartRate} bpm`
+    ],
+    riskSignals: healthAlerts.value.length ? healthAlerts.value : [bloodSugarHint],
+    followUpSuggestions: [
+      "继续记录近 7 天血压、血糖和睡眠变化。",
+      "如连续多次异常或出现不适，请及时咨询医生。"
+    ],
+    source: "fallback" as const
+  };
+});
+
+const linkedDevicesFallback = [
   { id: "watch-alpha", name: "智能手表 A" },
   { id: "watch-beta", name: "智能手表 B" },
   { id: "watch-gamma", name: "智能手表 C" },
@@ -172,6 +242,8 @@ function createMiniSparkline(values: number[], stroke: string, width = 180, heig
   });
 
   const points = pointList.map(p => `${p.x},${p.y}`).join(" ");
+  const linePath = createSmoothPath(pointList);
+  const areaPath = `${linePath} L ${width - padding} ${height - padding} L ${padding} ${height - padding} Z`;
   const areaPoints = `${points} ${width - padding},${height - padding} ${padding},${height - padding}`;
   const barRects = pointList.map(point => ({
     x: point.x - barWidth / 2,
@@ -180,21 +252,54 @@ function createMiniSparkline(values: number[], stroke: string, width = 180, heig
     height: height - padding - point.y,
   }));
 
-  return { points, areaPoints, pointList, barRects, width, height, stroke, padding };
+  return { points, linePath, areaPath, areaPoints, pointList, barRects, width, height, stroke, padding };
 };
+
+function createSmoothPath(points: { x: number; y: number }[]) {
+  if (!points.length) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  const smoothing = 0.18;
+  const line = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+    length: Math.hypot(b.x - a.x, b.y - a.y),
+    angle: Math.atan2(b.y - a.y, b.x - a.x),
+  });
+  const control = (
+    current: { x: number; y: number },
+    previous?: { x: number; y: number },
+    next?: { x: number; y: number },
+    reverse = false,
+  ) => {
+    const p = previous ?? current;
+    const n = next ?? current;
+    const l = line(p, n);
+    const angle = l.angle + (reverse ? Math.PI : 0);
+    const length = l.length * smoothing;
+    return {
+      x: current.x + Math.cos(angle) * length,
+      y: current.y + Math.sin(angle) * length,
+    };
+  };
+  return points.reduce((path, point, index) => {
+    if (!index) return `M ${point.x} ${point.y}`;
+    const cps = control(points[index - 1], points[index - 2], point);
+    const cpe = control(point, points[index - 1], points[index + 1], true);
+    return `${path} C ${cps.x} ${cps.y}, ${cpe.x} ${cpe.y}, ${point.x} ${point.y}`;
+  }, "");
+}
 
 const trendDataMap = computed(() => {
   const d = dataList.value;
 
   return {
-    steps: { values: d.map(i => i.steps), stroke: "#6670f0" },
-    heartRate: { values: d.map(i => i.heartRate), stroke: "#ff7b64" },
-    sleep: { values: d.map(i => i.sleep), stroke: "#33b18a" },
-    weight: { values: d.map(i => i.weight), stroke: "#8e44ad" },
-    bloodSugar: { values: d.map(i => i.bloodSugar), stroke: "#e67e22" },
-    oxygen: { values: d.map(i => i.oxygen), stroke: "#16a085" },
-    bloodPressure: { values: d.map(i => parseInt((i.bloodPressure as string).split('/')[0])), stroke: "#5c6cfa" },
-    stress: { values: d.map(i => i.stress), stroke: "#f0b90b" },
+    steps: { values: d.map(i => i.steps), stroke: metricColorMap.steps },
+    heartRate: { values: d.map(i => i.heartRate), stroke: metricColorMap.heartRate },
+    sleep: { values: d.map(i => i.sleep), stroke: metricColorMap.sleep },
+    weight: { values: d.map(i => i.weight), stroke: metricColorMap.weight },
+    bloodSugar: { values: d.map(i => i.bloodSugar), stroke: metricColorMap.bloodSugar },
+    oxygen: { values: d.map(i => i.oxygen), stroke: metricColorMap.oxygen },
+    bloodPressure: { values: d.map(i => parseInt((i.bloodPressure as string).split('/')[0])), stroke: metricColorMap.bloodPressure },
+    stress: { values: d.map(i => i.stress), stroke: metricColorMap.stress },
   };
 });
 
@@ -206,7 +311,9 @@ const compactMetricsList = computed(() => {
 
     if (chartKeys.includes(card.key)) {
       const trend = trendDataMap.value[card.key as keyof typeof trendDataMap.value];
-      chartData = createMiniSparkline(trend.values, trend.stroke);
+      chartData = card.key === "heartRate"
+        ? createMiniSparkline(trend.values, trend.stroke, 300, 70)
+        : createMiniSparkline(trend.values, trend.stroke, 300, 82);
     }
 
     return {
@@ -232,6 +339,10 @@ function getNavigateKey(key: string) {
 }
 
 function goBack() {
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
   const backTarget = takeHealthDataBackTarget();
 
   if (backTarget) {
@@ -246,9 +357,7 @@ function goBack() {
     }
   }
 
-  if (!props.navigation?.navigateBack?.()) {
-    props.navigation?.reLaunch?.("home/dashboard");
-  }
+  props.navigation?.reLaunch?.("home/dashboard");
 }
 
 function goToAddDevice() {
@@ -256,6 +365,51 @@ function goToAddDevice() {
     props.navigation.navigateTo(addDevicePageId);
   }
 }
+
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
+}
+
+async function loadOverviewData() {
+  try {
+    overviewData.value = await loadHealthDataOverviewSource();
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  }
+}
+
+async function loadAiMetricBrief() {
+  try {
+    const result = await getAiHealthMetricExplanations({
+      metricTypes: ["bloodPressure", "bloodGlucose", "heartRate", "sleep"]
+    });
+
+    aiMetricBrief.value = {
+      brief: result.brief,
+      keyFindings: result.keyFindings,
+      riskSignals: result.riskSignals,
+      followUpSuggestions: result.followUpSuggestions,
+      source: "api"
+    };
+  } catch {
+    aiMetricBrief.value = null;
+  }
+}
+
+onMounted(() => {
+  void loadOverviewData().then(loadAiMetricBrief);
+  void syncHealthDeviceItems()
+    .then((items) => {
+      deviceCount.value = items.length;
+      linkedDevices.value = items.slice(0, 4).map((item) => ({
+        id: item.id,
+        name: item.name
+      }));
+    })
+    .catch((error) => {
+      props.showToast(getDeviceErrorMessage(error));
+    });
+});
 </script>
 
 <template>
@@ -271,13 +425,7 @@ function goToAddDevice() {
       <section class="overview-card">
         <div class="overview-device">
           <div class="overview-profile">
-            <div class="profile-avatar" aria-hidden="true">
-              <span class="profile-avatar__eye profile-avatar__eye--left"></span>
-              <span class="profile-avatar__eye profile-avatar__eye--right"></span>
-              <span class="profile-avatar__blush profile-avatar__blush--left"></span>
-              <span class="profile-avatar__blush profile-avatar__blush--right"></span>
-              <span class="profile-avatar__smile"></span>
-            </div>
+            <img class="profile-avatar" :src="profileSummary.avatar" :alt="profileSummary.name" draggable="false" />
             <div class="profile-copy">
               <h2>{{ profileSummary.name }}</h2>
             </div>
@@ -302,20 +450,19 @@ function goToAddDevice() {
               </div>
             </div>
 
-            <p class="device-panel__meta">已绑定{{ profileSummary.deviceCount }}个设备</p>
-
-            <div class="device-list">
-              <div v-for="device in linkedDevices" :key="device.id" class="device-tile" :title="device.name">
-                <div class="device-watch">
-                  <span class="device-watch__screen"></span>
-                </div>
-              </div>
-
-              <button class="device-tile device-tile--add" type="button" aria-label="添加设备" @click="goToAddDevice">
-                <span class="device-plus" aria-hidden="true"></span>
-              </button>
+          </div>
+        </div>
+        <p class="device-panel__meta">已绑定{{ profileSummary.deviceCount }}个设备</p>
+        <div class="device-list">
+          <div v-for="device in linkedDevices" :key="device.id" class="device-tile" :title="device.name">
+            <div class="device-watch">
+              <span class="device-watch__screen"></span>
             </div>
           </div>
+
+          <button class="device-tile device-tile--add" type="button" aria-label="添加设备" @click="goToAddDevice">
+            <span class="device-plus" aria-hidden="true"></span>
+          </button>
         </div>
 
         <div class="overview-copy">
@@ -330,24 +477,52 @@ function goToAddDevice() {
         </div>
       </section>
 
+      <section class="ai-explain-card" aria-label="AI健康解释">
+        <div class="ai-explain-card__head">
+          <span>AI 健康解释</span>
+          <strong>{{ aiMetricCard.source === "api" ? "实时生成" : "本地降级" }}</strong>
+        </div>
+        <p>{{ aiMetricCard.brief }}</p>
+        <div class="ai-explain-card__chips">
+          <span v-for="item in aiMetricCard.keyFindings.slice(0, 3)" :key="item">{{ item }}</span>
+        </div>
+        <ul>
+          <li v-for="item in [...aiMetricCard.riskSignals, ...aiMetricCard.followUpSuggestions].slice(0, 3)" :key="item">
+            {{ item }}
+          </li>
+        </ul>
+      </section>
+
       <section class="metric-card-list">
         <article
           v-for="item in compactMetricsList"
           :key="item.key"
           class="metric-card"
+          :class="`metric-card--${item.key}`"
+          :style="{ '--metric-color': item.color }"
         >
           <button class="metric-card-button" type="button" @click="props.navigation?.navigateTo(getNavigateKey(item.key))">
+            <SetOff
+              v-if="item.key === 'steps'"
+              class="metric-card-corner-icon"
+              theme="filled"
+              size="34"
+              fill="currentColor"
+              aria-hidden="true"
+            />
+
             <div class="metric-card-header">
               <div class="metric-card-label">
                 <div>
                   <div class="metric-card-title">{{ item.label }}</div>
-                  <div class="metric-card-subtitle">近7天趋势</div>
+                  <div class="metric-card-subtitle">近10天趋势</div>
                 </div>
               </div>
-              <div class="metric-card-value">
-                <strong>{{ item.value }}</strong>
-                <small>{{ item.unit }}</small>
-              </div>
+            </div>
+
+            <div class="metric-card-value">
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.unit }}</small>
             </div>
 
             <div class="metric-card-detail">
@@ -356,7 +531,10 @@ function goToAddDevice() {
             </div>
 
             <div class="metric-card-chart" v-if="item.chartData">
-              <svg :viewBox="`0 0 ${item.chartData.width} ${item.chartData.height}`">
+              <svg
+                :viewBox="`0 0 ${item.chartData.width} ${item.chartData.height}`"
+                :preserveAspectRatio="item.key === 'steps' ? 'none' : 'xMidYMid meet'"
+              >
                 <defs>
                   <linearGradient :id="`sparkline-${item.key}`" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" :stop-color="item.chartData.stroke" stop-opacity="0.24" />
@@ -364,30 +542,71 @@ function goToAddDevice() {
                   </linearGradient>
                 </defs>
 
-                <g class="metric-card-grid">
+                <g v-if="!['steps', 'heartRate'].includes(item.key)" class="metric-card-grid">
                   <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.25" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.25" />
                   <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.5" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.5" />
                   <line :x1="item.chartData.padding" :y1="item.chartData.height * 0.75" :x2="item.chartData.width - item.chartData.padding" :y2="item.chartData.height * 0.75" />
                 </g>
 
+                <path
+                  v-if="item.key === 'steps'"
+                  :d="item.chartData.areaPath"
+                  :fill="`url(#sparkline-${item.key})`"
+                  opacity="0.95"
+                />
+
                 <polygon
+                  v-else-if="item.key !== 'heartRate'"
                   :points="item.chartData.areaPoints"
                   :fill="`url(#sparkline-${item.key})`"
                   opacity="0.95"
                 />
 
-                <polyline
-                  :points="item.chartData.points"
+                <path
+                  v-if="item.key === 'steps'"
+                  :d="item.chartData.linePath"
                   fill="none"
                   :stroke="item.chartData.stroke"
-                  stroke-width="3"
+                  stroke-width="5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
 
-                <g v-for="(point, index) in item.chartData.pointList" :key="`${item.key}-dot-${index}`">
-                  <circle :cx="point.x" :cy="point.y" :r="index === item.chartData.pointList.length - 1 ? 4.5 : 3.5" fill="#ffffff" :stroke="item.chartData.stroke" stroke-width="2" />
-                </g>
+                <polyline
+                  v-else
+                  :points="item.chartData.points"
+                  fill="none"
+                  :stroke="item.chartData.stroke"
+                  :stroke-width="item.key === 'heartRate' ? 3.5 : 3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+
+                <template v-if="item.key === 'heartRate'">
+                  <g v-for="(point, index) in item.chartData.pointList" :key="`${item.key}-dot-${index}`">
+                    <circle
+                      :cx="point.x"
+                      :cy="point.y"
+                      :r="index === item.chartData.pointList.length - 1 ? 4.2 : 3.6"
+                      fill="#ffffff"
+                      :stroke="item.chartData.stroke"
+                      stroke-width="2"
+                    />
+                  </g>
+                </template>
+
+                <template v-else-if="item.key !== 'steps'">
+                  <g v-for="(point, index) in item.chartData.pointList" :key="`${item.key}-dot-${index}`">
+                    <circle
+                      :cx="point.x"
+                      :cy="point.y"
+                      :r="index === item.chartData.pointList.length - 1 ? 4.5 : 3.5"
+                      fill="#ffffff"
+                      :stroke="item.chartData.stroke"
+                      stroke-width="2"
+                    />
+                  </g>
+                </template>
               </svg>
             </div>
           </button>
@@ -404,18 +623,19 @@ function goToAddDevice() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .medication-nav {
@@ -438,22 +658,22 @@ function goToAddDevice() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .medication-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .medication-scroll {
   height: calc(100% - 74px);
-  padding: 24px 31px 44px;
+  padding: 24px 20px 44px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -489,7 +709,7 @@ function goToAddDevice() {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 20px;
+  gap: 10px;
 }
 
 .overview-profile {
@@ -501,93 +721,23 @@ function goToAddDevice() {
 }
 
 .profile-avatar {
-  display: grid;
-  place-items: center;
-  position: relative;
+  display: block;
   width: 76px;
   height: 76px;
+  box-sizing: border-box;
   border: 2px solid rgba(255, 255, 255, 0.92);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), transparent 30%),
-    radial-gradient(circle at 70% 74%, rgba(255, 214, 224, 0.85), transparent 24%),
-    linear-gradient(135deg, #ffd6de 0%, #ffc7a8 100%);
+  object-fit: cover;
   box-shadow: 0 10px 18px rgba(54, 67, 92, 0.12);
-}
-
-.profile-avatar::before,
-.profile-avatar::after {
-  position: absolute;
-  top: 8px;
-  width: 18px;
-  height: 14px;
-  content: "";
-  border-radius: 14px 14px 4px 4px;
-  background: linear-gradient(180deg, #8b6b79 0%, #6f5561 100%);
-}
-
-.profile-avatar::before {
-  left: 10px;
-  transform: rotate(-18deg);
-}
-
-.profile-avatar::after {
-  right: 10px;
-  transform: rotate(18deg);
-}
-
-.profile-avatar__eye {
-  position: absolute;
-  top: 28px;
-  width: 7px;
-  height: 9px;
-  border-radius: 50%;
-  background: #4b4652;
-}
-
-.profile-avatar__eye--left {
-  left: 22px;
-}
-
-.profile-avatar__eye--right {
-  right: 22px;
-}
-
-.profile-avatar__blush {
-  position: absolute;
-  top: 37px;
-  width: 12px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255, 142, 163, 0.42);
-  filter: blur(0.5px);
-}
-
-.profile-avatar__blush--left {
-  left: 12px;
-}
-
-.profile-avatar__blush--right {
-  right: 12px;
-}
-
-.profile-avatar__smile {
-  position: absolute;
-  top: 40px;
-  left: 50%;
-  width: 18px;
-  height: 10px;
-  border-bottom: 3px solid #4b4652;
-  border-radius: 0 0 18px 18px;
-  transform: translateX(-50%);
+  user-select: none;
 }
 
 .profile-copy h2 {
   margin: 0;
-  color: #30343f;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .profile-alerts {
@@ -605,18 +755,18 @@ function goToAddDevice() {
   border: 1px solid rgba(255, 255, 255, 0.86);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
-  color: #9da1ab;
-  font-size: 14px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   backdrop-filter: blur(8px);
 }
 
 .profile-alert-chip--normal {
-  color: #7f8998;
+  color: #8f95a2;
 }
 
 .device-panel {
-  padding: 22px 18px 18px;
+  padding: 22px 10px 10px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(251, 251, 255, 0.96) 100%);
@@ -639,30 +789,30 @@ function goToAddDevice() {
 }
 
 .device-stat span {
-  color: #c3c5cd;
-  font-size: 14px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .device-stat strong {
-  color: #30343f;
-  font-size: 26px;
-  font-weight: 700;
+  color: #222733;
+  font-size: 24px;
+  font-weight: 900;
   line-height: 1;
 }
 
 .device-stat strong small {
   margin-left: 3px;
-  color: #b7b7bb;
-  font-size: 15px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .device-panel__meta {
   margin: 20px 0 0;
-  color: #8e8f94;
-  font-size: 16px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .device-list {
@@ -766,36 +916,137 @@ function goToAddDevice() {
   display: none;
 }
 
+.ai-explain-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(102, 207, 167, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 24px rgba(82, 105, 148, 0.07);
+}
+
+.ai-explain-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-explain-card__head span {
+  color: #222733;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ai-explain-card__head strong {
+  min-width: 66px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(102, 207, 167, 0.14);
+  color: #2a9e7a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 24px;
+  text-align: center;
+}
+
+.ai-explain-card p {
+  margin: 0;
+  color: #4c5668;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.ai-explain-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-explain-card__chips span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f2f7f6;
+  color: #53606f;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ai-explain-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0 0 0 16px;
+  color: #687383;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .metric-card-list {
   display: grid;
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 12px;
   margin-top: 16px;
+  padding-bottom: 6px;
 }
 
 .metric-card {
+  --metric-color: #66cfa7;
+  min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 15px 34px rgba(72, 104, 148, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--metric-color) 20%, transparent) 0, transparent 34%),
+    linear-gradient(145deg, #ffffff 0%, color-mix(in srgb, var(--metric-color) 14%, #ffffff) 100%);
+  box-shadow: 0 14px 28px rgba(82, 105, 148, 0.075);
+}
+
+.metric-card--steps {
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.metric-card--heartRate {
+  border-color: rgba(255, 255, 255, 0.78);
 }
 
 .metric-card-button {
+  position: relative;
   display: grid;
-  gap: 14px;
-  padding: 18px 18px 16px;
+  grid-template-columns: minmax(0, 118px) minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "header chart"
+    "value chart"
+    "detail chart";
+  gap: 10px;
   width: 100%;
+  min-height: 148px;
+  height: 100%;
+  padding: 18px 16px 14px;
   border: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 255, 0.9) 100%);
+  background: transparent;
+  color: #252939;
   text-align: left;
   cursor: pointer;
 }
 
+.metric-card-corner-icon {
+  position: absolute;
+  top: 24px;
+  right: 18px;
+  color: color-mix(in srgb, var(--metric-color) 34%, transparent);
+  pointer-events: none;
+}
+
 .metric-card-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: flex-start;
+  grid-area: header;
+  min-width: 0;
 }
 
 .metric-card-label {
@@ -803,83 +1054,110 @@ function goToAddDevice() {
 }
 
 .metric-card-title {
-  color: #30343f;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .metric-card-subtitle {
-  margin-top: 4px;
-  color: #8e8f94;
-  font-size: 14px;
-  font-weight: 500;
+  margin-top: 5px;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .metric-card-value {
+  grid-area: value;
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  min-width: 0;
+  gap: 5px;
+  margin-top: 2px;
 }
 
 .metric-card-value strong {
-  color: #30343f;
+  max-width: 100%;
+  overflow: hidden;
+  color: #222733;
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-card-value small {
-  color: #8e8f94;
-  font-size: 16px;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.metric-card--bloodPressure .metric-card-value strong {
+  font-size: 25px;
+}
+
+.metric-card--bloodSugar .metric-card-value strong {
+  font-size: 28px;
 }
 
 .metric-card-detail {
+  grid-area: detail;
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-  color: #8e8f94;
-  font-size: 13px;
-  align-items: center;
+  min-width: 0;
+  gap: 7px;
+  color: #8f95a2;
+  font-size: 12px;
 }
 
 .metric-card-change {
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .metric-card-change.good {
-  color: #31c79b;
+  color: #39b98f;
 }
 
 .metric-card-change.warn {
-  color: #f06969;
+  color: #de8b46;
 }
 
 .metric-card-status {
-  justify-self: end;
-  min-width: 64px;
-  height: 28px;
+  justify-self: start;
+  min-width: 58px;
+  height: 24px;
   border-radius: 999px;
-  padding: 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 28px;
+  padding: 0 9px;
+  overflow: hidden;
+  background: rgba(102, 207, 167, 0.14);
+  color: #39a980;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 24px;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-card-status--good {
-  background: #d7f5eb;
-  color: #31c79b;
+  background: rgba(102, 207, 167, 0.14);
+  color: #39a980;
 }
 
 .metric-card-status--warn {
-  background: #fff0f0;
-  color: #f06969;
+  background: rgba(233, 185, 87, 0.18);
+  color: #b37a2f;
 }
 
 .metric-card-chart {
+  grid-area: chart;
   width: 100%;
-  height: 58px;
+  height: 94px;
+  align-self: center;
   padding: 0;
 }
 
@@ -890,12 +1168,24 @@ function goToAddDevice() {
 }
 
 .metric-card-grid line {
-  stroke: rgba(95, 109, 148, 0.12);
+  stroke: rgba(116, 128, 150, 0.14);
   stroke-width: 1;
 }
 
+.metric-card--steps .metric-card-grid line,
+.metric-card--heartRate .metric-card-grid line {
+  stroke: rgba(116, 128, 150, 0.14);
+}
+
 .metric-card-chart polygon {
-  filter: drop-shadow(0 10px 20px rgba(102, 112, 240, 0.08));
+  opacity: 0.34;
+  filter: none;
+}
+
+.metric-card--steps .metric-card-chart polygon,
+.metric-card--heartRate .metric-card-chart polygon {
+  opacity: 0.34;
+  filter: none;
 }
 
 .metric-card-chart circle {
@@ -907,21 +1197,21 @@ function goToAddDevice() {
 }
 
 .metric-card-detail {
-  color: #6c7488;
+  color: #8f95a2;
 }
 
 .no-more {
   margin: 28px 0 0;
-  color: #c9c9c9;
-  font-size: 17px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   text-align: center;
 }
 
 @media (min-width: 561px) {
   .health-data-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -938,7 +1228,7 @@ function goToAddDevice() {
   }
 
   .profile-copy h2 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .profile-alert-chip {
@@ -949,9 +1239,9 @@ function goToAddDevice() {
   }
 
   .device-panel {
-    padding-top: 18px;
-    padding-right: 12px;
-    padding-left: 12px;
+    padding-top: 10px;
+    padding-right: 8px;
+    padding-left: 8px;
   }
 
   .device-stat span {
@@ -959,7 +1249,7 @@ function goToAddDevice() {
   }
 
   .device-stat strong {
-    font-size: 22px;
+    font-size: 21px;
   }
 
   .device-stat strong small {
@@ -984,11 +1274,11 @@ function goToAddDevice() {
   }
 
   .metric-card-title {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .metric-card-value strong {
-    font-size: 26px;
+    font-size: 28px;
   }
 }
 </style>

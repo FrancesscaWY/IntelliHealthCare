@@ -9,6 +9,14 @@
       <input v-model="keyword" type="text" placeholder="搜索" />
     </div>
 
+    <button class="smart-recommend-entry" type="button" @click="openSmartRecommend">
+      <span class="smart-assistant" aria-hidden="true">
+        <canvas ref="assistantCanvasRef" width="110" height="110"></canvas>
+      </span>
+      <span class="smart-entry-text">试试豆沙包帮你推荐～</span>
+      <span class="smart-entry-action">进入</span>
+    </button>
+
     <view class="service-grid">
       <view
           v-for="item in serviceList"
@@ -86,25 +94,40 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
+import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
+import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
+import { getHomeCareServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
+import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
-import {
-  Home,
-  Heart,
-  Cooking,
-  Hospital,
-  HeartRate,
-  HospitalBed,
-  MedicalFiles,
-}
-from '@icon-park/vue-next'
+import Home from '@icon-park/vue-next/es/icons/Home'
+import Heart from '@icon-park/vue-next/es/icons/Heart'
+import Cooking from '@icon-park/vue-next/es/icons/Cooking'
+import Hospital from '@icon-park/vue-next/es/icons/Hospital'
+import HeartRate from '@icon-park/vue-next/es/icons/HeartRate'
+import HospitalBed from '@icon-park/vue-next/es/icons/HospitalBed'
+import MedicalFiles from '@icon-park/vue-next/es/icons/MedicalFiles'
 import mock, { type ServiceItem, type CareItem } from './mock'
 
 const props = defineProps<PageComponentProps>()
 const keyword = ref('')
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
+
+interface DisplayCareItem {
+  id: string
+  serviceId: string
+  title: string
+  desc: string
+  image: string
+  price: number
+  oldPrice: number
+  sales: number
+  category: string
+}
 
 const serviceList = ref<ServiceItem[]>(mock.serviceList)
-const recommendList = ref<CareItem[]>(mock.recommendList)
-const discountList = ref<CareItem[]>(mock.discountList)
+const recommendList = ref<DisplayCareItem[]>(createMockDisplayCareItems(mock.recommendList))
+const discountList = ref<DisplayCareItem[]>(createMockDisplayCareItems(mock.discountList))
 
 const iconMap: Record<string, any> = {
   life: Home,
@@ -119,14 +142,14 @@ const iconMap: Record<string, any> = {
 
 const getIconColor = (type: string): string => {
   const colorMap: Record<string, string> = {
-    life: '#44c7a1',
-    medical: '#6875f5',
-    rehab: '#f0c85c',
-    mental: '#3567e8',
-    cooking: '#f47c73',
-    health: '#42caa1',
-    accompany: '#6b76f2',
-    clean: '#e9c95f',
+    life: '#1AE7CE',
+    medical: '#2D90F0',
+    rehab: '#BE2DEA',
+    mental: '#4B63FC',
+    cooking: '#2D90F0',
+    health: '#1AE7CE',
+    accompany: '#2D90F0',
+    clean: '#BE2DEA',
   }
 
   return colorMap[type] || '#999999'
@@ -143,6 +166,8 @@ let totalSeconds =
     Number(countdown.seconds)
 
 let timer: number | null = null
+let assistantRive: Rive | null = null
+let assistantResizeObserver: ResizeObserver | null = null
 
 const formatTime = (value: number): string => {
   return value < 10 ? `0${value}` : `${value}`
@@ -186,6 +211,75 @@ const goBack = () => {
   props.navigation.reLaunch('home/dashboard')
 }
 
+const openSmartRecommend = () => {
+  props.navigation.navigateTo('service/home-care-recommend-waiting')
+}
+
+const resizeAssistant = () => {
+  assistantRive?.resizeDrawingSurfaceToCanvas()
+}
+
+function createMockDisplayCareItems(items: CareItem[]): DisplayCareItem[] {
+  return items.map((item, index) => ({
+    id: `mock-home-care-${index + 1}`,
+    serviceId: `mock-home-care-${index + 1}`,
+    title: item.title,
+    desc: item.desc || '',
+    image: item.image,
+    price: item.price,
+    oldPrice: item.oldPrice ?? item.price,
+    sales: item.sales ?? 0,
+    category: item.category,
+  }))
+}
+
+function mapServiceItemToDisplayCareItem(item: ServiceCatalogItem): DisplayCareItem {
+  const tags = normalizeServiceStringArray(item.tags)
+
+  return {
+    id: item.serviceId,
+    serviceId: item.serviceId,
+    title: item.title,
+    desc: item.summary || tags.join('、') || item.institution?.name || '',
+    image: item.coverUrl || mock.recommendList[0]?.image || '',
+    price: item.price,
+    oldPrice: item.marketPrice ?? item.price,
+    sales: item.salesVolume,
+    category: tags[0] || item.institution?.name || '家政护理',
+  }
+}
+
+function openServiceDetail(item: DisplayCareItem) {
+  saveSelectedServiceContext({
+    categorySlug: 'home-care',
+    serviceId: item.serviceId,
+    title: item.title,
+    coverUrl: item.image,
+    price: item.price,
+  })
+
+  props.navigation.navigateTo('service/home-care-detail')
+}
+
+async function loadHomeCareServices() {
+  try {
+    const services = await getHomeCareServices()
+
+    if (!services.list.length) {
+      return
+    }
+
+    const nextItems = services.list.map(mapServiceItemToDisplayCareItem)
+    recommendList.value = nextItems
+    discountList.value = nextItems.slice(0, 5).map((item) => ({
+      ...item,
+      oldPrice: item.oldPrice || item.price,
+    }))
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '家政护理加载失败')
+  }
+}
+
 const handleServiceClick = (item: ServiceItem) => {
   if (item.type === 'clean') {
     props.navigation.navigateTo('service/daily-clean')
@@ -195,16 +289,48 @@ const handleServiceClick = (item: ServiceItem) => {
   console.log('点击服务分类：', item.name)
 }
 
-const goDiscountDetail = (_item: CareItem) => {
-  props.navigation.navigateTo('service/home-care-detail')
+const goDiscountDetail = (item: DisplayCareItem) => {
+  openServiceDetail(item)
 }
 
-const goDetail = (item: CareItem) => {
-  console.log('跳转详情：', item.title)
+const goDetail = (item: DisplayCareItem) => {
+  openServiceDetail(item)
 }
 
 onMounted(() => {
+  setOrderFlowService({
+    type: 'homeCare',
+    serviceId: 'srv_home_clean_2h',
+    title: '日常清洁 2小时1人上门服务',
+    price: 298,
+    image: mock.discountList[0]?.image || mock.recommendList[0]?.image || '',
+    detailPageId: 'service/home-care-detail',
+    listPageId: 'service/home-care',
+    couponAmount: 20,
+    addressId: 'addr_joy_home',
+    addressText: '上海市浦东新区丁香路168弄12号302室',
+    contactName: '王秀珍',
+    contactPhone: '13800138000',
+  })
   startCountdown()
+  void loadHomeCareServices()
+
+  if (!assistantCanvasRef.value) return
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: 'State Machine 1',
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    onLoad: resizeAssistant,
+  })
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistant)
+  assistantResizeObserver.observe(assistantCanvasRef.value)
 })
 
 onBeforeUnmount(() => {
@@ -212,6 +338,10 @@ onBeforeUnmount(() => {
     clearInterval(timer)
     timer = null
   }
+  assistantResizeObserver?.disconnect()
+  assistantResizeObserver = null
+  assistantRive?.cleanup()
+  assistantRive = null
 })
 </script>
 <style scoped>
@@ -219,10 +349,10 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
-  background: #f5f6f8;
+  background: #ffffff;
   padding: 16px 16px 24px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
@@ -261,8 +391,11 @@ onBeforeUnmount(() => {
 }
 
 .search-box {
-  height: 52px;
-  background: #fff;
+  height: 40px;
+  border: 2px solid transparent;
+  background:
+      linear-gradient(#ffffff, #ffffff) padding-box,
+      linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
   border-radius: 18px;
   display: flex;
   align-items: center;
@@ -290,6 +423,82 @@ onBeforeUnmount(() => {
 
 .search-box input::placeholder {
   color: #c7c7c7;
+}
+
+.smart-recommend-entry {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  display: grid;
+  grid-template-columns: 74px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 10px 13px 12px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  background:
+      radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.92), transparent 34%),
+      linear-gradient(105deg, rgba(117, 214, 223, 0.98) 0%, rgba(45, 144, 240, 0.72) 52%, rgba(123, 226, 142, 0.88) 100%);
+  box-shadow: 0 14px 30px rgba(45, 144, 240, 0.14);
+  color: #0a0e17;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.86;
+}
+
+.smart-recommend-entry::after {
+  position: absolute;
+  right: -38px;
+  bottom: -48px;
+  width: 124px;
+  height: 124px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.smart-assistant {
+  position: relative;
+  z-index: 1;
+  width: 74px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  transform: translateX(-10px) translateY(-18px);
+}
+
+.smart-assistant canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 8px 10px rgba(31, 42, 68, 0.13));
+}
+
+.smart-entry-text {
+  position: relative;
+  z-index: 1;
+  color: #131b2e;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.smart-entry-action {
+  position: relative;
+  z-index: 1;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2a44;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(31, 42, 68, 0.08);
 }
 
 .service-grid {
@@ -328,7 +537,7 @@ onBeforeUnmount(() => {
 }
 
 .discount-section {
-  background: #dfeaf7;
+  background: #e9f8fb;
   border-radius: 22px;
   padding: 20px 14px 18px;
   margin-bottom: 28px;
@@ -356,8 +565,8 @@ onBeforeUnmount(() => {
   min-width: 38px;
   height: 34px;
   padding: 0 8px;
-  background: #eef3fb;
-  color: #f27f79;
+  background: #e9f8fb;
+  color: #2d90f0;
   font-size: 15px;
   font-weight: 700;
   border-radius: 17px;
@@ -426,7 +635,7 @@ onBeforeUnmount(() => {
 .current-price {
   font-size: 18px;
   font-weight: 700;
-  color: #f37a72;
+  color: #006DFF;
 }
 
 .old-price {
@@ -550,7 +759,7 @@ onBeforeUnmount(() => {
 .recommend-price {
   font-size: 18px;
   font-weight: 700;
-  color: #f37a72;
+  color: #006DFF;
 }
 
 .recommend-sales {

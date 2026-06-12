@@ -1,8 +1,8 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { join } from "node:path";
 import { validateEnv } from "./common/config/env.schema";
 import { RequestContextMiddleware } from "./common/middleware/request-context.middleware";
+import { resolveBackendEnvFilePaths } from "./common/utils/backend-paths";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { QueueModule } from "./infra/queue/queue.module";
 import { StorageModule } from "./infra/storage/storage.module";
@@ -24,11 +24,7 @@ import { SystemModule } from "./modules/system/system.module";
 import { UsersModule } from "./modules/users/users.module";
 import { FilesModule } from "./modules/files/files.module";
 
-const envFilePath = [
-  join(process.cwd(), "apps/backend/.env"),
-  join(process.cwd(), ".env"),
-  join(__dirname, "..", ".env")
-];
+const envFilePath = resolveBackendEnvFilePaths();
 
 @Module({
   imports: [

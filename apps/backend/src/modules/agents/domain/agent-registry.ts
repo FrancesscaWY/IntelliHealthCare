@@ -115,7 +115,8 @@ export class AgentRegistry {
           "getConversationHistory",
           "getResponseTemplates",
           "getPageRegistry",
-          "getTaskOrchestratorOutput"
+          "getTaskOrchestratorOutput",
+          "searchKnowledgeBase"
         ],
         forbiddenActions: [
           "bypass-control-layer",

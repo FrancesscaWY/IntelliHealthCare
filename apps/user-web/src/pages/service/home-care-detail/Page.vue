@@ -1,9 +1,100 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Headset, Share, Star } from '@icon-park/vue-next'
+import Headset from '@icon-park/vue-next/es/icons/Headset'
+import Share from '@icon-park/vue-next/es/icons/Share'
+import Star from '@icon-park/vue-next/es/icons/Star'
+import { getHomeCareServiceDetail, getHomeCareServices, type ServiceCatalogDetail } from '@/shared/api/service-catalog'
+import {
+  extractServiceTexts,
+  formatServiceDiscountLabel,
+  formatServiceDurationLabel,
+  normalizeServiceStringArray,
+  readSelectedServiceContext,
+  saveSelectedServiceContext,
+} from '@/shared/service/catalog'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
+const detailData = ref<ServiceCatalogDetail | null>(null)
+
+const title = computed(() => detailData.value?.title || mock.title)
+const image = computed(() => detailData.value?.coverUrl || mock.image)
+const priceText = computed(() => `${(detailData.value?.price ?? Number(mock.price)).toFixed(2)}`)
+const discountText = computed(() => {
+  if (!detailData.value) {
+    return mock.discount
+  }
+
+  return formatServiceDiscountLabel(detailData.value.price, detailData.value.marketPrice)
+})
+const ratingText = computed(() => (detailData.value?.rating ?? Number(mock.rating)).toFixed(1))
+const reviewCountText = computed(() => {
+  if (detailData.value?.salesVolume) {
+    return `${detailData.value.salesVolume}次服务`
+  }
+
+  return `${mock.ratingCount}人评论`
+})
+
+const serviceContentRows = computed(() => {
+  if (!detailData.value) {
+    return mock.serviceContent
+  }
+
+  const durationText = formatServiceDurationLabel(detailData.value.durationMinutes)
+  const regions = normalizeServiceStringArray(detailData.value.regionScope)
+  const tags = normalizeServiceStringArray(detailData.value.tags)
+  const contentItems = normalizeServiceStringArray(detailData.value.serviceContent)
+  const rows = []
+
+  if (durationText) {
+    rows.push({ label: '服务时长', value: durationText })
+  }
+
+  if (regions.length) {
+    rows.push({ label: '服务区域', value: regions.join('、') })
+  }
+
+  if (tags.length) {
+    rows.push({ label: '服务标签', value: tags.join('、') })
+  }
+
+  if (contentItems.length) {
+    rows.push({ label: '服务内容', value: contentItems.join('、') })
+  }
+
+  if (detailData.value.institution?.name) {
+    rows.push({ label: '服务机构', value: detailData.value.institution.name })
+  }
+
+  return rows.length ? rows : mock.serviceContent
+})
+
+const detailText = computed(() => {
+  if (!detailData.value) {
+    return mock.detail
+  }
+
+  const snippetText = extractServiceTexts(detailData.value.ragSnippet)[0]
+  const contentText = normalizeServiceStringArray(detailData.value.serviceContent).join('，')
+
+  return detailData.value.summary || snippetText || contentText || mock.detail
+})
+
+const noticeRows = computed(() => {
+  const texts = extractServiceTexts(detailData.value?.ragSnippet)
+
+  if (!texts.length) {
+    return mock.notice
+  }
+
+  return texts.map((value, index) => ({
+    label: index === 0 ? '服务提醒' : `提醒${index + 1}`,
+    value,
+  }))
+})
 
 const goBack = () => {
   if (!props.navigation.navigateBack()) {
@@ -11,15 +102,60 @@ const goBack = () => {
   }
 }
 
+function persistSelectedService(detail: ServiceCatalogDetail) {
+  saveSelectedServiceContext({
+    categorySlug: 'home-care',
+    serviceId: detail.serviceId,
+    title: detail.title,
+    coverUrl: detail.coverUrl,
+    price: detail.price,
+  })
+}
+
+async function resolveServiceId() {
+  const selectedService = readSelectedServiceContext()
+
+  if (selectedService?.categorySlug === 'home-care' && selectedService.serviceId.trim()) {
+    return selectedService.serviceId.trim()
+  }
+
+  const services = await getHomeCareServices()
+  return services.list[0]?.serviceId || ''
+}
+
+async function loadServiceDetail() {
+  try {
+    const serviceId = await resolveServiceId()
+
+    if (!serviceId) {
+      throw new Error('暂无可用家政护理服务')
+    }
+
+    const nextDetail = await getHomeCareServiceDetail(serviceId)
+    detailData.value = nextDetail
+    persistSelectedService(nextDetail)
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '家政护理详情加载失败')
+  }
+}
+
 const buyNow = () => {
+  if (detailData.value) {
+    persistSelectedService(detailData.value)
+  }
+
   props.navigation.navigateTo('service/booking')
 }
+
+onMounted(() => {
+  void loadServiceDetail()
+})
 </script>
 
 <template>
   <div class="service-detail-page">
     <section class="hero">
-      <img class="hero-image" :src="mock.image" :alt="mock.title" />
+      <img class="hero-image" :src="image" :alt="title" />
       <div class="hero-mask"></div><div class="hero-actions">
         <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
         <div class="action-icons">
@@ -38,22 +174,22 @@ const buyNow = () => {
 
     <main class="detail-panel">
       <section class="summary-section">
-        <h1>{{ mock.title }}</h1>
+        <h1>{{ title }}</h1>
         <div class="price-line">
-          <span class="price">¥ {{ mock.price }}</span>
-          <span class="discount">{{ mock.discount }}</span>
+          <span class="price">¥ {{ priceText }}</span>
+          <span class="discount">{{ discountText }}</span>
         </div>
         <div class="rating-line">
           <span class="stars">★★★★★</span>
-          <strong>{{ mock.rating }}</strong>
-          <span>({{ mock.ratingCount }}人评论)</span>
+          <strong>{{ ratingText }}</strong>
+          <span>({{ reviewCountText }})</span>
         </div>
       </section>
 
       <section class="content-section">
         <h2>服务内容</h2>
         <dl class="info-list">
-          <div v-for="row in mock.serviceContent" :key="row.label" class="info-row">
+          <div v-for="row in serviceContentRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -74,13 +210,13 @@ const buyNow = () => {
 
       <section class="content-section">
         <h2>服务详情</h2>
-        <p class="detail-text">{{ mock.detail }}</p>
+        <p class="detail-text">{{ detailText }}</p>
       </section>
 
       <section class="content-section">
         <h2>购买须知</h2>
         <dl class="info-list">
-          <div v-for="row in mock.notice" :key="row.label" class="info-row">
+          <div v-for="row in noticeRows" :key="row.label" class="info-row">
             <dt>{{ row.label }}</dt>
             <dd>{{ row.value }}</dd>
           </div>
@@ -89,8 +225,8 @@ const buyNow = () => {
 
       <section class="review-section">
         <div class="review-heading">
-          <h2>用户评价（{{ mock.ratingCount }}）</h2>
-          <span>{{ mock.rating }}</span>
+          <h2>用户评价（{{ reviewCountText }}）</h2>
+          <span>{{ ratingText }}</span>
         </div>
 
         <article v-for="review in mock.reviews" :key="review.id" class="review-card">
@@ -111,7 +247,7 @@ const buyNow = () => {
     </main>
 
     <div class="buy-bar">
-      <button class="buy-button" type="button" @click="buyNow">立即购买</button>
+      <button class="buy-button" type="button" @click="buyNow">立即预约</button>
     </div>
   </div>
 </template>
@@ -121,13 +257,13 @@ const buyNow = () => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   transform: translateX(-50%);
   padding-top: 16px;
   padding-bottom: 82px;
   box-sizing: border-box;
-  background: #f3f4f6;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -228,7 +364,7 @@ const buyNow = () => {
 }
 
 .price {
-  color: #f1726c;
+  color: #006DFF;
   font-size: 22px;
   font-weight: 800;
 }
@@ -238,9 +374,9 @@ const buyNow = () => {
   display: inline-flex;
   align-items: center;
   padding: 0 8px;
-  border: 1px solid #f1726c;
+  border: 1px solid #75d6df;
   border-radius: 8px;
-  color: #f1726c;
+  color: #2d90f0;
   font-size: 13px;
   font-weight: 600;
 }
@@ -347,7 +483,7 @@ const buyNow = () => {
   justify-content: center;
   margin: -17px auto 16px;
   border-radius: 8px;
-  background: linear-gradient(90deg, #ff7d74 0%, #f5c65d 100%);
+  background: #75d6df;
   color: #fff;
   font-size: 13px;
   font-weight: 800;
@@ -487,7 +623,7 @@ const buyNow = () => {
   height: 48px;
   border: 0;
   border-radius: 8px;
-  background: #6870f2;
+  background: #75d6df;
   color: #fff;
   font-size: 18px;
   font-weight: 700;

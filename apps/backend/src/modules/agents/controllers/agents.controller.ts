@@ -15,6 +15,8 @@ import { RagKnowledgeService } from "../application/rag-knowledge.service";
 import { RagEvaluationService } from "../application/rag-evaluation.service";
 import { INTELLIHEALTHCARE_MULTI_AGENT_BLUEPRINT } from "../domain/framework-blueprint";
 import { AgentRegistry } from "../domain/agent-registry";
+import { EmbeddingGateway } from "../gateways/embedding.gateway";
+import { LlmGateway } from "../gateways/llm.gateway";
 import {
   CreateAgentTaskDto,
   ListAgentTasksQueryDto
@@ -43,7 +45,9 @@ export class AgentsController {
     private readonly orchestrator: AgentOrchestratorService,
     private readonly ragKnowledgeService: RagKnowledgeService,
     private readonly governanceService: AgentGovernanceService,
-    private readonly ragEvaluationService: RagEvaluationService
+    private readonly ragEvaluationService: RagEvaluationService,
+    private readonly llmGateway: LlmGateway,
+    private readonly embeddingGateway: EmbeddingGateway
   ) {}
 
   @Get("definitions")
@@ -54,6 +58,15 @@ export class AgentsController {
   @Get("blueprint")
   getBlueprint() {
     return INTELLIHEALTHCARE_MULTI_AGENT_BLUEPRINT;
+  }
+
+  @Get("runtime-status")
+  @ApiOperation({ summary: "查询多智能体运行时与模型接入状态" })
+  getRuntimeStatus() {
+    return {
+      llm: this.llmGateway.getRuntimeStatus(),
+      embedding: this.embeddingGateway.getRuntimeStatus()
+    };
   }
 
   @Post("tasks")

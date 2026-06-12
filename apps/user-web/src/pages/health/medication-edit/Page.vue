@@ -1,23 +1,89 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { deleteHealthMedication } from "@/shared/api/health";
+import {
+  clearSelectedMedication,
+  getSelectedMedication
+} from "@/shared/health/medication-selection";
+import type { StoredMedicationSelection } from "@/shared/health/medication-selection";
 
 const props = defineProps<PageComponentProps>();
-type PickerType = "time" | "frequency" | "unit";
 
+type PickerType = "time" | "frequency" | "unit";
+const labels = {
+  title: "\u7f16\u8f91\u7528\u836f\u63d0\u9192",
+  back: "\u8fd4\u56de",
+  name: "\u836f\u54c1\u540d\u79f0",
+  time: "\u7528\u836f\u65f6\u95f4",
+  select: "\u8bf7\u9009\u62e9",
+  addTime: "\u6dfb\u52a0\u7528\u836f\u65f6\u95f4",
+  frequency: "\u7528\u836f\u9891\u7387",
+  unit: "\u5355\u4f4d",
+  dose: "\u5242\u91cf",
+  reminder: "\u7528\u836f\u63d0\u9192",
+  save: "\u4fdd\u5b58",
+  delete: "\u5220\u9664",
+  deleting: "\u5220\u9664\u4e2d...",
+  cancel: "\u53d6\u6d88",
+  remove: "\u5220\u9664",
+  confirm: "\u786e\u5b9a",
+  selectTime: "\u9009\u62e9\u7528\u836f\u65f6\u95f4",
+  selectFrequency: "\u8bf7\u9009\u62e9\u7528\u836f\u9891\u7387",
+  selectUnit: "\u8bf7\u9009\u62e9\u5355\u4f4d",
+  noMedication: "\u672a\u627e\u5230\u53ef\u5220\u9664\u7684\u7528\u836f\u8bb0\u5f55",
+  deleted: "\u5220\u9664\u6210\u529f",
+  deleteFailed: "\u5220\u9664\u5931\u8d25",
+  saved: "\u4fdd\u5b58\u6210\u529f",
+  daily: "\u6bcf\u5929",
+  everyOtherDay: "\u9694\u5929\u4e00\u6b21",
+  everyThreeDays: "\u6bcf3\u5929\u4e00\u6b21",
+  weekly: "\u6bcf\u5468\u4e00\u6b21",
+  asNeeded: "\u6309\u9700\u670d\u7528",
+  tablet: "\u7247",
+  capsule: "\u7c92",
+  pack: "\u5305",
+  hourSuffix: "\u65f6",
+  minuteSuffix: "\u5206"
+} as const;
+
+function inferUnitFromDosage(dosage?: string) {
+  if (!dosage) {
+    return labels.tablet;
+  }
+
+  if (dosage.toLowerCase().includes("mg")) return "mg";
+  if (dosage.toLowerCase().includes("ml")) return "ml";
+  if (dosage.includes(labels.tablet)) return labels.tablet;
+  if (dosage.includes(labels.capsule)) return labels.capsule;
+  if (dosage.includes(labels.pack)) return labels.pack;
+
+  return labels.tablet;
+}
+
+const selectedMedication = ref<StoredMedicationSelection | null>(getSelectedMedication());
+const isDeleting = ref(false);
 const form = reactive({
-  times: [...mock.medicine.times],
-  frequency: mock.medicine.frequency,
-  unit: mock.medicine.unit,
-  reminder: mock.medicine.reminder,
+  times: [...(selectedMedication.value?.scheduleTimes?.length ? selectedMedication.value.scheduleTimes : [])],
+  frequency: selectedMedication.value?.frequency ?? labels.daily,
+  unit: inferUnitFromDosage(selectedMedication.value?.dosage),
+  reminder: false
 });
 const activePicker = ref<PickerType | null>(null);
 const selectedHour = ref(10);
 const selectedMinute = ref(3);
 const editingTimeIndex = ref<number | null>(null);
-const frequencies = ["每天", "每隔1天", "每隔2天", "每隔3天", "每隔4天", "每隔5天"];
-const units = ["瓶", "片", "包"];
+const frequencies = [
+  labels.daily,
+  labels.everyOtherDay,
+  labels.everyThreeDays,
+  labels.weekly,
+  labels.asNeeded
+];
+const units = [labels.tablet, labels.capsule, "mg", "ml", labels.pack];
+const pageTitle = computed(() => labels.title);
+const medicationName = computed(() => selectedMedication.value?.name ?? "--");
+const medicationDosage = computed(() => selectedMedication.value?.dosage ?? "--");
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -87,15 +153,35 @@ function selectUnit(value: string) {
   closePicker();
 }
 
-function deleteMedication() {
-  props.showToast("删除成功");
-  window.setTimeout(() => {
-    props.navigation.reLaunch("health/medication-info");
-  }, 220);
+async function deleteMedication() {
+  if (isDeleting.value) {
+    return;
+  }
+
+  const medicationId = selectedMedication.value?.medicationId;
+
+  if (!medicationId) {
+    props.showToast(labels.noMedication);
+    return;
+  }
+
+  try {
+    isDeleting.value = true;
+    await deleteHealthMedication(medicationId);
+    clearSelectedMedication();
+    props.showToast(labels.deleted);
+    window.setTimeout(() => {
+      props.navigation.reLaunch("health/medication-info");
+    }, 220);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : labels.deleteFailed);
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function saveMedication() {
-  props.showToast("保存成功");
+  props.showToast(labels.saved);
   window.setTimeout(() => {
     props.navigation.reLaunch("health/medication-info");
   }, 220);
@@ -105,51 +191,64 @@ function saveMedication() {
 <template>
   <section class="medication-edit-page">
     <header class="edit-nav">
-      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
+      <button class="back-btn" type="button" :aria-label="labels.back" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
-      <h1>{{ mock.title }}</h1>
-      <button class="delete-btn" type="button" @click="deleteMedication">删除</button>
+      <h1>{{ pageTitle }}</h1>
+      <button
+        class="delete-btn"
+        type="button"
+        :disabled="isDeleting || !selectedMedication?.medicationId"
+        @click="deleteMedication"
+      >
+        {{ isDeleting ? labels.deleting : labels.delete }}
+      </button>
     </header>
 
     <main class="edit-form">
       <div class="form-row">
-        <span>药品名称</span>
-        <strong>{{ mock.medicine.name }}</strong>
+        <span>{{ labels.name }}</span>
+        <strong>{{ medicationName }}</strong>
       </div>
 
       <div class="form-row form-row--time">
-        <span>用药时间</span>
+        <span>{{ labels.time }}</span>
         <em v-if="form.times.length" class="time-chips">
-          <button v-for="(time, index) in form.times" :key="`${time}-${index}`" class="time-chip" type="button" @click="openTimePicker(index)">
+          <button
+            v-for="(time, index) in form.times"
+            :key="`${time}-${index}`"
+            class="time-chip"
+            type="button"
+            @click="openTimePicker(index)"
+          >
             {{ time }}
           </button>
         </em>
-        <em v-else>请选择</em>
-        <button class="time-add-btn" type="button" aria-label="添加用药时间" @click="openTimePicker()">
+        <em v-else>{{ labels.select }}</em>
+        <button class="time-add-btn" type="button" :aria-label="labels.addTime" @click="openTimePicker()">
           <i class="plus-icon" aria-hidden="true"></i>
         </button>
       </div>
 
       <button class="form-row form-row--action" type="button" @click="openPicker('frequency')">
-        <span>用药频率</span>
+        <span>{{ labels.frequency }}</span>
         <strong>{{ form.frequency }}</strong>
         <i class="arrow-icon" aria-hidden="true"></i>
       </button>
 
       <button class="form-row form-row--action" type="button" @click="openPicker('unit')">
-        <span>单位</span>
+        <span>{{ labels.unit }}</span>
         <strong>{{ form.unit }}</strong>
         <i class="arrow-icon" aria-hidden="true"></i>
       </button>
 
       <div class="form-row">
-        <span>计量</span>
-        <strong>{{ mock.medicine.dose }}</strong>
+        <span>{{ labels.dose }}</span>
+        <strong>{{ medicationDosage }}</strong>
       </div>
 
       <label class="form-row reminder-row">
-        <span>用药提醒</span>
+        <span>{{ labels.reminder }}</span>
         <input v-model="form.reminder" type="checkbox" />
         <i class="switch-track" :class="{ 'switch-track--active': form.reminder }">
           <b></b>
@@ -158,16 +257,18 @@ function saveMedication() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveMedication">保存</button>
+      <button class="save-btn" type="button" @click="saveMedication">{{ labels.save }}</button>
     </footer>
 
     <div v-if="activePicker" class="picker-mask" @click.self="closePicker">
-      <section v-if="activePicker === 'time'" class="time-picker-panel" aria-label="选择用药时间">
+      <section v-if="activePicker === 'time'" class="time-picker-panel" :aria-label="labels.selectTime">
         <header class="time-picker-header">
-          <button type="button" @click="closePicker">取消</button>
-          <button v-if="editingTimeIndex !== null" class="time-delete-btn" type="button" @click="deleteSelectedTime">删除</button>
+          <button type="button" @click="closePicker">{{ labels.cancel }}</button>
+          <button v-if="editingTimeIndex !== null" class="time-delete-btn" type="button" @click="deleteSelectedTime">
+            {{ labels.remove }}
+          </button>
           <span v-else></span>
-          <button type="button" @click="confirmTime">确定</button>
+          <button type="button" @click="confirmTime">{{ labels.confirm }}</button>
         </header>
         <div class="time-wheel">
           <div class="time-column">
@@ -178,7 +279,7 @@ function saveMedication() {
               :class="{ 'time-option--active': hour === selectedHour }"
               @click="selectedHour = hour"
             >
-              {{ hour }}时
+              {{ hour }}{{ labels.hourSuffix }}
             </button>
           </div>
           <div class="time-column">
@@ -189,15 +290,15 @@ function saveMedication() {
               :class="{ 'time-option--active': minute === selectedMinute }"
               @click="selectedMinute = minute"
             >
-              {{ minute }}分
+              {{ minute }}{{ labels.minuteSuffix }}
             </button>
           </div>
           <span class="time-wheel-highlight" aria-hidden="true"></span>
         </div>
       </section>
 
-      <section v-else class="choice-panel" aria-label="选择">
-        <h2>{{ activePicker === "frequency" ? "请选择用药频率" : "请选择" }}</h2>
+      <section v-else class="choice-panel" :aria-label="labels.select">
+        <h2>{{ activePicker === "frequency" ? labels.selectFrequency : labels.selectUnit }}</h2>
         <button
           v-for="item in activePicker === 'frequency' ? frequencies : units"
           :key="item"
@@ -207,7 +308,7 @@ function saveMedication() {
         >
           {{ item }}
         </button>
-        <button class="choice-cancel" type="button" @click="closePicker">取消</button>
+        <button class="choice-cancel" type="button" @click="closePicker">{{ labels.cancel }}</button>
       </section>
     </div>
   </section>
@@ -218,9 +319,9 @@ function saveMedication() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;
@@ -278,6 +379,10 @@ function saveMedication() {
   color: #6670f0;
   font-size: 18px;
   font-weight: 400;
+}
+
+.delete-btn:disabled {
+  color: #b8bed0;
 }
 
 .edit-form {
@@ -581,8 +686,8 @@ function saveMedication() {
 
 @media (min-width: 561px) {
   .medication-edit-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

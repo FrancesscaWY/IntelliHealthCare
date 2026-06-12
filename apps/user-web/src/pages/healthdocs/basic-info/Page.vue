@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  getArchiveBasicInfo,
+  updateArchiveBasicInfo,
+  type ArchiveBasicInfo,
+  type ArchiveEmergencyContact
+} from "@/shared/api/health-archive";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -9,6 +15,57 @@ const formState = reactive<Record<string, string>>(
   Object.fromEntries(mock.groups.flat().map((item) => [item.key, ""])),
 );
 const showAvatarSheet = ref(false);
+const isLoading = ref(false);
+const isSaving = ref(false);
+const emergencyContactState = ref<ArchiveEmergencyContact | null>(null);
+
+function toText(value: unknown) {
+  return value == null ? "" : String(value);
+}
+
+function mapGenderFromApi(gender: string | null | undefined) {
+  if (gender === "MALE") {
+    return "男";
+  }
+
+  if (gender === "FEMALE") {
+    return "女";
+  }
+
+  return "";
+}
+
+function applyBasicInfo(data: ArchiveBasicInfo) {
+  formState.avatar = toText(data.avatar);
+  formState.name = toText(data.name);
+  formState.idCard = toText(data.idCard);
+  formState.gender = mapGenderFromApi(data.gender);
+  formState.birthday = toText(data.birthday);
+  formState.phone = toText(data.phone);
+  formState.address = toText(data.address);
+  formState.height = toText(data.height);
+  formState.weight = toText(data.weight);
+  formState.nativePlace = toText(data.nativePlace);
+  formState.ethnicity = toText(data.ethnicity);
+  formState.education = toText(data.education);
+  formState.maritalStatus = toText(data.maritalStatus);
+  formState.occupation = toText(data.occupation);
+  formState.emergencyName = toText(data.emergencyContact?.name);
+  formState.emergencyPhone = toText(data.emergencyContact?.phone);
+  emergencyContactState.value = data.emergencyContact;
+}
+
+async function loadBasicInfo() {
+  try {
+    isLoading.value = true;
+    const data = await getArchiveBasicInfo();
+    applyBasicInfo(data);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "基础信息加载失败");
+  } finally {
+    isLoading.value = false;
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -16,8 +73,99 @@ function goBack() {
   }
 }
 
-function saveProfile() {
-  props.showToast("基础信息已暂存");
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function buildEmergencyContact() {
+  const emergencyName = formState.emergencyName.trim();
+  const emergencyPhone = formState.emergencyPhone.trim();
+  const nextEmergencyContact: Record<string, unknown> = {};
+
+  if (typeof emergencyContactState.value?.relation === "string" && emergencyContactState.value.relation) {
+    nextEmergencyContact.relation = emergencyContactState.value.relation;
+  }
+  if (emergencyName) {
+    nextEmergencyContact.name = emergencyName;
+  }
+  if (emergencyPhone) {
+    nextEmergencyContact.phone = emergencyPhone;
+  }
+
+  if (Object.keys(nextEmergencyContact).length > 0) {
+    return nextEmergencyContact;
+  }
+
+  if (emergencyContactState.value && Object.keys(emergencyContactState.value).length > 0) {
+    return {};
+  }
+
+  return undefined;
+}
+
+async function saveProfile() {
+  if (isSaving.value) {
+    return;
+  }
+
+  if (!formState.name.trim()) {
+    props.showToast("请填写真实姓名");
+    return;
+  }
+
+  if (!formState.birthday.trim()) {
+    props.showToast("请选择出生日期");
+    return;
+  }
+
+  if (!formState.phone.trim()) {
+    props.showToast("请输入联系电话");
+    return;
+  }
+
+  const height = parseOptionalNumber(formState.height);
+  const weight = parseOptionalNumber(formState.weight);
+
+  if (Number.isNaN(height)) {
+    props.showToast("身高格式不正确");
+    return;
+  }
+
+  if (Number.isNaN(weight)) {
+    props.showToast("体重格式不正确");
+    return;
+  }
+
+  try {
+    isSaving.value = true;
+
+    const saved = await updateArchiveBasicInfo({
+      avatar: formState.avatar.trim() || undefined,
+      name: formState.name.trim(),
+      phone: formState.phone.trim(),
+      birthday: formState.birthday.trim(),
+      address: formState.address.trim() || undefined,
+      height,
+      weight,
+      education: formState.education.trim() || undefined,
+      occupation: formState.occupation.trim() || undefined,
+      emergencyContact: buildEmergencyContact()
+    });
+
+    applyBasicInfo(saved);
+    props.showToast("基础信息已保存");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "基础信息保存失败");
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 function handleAvatarUpload() {
@@ -37,6 +185,10 @@ function pickFromAlbum() {
   showAvatarSheet.value = false;
   props.showToast("相册选取功能待接入");
 }
+
+onMounted(() => {
+  void loadBasicInfo();
+});
 </script>
 
 <template>
@@ -67,7 +219,9 @@ function pickFromAlbum() {
             type="button"
             @click="handleAvatarUpload"
           >
-            <span class="avatar-trigger__placeholder">{{ item.placeholder }}</span>
+            <span class="avatar-trigger__placeholder">
+              {{ formState.avatar ? "已上传头像" : item.placeholder }}
+            </span>
             <span class="field-icon field-icon--arrow" aria-hidden="true"></span>
           </button>
 
@@ -127,7 +281,9 @@ function pickFromAlbum() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveProfile">保存</button>
+      <button class="save-btn" type="button" :disabled="isSaving || isLoading" @click="saveProfile">
+        {{ isSaving ? "保存中..." : isLoading ? "加载中..." : "保存" }}
+      </button>
     </footer>
 
     <div
@@ -154,16 +310,16 @@ function pickFromAlbum() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -194,17 +350,17 @@ function pickFromAlbum() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -262,11 +418,11 @@ function pickFromAlbum() {
 }
 
 .form-label__text {
-  color: #8f96a0;
-  font-size: 15px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.3;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -290,8 +446,8 @@ function pickFromAlbum() {
   min-height: 60px;
   padding: 0;
   color: #b5b7bc;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
   text-align: left;
 }
 
@@ -314,20 +470,20 @@ function pickFromAlbum() {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.5;
 }
 
 .field-control::placeholder {
-  color: #b7b7bb;
+  color: #9a9da6;
   font-weight: 500;
   opacity: 1;
 }
 
 .field-control--empty {
-  color: #b7b7bb;
+  color: #9a9da6;
   font-weight: 500;
 }
 
@@ -347,8 +503,8 @@ function pickFromAlbum() {
 .field-suffix {
   flex: 0 0 auto;
   color: #b4bac5;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .field-wrap--date {
@@ -363,15 +519,15 @@ function pickFromAlbum() {
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: 6px;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.5;
   white-space: nowrap;
 }
 
 .field-date-text--empty {
-  color: #b7b7bb;
+  color: #9a9da6;
 }
 
 .field-native-date {
@@ -451,12 +607,16 @@ function pickFromAlbum() {
   width: 100%;
   height: 54px;
   border-radius: 11px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 14px 28px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.save-btn:disabled {
+  opacity: 0.78;
 }
 
 .sheet-mask {
@@ -481,11 +641,11 @@ function pickFromAlbum() {
   height: 52px;
   border: 0;
   border-radius: 12px;
-  background: #6670f0;
-  box-shadow: 0 12px 24px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 12px 24px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .avatar-sheet__action + .avatar-sheet__action {
@@ -502,8 +662,8 @@ function pickFromAlbum() {
 
 @media (min-width: 561px) {
   .detail-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

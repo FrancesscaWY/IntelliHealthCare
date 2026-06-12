@@ -1,20 +1,22 @@
 :root {
   color-scheme: light;
-  --admin-bg: #f2f6f2;
-  --admin-surface: rgba(255, 255, 255, 0.88);
-  --admin-surface-strong: rgba(255, 255, 255, 0.96);
-  --admin-surface-dark: #16352d;
-  --admin-text: #18332d;
-  --admin-muted: #647872;
-  --admin-border: rgba(22, 53, 45, 0.1);
-  --admin-brand: #1f7a5a;
-  --admin-brand-soft: rgba(31, 122, 90, 0.1);
-  --admin-accent: #e08a3a;
-  --admin-danger: #d8574f;
-  --admin-shadow: 0 20px 48px rgba(18, 48, 40, 0.08);
+  --admin-bg: #f4f9f6;
+  --admin-surface: rgba(255, 255, 255, 0.9);
+  --admin-surface-strong: #ffffff;
+  --admin-surface-dark: #1a3c34;
+  --admin-text: #1f3d35;
+  --admin-muted: #6e8a7f;
+  --admin-border: rgba(22, 53, 45, 0.08);
+  --admin-brand: #2a9d6e;
+  --admin-brand-soft: rgba(42, 157, 110, 0.1);
+  --admin-accent: #e0954e;
+  --admin-danger: #e05e56;
+  --admin-shadow: 0 16px 40px rgba(18, 48, 40, 0.06);
   --admin-radius-xl: 28px;
   --admin-radius-lg: 22px;
   --admin-radius-md: 16px;
+  --admin-font-size-base: 13px;
+  --admin-font-size-small: 12px;
   --admin-font-family:
     "Source Han Sans SC",
     "PingFang SC",
@@ -30,19 +32,28 @@
 
 html,
 body {
+  height: 100%;
   margin: 0;
+  width: 100%;
   min-height: 100%;
+  font-family: var(--admin-font-family);
+  font-size: var(--admin-font-size-base);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
   background:
     radial-gradient(circle at top left, rgba(31, 122, 90, 0.14), transparent 24%),
     radial-gradient(circle at right 18%, rgba(224, 138, 58, 0.14), transparent 20%),
     linear-gradient(180deg, #edf4ef 0%, #f8fbf8 48%, #eef5f0 100%);
   color: var(--admin-text);
+  overflow: hidden;
+  overflow-x: hidden;
 }
 
 body,
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
   font-weight: 400;
   font-synthesis-weight: none;
@@ -57,5 +68,9 @@ a {
 }
 
 #app {
+  width: 100%;
+  height: 100%;
   min-height: 100vh;
+  min-height: 100svh;
+  overflow: hidden;
 }

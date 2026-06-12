@@ -2,9 +2,9 @@ import circleIcon from "@/assets/home/nav/circle.png";
 import homeIcon from "@/assets/home/nav/home.png";
 import meIcon from "@/assets/home/nav/me.png";
 import newsIcon from "@/assets/home/nav/news.png";
-import careIcon from "@/assets/home/sections/\u5bb6\u653f.png";
-import examIcon from "@/assets/home/sections/\u4f53\u68c0.png";
-import rehabIcon from "@/assets/home/sections/\u5eb7\u590d.png";
+import careIcon from "@/assets/home/sections/people1.PNG";
+import examIcon from "@/assets/home/sections/door1.PNG";
+import rehabIcon from "@/assets/home/sections/home1.PNG";
 
 const mock = {
   city: "上海",
@@ -15,18 +15,18 @@ const mock = {
     { key: "exam", title: "上门体检", desc: "专业医师团队", icon: examIcon, pageId: "service/home-exam" },
   ],
   features: [
-    { title: "健康数据", icon: "chart", pageId: "health/health-data" },
+    { title: "健康档案", icon: "archive", pageId: "healthdocs/health-records" },
+    { title: "用药提醒", icon: "medicine", pageId: "health/medication-info" },
     { title: "设备中心", icon: "device", pageId: "health/device-center" },
-    { title: "用药信息", icon: "medicine", pageId: "health/medication-info" },
+    { title: "健康自测", icon: "test", pageId: "health/self-test" },
+    { title: "健康数据", icon: "chart", pageId: "health/health-data" },
     { title: "健康膳食", icon: "meal", pageId: "health/diet-plan" },
     { title: "疾病宝典", icon: "book", pageId: "content/disease-guide" },
-    { title: "健康档案", icon: "archive", pageId: "healthdocs/health-records" },
     { title: "老年活动", icon: "activity", pageId: "community/senior-activities" },
     { title: "健康资讯", icon: "news", pageId: "content/health-news" },
     { title: "养老机构", icon: "building", pageId: "service/elderly-care" },
     { title: "健康讲堂", icon: "video", pageId: "content/health-lecture" },
-    { title: "饮食记录", icon: "bowl", pageId: "diet-record" },
-    { title: "健康自测", icon: "test", pageId: "health/self-test" },
+    { title: "饮食记录", icon: "bowl", pageId: "" },
   ],
   reminder: {
     label: "健康\n提醒",

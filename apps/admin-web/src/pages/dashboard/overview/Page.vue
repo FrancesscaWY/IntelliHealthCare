@@ -1,161 +1,721 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import * as echarts from "echarts";
+import type { ECharts, EChartsOption } from "echarts";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { getDashboardOverview } from "@/shared/api/workbench";
-import { clearAdminAuthSession } from "@/shared/auth/session";
+import shanghaiGeoJson from "@/assets/map/shanghai.json";
+import { getAdminDashboardOverview } from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
-const props = defineProps<PageComponentProps>();
-const overview = ref<{
-  elderCount: number;
-  orderCount: number;
-  workOrderCount: number;
-  reportCount: number;
-  openAlertCount: number;
-} | null>(null);
+type ChartItem = {
+  label: string;
+  value: number;
+  color: string;
+  highlightColor?: string;
+  count?: string;
+  percent?: string;
+};
 
-const resolvedStats = computed(() => {
-  if (!overview.value) {
-    return mock.stats;
+const props = defineProps<PageComponentProps>();
+
+const iconMarkup: Record<string, string> = {
+  users: `
+    <circle cx="19" cy="15.5" r="5.2" />
+    <path d="M9.6 34.8c1.3-7.2 5.2-10.9 11.8-10.9 5.9 0 9.6 3.1 11.2 9.3" />
+    <circle cx="31.7" cy="18" r="3.6" opacity=".72" />
+    <path d="M31.4 28.2c3.8.2 6.3 2 7.4 5.3" opacity=".72" />
+  `,
+  heart: `
+    <path d="M22 35.8S8.8 28.4 8.8 17.8c0-4.8 3.7-8.2 8.1-8.2 2.7 0 4.5 1.2 5.1 2.4.7-1.2 2.5-2.4 5.2-2.4 4.4 0 8 3.4 8 8.2 0 10.6-13.2 18-13.2 18Z" />
+    <path d="M12.5 22.4h6.2l2.2-5.4 3.9 10.1 2.4-4.7h4.4" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+  `,
+  shield: `
+    <path d="M22 7.8 35 12v9.5c0 8.4-5.6 13.1-13 16.7C14.6 34.6 9 29.9 9 21.5V12l13-4.2Z" />
+    <path d="m17.4 22 3.1 3.1 6.2-7.1" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  `,
+  building: `
+    <path d="M11.5 36.5V12l15.4-4.6v29.1" />
+    <path d="M26.9 18.8h8.6v17.7" opacity=".72" />
+    <path d="M16.2 16.2h3.1M16.2 23h3.1M16.2 29.8h3.1" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+  `,
+  staff: `
+    <circle cx="17" cy="15" r="5.2" />
+    <circle cx="31.4" cy="16.6" r="4" opacity=".72" />
+    <path d="M7.8 35.2c1.2-7 4.9-10.6 11.1-10.6s9.9 3.6 11.1 10.6" />
+    <path d="M29.4 27.4c4.6.3 7.6 2.8 8.8 7.5" opacity=".72" />
+  `,
+  warning: `
+    <path d="M22 7.5 39 36.2H5L22 7.5Z" />
+    <path d="M22 17.2v9.4M22 31.8h.1" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" />
+  `,
+  elder: `
+    <circle cx="22" cy="14.2" r="6" />
+    <path d="M10.8 36c1.5-7.5 5.2-11.3 11.2-11.3S31.7 28.5 33.2 36" />
+    <path d="M34 15.4v8.8M29.6 19.8h8.8" opacity=".72" />
+  `,
+  medicine: `
+    <path d="M13.5 30.5 30.5 13.5a6 6 0 1 1 8.5 8.5L22 39a6 6 0 1 1-8.5-8.5Z" />
+    <path d="m21.8 22.2 8 8" opacity=".76" />
+  `,
+  bed: `
+    <path d="M8 15.5v21M8 27h29.5a4 4 0 0 1 4 4v5.5" />
+    <path d="M8 23.5h12.5v-6.2H12a4 4 0 0 0-4 4v2.2Z" />
+  `,
+};
+
+const shanghaiMapName = "shanghai";
+const shanghaiMapGeoJson = {
+  ...shanghaiGeoJson,
+  features: shanghaiGeoJson.features.filter((feature) => feature.properties?.name !== "崇明区"),
+};
+
+echarts.registerMap(shanghaiMapName, shanghaiMapGeoJson as Parameters<typeof echarts.registerMap>[1]);
+
+const serviceChartEl = ref<HTMLElement | null>(null);
+const ageChartEl = ref<HTMLElement | null>(null);
+const healthChartEl = ref<HTMLElement | null>(null);
+const trendChartEl = ref<HTMLElement | null>(null);
+const mapChartEl = ref<HTMLElement | null>(null);
+const pageData = ref<typeof mock>(mock);
+
+const serviceChart = shallowRef<ECharts | null>(null);
+const ageChart = shallowRef<ECharts | null>(null);
+const healthChart = shallowRef<ECharts | null>(null);
+const trendChart = shallowRef<ECharts | null>(null);
+const mapChart = shallowRef<ECharts | null>(null);
+
+let resizeObserver: ResizeObserver | null = null;
+
+function renderIcon(name: string) {
+  return iconMarkup[name] || iconMarkup.users;
+}
+
+function buildSparkArea(points: string, baseline = 38) {
+  const normalizedPoints = points.trim().split(/\s+/);
+  const firstPoint = normalizedPoints[0];
+  const lastPoint = normalizedPoints[normalizedPoints.length - 1];
+
+  if (!firstPoint || !lastPoint) {
+    return points;
   }
 
-  return [
-    { label: "在住长者", value: String(overview.value.elderCount), delta: "实时统计", tone: "brand" },
-    { label: "待处理预警", value: String(overview.value.openAlertCount), delta: "实时统计", tone: "danger" },
-    { label: "今日服务工单", value: String(overview.value.workOrderCount), delta: `累计订单 ${overview.value.orderCount}`, tone: "accent" },
-    { label: "报告总量", value: String(overview.value.reportCount), delta: "后台接口实时返回", tone: "neutral" },
-  ];
-});
+  const [firstX] = firstPoint.split(",");
+  const [lastX] = lastPoint.split(",");
+  return `${firstX},${baseline} ${points} ${lastX},${baseline}`;
+}
 
-function openPage(pageId: string, label: string) {
-  props.navigation.reLaunch(pageId);
-  props.showToast(`已切换到${label}`);
+function getSparkGradientId(index: number) {
+  return `metric-spark-gradient-${index}`;
+}
+
+function getSparkShadowId(index: number) {
+  return `metric-spark-shadow-${index}`;
+}
+
+function getChartInstance(target: HTMLElement | null, current: ECharts | null) {
+  if (!target) {
+    return null;
+  }
+
+  return current || echarts.init(target);
+}
+
+function createRingOption(
+  name: string,
+  items: ChartItem[],
+  centerText: string,
+  centerSubtext: string,
+): EChartsOption {
+  const ringData = items.map((item) => {
+    const baseColor = item.color;
+    const highlightColor = item.highlightColor || item.color;
+
+    return {
+      name: item.label,
+      value: item.value,
+      itemStyle: {
+        color: {
+          type: "linear" as const,
+          x: 0,
+          y: 0,
+          x2: 1,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: highlightColor },
+            { offset: 1, color: baseColor },
+          ],
+        },
+        shadowBlur: 14,
+        shadowColor: `${baseColor}80`,
+        shadowOffsetY: 6,
+      },
+      emphasis: {
+        itemStyle: {
+          color: {
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "#ffffff" },
+              { offset: 0.42, color: highlightColor },
+              { offset: 1, color: baseColor },
+            ],
+          },
+          shadowBlur: 24,
+          shadowColor: `${baseColor}a8`,
+          shadowOffsetY: 8,
+        },
+      },
+    };
+  });
+
+  return {
+    animationDuration: 650,
+    color: items.map((item) => item.color),
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(255,255,255,0.96)",
+      borderColor: "#dfeeea",
+      borderWidth: 1,
+      padding: [9, 12],
+      textStyle: {
+        color: "#2f3946",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+      formatter(params: unknown) {
+        const record = params as { marker?: string; name?: string; value?: number };
+        const item = items.find((chartItem) => chartItem.label === record.name);
+        const detail = item?.count ? `${item.count} (${item.percent})` : item?.percent || `${record.value}`;
+        return `${record.marker || ""}${record.name || ""}<br/>${detail}`;
+      },
+    },
+    legend: {
+      show: false,
+      top: "5%",
+      left: "center",
+      itemWidth: 10,
+      itemHeight: 10,
+      icon: "circle",
+      textStyle: {
+        color: "#5f6b78",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+    },
+    graphic: [
+      {
+        type: "text",
+        left: "center",
+        top: "44%",
+        style: {
+          text: centerText,
+          fill: "#23302e",
+          fontSize: 20,
+          fontWeight: 900,
+          align: "center",
+        },
+      },
+      {
+        type: "text",
+        left: "center",
+        top: "57%",
+        style: {
+          text: centerSubtext,
+          fill: "#41515e",
+          fontSize: 12,
+          fontWeight: 800,
+          align: "center",
+        },
+      },
+    ],
+    series: [
+      {
+        name,
+        type: "pie",
+        radius: ["68%", "100%"],
+        center: ["50%", "52%"],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderWidth: 0,
+          borderColor: "transparent",
+        },
+        label: {
+          show: false,
+          position: "center",
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 36,
+            fontWeight: "bold",
+            color: "#1f7b70",
+          },
+        },
+        labelLine: {
+          show: false,
+        },
+        data: ringData,
+      },
+    ],
+  };
+}
+
+function createTrendOption(): EChartsOption {
+  return {
+    animationDuration: 650,
+    grid: {
+      top: 18,
+      right: 12,
+      bottom: 28,
+      left: 38,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(255,255,255,0.96)",
+      borderColor: "#dfeeea",
+      borderWidth: 1,
+      textStyle: {
+        color: "#2f3946",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+      formatter(params: unknown) {
+        const normalized = Array.isArray(params) ? params : [params];
+        const item = normalized[0] as { axisValueLabel?: string; value?: number };
+        return `${item.axisValueLabel || ""}<br/>服务人次：${item.value ?? "--"}`;
+      },
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: pageData.value.serviceTrend.labels,
+      axisLine: {
+        lineStyle: {
+          color: "#edf3f1",
+        },
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: "#7a8490",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      splitNumber: 5,
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
+      },
+      axisLabel: {
+        color: "#7a8490",
+        fontSize: 12,
+        fontWeight: 700,
+        formatter(value: number) {
+          return `${Math.round(value / 1000)}K`;
+        },
+      },
+      splitLine: {
+        lineStyle: {
+          color: "#edf3f1",
+        },
+      },
+    },
+    series: [
+      {
+        name: "服务人次",
+        type: "line",
+        data: pageData.value.serviceTrend.values,
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 9,
+        lineStyle: {
+          width: 3,
+          color: "#42b884",
+        },
+        itemStyle: {
+          color: "#42b884",
+          borderColor: "#ffffff",
+          borderWidth: 2,
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: "rgba(84, 195, 154, 0.34)" },
+            { offset: 1, color: "rgba(84, 195, 154, 0.04)" },
+          ]),
+        },
+      },
+    ],
+  };
+}
+
+function createMapOption(): EChartsOption {
+  const values = pageData.value.mapPoints.map((item) => item.value);
+  const mapLayout = {
+    roam: false,
+    zoom: 1,
+    aspectScale: 0.86,
+    top: -18,
+    bottom: -28,
+    left: -22,
+    right: -22,
+  };
+  const centerPointData = pageData.value.mapPoints.map((item) => ({
+    name: item.name,
+    value: [...item.coordinate, item.value],
+  }));
+
+  return {
+    animationDuration: 650,
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(255,255,255,0.96)",
+      borderColor: "#dfeeea",
+      borderWidth: 1,
+      padding: [9, 12],
+      textStyle: {
+        color: "#2f3946",
+        fontSize: 12,
+        fontWeight: 700,
+      },
+      formatter(params: unknown) {
+        const record = params as { name?: string; value?: number | number[] };
+        const value = Array.isArray(record.value) ? record.value[2] : record.value;
+        return `${record.name || ""}<br/>服务人次：${value ?? 0}`;
+      },
+    },
+    geo: {
+      map: shanghaiMapName,
+      ...mapLayout,
+      silent: true,
+      itemStyle: {
+        areaColor: "transparent",
+        borderColor: "transparent",
+      },
+      emphasis: {
+        disabled: true,
+      },
+    },
+    visualMap: {
+      show: false,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      seriesIndex: 0,
+      inRange: {
+        color: ["#dff8f2", "#aee7d7", "#75d2bd", "#ffb7c2"],
+      },
+    },
+    series: [
+      {
+        name: "区域服务热力图",
+        type: "map",
+        map: shanghaiMapName,
+        ...mapLayout,
+        zlevel: 2,
+        z: 10,
+        label: {
+          show: true,
+          color: "#31504c",
+          fontSize: 11,
+          fontWeight: 800,
+        },
+        itemStyle: {
+          areaColor: "#dff8f2",
+          borderColor: "rgba(255,255,255,0.96)",
+          borderWidth: 2,
+          shadowBlur: 22,
+          shadowColor: "rgba(42, 112, 143, 0.28)",
+          shadowOffsetX: 0,
+          shadowOffsetY: 5,
+        },
+        emphasis: {
+          label: {
+            show: true,
+            color: "#1f6f67",
+            fontSize: 12,
+            fontWeight: 900,
+          },
+          itemStyle: {
+            areaColor: "#91e2b2",
+            borderColor: "rgba(255,255,255,0.96)",
+            borderWidth: 2.4,
+            shadowBlur: 28,
+            shadowColor: "rgba(42, 112, 143, 0.36)",
+            shadowOffsetX: 0,
+            shadowOffsetY: 6,
+          },
+        },
+        data: pageData.value.mapPoints,
+      },
+      {
+        name: "区域中心点",
+        type: "effectScatter",
+        coordinateSystem: "geo",
+        zlevel: 3,
+        z: 20,
+        symbol: "circle",
+        symbolSize: 9,
+        showEffectOn: "render",
+        rippleEffect: {
+          brushType: "stroke",
+          color: "rgba(222, 249, 255, 0.86)",
+          period: 3.4,
+          scale: 4.2,
+        },
+        label: {
+          show: false,
+        },
+        itemStyle: {
+          color: "#f8fdff",
+          borderColor: "rgba(180, 241, 255, 1)",
+          borderWidth: 2.5,
+          shadowBlur: 16,
+          shadowColor: "rgb(170,235,255)",
+        },
+        emphasis: {
+          scale: 1.3,
+          itemStyle: {
+            color: "#d8f8ff",
+            borderColor: "#ffffff",
+            shadowBlur: 22,
+            shadowColor: "rgba(170, 235, 255, 0.88)",
+          },
+        },
+        data: centerPointData,
+      },
+    ],
+  };
+}
+
+function renderCharts() {
+  serviceChart.value = getChartInstance(serviceChartEl.value, serviceChart.value);
+  ageChart.value = getChartInstance(ageChartEl.value, ageChart.value);
+  healthChart.value = getChartInstance(healthChartEl.value, healthChart.value);
+  trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
+  mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
+
+  serviceChart.value?.setOption(createRingOption("服务类型分布", pageData.value.serviceTypes, pageData.value.serviceTotal, "服务人次"), true);
+  ageChart.value?.setOption(createRingOption("用户年龄结构", pageData.value.ageGroups, pageData.value.registeredTotal, "在册用户"), true);
+  healthChart.value?.setOption(createRingOption("健康状态分布", pageData.value.healthStatus, pageData.value.healthScore, "健康/良好"), true);
+  trendChart.value?.setOption(createTrendOption(), true);
+  mapChart.value?.setOption(createMapOption(), true);
+}
+
+function resizeCharts() {
+  serviceChart.value?.resize();
+  ageChart.value?.resize();
+  healthChart.value?.resize();
+  trendChart.value?.resize();
+  mapChart.value?.resize();
 }
 
 onMounted(async () => {
   try {
-    overview.value = await getDashboardOverview();
+    pageData.value = (await getAdminDashboardOverview()) as typeof mock;
   } catch (error) {
-    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
-
-    if (status === 401 || status === 403) {
-      clearAdminAuthSession();
-      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
-      props.navigation.reLaunch("auth/login");
-      return;
-    }
-
-    props.showToast(error instanceof Error ? error.message : "后台首页加载失败");
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "后台首页加载失败，已保留演示数据"
+    });
+    pageData.value = mock;
   }
+
+  await nextTick();
+  renderCharts();
+
+  resizeObserver = new ResizeObserver(() => {
+    resizeCharts();
+  });
+
+  [serviceChartEl.value, ageChartEl.value, healthChartEl.value, trendChartEl.value, mapChartEl.value].forEach((target) => {
+    if (target) {
+      resizeObserver?.observe(target);
+    }
+  });
+
+  window.addEventListener("resize", resizeCharts);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  window.removeEventListener("resize", resizeCharts);
+  serviceChart.value?.dispose();
+  ageChart.value?.dispose();
+  healthChart.value?.dispose();
+  trendChart.value?.dispose();
+  mapChart.value?.dispose();
 });
 </script>
 
 <template>
-  <section class="overview-page">
-    <section class="hero-grid">
-      <article class="hero-card hero-card--summary">
-        <p class="hero-eyebrow">Command Center</p>
-        <h1>{{ mock.greeting }}</h1>
-        <p>{{ mock.dateText }}</p>
-        <div class="hero-actions">
-          <button type="button" @click="openPage('service/order-dispatch', '服务调度')">处理今日工单</button>
-          <button type="button" class="ghost-btn" @click="openPage('health/alert-center', '健康预警')">查看风险预警</button>
+  <section class="overview-dashboard">
+    <section class="metric-grid" aria-label="核心指标">
+      <article v-for="(item, index) in pageData.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
+        <span class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 44 44" focusable="false">
+            <g v-html="renderIcon(item.icon)"></g>
+          </svg>
+        </span>
+        <div class="metric-copy">
+          <h2>{{ item.label }}</h2>
+          <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
+          <p>
+            {{ item.compareLabel }}
+            <em>{{ item.direction === "down" ? "↓" : "↑" }} {{ item.rate }}</em>
+          </p>
         </div>
-      </article>
-
-      <article class="hero-card hero-card--tasks">
-        <p class="hero-eyebrow">今日待办</p>
-        <ul>
-          <li v-for="task in mock.tasks" :key="task">{{ task }}</li>
-        </ul>
+        <svg class="metric-spark" viewBox="0 0 96 38" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient :id="getSparkGradientId(index)" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="currentColor" stop-opacity="0.34" />
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0.04" />
+            </linearGradient>
+            <filter :id="getSparkShadowId(index)" x="-20%" y="-20%" width="160%" height="180%">
+              <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="currentColor" flood-opacity="0.22" />
+            </filter>
+          </defs>
+          <polygon :points="buildSparkArea(item.spark)" :fill="`url(#${getSparkGradientId(index)})`" />
+          <polyline
+            :points="item.spark"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            :filter="`url(#${getSparkShadowId(index)})`"
+          />
+        </svg>
       </article>
     </section>
 
-    <section class="stats-grid">
-      <article v-for="item in resolvedStats" :key="item.label" class="stat-card" :class="`stat-card--${item.tone}`">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-        <small>{{ item.delta }}</small>
-      </article>
-    </section>
-
-    <section class="content-grid">
-      <article class="panel-card">
+    <section class="dashboard-grid">
+      <article class="panel service-panel">
         <header class="panel-head">
-          <div>
-            <p class="panel-eyebrow">快捷入口</p>
-            <h2>后台功能导航</h2>
-          </div>
+          <h2>服务类型分布 <small>（本月）</small></h2>
         </header>
-
-        <div class="quick-grid">
-          <button v-for="item in mock.quickLinks" :key="item.title" type="button" class="quick-card" @click="openPage(item.pageId, item.title)">
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.description }}</p>
-            <span>{{ item.actionLabel }}</span>
-          </button>
-        </div>
-      </article>
-
-      <article class="panel-card">
-        <header class="panel-head">
-          <div>
-            <p class="panel-eyebrow">风险中心</p>
-            <h2>最新预警</h2>
-          </div>
-          <button type="button" class="panel-link" @click="openPage('health/alert-center', '健康预警')">进入预警中心</button>
-        </header>
-
-        <div class="alert-list">
-          <article v-for="item in mock.alerts" :key="item.title" class="alert-item">
-            <span class="alert-level">{{ item.level }}</span>
-            <div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.detail }}</p>
+        <div class="ring-with-list">
+          <div ref="serviceChartEl" class="echart echart--ring"></div>
+          <div class="side-legend side-legend--service">
+            <div v-for="item in pageData.serviceTypes" :key="item.label" class="side-legend__row">
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+              <em>({{ item.percent }})</em>
             </div>
-            <small>{{ item.owner }}</small>
-          </article>
-        </div>
-      </article>
-    </section>
-
-    <section class="content-grid content-grid--bottom">
-      <article class="panel-card">
-        <header class="panel-head">
-          <div>
-            <p class="panel-eyebrow">服务流转</p>
-            <h2>调度看板</h2>
           </div>
-          <button type="button" class="panel-link" @click="openPage('service/order-dispatch', '服务调度')">查看全部</button>
-        </header>
-
-        <div class="dispatch-grid">
-          <article v-for="item in mock.dispatchBoard" :key="item.label" class="dispatch-card">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-            <small>{{ item.helper }}</small>
-          </article>
         </div>
       </article>
 
-      <article class="panel-card">
+      <article class="panel map-panel">
         <header class="panel-head">
-          <div>
-            <p class="panel-eyebrow">人员关注</p>
-            <h2>当班团队</h2>
-          </div>
-          <button type="button" class="panel-link" @click="openPage('staff/caregiver-roster', '人员排班')">进入排班</button>
+          <h2>区域服务热力图 <small>（服务人次）</small></h2>
         </header>
+        <div ref="mapChartEl" class="echart echart--map map-chart-hook"></div>
+      </article>
 
-        <div class="staff-list">
-          <article v-for="item in mock.staffFocus" :key="item.name" class="staff-item">
-            <div>
-              <strong>{{ item.name }}</strong>
-              <p>{{ item.role }}</p>
+      <article class="panel age-panel">
+        <header class="panel-head">
+          <h2>用户年龄结构 <small>（在册用户）</small></h2>
+        </header>
+        <div class="ring-with-list">
+          <div ref="ageChartEl" class="echart echart--ring"></div>
+          <div class="side-legend side-legend--service">
+            <div v-for="item in pageData.ageGroups" :key="item.label" class="side-legend__row">
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+              <em>({{ item.percent }})</em>
             </div>
-            <span>{{ item.status }}</span>
-            <small>{{ item.shift }}</small>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel trend-panel">
+        <header class="panel-head">
+          <h2>服务趋势 <small>（近7天）</small></h2>
+        </header>
+        <div class="trend-chart">
+          <div ref="trendChartEl" class="echart echart--trend"></div>
+          <strong>{{ pageData.serviceTrend.current }}</strong>
+        </div>
+      </article>
+
+      <article class="panel health-panel">
+        <header class="panel-head">
+          <h2>健康状态分布 <small>（状态占比）</small></h2>
+        </header>
+        <div class="ring-with-list">
+          <div ref="healthChartEl" class="echart echart--ring"></div>
+          <div class="side-legend side-legend--service">
+            <div v-for="item in pageData.healthStatus" :key="item.label" class="side-legend__row">
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+              <em>({{ item.percent }})</em>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel satisfaction-panel">
+        <header class="panel-head">
+          <h2>用户标签分布</h2>
+        </header>
+        <div class="satisfaction-layout">
+          <div class="satisfaction-score">
+            <strong>{{ pageData.userTags.total }}<small>人</small></strong>
+            <span>标签总数</span>
+          </div>
+          <div class="satisfaction-bars">
+            <div v-for="item in pageData.userTags.items" :key="item.label">
+              <span>{{ item.label }}</span>
+              <i><b :style="{ width: item.value }"></b></i>
+              <em>{{ item.count }}</em>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel alert-panel">
+        <header class="panel-head">
+          <h2>预警提醒 <small>（今日）</small></h2>
+        </header>
+        <div class="alert-grid">
+          <article v-for="item in pageData.alerts" :key="item.label" class="alert-card" :class="`alert-card--${item.tone}`">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 44 44" focusable="false">
+                <g v-html="renderIcon(item.icon)"></g>
+              </svg>
+            </span>
+            <p>{{ item.label }}</p>
+            <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
+            <em>{{ item.compare }}</em>
           </article>
+        </div>
+      </article>
+
+      <article class="panel workload-panel">
+        <header class="panel-head">
+          <h2>支付榜商品排行TOP5</h2>
+        </header>
+        <div class="workload-list">
+          <div v-for="item in pageData.workloadTop" :key="item.rank">
+            <strong>{{ item.rank }}</strong>
+            <span>{{ item.name }}</span>
+            <i><b :style="{ width: item.rate }"></b></i>
+            <em>{{ item.rate }}</em>
+          </div>
         </div>
       </article>
     </section>
@@ -163,297 +723,761 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.overview-page {
+.overview-dashboard {
+  --mint: #f6f8f7;
+  --green-deep: #1f7b70;
+  --blue: #5aaef5;
+  --rose: #ff7f98;
+  --amber: #ffa63d;
+  --yellow: #ffc531;
   display: grid;
-  gap: 18px;
+
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  color: #253244;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
-.hero-grid,
-.content-grid {
+.metric-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: 18px;
-}
-
-.content-grid--bottom {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.hero-card,
-.stat-card,
-.panel-card {
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-lg);
-  background: var(--admin-surface-strong);
-  box-shadow: var(--admin-shadow);
-}
-
-.hero-card {
-  padding: 26px;
-}
-
-.hero-card--summary {
-  background:
-    radial-gradient(circle at top right, rgba(224, 138, 58, 0.18), transparent 26%),
-    linear-gradient(135deg, rgba(31, 122, 90, 0.96), rgba(20, 78, 58, 0.92));
-  color: #fff;
-}
-
-.hero-card--tasks {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 251, 249, 0.92));
-}
-
-.hero-eyebrow,
-.panel-eyebrow {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.hero-card--summary .hero-eyebrow {
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.hero-card h1 {
-  margin: 10px 0 10px;
-  font-size: 34px;
-}
-
-.hero-card p,
-.quick-card p,
-.alert-item p,
-.staff-item p {
-  margin: 0;
-  line-height: 1.7;
-}
-
-.hero-card--summary p {
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.hero-actions button,
-.panel-link,
-.quick-card {
-  border: 0;
-}
-
-.hero-actions button {
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: #fff;
-  color: #154e3c;
-  font-weight: 700;
-}
-
-.hero-actions .ghost-btn {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-}
-
-.hero-card--tasks ul {
-  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-  margin: 16px 0 0;
-  padding-left: 18px;
-  color: var(--admin-muted);
 }
 
-.stats-grid {
+.metric-card,
+.panel {
+  border: 1px solid rgba(224, 240, 238, 0.86);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
+}
+
+.metric-card {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: 66px minmax(0, 1fr);
+  align-items: center;
+  min-height: 106px;
+  padding: 14px 14px 12px;
+  overflow: hidden;
+  --metric-title-bg-start: color-mix(in srgb, var(--tone) 18%, #ffffff);
+  --metric-title-bg-end: color-mix(in srgb, var(--tone) 8%, #f7fffc);
+  --metric-title-border: color-mix(in srgb, var(--tone) 42%, rgba(255, 255, 255, 0.82));
+  --metric-title-shadow: color-mix(in srgb, var(--tone) 20%, transparent);
 }
 
-.stat-card {
-  padding: 20px;
+.metric-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tone) 14%, #ffffff);
+  color: var(--tone);
 }
 
-.stat-card span,
-.dispatch-card span {
-  display: block;
-  color: var(--admin-muted);
-  font-size: 13px;
+.metric-icon svg,
+.alert-card svg {
+  width: 38px;
+  height: 38px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
 }
 
-.stat-card strong,
-.dispatch-card strong {
-  display: block;
-  margin-top: 10px;
-  font-size: 30px;
+.metric-card--mint {
+  --tone: #4dbc8c;
 }
 
-.stat-card small,
-.dispatch-card small,
-.alert-item small,
-.staff-item small {
+.metric-card--blue {
+  --tone: #5aaef5;
+}
+
+.metric-card--rose {
+  --tone: #ff7f98;
+}
+
+.metric-card--teal {
+  --tone: #43bfa8;
+}
+
+.metric-card--pink {
+  --tone: #ff7f9b;
+}
+
+.metric-copy h2 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  max-width: max-content;
+  padding: 7px 12px;
+  border-radius: 12px 18px 12px 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 10px 20px -16px var(--metric-title-shadow);
+  color: #334155;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.15;
+  position: relative;
+}
+
+.metric-copy strong {
   display: block;
   margin-top: 8px;
-  color: var(--admin-muted);
+  color: #263244;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.stat-card--brand {
-  background: linear-gradient(180deg, rgba(31, 122, 90, 0.08), rgba(31, 122, 90, 0.02));
+.metric-copy strong small {
+  margin-left: 6px;
+  color: #4d5868;
+  font-size: 13px;
+  font-weight: 900;
 }
 
-.stat-card--danger {
-  background: linear-gradient(180deg, rgba(216, 87, 79, 0.08), rgba(216, 87, 79, 0.02));
+.metric-copy p {
+  margin: 10px 0 0;
+  color: #697483;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.stat-card--accent {
-  background: linear-gradient(180deg, rgba(224, 138, 58, 0.1), rgba(224, 138, 58, 0.02));
+.metric-copy em {
+  margin-left: 6px;
+  color: var(--tone);
+  font-style: normal;
+  font-weight: 900;
 }
 
-.stat-card--neutral {
-  background: linear-gradient(180deg, rgba(22, 53, 45, 0.06), rgba(22, 53, 45, 0.02));
+.metric-spark {
+  position: absolute;
+  right: 12px;
+  bottom: 7px;
+  width: 62px;
+  height: 24px;
+  color: var(--tone);
+  overflow: visible;
+  opacity: 0.92;
 }
 
-.panel-card {
-  padding: 24px;
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 25.5%) minmax(0, 46%) minmax(0, 28.5%);
+  grid-template-rows: 250px 228px 228px;
+  grid-template-areas:
+    "service map age"
+    "trend map health"
+    "satisfaction alert workload";
+  gap: 12px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+  --title-bg-start: #f5fcf9;
+  --title-bg-end: #e8f7f1;
+  --title-border: rgba(94, 181, 157, 0.34);
+  --title-shadow: rgba(70, 127, 115, 0.18);
+  --title-accent: #42b884;
+  --title-divider: rgba(83, 127, 117, 0.18);
 }
 
 .panel-head {
+  margin-bottom: 12px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  align-items: center;
 }
 
 .panel-head h2 {
-  margin: 6px 0 0;
-  font-size: 24px;
-}
-
-.panel-link {
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(31, 122, 90, 0.08);
-  color: var(--admin-brand);
-  font-weight: 700;
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.quick-card {
-  padding: 18px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(31, 122, 90, 0.08), rgba(255, 255, 255, 0.96));
-  text-align: left;
-}
-
-.quick-card strong,
-.alert-item strong,
-.staff-item strong {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  max-width: max-content;
+  padding: 5px 58px;
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--title-border);
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--title-bg-start), var(--title-bg-end));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 14px 28px -20px var(--title-shadow);
+  color: #1f6f67;
   font-size: 18px;
+  font-weight: 900;
+  line-height: 1.2;
 }
 
-.quick-card p {
-  margin-top: 8px;
-  color: var(--admin-muted);
+.panel-head h2::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 10px 20px 10px 20px;
+  pointer-events: none;
+  z-index: -1;
 }
 
-.quick-card span {
+.panel-head small {
   display: inline-flex;
-  margin-top: 14px;
-  color: var(--admin-brand);
-  font-size: 13px;
-  font-weight: 700;
+  align-items: center;
+  margin-left: 2px;
+  padding-left: 10px;
+  position: relative;
+  color: #557c77;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-.alert-list,
-.staff-list {
+.panel-head small::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1px;
+  height: 14px;
+  background: var(--title-divider);
+  transform: translateY(-50%);
+}
+
+.service-panel {
+  grid-area: service;
+
+  --title-bg-start: #f7fff9;
+  --title-bg-end: #f2f8f5;
+  --title-border: rgba(107, 204, 145, 0.36);
+  --title-shadow: rgba(84, 194, 125, 0.28);
+  --title-accent: #56c47f;
+  --title-divider: rgba(73, 127, 97, 0.18);
+}
+
+.map-panel {
+  grid-area: map;
+  --title-bg-start: #f7fbff;
+  --title-bg-end: #e2efff;
+  --title-border: rgba(105, 167, 241, 0.4);
+  --title-shadow: rgba(84, 137, 224, 0.28);
+  --title-accent: #5a9df2;
+  --title-divider: rgba(73, 110, 160, 0.2);
+}
+
+.age-panel {
+  grid-area: age;
+  --title-bg-start: #f7fffc;
+  --title-bg-end: #ddf7f0;
+  --title-border: rgba(87, 201, 174, 0.36);
+  --title-shadow: rgba(77, 187, 166, 0.26);
+  --title-accent: #52c6af;
+  --title-divider: rgba(73, 127, 117, 0.18);
+}
+
+.trend-panel {
+  grid-area: trend;
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
+}
+
+.health-panel {
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
+}
+
+.satisfaction-panel {
+  grid-area: satisfaction;
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
+}
+
+.alert-panel {
+  grid-area: alert;
+  --title-bg-start: #fff8fb;
+  --title-bg-end: #ffe4ed;
+  --title-border: rgba(255, 134, 167, 0.4);
+  --title-shadow: rgba(243, 115, 146, 0.26);
+  --title-accent: #f47f9c;
+  --title-divider: rgba(150, 85, 101, 0.18);
+}
+
+.workload-panel {
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
+}
+
+.echart {
+  width: 100%;
+  min-width: 0;
+}
+
+.echart--ring {
+  height: 100%;
+  min-height: 176px;
+}
+
+.echart--trend {
+  width: 100%;
+  height: 168px;
+}
+
+.ring-with-list {
   display: grid;
+  grid-template-columns: minmax(132px, 0.92fr) minmax(0, 1fr);
+  align-items: center;
   gap: 12px;
+  height: calc(100% - 34px);
 }
 
-.alert-item,
-.staff-item {
+.side-legend {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
   gap: 14px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(22, 53, 45, 0.04);
+  min-width: 0;
 }
 
-.alert-level {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  padding: 6px 8px;
-  border-radius: 999px;
-  background: rgba(216, 87, 79, 0.12);
-  color: var(--admin-danger);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.alert-item p,
-.staff-item p {
-  margin-top: 6px;
-  color: var(--admin-muted);
-}
-
-.dispatch-grid {
+.side-legend__row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.dispatch-card {
-  padding: 18px;
-  border-radius: 18px;
-  background: rgba(31, 122, 90, 0.05);
-}
-
-.staff-item span {
-  display: inline-flex;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
   align-items: center;
-  padding: 7px 10px;
-  border-radius: 999px;
-  background: rgba(31, 122, 90, 0.08);
-  color: var(--admin-brand);
+  gap: 9px;
+  color: #5d6876;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.side-legend--service .side-legend__row {
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+}
+
+.side-legend__row i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(235, 247, 243, 0.9);
+}
+
+.side-legend__row span {
+  overflow: hidden;
+  color: #495765;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-legend__row strong,
+.side-legend__row em {
+  color: #697483;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.donut-layout {
+  display: grid;
+  grid-template-columns: minmax(148px, 0.9fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: calc(100% - 34px);
+}
+
+.donut-layout--side {
+  grid-template-columns: minmax(150px, 0.92fr) minmax(0, 1fr);
+}
+
+.donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 162px;
+  height: 162px;
+  justify-self: center;
+  border-radius: 50%;
+}
+
+.donut--service {
+  width: 186px;
+  height: 186px;
+}
+
+.donut::after {
+  position: absolute;
+  inset: 33px;
+  content: "";
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(224, 238, 236, 0.9);
+}
+
+.donut div {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+}
+
+.donut strong {
+  color: #1f7b70;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.donut span {
+  color: #41515e;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.legend {
+  display: grid;
+  gap: 14px;
+}
+
+.legend-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  color: #596574;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.legend--side .legend-row {
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+}
+
+.legend-row i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-row strong,
+.legend-row em {
+  color: #697483;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.map-chart-hook {
+  position: relative;
+  height: calc(100% - 36px);
+  min-height: 488px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.map-center {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 142px;
+  height: 142px;
+  border: 10px solid rgba(147, 230, 219, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 12px rgba(90, 200, 190, 0.13);
+  transform: translate(-50%, -50%);
+}
+
+.map-center strong {
+  color: #1f7b70;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.map-center span {
+  margin-top: -24px;
+  color: #41515e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.map-point {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  color: #263244;
+  transform: translate(-50%, -50%);
+}
+
+.map-point span {
+  color: #46615e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.map-point strong {
+  margin-top: 3px;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.map-point i {
+  display: block;
+  width: 34px;
+  height: 12px;
+  margin-top: 6px;
+  border: 3px solid rgba(255, 255, 255, 0.88);
+  border-radius: 50%;
+  box-shadow: 0 0 16px rgba(120, 222, 210, 0.86);
+}
+
+.trend-chart {
+  position: relative;
+  height: calc(100% - 34px);
+}
+
+.trend-chart > strong {
+  position: absolute;
+  right: 2px;
+  top: 12px;
+  color: #459d78;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.trend-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #7a8490;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 900;
 }
 
-@media (max-width: 1200px) {
-  .hero-grid,
-  .content-grid,
-  .content-grid--bottom,
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+.satisfaction-layout {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  height: calc(100% - 34px);
 }
 
-@media (max-width: 900px) {
-  .hero-grid,
-  .content-grid,
-  .content-grid--bottom,
-  .stats-grid,
-  .quick-grid,
-  .dispatch-grid {
+.satisfaction-score {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+}
+
+.satisfaction-score strong {
+  color: #1f7b70;
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.satisfaction-score small {
+  font-size: 17px;
+}
+
+.satisfaction-score span {
+  color: #4c5967;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.satisfaction-bars {
+  display: grid;
+  gap: 7px;
+}
+
+.satisfaction-bars div {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  color: #5d6876;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.satisfaction-bars i,
+.workload-list i {
+  margin-top: 10px;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7f6f1;
+}
+
+.satisfaction-bars i {
+  margin-top: 0;
+  height: 7px;
+}
+
+.satisfaction-bars b,
+.workload-list b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #78d9b8, #52c896);
+}
+
+.alert-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  height: calc(100% - 36px);
+}
+
+.alert-card {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--alert) 18%, #ffffff);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--alert) 5%, #ffffff);
+}
+
+.alert-card--rose {
+  --alert: #ff6d86;
+}
+
+.alert-card--amber {
+  --alert: #ffa63d;
+}
+
+.alert-card--yellow {
+  --alert: #ffc531;
+}
+
+.alert-card--blue {
+  --alert: #59aef5;
+}
+
+.alert-card span {
+  color: var(--alert);
+}
+
+.alert-card p {
+  margin: 0;
+  color: #515d6b;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.alert-card strong {
+  color: var(--alert);
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.alert-card small {
+  margin-left: 5px;
+  font-size: 14px;
+}
+
+.alert-card em {
+  color: #687482;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.workload-list {
+  margin-top: 20px;
+  display: grid;
+  gap: 8px;
+  height: calc(100% - 34px);
+  align-content: center;
+}
+
+.workload-list div {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 116px 40px;
+  align-items: center;
+  gap: 5px;
+}
+
+.workload-list strong {
+  color: #ffad2f;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.workload-list span {
+  overflow: hidden;
+  color: #4f5b68;
+  font-size: 14px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workload-list b {
+  background: linear-gradient(90deg, #ff91a5, #ff6f8e);
+}
+
+.workload-list em {
+  color: #5d6876;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+@media (max-width: 780px) {
+  .metric-grid,
+  .satisfaction-layout,
+  .ring-with-list,
+  .alert-grid {
     grid-template-columns: 1fr;
   }
 
-  .alert-item,
-  .staff-item {
+  .metric-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .dashboard-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas:
+      "service"
+      "map"
+      "age"
+      "trend"
+      "health"
+      "satisfaction"
+      "alert"
+      "workload";
+  }
+
+  .map-chart-hook {
+    min-height: 460px;
   }
 }
 </style>

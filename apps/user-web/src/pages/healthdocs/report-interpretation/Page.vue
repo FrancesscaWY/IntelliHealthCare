@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { currentReport } = useReportCenter();
+const { currentReport, ensureCurrentReportReady, isCurrentReportLoading } = useReportCenter();
+
+onMounted(() => {
+  void ensureCurrentReportReady();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -23,24 +28,28 @@ function goBack() {
     </header>
 
     <main class="page-scroll">
-      <article v-if="currentReport" class="paper-card">
+      <article v-if="isCurrentReportLoading && !currentReport" class="empty-card">
+        <p>正在生成报告解读...</p>
+      </article>
+
+      <article v-else-if="currentReport" class="paper-card">
         <header class="paper-header">
           <h2>{{ currentReport.interpretationHeading }}</h2>
         </header>
 
         <section class="meta-block">
-          <p><span>报告医生： </span>{{ currentReport.interpretationDoctor }}</p>
-          <p><span>报告时间： </span>{{ currentReport.interpretationTime }}</p>
+          <p><span>解读来源：</span>{{ currentReport.interpretationDoctor }}</p>
+          <p><span>解读时间：</span>{{ currentReport.interpretationTime }}</p>
         </section>
 
         <section class="section-block">
-          <h3>指标说明</h3>
+          <h3>重点说明</h3>
           <article
             v-for="item in currentReport.interpretationNotes"
             :key="item.title"
             class="note-item"
           >
-            <h4>{{ item.title }}：</h4>
+            <h4>{{ item.title }}</h4>
             <p>{{ item.content }}</p>
           </article>
         </section>
@@ -63,16 +72,16 @@ function goBack() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -98,17 +107,17 @@ function goBack() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -138,10 +147,10 @@ function goBack() {
 
 .paper-header h2 {
   margin: 0;
-  color: #30343f;
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  color: #222733;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .meta-block,
@@ -172,9 +181,9 @@ function goBack() {
 
 .section-block h3 {
   margin: 0 0 10px;
-  color: #30343f;
-  font-size: 18px;
-  font-weight: 700;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .note-item + .note-item {
@@ -183,7 +192,7 @@ function goBack() {
 
 .note-item h4 {
   margin: 0;
-  color: #30343f;
+  color: #222733;
   font-size: 16px;
   font-weight: 700;
   line-height: 1.6;
@@ -211,15 +220,15 @@ function goBack() {
 
 .empty-card p {
   margin: 0;
-  color: #9aa1aa;
+  color: #8f95a2;
   font-size: 16px;
   font-weight: 500;
 }
 
 @media (min-width: 561px) {
   .interpret-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

@@ -1,6 +1,7 @@
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import "reflect-metadata";
 import { bootstrapDatabase } from "./common/bootstrap/database-bootstrap";
@@ -10,6 +11,7 @@ import { enhanceSwaggerDocument } from "./common/http/swagger-document-enhancer"
 import { AllExceptionsFilter } from "./common/http/all-exceptions.filter";
 import { ApiResponseInterceptor } from "./common/http/api-response.interceptor";
 import { SwaggerTagDefinitions } from "./common/http/swagger-tags";
+import { resolveBackendPublicDir } from "./common/utils/backend-paths";
 
 let databaseBootstrap: DatabaseBootstrapResult | null = null;
 
@@ -83,14 +85,119 @@ const swaggerOperationsSorter = new Function(
   `
 ) as SwaggerUiOperationSorter;
 
-const swaggerCopyApiButtonScript = String.raw`
+const swaggerGithubIssuesUrl = "https://github.com/FrancesscaWY/IntelliHealthCare/issues";
+const swaggerGithubNewIssueUrl = `${swaggerGithubIssuesUrl}/new`;
+const swaggerFeedbackTemplate = [
+  "【问题类型】接口错误 / 字段缺失 / 权限异常 / 页面显示异常",
+  "【接口路径】GET /api/v1/...",
+  "【请求参数】请粘贴 Swagger 中的 query、path、body 或 headers",
+  "【期望结果】请描述预期返回的数据或页面行为",
+  "【实际结果】请粘贴返回体、报错信息或异常现象",
+  "【影响范围】用户端 / 后台端 / Swagger 页面",
+  "【联调环境】server.mctown.online:8190",
+  "【问题页面】{{SWAGGER_URL}}",
+  "【截图附件】如有请附上"
+].join("\n");
+
+const swaggerDescription = [
+  "前后端联调说明已通过页面自定义面板展示。",
+  "",
+  "后台端主链路文档摘要已挂载到当前 Swagger 首页。",
+  "",
+  "如果字段、权限或返回结构有问题，可使用右上角 `反馈 Issue`。"
+].join("\n");
+
+const swaggerInfoPanelHtml = String.raw`
+<div class="ihc-doc-grid">
+  <section class="ihc-doc-card">
+    <h3>联调入口</h3>
+    <ul>
+      <li>统一从域名入口进入 Swagger。</li>
+      <li>文档地址：<code>http://server.mctown.online:8190/api/v1/docs</code></li>
+      <li><code>Try it out</code> 会跟随当前页面的域名和端口。</li>
+      <li>API Base URL：http://server.mctown.online:8190/api/v1</li>
+    </ul>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>模块说明</h3>
+    <ul>
+      <li><code>/app/*</code>：用户端接口，对应 <code>apps/user-web</code></li>
+      <li><code>/admin/*</code>：后台接口，对应 <code>apps/admin-web</code></li>
+      <li><code>/app/ai/*</code>：用户端 AI 增强接口</li>
+      <li><code>/internal/*</code>：内部治理接口，不面向普通前端页面</li>
+    </ul>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>首次联调顺序</h3>
+    <ol>
+      <li>先执行 <code>GET /system/health</code> 确认服务可用。</li>
+      <li>用户端先测 <code>POST /app/auth/login/password</code>。</li>
+      <li>后台端先测 <code>POST /admin/auth/login/password</code>。</li>
+      <li>复制登录返回中的 <code>data.accessToken</code>。</li>
+      <li>在右上角 <code>Authorize</code> 中填写 <code>Bearer accessToken</code>。</li>
+    </ol>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>Token 与返回结构</h3>
+    <ul>
+      <li><code>APP_TOKEN</code> / <code>ADMIN_TOKEN</code> 都来自登录返回的 <code>data.accessToken</code></li>
+      <li><code>Authorize</code> 中必须保留 <code>Bearer</code> 和后面的空格</li>
+      <li>注意部分API的调用需要登录产生的<code>TOKEN</code></li>
+      <li>成功响应重点看 <code>code</code>、<code>message</code>、<code>requestId</code>、<code>data</code></li>
+      <li>列表通常在 <code>data.list</code>，详情通常直接在 <code>data</code></li>
+    </ul>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>联调测试账号</h3>
+    <ul>
+      <li>家属账号：<code>13900139000 / 123456</code></li>
+      <li>长者账号：<code>13800138000 / 123456</code></li>
+      <li>后台账号：<code>13600136000 / 123456</code></li>
+    </ul>
+  </section>
+  <section class="ihc-doc-card">
+    <h3>快速提示</h3>
+    <ul>
+      <li>支持一键复制当前接口的请求方法和完整 URL。</li>
+      <li>切换用户端 / 后台端测试时，记得替换全局 Bearer Token。</li>
+    </ul>
+  </section>
+</div>
+<section class="ihc-doc-feedback">
+  <div class="ihc-doc-feedback-head">
+    <div>
+      <h3>问题反馈</h3>
+      <p>字段缺失、权限异常、返回结构与页面联调不一致时，可直接提交 GitHub Issue。</p>
+    </div>
+    <div class="ihc-doc-feedback-actions">
+      <a class="ihc-doc-link ihc-open-issue-link" href="${swaggerGithubNewIssueUrl}" target="_blank" rel="noreferrer">提交 Issue</a>
+      <a class="ihc-doc-link is-secondary" href="${swaggerGithubIssuesUrl}" target="_blank" rel="noreferrer">查看 Issues</a>
+      <button class="ihc-doc-link is-secondary ihc-feedback-copy-button" type="button" data-default-label="复制反馈模板">复制模板</button>
+    </div>
+  </div>
+  <pre class="ihc-feedback-template"><code>${swaggerFeedbackTemplate.replace(
+    "{{SWAGGER_URL}}",
+    "{{当前 Swagger 页面地址}}"
+  )}</code></pre>
+</section>
+`;
+
+const swaggerUiEnhancementScript = String.raw`
   (() => {
     const BUTTON_CLASS = "ihc-copy-api-button";
+    const INFO_PANEL_CLASS = "ihc-swagger-intro";
+    const ISSUE_LINK_CLASS = "ihc-open-issue-link";
+    const ISSUE_BUTTON_CLASS = "ihc-open-issue-button";
+    const FEEDBACK_COPY_BUTTON_CLASS = "ihc-feedback-copy-button";
     const COPIED_CLASS = "is-copied";
     const ERROR_CLASS = "is-error";
     const DEFAULT_TEXT = "复制 API";
+    const DEFAULT_TEMPLATE_TEXT = "复制模板";
     const COPIED_TEXT = "已复制";
     const ERROR_TEXT = "复制失败";
+    const ISSUE_NEW_URL = ${JSON.stringify(swaggerGithubNewIssueUrl)};
+    const FEEDBACK_TEMPLATE = ${JSON.stringify(swaggerFeedbackTemplate)};
+    const INFO_PANEL_HTML = ${JSON.stringify(swaggerInfoPanelHtml)};
 
     const buttonSelector = "." + BUTTON_CLASS;
     const buttonResetTimers = new WeakMap();
@@ -171,8 +278,43 @@ const swaggerCopyApiButtonScript = String.raw`
       copyWithExecCommand(text);
     };
 
+    const getDefaultButtonText = (button) =>
+      button.getAttribute("data-default-label") || DEFAULT_TEXT;
+
+    const buildFeedbackTemplate = () =>
+      FEEDBACK_TEMPLATE.replace("{{SWAGGER_URL}}", window.location.href);
+
+    const buildIssueUrl = () => {
+      const issueUrl = new URL(ISSUE_NEW_URL);
+      issueUrl.searchParams.set("title", "[Swagger反馈] 请简述问题");
+      issueUrl.searchParams.set("body", buildFeedbackTemplate());
+      return issueUrl.toString();
+    };
+
+    const ensureInfoPanel = () => {
+      const info = document.querySelector(".swagger-ui .info");
+      if (!info) {
+        return;
+      }
+
+      const existingPanel = info.querySelector("." + INFO_PANEL_CLASS);
+      if (existingPanel) {
+        return;
+      }
+
+      const description = info.querySelector(".description");
+      if (description instanceof HTMLElement) {
+        description.style.display = "none";
+      }
+
+      const panel = document.createElement("section");
+      panel.className = INFO_PANEL_CLASS;
+      panel.innerHTML = INFO_PANEL_HTML;
+      info.appendChild(panel);
+    };
+
     const resetButtonState = (button) => {
-      button.textContent = DEFAULT_TEXT;
+      button.textContent = getDefaultButtonText(button);
       button.classList.remove(COPIED_CLASS);
       button.classList.remove(ERROR_CLASS);
       buttonResetTimers.delete(button);
@@ -228,9 +370,148 @@ const swaggerCopyApiButtonScript = String.raw`
       button.type = "button";
       button.className = "btn " + BUTTON_CLASS;
       button.textContent = DEFAULT_TEXT;
+      button.setAttribute("data-default-label", DEFAULT_TEXT);
       button.setAttribute("aria-label", "复制当前接口地址");
       button.setAttribute("title", "复制请求方法和完整地址");
       summary.appendChild(button);
+    };
+
+    const decorateIssueLinks = () => {
+      document.querySelectorAll(".swagger-ui ." + ISSUE_LINK_CLASS).forEach((link) => {
+        if (!(link instanceof HTMLAnchorElement)) {
+          return;
+        }
+
+        link.href = buildIssueUrl();
+
+        if (link.dataset.issueBound === "true") {
+          return;
+        }
+
+        link.dataset.issueBound = "true";
+        link.title = "前往 GitHub Issue 反馈问题";
+        link.addEventListener("click", () => {
+          link.href = buildIssueUrl();
+        });
+      });
+    };
+
+    const decorateTopbarIssueEntry = () => {
+      const topbar = document.querySelector(".swagger-ui .topbar");
+      if (!topbar) {
+        return;
+      }
+
+      const topbarWrapper =
+        topbar.querySelector(".topbar-wrapper") || topbar.querySelector(".wrapper") || topbar;
+      if (!(topbarWrapper instanceof HTMLElement)) {
+        return;
+      }
+
+      let actions = topbarWrapper.querySelector(".ihc-topbar-actions");
+      if (!(actions instanceof HTMLElement)) {
+        actions = document.createElement("div");
+        actions.className = "ihc-topbar-actions";
+        topbarWrapper.appendChild(actions);
+      }
+
+      let issueLink = actions.querySelector("." + ISSUE_BUTTON_CLASS);
+      if (!(issueLink instanceof HTMLAnchorElement)) {
+        issueLink = document.createElement("a");
+        issueLink.className = ISSUE_LINK_CLASS + " " + ISSUE_BUTTON_CLASS;
+        issueLink.target = "_blank";
+        issueLink.rel = "noreferrer";
+        issueLink.textContent = "反馈 Issue";
+        issueLink.setAttribute("aria-label", "前往 GitHub Issue 页面");
+        actions.appendChild(issueLink);
+      }
+
+      issueLink.href = buildIssueUrl();
+
+      let templateButton = actions.querySelector("." + FEEDBACK_COPY_BUTTON_CLASS);
+      if (!(templateButton instanceof HTMLButtonElement)) {
+        templateButton = document.createElement("button");
+        templateButton.type = "button";
+        templateButton.className = "btn " + FEEDBACK_COPY_BUTTON_CLASS + " ihc-topbar-feedback-copy-button";
+        templateButton.textContent = DEFAULT_TEMPLATE_TEXT;
+        templateButton.setAttribute("data-default-label", DEFAULT_TEMPLATE_TEXT);
+        actions.appendChild(templateButton);
+      }
+
+      decorateIssueLinks();
+    };
+
+    const decorateFeedbackControls = () => {
+      document.querySelectorAll(".swagger-ui ." + FEEDBACK_COPY_BUTTON_CLASS).forEach((button) => {
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        if (!button.getAttribute("data-default-label")) {
+          const defaultLabel =
+            typeof button.textContent === "string" && button.textContent.trim()
+              ? button.textContent.trim()
+              : DEFAULT_TEMPLATE_TEXT;
+          button.setAttribute("data-default-label", defaultLabel);
+        }
+
+        button.setAttribute("title", "复制 GitHub issue 反馈模板");
+      });
+    };
+
+    const updateApiScrollShellHeight = (shell) => {
+      const resolvedShell =
+        shell instanceof HTMLElement
+          ? shell
+          : document.querySelector(".swagger-ui .ihc-api-scroll-shell");
+      if (!(resolvedShell instanceof HTMLElement)) {
+        return;
+      }
+
+      const availableHeight = window.innerHeight - resolvedShell.getBoundingClientRect().top - 16;
+      resolvedShell.style.maxHeight = Math.max(320, availableHeight) + "px";
+    };
+
+    const flattenLegacyApiScrollShells = (host) => {
+      if (!(host instanceof HTMLElement)) {
+        return;
+      }
+
+      Array.from(host.querySelectorAll(".ihc-api-scroll-shell"))
+        .reverse()
+        .forEach((shell) => {
+          const parent = shell.parentNode;
+          if (!(shell instanceof HTMLElement) || !(parent instanceof HTMLElement)) {
+            return;
+          }
+
+          while (shell.firstChild) {
+            parent.insertBefore(shell.firstChild, shell);
+          }
+
+          parent.removeChild(shell);
+        });
+    };
+
+    const decorateApiScrollShell = () => {
+      const firstTagSection = document.querySelector(".swagger-ui .opblock-tag-section");
+      if (!firstTagSection) {
+        return;
+      }
+
+      const parent = firstTagSection.parentElement;
+      if (!(parent instanceof HTMLElement)) {
+        return;
+      }
+
+      if (parent.classList.contains("ihc-api-scroll-shell")) {
+        updateApiScrollShellHeight(parent);
+        return;
+      }
+
+      flattenLegacyApiScrollShells(parent);
+      parent.classList.add("ihc-api-scroll-shell");
+      updateApiScrollShellHeight(parent);
     };
 
     const decorateAllOperations = () => {
@@ -245,31 +526,47 @@ const swaggerCopyApiButtonScript = String.raw`
         return;
       }
 
-      const button = target.closest(buttonSelector);
-      if (!button) {
+      const apiButton = target.closest(buttonSelector);
+      if (apiButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const opblock = apiButton.closest(".opblock");
+        if (!opblock) {
+          return;
+        }
+
+        const textToCopy = getOperationCopyText(opblock);
+        if (!textToCopy) {
+          setButtonState(apiButton, ERROR_TEXT, ERROR_CLASS);
+          return;
+        }
+
+        try {
+          await copyText(textToCopy);
+          setButtonState(apiButton, COPIED_TEXT, COPIED_CLASS);
+        } catch (error) {
+          console.error(error);
+          setButtonState(apiButton, ERROR_TEXT, ERROR_CLASS);
+        }
+
+        return;
+      }
+
+      const feedbackButton = target.closest("." + FEEDBACK_COPY_BUTTON_CLASS);
+      if (!feedbackButton) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
 
-      const opblock = button.closest(".opblock");
-      if (!opblock) {
-        return;
-      }
-
-      const textToCopy = getOperationCopyText(opblock);
-      if (!textToCopy) {
-        setButtonState(button, ERROR_TEXT, ERROR_CLASS);
-        return;
-      }
-
       try {
-        await copyText(textToCopy);
-        setButtonState(button, COPIED_TEXT, COPIED_CLASS);
+        await copyText(buildFeedbackTemplate());
+        setButtonState(feedbackButton, COPIED_TEXT, COPIED_CLASS);
       } catch (error) {
         console.error(error);
-        setButtonState(button, ERROR_TEXT, ERROR_CLASS);
+        setButtonState(feedbackButton, ERROR_TEXT, ERROR_CLASS);
       }
     };
 
@@ -281,10 +578,29 @@ const swaggerCopyApiButtonScript = String.raw`
       }
 
       decorateAllOperations();
+      ensureInfoPanel();
+      decorateTopbarIssueEntry();
+      decorateIssueLinks();
+      decorateFeedbackControls();
+      decorateApiScrollShell();
       swaggerRoot.addEventListener("click", handleCopyClick);
 
+      if (swaggerRoot.dataset.ihcResizeBound !== "true") {
+        swaggerRoot.dataset.ihcResizeBound = "true";
+        window.addEventListener("resize", () => {
+          window.requestAnimationFrame(updateApiScrollShellHeight);
+        });
+      }
+
       const observer = new MutationObserver(() => {
-        window.requestAnimationFrame(decorateAllOperations);
+        window.requestAnimationFrame(() => {
+          decorateAllOperations();
+          ensureInfoPanel();
+          decorateTopbarIssueEntry();
+          decorateIssueLinks();
+          decorateFeedbackControls();
+          decorateApiScrollShell();
+        });
       });
 
       observer.observe(swaggerRoot, {
@@ -307,7 +623,7 @@ async function bootstrap() {
   const logger = new Logger("Bootstrap");
   databaseBootstrap = await bootstrapDatabase(logger);
   const { AppModule } = await import("./app.module");
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true
   });
 
@@ -329,6 +645,9 @@ async function bootstrap() {
     origin: corsOrigins,
     credentials: true
   });
+  app.useStaticAssets(resolveBackendPublicDir(), {
+    prefix: `${normalizedApiPrefix}/assets`
+  });
   app.setGlobalPrefix(apiPrefix);
   app.useGlobalPipes(
     new ValidationPipe({
@@ -342,51 +661,7 @@ async function bootstrap() {
 
   const swaggerBuilder = new DocumentBuilder()
     .setTitle("智诊康养前后端联调 API 文档")
-    .setDescription(`
-## 前端联调入口
-
-- 当前 Swagger 同时支持本地和远端访问。
-- 远端示例：\`http://server.mctown.online:8190/api/v1/docs\`
-- 本地示例：\`http://localhost:8190/api/v1/docs\`
-- \`Try it out\` 会自动跟随你当前打开的 Swagger 页面的域名和端口，不再写死远端地址。
-- 推荐先在 Swagger 页面完成测试，再回到前端页面接真实接口。
-
-## 模块说明
-
-- \`/app/*\`：用户端接口，给 \`apps/user-web\` 使用。
-- \`/admin/*\`：后台接口，给 \`apps/admin-web\` 使用。
-- \`/app/ai/*\`：用户端 AI 增强接口，优先作为增强能力联调。
-- \`/internal/*\`：内部接口，不面向普通前端页面直接调用。
-
-## 第一次使用 Swagger 的顺序
-
-1. 先执行 \`GET /system/health\`，确认服务返回 \`code = 0\`。
-2. 用户端联调先执行 \`POST /app/auth/login/password\`。
-3. 后台端联调先执行 \`POST /admin/auth/login/password\`。
-4. 从登录返回里复制 \`data.accessToken\`。
-5. 点击右上角 \`Authorize\`，输入：\`Bearer 复制出来的 accessToken\`。
-6. 再去测试需要登录态的接口。
-
-## Token 说明
-
-- 文档里提到的 \`APP_TOKEN\`，本质上就是用户端登录接口返回的 \`data.accessToken\`。
-- 文档里提到的 \`ADMIN_TOKEN\`，本质上就是后台登录接口返回的 \`data.accessToken\`。
-- \`Authorize\` 里不要填写尖括号，不要只填 token，必须保留 \`Bearer\` 和后面的空格。
-- Swagger 当前只维护一个全局 Bearer Token。切换到后台接口测试时，请把用户端 token 替换为后台 token。
-
-## 联调测试账号
-
-- 家属账号：\`13900139000 / 123456\`
-- 长者账号：\`13800138000 / 123456\`
-- 后台账号：\`13600136000 / 123456\`
-
-## 返回结构速记
-
-- 成功时重点看：\`code\`、\`message\`、\`requestId\`、\`data\`
-- 列表一般在 \`data.list\`
-- 详情一般在 \`data\`
-- 新增动作通常会返回新的主键，如 \`orderId\`、\`paymentId\`、\`reportId\`
-    `)
+    .setDescription(swaggerDescription)
     .setVersion("0.1.0")
     .addServer(normalizedApiPrefix, "当前访问环境 API 前缀")
     .addBearerAuth(
@@ -416,34 +691,224 @@ async function bootstrap() {
     customSiteTitle: "智诊康养前后端联调 API 文档",
     customCss: `
       body {
+        margin: 0;
         background: linear-gradient(180deg, #f1f5f9 0, #ffffff 180px);
       }
       .swagger-ui {
-        padding: 18px 28px 48px;
+        padding: 12px 16px 28px;
       }
       .swagger-ui .topbar {
         background: linear-gradient(90deg, #0f766e, #155e75);
-        margin: 0 4px 18px;
-        border-radius: 0 0 18px 18px;
+        margin: 0;
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15, 118, 110, 0.18);
+      }
+      .swagger-ui .topbar .wrapper {
+        max-width: min(1680px, 100%);
+        padding: 0 18px;
+      }
+      .swagger-ui .topbar .topbar-wrapper,
+      .swagger-ui .topbar .wrapper {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .swagger-ui .topbar .topbar-wrapper {
+        width: 100%;
+      }
+      .swagger-ui .ihc-topbar-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .swagger-ui .ihc-open-issue-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        white-space: nowrap;
       }
       .swagger-ui .wrapper {
         max-width: min(1680px, 100%);
-        padding: 0 16px 48px;
+        padding: 0 16px 24px;
       }
-      .swagger-ui .information-container {
-        padding-bottom: 8px;
+      .swagger-ui .info {
+        margin: 0;
+      }
+      .swagger-ui .info .title {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.15;
+      }
+      .swagger-ui .info .base-url {
+        margin: 8px 0 0;
+      }
+      .swagger-ui .info .description {
+        display: none;
+      }
+      .swagger-ui .ihc-swagger-intro {
+        margin-top: 12px;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback {
+        border: 1px solid #dbe4ea;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card {
+        padding: 14px 16px;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card h3,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback h3 {
+        margin: 0;
+        color: #0f172a;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card ul,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card ol {
+        margin: 10px 0 0;
+        padding-left: 20px;
+        color: #334155;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card li,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback p {
+        margin: 0 0 6px;
+        line-height: 1.55;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-card li:last-child,
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback p:last-child {
+        margin-bottom: 0;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback {
+        margin-top: 12px;
+        padding: 14px 16px 16px;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .swagger-ui .ihc-doc-link {
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid #0f766e;
+        border-radius: 999px;
+        background: #0f766e;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .swagger-ui .ihc-doc-link.is-secondary {
+        background: #ffffff;
+        border-color: #99f6e4;
+        color: #0f766e;
+      }
+      .swagger-ui .ihc-doc-link:hover,
+      .swagger-ui .ihc-doc-link:focus-visible,
+      .swagger-ui .ihc-open-issue-button:hover,
+      .swagger-ui .ihc-open-issue-button:focus-visible {
+        text-decoration: none;
+        filter: brightness(0.98);
+      }
+      .swagger-ui .ihc-topbar-feedback-copy-button {
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-feedback-template {
+        margin: 14px 0 0;
+        padding: 12px 14px;
+        overflow: auto;
+        border-radius: 12px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .swagger-ui .ihc-swagger-intro .ihc-feedback-template code {
+        color: inherit;
+        white-space: pre-wrap;
       }
       .swagger-ui .scheme-container {
+        padding: 12px 16px;
+        margin-top: 12px;
         background: #fff7ed;
         border: 1px solid #fdba74;
         box-shadow: none;
         position: sticky;
         top: 12px;
-        z-index: 10;
+        z-index: 5;
         border-radius: 14px;
       }
+      .swagger-ui .ihc-api-scroll-shell {
+        margin-top: 12px;
+        padding: 8px 16px 22px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-gutter: stable;
+        overscroll-behavior: contain;
+        border: 1px solid #dbe4ea;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+      }
+      .swagger-ui .ihc-api-scroll-shell::-webkit-scrollbar {
+        width: 10px;
+      }
+      .swagger-ui .ihc-api-scroll-shell::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
+        border-radius: 999px;
+        background: #cbd5e1;
+        background-clip: padding-box;
+      }
+      .swagger-ui .opblock-tag-section {
+        margin-bottom: 10px;
+      }
       .swagger-ui .opblock-tag {
-        font-size: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        margin: 0 0 10px;
+        padding: 12px 0 10px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.92));
+        backdrop-filter: blur(8px);
+        font-size: 15px;
         font-weight: 700;
       }
       .swagger-ui .opblock-tag small {
@@ -452,10 +917,11 @@ async function bootstrap() {
         color: #475569;
       }
       .swagger-ui .opblock {
-        margin-bottom: 12px;
+        margin-bottom: 10px;
       }
       .swagger-ui .opblock .opblock-summary {
         column-gap: 12px;
+        padding-right: 8px;
       }
       .swagger-ui .opblock .opblock-summary-path {
         max-width: none;
@@ -469,11 +935,11 @@ async function bootstrap() {
       .swagger-ui pre,
       .swagger-ui .highlight-code,
       .swagger-ui .microlight {
-        max-height: 360px;
+        max-height: 320px;
         overflow: auto;
       }
       .swagger-ui textarea {
-        min-height: 180px;
+        min-height: 160px;
       }
       .swagger-ui .model-box,
       .swagger-ui .responses-inner {
@@ -491,7 +957,8 @@ async function bootstrap() {
         background-color: #0f766e;
         border-color: #0f766e;
       }
-      .swagger-ui .ihc-copy-api-button {
+      .swagger-ui .ihc-copy-api-button,
+      .swagger-ui .ihc-feedback-copy-button {
         align-self: center;
         flex-shrink: 0;
         margin: 6px 8px 6px 0;
@@ -501,38 +968,89 @@ async function bootstrap() {
         background: #ffffff;
       }
       .swagger-ui .ihc-copy-api-button:hover,
-      .swagger-ui .ihc-copy-api-button:focus-visible {
+      .swagger-ui .ihc-copy-api-button:focus-visible,
+      .swagger-ui .ihc-feedback-copy-button:hover,
+      .swagger-ui .ihc-feedback-copy-button:focus-visible {
         border-color: #115e59;
         color: #115e59;
         background: #f0fdfa;
       }
-      .swagger-ui .ihc-copy-api-button.is-copied {
+      .swagger-ui .ihc-copy-api-button.is-copied,
+      .swagger-ui .ihc-feedback-copy-button.is-copied {
         border-color: #0f766e;
         background: #0f766e;
         color: #ffffff;
       }
-      .swagger-ui .ihc-copy-api-button.is-error {
+      .swagger-ui .ihc-copy-api-button.is-error,
+      .swagger-ui .ihc-feedback-copy-button.is-error {
         border-color: #dc2626;
         color: #dc2626;
       }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button {
+        min-height: 36px;
+        margin: 0;
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button:hover,
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button:focus-visible {
+        border-color: rgba(255, 255, 255, 0.44);
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button.is-copied {
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.26);
+        color: #ffffff;
+      }
+      .swagger-ui .ihc-topbar-actions .ihc-feedback-copy-button.is-error {
+        border-color: #fecaca;
+        color: #ffffff;
+      }
+      .swagger-ui .models {
+        margin-top: 10px;
+      }
       @media (max-width: 768px) {
         .swagger-ui {
-          padding: 12px 12px 32px;
+          padding: 8px 8px 14px;
         }
         .swagger-ui .topbar {
-          margin: 0 0 12px;
-          border-radius: 0 0 14px 14px;
+          border-radius: 14px;
         }
-        .swagger-ui .wrapper {
-          padding: 0 0 32px;
+        .swagger-ui .topbar .wrapper {
+          padding: 0 12px;
         }
-        .swagger-ui .ihc-copy-api-button {
+        .swagger-ui .ihc-topbar-actions {
+          width: 100%;
+          margin-left: auto;
+          padding-bottom: 12px;
+          justify-content: flex-end;
+        }
+        .swagger-ui .info .title {
+          font-size: 24px;
+        }
+        .swagger-ui .ihc-swagger-intro .ihc-doc-grid {
+          grid-template-columns: 1fr;
+        }
+        .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-head {
+          flex-direction: column;
+        }
+        .swagger-ui .ihc-swagger-intro .ihc-doc-feedback-actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+        .swagger-ui .ihc-api-scroll-shell {
+          padding: 8px 10px 18px;
+        }
+        .swagger-ui .ihc-copy-api-button,
+        .swagger-ui .ihc-feedback-copy-button {
           min-width: 76px;
           margin-right: 4px;
         }
       }
     `,
-    customJsStr: swaggerCopyApiButtonScript,
+    customJsStr: swaggerUiEnhancementScript,
     swaggerOptions: {
       persistAuthorization: true,
       displayRequestDuration: true,

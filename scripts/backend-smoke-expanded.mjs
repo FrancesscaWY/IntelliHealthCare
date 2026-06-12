@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:8190/api/v1";
+const BASE_URL = process.env.BASE_URL ?? "http://server.mctown.online:8190/api/v1";
 const APP_PHONE = process.env.APP_TEST_PHONE ?? "13900139000";
 const APP_PASSWORD = process.env.APP_TEST_PASSWORD ?? "123456";
 const ADMIN_PHONE = process.env.ADMIN_TEST_PHONE ?? "13600136000";

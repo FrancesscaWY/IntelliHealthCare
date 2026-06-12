@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { reports, removeReport, selectReport } = useReportCenter();
+const { reports, removeReport, selectReport, ensureReportsLoaded, isReportsLoading, reportsError } =
+  useReportCenter();
 const pendingDeleteId = ref("");
+const isDeleting = ref(false);
+
+onMounted(() => {
+  void ensureReportsLoaded();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -22,14 +28,22 @@ function cancelDelete() {
   pendingDeleteId.value = "";
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!pendingDeleteId.value) {
     return;
   }
 
-  removeReport(pendingDeleteId.value);
-  pendingDeleteId.value = "";
-  props.showToast("已删除报告");
+  isDeleting.value = true;
+
+  try {
+    await removeReport(pendingDeleteId.value);
+    pendingDeleteId.value = "";
+    props.showToast("已删除报告");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "删除失败");
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function interpretReport(reportId: string) {
@@ -57,6 +71,9 @@ function uploadReport() {
     </header>
 
     <main class="page-scroll">
+      <p v-if="isReportsLoading" class="status-text">正在同步报告列表...</p>
+      <p v-else-if="reportsError" class="status-text status-text--error">{{ reportsError }}</p>
+
       <article v-for="item in reports" :key="item.id" class="report-card">
         <header class="card-head">
           <span class="report-icon" aria-hidden="true">
@@ -74,6 +91,7 @@ function uploadReport() {
         </header>
 
         <section class="card-info">
+          <p><span>状态：</span>{{ item.statusText }}</p>
           <p><span>报告来源：</span>{{ item.source }}</p>
           <p><span>报告时间：</span>{{ item.reportTime }}</p>
           <p><span>上传时间：</span>{{ item.uploadTime }}</p>
@@ -105,7 +123,9 @@ function uploadReport() {
         <p>确定删除这条体检报告吗？</p>
         <div class="dialog-actions">
           <button class="dialog-btn dialog-btn--ghost" type="button" @click="cancelDelete">取消</button>
-          <button class="dialog-btn dialog-btn--primary" type="button" @click="confirmDelete">确定删除</button>
+          <button class="dialog-btn dialog-btn--primary" type="button" :disabled="isDeleting" @click="confirmDelete">
+            {{ isDeleting ? "删除中..." : "确认删除" }}
+          </button>
         </div>
       </section>
     </div>
@@ -117,16 +137,16 @@ function uploadReport() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -157,17 +177,17 @@ function uploadReport() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -179,6 +199,17 @@ function uploadReport() {
 
 .page-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.status-text {
+  margin: 0 0 12px;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-text--error {
+  color: #d56c6c;
 }
 
 .report-card {
@@ -228,10 +259,10 @@ function uploadReport() {
 
 .card-title h2 {
   margin: 0;
-  color: #30343f;
+  color: #222733;
   font-size: 17px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .card-info {
@@ -242,7 +273,7 @@ function uploadReport() {
 
 .card-info p {
   margin: 0;
-  color: #9a9da5;
+  color: #8f95a2;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
@@ -274,14 +305,14 @@ function uploadReport() {
 }
 
 .action-btn--primary {
-  background: #6670f0;
-  box-shadow: 0 12px 22px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 12px 22px rgba(89, 200, 162, 0.22);
   color: #ffffff;
 }
 
 .no-more {
   margin: 28px 0 0;
-  color: #c9c9c9;
+  color: #8f95a2;
   font-size: 16px;
   font-weight: 500;
   text-align: center;
@@ -298,12 +329,12 @@ function uploadReport() {
   width: 100%;
   height: 60px;
   border-radius: 16px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 14px 28px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .dialog-mask {
@@ -329,9 +360,9 @@ function uploadReport() {
 
 .dialog-card h3 {
   margin: 0;
-  color: #30343f;
-  font-size: 18px;
-  font-weight: 700;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .dialog-card p {
@@ -363,14 +394,18 @@ function uploadReport() {
 }
 
 .dialog-btn--primary {
-  background: #6670f0;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
   color: #ffffff;
+}
+
+.dialog-btn:disabled {
+  opacity: 0.7;
 }
 
 @media (min-width: 561px) {
   .report-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

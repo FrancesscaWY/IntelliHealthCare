@@ -76,6 +76,39 @@ export default {
       bloodPressure: '146/94',
       oxygen: 98,
       stress: 42
+    },
+    {
+      date: '2026-04-08',
+      steps: 8900,
+      sleep: 7.4,
+      weight: 64.7,
+      heartRate: 70,
+      bloodSugar: 5.6,
+      bloodPressure: '124/80',
+      oxygen: 99,
+      stress: 39
+    },
+    {
+      date: '2026-04-09',
+      steps: 9400,
+      sleep: 7.1,
+      weight: 64.5,
+      heartRate: 72,
+      bloodSugar: 5.8,
+      bloodPressure: '121/79',
+      oxygen: 98,
+      stress: 41
+    },
+    {
+      date: '2026-04-10',
+      steps: 10200,
+      sleep: 7.6,
+      weight: 64.4,
+      heartRate: 69,
+      bloodSugar: 5.4,
+      bloodPressure: '119/77',
+      oxygen: 99,
+      stress: 36
     }
   ]
 }

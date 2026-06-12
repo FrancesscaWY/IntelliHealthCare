@@ -5,6 +5,8 @@ import {
 } from "@nestjs/common";
 import {
   ConversationScene,
+  AdminMessageCampaignChannel,
+  AdminMessageCampaignStatus,
   MessageContentType,
   NotificationType,
   StaffRole
@@ -13,7 +15,10 @@ import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import {
   ensureRecord,
   paginate,
-  toDateTimeString
+  toDateTimeString,
+  toNumber,
+  toPrismaJson,
+  toPrismaNullableJson
 } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
@@ -366,6 +371,529 @@ export class AppMessagingService {
     };
   }
 
+  async listAdminCampaigns(
+    page: number,
+    pageSize: number,
+    status?: AdminMessageCampaignStatus
+  ) {
+    const campaigns = await this.prismaService.adminMessageCampaign.findMany({
+      where: {
+        status: status ?? undefined
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    const rows = campaigns.map((item) => ({
+      id: item.id,
+      sendTime: this.toDisplayDateTime(item.sentAt ?? item.scheduledAt ?? item.createdAt),
+      title: item.title,
+      status: this.getCampaignStatusText(item.status),
+      content: item.content,
+      receiver: this.getCampaignReceiverText(item.receiverType, item.receiverSnapshot),
+      channel: this.getCampaignChannelText(item.channel)
+    }));
+    const result = paginate(rows, page, pageSize);
+
+    return {
+      title: "消息群发",
+      statusOptions: ["全部状态", "待发送", "已发送", "审批中", "已撤回"],
+      rows: result.list,
+      ...result
+    };
+  }
+
+  getAdminCampaignOptions() {
+    return {
+      title: "新增消息",
+      receiverOptions: ["全部用户", "部分用户"],
+      sendTimeOptions: ["立即发送", "定时发布"],
+      channelOptions: ["系统消息", "短信", "会话消息"],
+      selectedUsers: ["高血压重点关怀用户", "4 月新注册用户", "近 30 天未复购用户"],
+      selectedProducts: ["春季康复理疗套餐", "居家护理上门服务"]
+    };
+  }
+
+  async getAdminCampaignDetail(campaignId: string) {
+    const campaign = await this.prismaService.adminMessageCampaign.findUnique({
+      where: { id: campaignId }
+    });
+
+    if (!campaign) {
+      throw new NotFoundException("Campaign not found");
+    }
+
+    return {
+      campaignId: campaign.id,
+      title: campaign.title,
+      content: campaign.content,
+      status: campaign.status,
+      statusText: this.getCampaignStatusText(campaign.status),
+      channel: campaign.channel,
+      channelText: this.getCampaignChannelText(campaign.channel),
+      receiverType: campaign.receiverType,
+      receiverSnapshot: campaign.receiverSnapshot,
+      insertProductLink: campaign.insertProductLink,
+      productSnapshot: campaign.productSnapshot,
+      scheduledAt: toDateTimeString(campaign.scheduledAt),
+      sentAt: toDateTimeString(campaign.sentAt),
+      withdrawnAt: toDateTimeString(campaign.withdrawnAt),
+      createdAt: toDateTimeString(campaign.createdAt)
+    };
+  }
+
+  async createAdminCampaign(
+    user: AuthenticatedUser,
+    payload: {
+      title: string;
+      content: string;
+      channel: AdminMessageCampaignChannel;
+      status: AdminMessageCampaignStatus;
+      receiverType: string;
+      receiverSnapshot?: Record<string, unknown>;
+      insertProductLink?: boolean;
+      productSnapshot?: Record<string, unknown>[];
+      scheduledAt?: string;
+    }
+  ) {
+    const campaign = await this.prismaService.adminMessageCampaign.create({
+      data: {
+        title: payload.title,
+        content: payload.content,
+        channel: payload.channel,
+        status: payload.status,
+        receiverType: payload.receiverType,
+        receiverSnapshot: toPrismaNullableJson(payload.receiverSnapshot ?? null),
+        insertProductLink: payload.insertProductLink ?? false,
+        productSnapshot: toPrismaNullableJson(payload.productSnapshot ?? null),
+        scheduledAt: payload.scheduledAt ? new Date(payload.scheduledAt) : null,
+        sentAt: payload.status === AdminMessageCampaignStatus.SENT ? new Date() : null,
+        createdByUserId: user.id,
+        updatedByUserId: user.id
+      }
+    });
+
+    return {
+      campaignId: campaign.id,
+      status: campaign.status
+    };
+  }
+
+  async updateAdminCampaign(
+    user: AuthenticatedUser,
+    campaignId: string,
+    payload: {
+      title: string;
+      content: string;
+      channel: AdminMessageCampaignChannel;
+      status: AdminMessageCampaignStatus;
+      receiverType: string;
+      receiverSnapshot?: Record<string, unknown>;
+      insertProductLink?: boolean;
+      productSnapshot?: Record<string, unknown>[];
+      scheduledAt?: string;
+    }
+  ) {
+    const campaign = await this.prismaService.adminMessageCampaign.update({
+      where: { id: campaignId },
+      data: {
+        title: payload.title,
+        content: payload.content,
+        channel: payload.channel,
+        status: payload.status,
+        receiverType: payload.receiverType,
+        receiverSnapshot: toPrismaNullableJson(payload.receiverSnapshot ?? null),
+        insertProductLink: payload.insertProductLink ?? false,
+        productSnapshot: toPrismaNullableJson(payload.productSnapshot ?? null),
+        scheduledAt: payload.scheduledAt ? new Date(payload.scheduledAt) : null,
+        sentAt: payload.status === AdminMessageCampaignStatus.SENT ? new Date() : undefined,
+        updatedByUserId: user.id
+      }
+    });
+
+    return {
+      campaignId: campaign.id,
+      status: campaign.status
+    };
+  }
+
+  async deleteAdminCampaign(campaignId: string) {
+    await this.prismaService.adminMessageCampaign.delete({
+      where: { id: campaignId }
+    });
+
+    return {
+      deleted: true,
+      campaignId
+    };
+  }
+
+  async withdrawAdminCampaign(user: AuthenticatedUser, campaignId: string) {
+    const campaign = await this.prismaService.adminMessageCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: AdminMessageCampaignStatus.WITHDRAWN,
+        withdrawnAt: new Date(),
+        updatedByUserId: user.id
+      }
+    });
+
+    return {
+      campaignId: campaign.id,
+      status: campaign.status
+    };
+  }
+
+  async batchOperateAdminCampaigns(
+    user: AuthenticatedUser,
+    campaignIds: string[],
+    action: "DELETE" | "WITHDRAW"
+  ) {
+    if (action === "DELETE") {
+      const result = await this.prismaService.adminMessageCampaign.deleteMany({
+        where: {
+          id: {
+            in: campaignIds
+          }
+        }
+      });
+
+      return {
+        deleted: result.count
+      };
+    }
+
+    const result = await this.prismaService.adminMessageCampaign.updateMany({
+      where: {
+        id: {
+          in: campaignIds
+        }
+      },
+      data: {
+        status: AdminMessageCampaignStatus.WITHDRAWN,
+        withdrawnAt: new Date(),
+        updatedByUserId: user.id
+      }
+    });
+
+    return {
+      updated: result.count
+    };
+  }
+
+  async listAdminConversations(page: number, pageSize: number, keyword?: string) {
+    const normalizedKeyword = keyword?.trim().toLowerCase();
+    const conversations = await this.prismaService.conversation.findMany({
+      include: {
+        participants: {
+          include: {
+            user: true
+          }
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+
+    const groupedRows = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        avatar: string | null;
+        unread: number;
+        preview: string;
+        time: string;
+        lastActivity: number;
+        scenes: Set<ConversationScene>;
+      }
+    >();
+
+    for (const item of conversations) {
+      const customerParticipant = this.findAdminCustomerParticipant(item.participants);
+      const customer = customerParticipant?.user ?? null;
+      const latestMessage = item.messages[0] ?? null;
+      const unread = item.participants.reduce(
+        (sum, participant) => sum + participant.unreadCount,
+        0
+      );
+      const previewText = latestMessage
+        ? this.extractMessageContent(latestMessage.contentType, latestMessage.content)
+        : item.topic ?? "";
+      const groupKey = customer ? `customer:${customer.id}` : `conversation:${item.id}`;
+      const existing = groupedRows.get(groupKey);
+      const lastActivity = this.getConversationActivityTimestamp(item);
+
+      if (!existing) {
+        groupedRows.set(groupKey, {
+          id: item.id,
+          name: this.getConversationDisplayName(customer, item.topic),
+          avatar: customer?.avatarUrl ?? null,
+          unread,
+          preview: this.buildAdminConversationPreview(item.scene, previewText, false),
+          time: this.formatHourMinuteFromConversation(item),
+          lastActivity,
+          scenes: new Set([item.scene])
+        });
+        continue;
+      }
+
+      existing.unread += unread;
+      existing.scenes.add(item.scene);
+      if (lastActivity > existing.lastActivity) {
+        existing.id = item.id;
+        existing.name = this.getConversationDisplayName(customer, item.topic);
+        existing.avatar = customer?.avatarUrl ?? null;
+        existing.preview = this.buildAdminConversationPreview(item.scene, previewText, false);
+        existing.time = this.formatHourMinuteFromConversation(item);
+        existing.lastActivity = lastActivity;
+      }
+    }
+
+    const rows = Array.from(groupedRows.values())
+      .sort((left, right) => right.lastActivity - left.lastActivity)
+      .map((item, index) => ({
+        id: item.id,
+        name: item.name,
+        avatar: item.avatar,
+        unread: item.unread,
+        preview: item.preview,
+        time: item.time,
+        active: index === 0,
+        sceneSummary: Array.from(item.scenes).map((scene) =>
+          this.getAdminConversationSceneLabel(scene)
+        )
+      }))
+      .filter((item) => {
+        if (!normalizedKeyword) {
+          return true;
+        }
+
+        return [item.name, item.preview, item.id, item.sceneSummary.join(" ")].some((field) =>
+          String(field).toLowerCase().includes(normalizedKeyword)
+        );
+      });
+
+    const result = paginate(rows, page, pageSize);
+
+    return {
+      title: "会话",
+      conversations: result.list,
+      ...result
+    };
+  }
+
+  async getAdminConversationDetail(conversationId: string) {
+    const bundle = await this.getAdminConversationBundle(conversationId);
+    const [customer, messages, services] = await Promise.all([
+      bundle.customerId
+        ? this.prismaService.user.findUnique({
+            where: { id: bundle.customerId },
+            include: {
+              archive: true,
+              ownedOrders: {
+                include: {
+                  service: true
+                },
+                orderBy: { createdAt: "desc" },
+                take: 5
+              }
+            }
+          })
+        : Promise.resolve(null),
+      this.prismaService.conversationMessage.findMany({
+        where: { conversationId: { in: bundle.conversationIds } },
+        include: { sender: true },
+        orderBy: { createdAt: "asc" }
+      }),
+      this.prismaService.serviceItem.findMany({
+        where: { enabled: true },
+        orderBy: [{ salesVolume: "desc" }, { rating: "desc" }],
+        take: 12
+      })
+    ]);
+
+    const messageConversationMap = new Map(
+      bundle.conversations.map((item) => [item.id, item] as const)
+    );
+    const mergedMessages = this.buildAdminConversationTimelineMessages(
+      messages,
+      messageConversationMap,
+      bundle.customerId
+    );
+    const sceneLabels = bundle.conversations.map((item) =>
+      this.getAdminConversationSceneLabel(item.scene)
+    );
+    const recommendedServices = this.rankAdminConversationServices(
+      services,
+      customer,
+      bundle.conversations
+    ).slice(0, 6);
+
+    return {
+      title: "会话",
+      currentSessionName: customer
+        ? customer.realName ?? customer.nickname ?? customer.phone
+        : bundle.latestConversation.topic ?? "会话",
+      conversationId: bundle.latestConversation.id,
+      topic: bundle.latestConversation.topic,
+      metadata: {
+        ...ensureRecord(bundle.latestConversation.metadata),
+        mergedConversationIds: bundle.conversationIds,
+        sceneLabels
+      },
+      messages: mergedMessages,
+      customer: customer
+        ? {
+            name: customer.realName ?? customer.nickname ?? customer.phone,
+            avatar: customer.avatarUrl,
+            tags: ensureRecord(customer.archive).riskTags ?? [],
+            orderCount: customer.ownedOrders.length,
+            amount: customer.ownedOrders
+              .reduce(
+                (sum, item) =>
+                  sum +
+                  (toNumber(item.actualAmount) ?? toNumber(item.payableAmount) ?? 0),
+                0
+              )
+              .toFixed(2)
+          }
+        : null,
+      orders:
+        customer?.ownedOrders.map((item) => ({
+          id: item.id,
+          status: item.status,
+          title: item.service.title,
+          image: item.service.coverUrl,
+          time: this.toDisplayDateTime(item.createdAt),
+          amount: `${(
+            toNumber(item.actualAmount) ?? toNumber(item.payableAmount) ?? 0
+          ).toFixed(2)}元`
+        })) ?? [],
+      goods: recommendedServices.map((item) => ({
+        id: item.id,
+        title: item.title,
+        image: item.coverUrl,
+        price: (toNumber(item.price) ?? 0).toFixed(2)
+      }))
+    };
+  }
+
+  async listAdminConversationMessages(
+    conversationId: string,
+    page: number,
+    pageSize: number
+  ) {
+    const bundle = await this.getAdminConversationBundle(conversationId);
+    const messages = await this.prismaService.conversationMessage.findMany({
+      where: { conversationId: { in: bundle.conversationIds } },
+      include: { sender: true },
+      orderBy: { createdAt: "asc" }
+    });
+    const conversationMap = new Map(
+      bundle.conversations.map((item) => [item.id, item] as const)
+    );
+    const timeline = this.buildAdminConversationTimelineMessages(
+      messages,
+      conversationMap,
+      bundle.customerId
+    );
+
+    return paginate(
+      messages.map((item, index) => ({
+        messageId: item.id,
+        id: item.id,
+        contentType: item.contentType,
+        content: timeline[index]?.text ?? this.extractMessageContent(item.contentType, item.content),
+        createdAt: toDateTimeString(item.createdAt),
+        sender: item.sender
+          ? {
+              userId: item.sender.id,
+              name: item.sender.realName ?? item.sender.nickname ?? item.sender.phone,
+              avatar: item.sender.avatarUrl
+            }
+          : null
+      })),
+      page,
+      pageSize
+    );
+  }
+
+  async sendAdminConversationMessage(
+    user: AuthenticatedUser,
+    conversationId: string,
+    payload: {
+      contentType: "TEXT" | "IMAGE" | "AUDIO";
+      content: string;
+    }
+  ) {
+    const message = await this.prismaService.$transaction(async (tx) => {
+      const exists = await tx.conversation.findUnique({
+        where: { id: conversationId }
+      });
+
+      if (!exists) {
+        throw new NotFoundException("Conversation not found");
+      }
+
+      const created = await tx.conversationMessage.create({
+        data: {
+          conversationId,
+          senderId: user.id,
+          contentType: payload.contentType as MessageContentType,
+          content: this.buildMessagePayload(
+            payload.contentType as MessageContentType,
+            payload.content
+          )
+        }
+      });
+
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: {
+          lastMessageAt: created.createdAt
+        }
+      });
+
+      return created;
+    });
+
+    return {
+      messageId: message.id,
+      conversationId,
+      contentType: message.contentType,
+      content: this.extractMessageContent(message.contentType, message.content),
+      createdAt: toDateTimeString(message.createdAt)
+    };
+  }
+
+  async endAdminConversation(user: AuthenticatedUser, conversationId: string) {
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId }
+    });
+
+    if (!conversation) {
+      throw new NotFoundException("Conversation not found");
+    }
+
+    await this.prismaService.conversation.update({
+      where: { id: conversationId },
+      data: {
+        metadata: toPrismaJson({
+          ...ensureRecord(conversation.metadata),
+          endedAt: new Date().toISOString(),
+          endedBy: user.id
+        })
+      }
+    });
+
+    return {
+      conversationId,
+      ended: true
+    };
+  }
+
   private mapNotice(
     item: {
       notificationId: string;
@@ -540,6 +1068,40 @@ export class AppMessagingService {
     return "blue";
   }
 
+  private getCampaignStatusText(status: AdminMessageCampaignStatus) {
+    switch (status) {
+      case AdminMessageCampaignStatus.DRAFT:
+      case AdminMessageCampaignStatus.SCHEDULED:
+        return "待发送";
+      case AdminMessageCampaignStatus.REVIEWING:
+        return "审批中";
+      case AdminMessageCampaignStatus.SENT:
+        return "已发送";
+      case AdminMessageCampaignStatus.WITHDRAWN:
+        return "已撤回";
+    }
+  }
+
+  private getCampaignChannelText(channel: AdminMessageCampaignChannel) {
+    switch (channel) {
+      case AdminMessageCampaignChannel.SYSTEM:
+        return "系统消息";
+      case AdminMessageCampaignChannel.SMS:
+        return "短信";
+      case AdminMessageCampaignChannel.CONVERSATION:
+        return "会话消息";
+    }
+  }
+
+  private getCampaignReceiverText(receiverType: string, snapshot: unknown) {
+    const record = ensureRecord(snapshot);
+    if (typeof record.label === "string") {
+      return record.label;
+    }
+
+    return receiverType === "ALL_USERS" ? "全部用户" : "部分用户";
+  }
+
   private getConversationIcon(scene: ConversationScene) {
     if (scene === ConversationScene.DOCTOR) {
       return "doctor";
@@ -566,12 +1128,266 @@ export class AppMessagingService {
     return "blue";
   }
 
+  private findAdminCustomerParticipant<
+    T extends {
+      userId: string;
+      user: {
+        id: string;
+        type: string;
+        realName: string | null;
+        nickname: string | null;
+        phone: string;
+        avatarUrl: string | null;
+      };
+    }
+  >(participants: T[]) {
+    return (
+      participants.find((participant) =>
+        ["ELDER", "FAMILY"].includes(participant.user.type)
+      ) ??
+      participants[0] ??
+      null
+    );
+  }
+
+  private getConversationDisplayName(
+    customer:
+      | {
+          realName: string | null;
+          nickname: string | null;
+          phone: string;
+        }
+      | null
+      | undefined,
+    fallbackTopic: string | null | undefined
+  ) {
+    return customer?.realName ?? customer?.nickname ?? customer?.phone ?? fallbackTopic ?? "未知客户";
+  }
+
+  private getConversationActivityTimestamp(item: {
+    lastMessageAt: Date | null;
+    updatedAt: Date;
+    createdAt: Date;
+  }) {
+    return (item.lastMessageAt ?? item.updatedAt ?? item.createdAt).getTime();
+  }
+
+  private formatHourMinuteFromConversation(item: {
+    lastMessageAt: Date | null;
+    updatedAt: Date;
+    createdAt: Date;
+  }) {
+    return this.formatHourMinute(item.lastMessageAt ?? item.updatedAt ?? item.createdAt);
+  }
+
+  private buildAdminConversationPreview(
+    scene: ConversationScene,
+    previewText: string,
+    grouped: boolean
+  ) {
+    const content = previewText.trim();
+    if (!grouped) {
+      return content;
+    }
+
+    const sceneLabel = this.getAdminConversationSceneLabel(scene);
+    return content ? `【${sceneLabel}】${content}` : sceneLabel;
+  }
+
+  private getAdminConversationSceneLabel(scene: ConversationScene) {
+    if (scene === ConversationScene.DOCTOR) {
+      return "医生咨询";
+    }
+    if (scene === ConversationScene.ASSISTANT) {
+      return "豆沙包";
+    }
+    if (scene === ConversationScene.AFTER_SALE) {
+      return "售后跟进";
+    }
+    return "客服会话";
+  }
+
+  private async getAdminConversationBundle(conversationId: string) {
+    const seedConversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        participants: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    if (!seedConversation) {
+      throw new NotFoundException("Conversation not found");
+    }
+
+    const customerParticipant = this.findAdminCustomerParticipant(
+      seedConversation.participants
+    );
+    const customerId = customerParticipant?.userId ?? null;
+    const conversations = await this.prismaService.conversation.findMany({
+      where: customerId
+        ? {
+            participants: {
+              some: {
+                userId: customerId
+              }
+            }
+          }
+        : { id: conversationId },
+      include: {
+        participants: {
+          include: {
+            user: true
+          }
+        }
+      },
+      orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }, { createdAt: "desc" }]
+    });
+
+    const resolvedConversations = conversations.length ? conversations : [seedConversation];
+    const latestConversation =
+      resolvedConversations[0] ??
+      seedConversation;
+
+    return {
+      customerId,
+      conversationIds: resolvedConversations.map((item) => item.id),
+      conversations: resolvedConversations,
+      latestConversation
+    };
+  }
+
+  private buildAdminConversationTimelineMessages(
+    messages: Array<{
+      id: string;
+      conversationId: string;
+      senderId: string | null;
+      contentType: MessageContentType;
+      content: unknown;
+      createdAt: Date;
+      sender:
+        | {
+            id: string;
+            realName: string | null;
+            nickname: string | null;
+            phone: string;
+            avatarUrl: string | null;
+          }
+        | null;
+    }>,
+    conversationMap: Map<
+      string,
+      {
+        scene: ConversationScene;
+        topic: string | null;
+      }
+    >,
+    customerId: string | null
+  ) {
+    void conversationMap;
+
+    return messages.map((item) => {
+      const content = this.extractMessageContent(item.contentType, item.content);
+
+      return {
+        id: item.id,
+        side: item.senderId && customerId && item.senderId === customerId ? "left" : "right",
+        text: content,
+        avatar: item.sender?.avatarUrl ?? null
+      };
+    });
+  }
+
+  private rankAdminConversationServices(
+    services: Array<{
+      id: string;
+      title: string;
+      category: string;
+      coverUrl: string | null;
+      price: unknown;
+      salesVolume: number;
+      rating: unknown;
+    }>,
+    customer:
+      | {
+          archive: unknown;
+          ownedOrders: Array<{
+            serviceId: string;
+            service: {
+              category: string;
+            };
+          }>;
+        }
+      | null,
+    conversations: Array<{
+      scene: ConversationScene;
+    }>
+  ) {
+    const orderedServiceIds = new Set(customer?.ownedOrders.map((item) => item.serviceId) ?? []);
+    const preferredCategories = new Set(
+      customer?.ownedOrders.map((item) => item.service.category) ?? []
+    );
+    const riskText = JSON.stringify(ensureRecord(customer?.archive).riskTags ?? []);
+    const scenes = new Set(conversations.map((item) => item.scene));
+
+    return services
+      .map((item) => {
+        let score = item.salesVolume * 0.04 + (toNumber(item.rating) ?? 0) * 12;
+
+        if (orderedServiceIds.has(item.id)) {
+          score += scenes.has(ConversationScene.AFTER_SALE) ? 120 : 70;
+        }
+
+        if (preferredCategories.has(item.category)) {
+          score += 56;
+        }
+
+        if (/高血压|血压/.test(riskText) && /(体检|陪诊|慢病)/.test(item.title)) {
+          score += 38;
+        }
+
+        if (/糖尿病|血糖/.test(riskText) && /(体检|慢病|营养)/.test(item.title)) {
+          score += 34;
+        }
+
+        if (/脑卒中|膝|康复|术后/.test(riskText) && /康复/.test(item.title)) {
+          score += 42;
+        }
+
+        if (scenes.has(ConversationScene.DOCTOR) && /(体检|陪诊|康复)/.test(item.title)) {
+          score += 24;
+        }
+
+        if (scenes.has(ConversationScene.ASSISTANT) && item.category === "HOME_EXAM") {
+          score += 18;
+        }
+
+        return {
+          ...item,
+          score
+        };
+      })
+      .sort((left, right) => right.score - left.score);
+  }
+
   private formatMonthDay(value: Date) {
     return `${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
   }
 
   private formatMonthDayTime(value: Date) {
     return `${this.formatMonthDay(value)} ${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
+  }
+
+  private formatHourMinute(value: Date) {
+    return `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
+  }
+
+  private toDisplayDateTime(value: Date | string | null | undefined) {
+    const iso = toDateTimeString(value);
+    return iso ? iso.replace("T", " ").slice(0, 16) : null;
   }
 
   private async findDoctorUser(doctorUserId?: string) {

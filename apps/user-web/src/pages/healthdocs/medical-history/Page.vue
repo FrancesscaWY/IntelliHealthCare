@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getArchiveBasicInfo, getArchiveMedicalHistory, type ArchiveBasicInfo } from "@/shared/api/health-archive";
 import mock from "./mock";
 import type { HealthInfoField, HealthInfoOption } from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const fieldMap = Object.fromEntries(
+  mock.groups.flatMap((group) => group.fields).map((item) => [item.key, item]),
+) as Record<string, HealthInfoField>;
 
 const formState = reactive<Record<string, string>>(
   Object.fromEntries(
@@ -28,6 +32,11 @@ const activeSelect = ref<{
   placeholder?: string;
   options: HealthInfoOption[];
 } | null>(null);
+const isLoading = ref(false);
+
+onMounted(() => {
+  void loadMedicalHistory();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -76,11 +85,104 @@ function getSelectedLabel(field: HealthInfoField) {
   const currentValue = formState[field.key];
   const currentOption = field.options?.find((option) => option.value === currentValue);
 
-  return currentOption?.label || field.placeholder || "请选择";
+  return currentOption?.label || currentValue || field.placeholder || "请选择";
 }
 
 function saveProfile() {
   props.showToast("健康信息已暂存");
+}
+
+async function loadMedicalHistory() {
+  isLoading.value = true;
+
+  try {
+    const [basicInfo, medicalHistory] = await Promise.all([
+      getArchiveBasicInfo(),
+      getArchiveMedicalHistory(),
+    ]);
+
+    applyBasicInfo(basicInfo);
+    applyMedicalHistory(medicalHistory.medicalHistory);
+  } catch (error) {
+    console.error("load archive medical history failed", error);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function applyBasicInfo(data: ArchiveBasicInfo) {
+  setFormValue("height", data.height);
+  setFormValue("weight", data.weight);
+  setSelectValue("bloodType", data.bloodType);
+}
+
+function applyMedicalHistory(history: Record<string, unknown> | null) {
+  const source = asRecord(history);
+  const lifestyle = asRecord(source.lifestyle);
+  const chronicDiseases = toStringArray(source.chronicDiseases ?? source.chronicDisease);
+
+  setSelectValue("rhType", source.rhType);
+  setSelectValue("chronicDisease", chronicDiseases.length > 1 ? chronicDiseases.join("、") : chronicDiseases[0]);
+  setSelectValue("sleepQuality", lifestyle.sleepQuality ?? source.sleepQuality);
+  setSelectValue("smokingFrequency", lifestyle.smokingFrequency ?? source.smokingFrequency);
+  setSelectValue("drinkingFrequency", lifestyle.drinkingFrequency ?? source.drinkingFrequency);
+  setSelectValue("exerciseFrequency", lifestyle.exerciseFrequency ?? source.exerciseFrequency);
+  setSelectValue("dietPreference", lifestyle.dietPreference ?? source.dietPreference);
+
+  recordState.medicalHistory = toStringArray(source.surgeries ?? source.medicalHistory);
+  recordState.familyHistory = toStringArray(source.familyHistory);
+  recordState.allergyHistory = toStringArray(source.allergies ?? source.allergyHistory);
+  recordState.visitHistory = toStringArray(source.visitHistory ?? source.visits);
+}
+
+function setFormValue(key: string, value: unknown) {
+  const normalized = toDisplayString(value);
+  formState[key] = normalized;
+}
+
+function setSelectValue(key: string, value: unknown) {
+  const normalized = toDisplayString(value);
+  const field = fieldMap[key];
+
+  if (!normalized || field?.type !== "select") {
+    formState[key] = normalized;
+    return;
+  }
+
+  const matched = field.options?.find((option) => option.value === normalized || option.label === normalized);
+  formState[key] = matched?.value || normalized;
+}
+
+function toDisplayString(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return "";
+}
+
+function toStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  return [];
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 </script>
 
@@ -182,7 +284,9 @@ function saveProfile() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveProfile">保存</button>
+      <button class="save-btn" type="button" @click="saveProfile">
+        {{ isLoading ? "加载中..." : "保存" }}
+      </button>
     </footer>
 
     <div v-if="activeSelect" class="sheet-mask" @click.self="closeSelect">
@@ -207,16 +311,16 @@ function saveProfile() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -250,17 +354,17 @@ function saveProfile() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -290,18 +394,18 @@ function saveProfile() {
 
 .section-heading h2 {
   margin: 0;
-  color: #30343f;
+  color: #222733;
   font-size: 17px;
   font-weight: 600;
   line-height: 1.2;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
 .section-heading p {
   min-width: 0;
   margin: 0;
-  color: #b7b7bb;
+  color: #9a9da6;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -353,11 +457,11 @@ function saveProfile() {
 }
 
 .form-label__text {
-  color: #8f96a0;
-  font-size: 15px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.3;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -382,21 +486,21 @@ function saveProfile() {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.5;
 }
 
 .field-control::placeholder {
-  color: #b7b7bb;
+  color: #9a9da6;
   font-weight: 500;
   opacity: 1;
 }
 
 .field-control--empty,
 .field-value--empty {
-  color: #b7b7bb;
+  color: #9a9da6;
   font-weight: 500;
 }
 
@@ -409,8 +513,8 @@ function saveProfile() {
 .field-suffix {
   flex: 0 0 auto;
   color: #b4bac5;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .select-trigger {
@@ -449,7 +553,7 @@ function saveProfile() {
   border-radius: 11px;
   background: #f7f7f9;
   box-shadow: inset 0 0 0 1px #e3e5ea;
-  color: #9ea2a8;
+  color: #8f95a2;
   text-align: left;
 }
 
@@ -461,8 +565,8 @@ function saveProfile() {
   border-radius: 50%;
   border: 2px solid #c7c7c7;
   color: #c7c7c7;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -493,7 +597,7 @@ function saveProfile() {
 }
 
 .record-card__index {
-  color: #9ea2a8;
+  color: #8f95a2;
   font-size: 12px;
   font-weight: 500;
 }
@@ -522,12 +626,12 @@ function saveProfile() {
   width: 100%;
   height: 54px;
   border-radius: 11px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 14px 28px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .sheet-mask {
@@ -561,11 +665,11 @@ function saveProfile() {
 .choice-sheet__option {
   display: block;
   width: 100%;
-  min-height: 84px;
+  min-height: 64px;
   border-top: 1px solid #eeeeee;
-  color: #30343f;
-  font-size: 22px;
-  font-weight: 400;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .choice-sheet__option:first-of-type {
@@ -574,8 +678,8 @@ function saveProfile() {
 
 @media (min-width: 561px) {
   .detail-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

@@ -127,6 +127,19 @@ const mock = {
           { key: 'review', label: '去评价', type: 'primary' },
         ],
       },
+      {
+        id: 203,
+        status: 'assessment',
+        statusText: '待评估',
+        title: '老年人 全面健康体检套餐',
+        price: 599,
+        image: examImage,
+        actions: [
+          { key: 'checkup-report', label: '查看报告', type: 'ghost' },
+          { key: 'again', label: '再次购买', type: 'ghost' },
+          { key: 'review', label: '去评价', type: 'primary' },
+        ],
+      },
     ],
   },
 }

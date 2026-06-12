@@ -1,9 +1,24 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import {
+  favoriteHealthLecture,
+  getHealthLectureDetail,
+  likeHealthLecture,
+  listHealthLectureComments,
+  listHealthLectures,
+  shareHealthLecture,
+  type HealthLectureListItem
+} from "@/shared/api/content";
 import mock from "./mock";
-import { currentUserCommentProfile } from "../comment-mock";
-import { lectureDetailTarget } from "../health-lecture/state";
+import { getCurrentUserCommentProfile, type ContentComment } from "../comment-mock";
+import { lectureDetailTarget, selectedLectureId } from "../health-lecture/state";
+import {
+  normalizeLectureCommentContent,
+  resolveLectureCommentAvatar,
+  resolveLectureImage,
+  resolveLectureVideoUrl
+} from "@/shared/utils/healthLectureMedia";
 
 const props = defineProps<PageComponentProps>();
 
@@ -12,19 +27,26 @@ const progressTrackRef = ref<HTMLElement | null>(null);
 const commentsSectionRef = ref<HTMLElement | null>(null);
 const commentInputRef = ref<HTMLInputElement | null>(null);
 
+const title = ref(mock.title);
+const publishText = ref(mock.publishText);
+const summary = ref(mock.summary);
+const tags = ref([...mock.tags]);
+const heroImage = ref(mock.heroImage);
+const videoUrl = ref(mock.videoUrl);
 const liked = ref(false);
 const starred = ref(false);
 const showComposer = ref(false);
 const showEmojiPanel = ref(false);
-const replyTarget = ref<string>("");
+const replyTarget = ref("");
 const likeCount = ref(mock.stats.likes);
 const starCount = ref(mock.stats.stars);
 const commentCount = ref(mock.stats.comments);
 const commentDraft = ref("");
-const comments = ref([...mock.comments]);
+const comments = ref<ContentComment[]>([...mock.comments]);
 const currentTime = ref(0);
 const duration = ref(0);
 const isPlaying = ref(false);
+const recommendation = ref({ ...mock.recommendation });
 
 const progressPercent = computed(() => {
   if (!duration.value) {
@@ -34,7 +56,75 @@ const progressPercent = computed(() => {
   return Math.min(currentTime.value / duration.value, 1);
 });
 
-const emojiOptions = ["😀", "😊", "🙂", "😉", "🥰", "👏", "👍", "❤️", "🎉", "🌹", "😄", "🤗"];
+const emojiOptions = ["😀", "😉", "😊", "😄", "👍", "👏", "✨", "🌷"];
+
+function formatTime(value: number) {
+  const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  const minutes = String(Math.floor(safeValue / 60)).padStart(2, "0");
+  const seconds = String(safeValue % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function formatPublishText(publishedAt?: string, viewsCount?: number | null, durationMinutes?: number | null) {
+  const parts: string[] = [];
+
+  if (publishedAt) {
+    const publishedDate = new Date(publishedAt);
+    if (!Number.isNaN(publishedDate.getTime())) {
+      parts.push(`${publishedDate.getFullYear()}年${publishedDate.getMonth() + 1}月${publishedDate.getDate()}日发布`);
+    }
+  }
+
+  if (typeof durationMinutes === "number" && durationMinutes > 0) {
+    parts.push(`${durationMinutes}分钟`);
+  }
+
+  if (typeof viewsCount === "number") {
+    parts.push(`${viewsCount}次播放`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : mock.publishText;
+}
+
+function mapLectureCard(item: HealthLectureListItem) {
+  const lectureId = item.lectureId || item.id;
+
+  return {
+    id: item.id || lectureId,
+    title: item.title,
+    imageUrl: resolveLectureImage(lectureId, item.title, item.imageUrl, item.coverUrl),
+    likes: item.likesCount ?? item.stats?.likes ?? 0,
+    stars: item.favoritesCount ?? item.stats?.stars ?? 0,
+    comments: item.commentsCount ?? item.stats?.comments ?? 0,
+    lectureId
+  };
+}
+
+function mapComments(items: Array<{
+  id: string;
+  author: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  city: string | null;
+  content: string;
+  replyTo?: string;
+  likes: number;
+  liked: boolean;
+  isMine: boolean;
+}>): ContentComment[] {
+  return items.map((item) => ({
+    id: item.id,
+    author: item.author || "匿名用户",
+    avatarUrl: resolveLectureCommentAvatar(item.author || "匿名用户", item.avatarUrl),
+    time: item.createdAt || "刚刚",
+    city: item.city || "未知",
+    content: normalizeLectureCommentContent(item.content),
+    replyTo: item.replyTo,
+    likes: item.likes ?? 0,
+    liked: Boolean(item.liked),
+    isMine: Boolean(item.isMine)
+  }));
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -42,16 +132,108 @@ function goBack() {
   }
 }
 
-function openDetail() {
+function openDetail(lectureId: string) {
+  selectedLectureId.value = lectureId;
   lectureDetailTarget.value = "default";
   props.navigation.redirectTo("content/health-lecture-detail");
 }
 
-function formatTime(value: number) {
-  const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-  const minutes = String(Math.floor(safeValue / 60)).padStart(2, "0");
-  const seconds = String(safeValue % 60).padStart(2, "0");
-  return `${minutes}:${seconds}`;
+function applyFallbackImage(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = mock.heroImage;
+}
+
+function applyFallbackAvatar(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+  const currentUserCommentProfile = getCurrentUserCommentProfile();
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = currentUserCommentProfile.avatarUrl;
+}
+
+async function loadRecommendation(currentLectureId: string) {
+  try {
+    const response = await listHealthLectures({
+      page: 1,
+      pageSize: 3,
+      sort: "LATEST"
+    });
+    const nextLecture = response.list.find((item) => (item.lectureId || item.id) !== currentLectureId);
+
+    if (!nextLecture) {
+      recommendation.value = { ...mock.recommendation };
+      return;
+    }
+
+    recommendation.value = mapLectureCard(nextLecture);
+  } catch {
+    recommendation.value = { ...mock.recommendation };
+  }
+}
+
+async function loadDetail() {
+  const lectureId = selectedLectureId.value.trim();
+
+  if (!lectureId) {
+    return;
+  }
+
+  try {
+    const detail = await getHealthLectureDetail(lectureId);
+
+    title.value = detail.title;
+    publishText.value = formatPublishText(detail.publishedAt, detail.viewsCount, detail.durationMinutes);
+    summary.value = detail.summary || mock.summary;
+    tags.value = [
+      ...(detail.speakerName ? [`#${detail.speakerName}`] : []),
+      ...(detail.speakerTitle ? [`#${detail.speakerTitle}`] : [])
+    ].slice(0, 2);
+    if (tags.value.length === 0) {
+      tags.value = [...mock.tags];
+    }
+    heroImage.value = resolveLectureImage(detail.lectureId || detail.id || lectureId, detail.title, detail.heroImage, detail.coverUrl, detail.imageUrl, detail.gallery?.[0]?.url);
+    videoUrl.value = resolveLectureVideoUrl(detail.videoUrl);
+    liked.value = false;
+    starred.value = false;
+    likeCount.value = detail.likesCount ?? detail.stats?.likes ?? 0;
+    starCount.value = detail.favoritesCount ?? detail.stats?.stars ?? 0;
+    commentCount.value = detail.commentsCount ?? detail.stats?.comments ?? 0;
+    comments.value = mapComments(detail.comments || []);
+    await loadRecommendation(detail.lectureId || detail.id || lectureId);
+  } catch {
+    props.showToast("讲堂详情加载失败，已显示本地示例");
+    await loadRecommendation(lectureId);
+  }
+}
+
+async function loadComments() {
+  const lectureId = selectedLectureId.value.trim();
+
+  if (!lectureId) {
+    return;
+  }
+
+  try {
+    const response = await listHealthLectureComments(lectureId, {
+      page: 1,
+      pageSize: 50
+    });
+
+    comments.value = mapComments(response.list);
+    commentCount.value = response.total;
+  } catch {
+    props.showToast("评论加载失败，已显示本地示例");
+  }
 }
 
 async function enterFullscreen() {
@@ -148,14 +330,61 @@ function seekVideo(event: MouseEvent) {
   videoRef.value.currentTime = duration.value * ratio;
 }
 
-function toggleLike() {
-  liked.value = !liked.value;
-  likeCount.value += liked.value ? 1 : -1;
+async function toggleLike() {
+  const lectureId = selectedLectureId.value.trim();
+
+  if (!lectureId) {
+    return;
+  }
+
+  if (liked.value) {
+    props.showToast("已点赞");
+    return;
+  }
+
+  try {
+    await likeHealthLecture(lectureId);
+    liked.value = true;
+    likeCount.value += 1;
+  } catch {
+    props.showToast("点赞失败，请稍后再试");
+  }
 }
 
-function toggleStar() {
-  starred.value = !starred.value;
-  starCount.value += starred.value ? 1 : -1;
+async function toggleStar() {
+  const lectureId = selectedLectureId.value.trim();
+
+  if (!lectureId) {
+    return;
+  }
+
+  if (starred.value) {
+    props.showToast("已收藏");
+    return;
+  }
+
+  try {
+    await favoriteHealthLecture(lectureId);
+    starred.value = true;
+    starCount.value += 1;
+  } catch {
+    props.showToast("收藏失败，请稍后再试");
+  }
+}
+
+async function shareLecture() {
+  const lectureId = selectedLectureId.value.trim();
+
+  if (!lectureId) {
+    return;
+  }
+
+  try {
+    await shareHealthLecture(lectureId);
+    props.showToast("分享记录已更新");
+  } catch {
+    props.showToast("分享失败，请稍后再试");
+  }
 }
 
 function scrollToComments() {
@@ -232,6 +461,7 @@ function deleteComment(commentId: string) {
 
 function submitComment() {
   const content = commentDraft.value.trim();
+  const currentUserCommentProfile = getCurrentUserCommentProfile();
 
   if (!content) {
     props.showToast("请输入评论内容");
@@ -248,15 +478,18 @@ function submitComment() {
     replyTo: replyTarget.value || undefined,
     likes: 0,
     liked: false,
-    isMine: true,
+    isMine: true
   });
   commentDraft.value = "";
   commentCount.value += 1;
   closeComposer();
-  props.showToast("评论已发布");
+  props.showToast("评论已暂存");
 }
 
 onMounted(async () => {
+  await loadDetail();
+  await loadComments();
+
   if (lectureDetailTarget.value !== "comments") {
     return;
   }
@@ -274,8 +507,8 @@ onMounted(async () => {
         <video
           ref="videoRef"
           class="hero-video"
-          :poster="mock.heroImage"
-          :src="mock.videoUrl"
+          :poster="heroImage"
+          :src="videoUrl"
           preload="metadata"
           playsinline
           webkit-playsinline
@@ -293,7 +526,7 @@ onMounted(async () => {
           </button>
 
           <div class="hero-actions-right">
-            <button class="icon-btn" type="button" aria-label="耳机" @click="props.showToast('音频功能待接入')">
+            <button class="icon-btn" type="button" aria-label="音频">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 13a8 8 0 0 1 16 0" />
                 <path d="M4.5 13.5v4a2 2 0 0 0 2 2H8v-8H6.5a2 2 0 0 0-2 2Z" />
@@ -305,7 +538,7 @@ onMounted(async () => {
                 <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
               </svg>
             </button>
-            <button class="icon-btn" type="button" aria-label="分享" @click="props.showToast('分享功能待接入')">
+            <button class="icon-btn" type="button" aria-label="分享" @click="shareLecture">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M14 3h7v7" />
                 <path d="M10 14 21 3" />
@@ -315,7 +548,7 @@ onMounted(async () => {
           </div>
         </header>
 
-        <button v-if="!isPlaying" class="hero-play" type="button" :aria-label="`播放${mock.title}`" @click="playVideo">
+        <button v-if="!isPlaying" class="hero-play" type="button" :aria-label="`播放${title}`" @click="playVideo">
           <span class="hero-play-icon"></span>
         </button>
 
@@ -337,12 +570,12 @@ onMounted(async () => {
       </section>
 
       <section class="info-card">
-        <h1>{{ mock.title }}</h1>
-        <p class="publish-text">{{ mock.publishText }}</p>
-        <p class="summary-text">{{ mock.summary }}</p>
+        <h1>{{ title }}</h1>
+        <p class="publish-text">{{ publishText }}</p>
+        <p class="summary-text">{{ summary }}</p>
 
         <div class="tag-row">
-          <span v-for="tag in mock.tags" :key="tag">{{ tag }}</span>
+          <span v-for="tag in tags" :key="tag">{{ tag }}</span>
         </div>
       </section>
 
@@ -350,10 +583,10 @@ onMounted(async () => {
         <h2>{{ mock.recommendationTitle }}</h2>
 
         <article class="recommend-card">
-          <h3>{{ mock.recommendation.title }}</h3>
+          <h3>{{ recommendation.title }}</h3>
 
-          <button class="recommend-cover" type="button" :aria-label="`播放${mock.recommendation.title}`" @click="openDetail">
-            <img :src="mock.recommendation.imageUrl" :alt="mock.recommendation.title" draggable="false" />
+          <button class="recommend-cover" type="button" :aria-label="`播放${recommendation.title}`" @click="openDetail(recommendation.lectureId)">
+            <img :src="recommendation.imageUrl" :alt="recommendation.title" draggable="false" @error="applyFallbackImage" />
             <span class="recommend-play" aria-hidden="true">
               <span class="recommend-play-icon"></span>
             </span>
@@ -367,7 +600,7 @@ onMounted(async () => {
         </header>
 
         <article v-for="item in comments" :key="item.id" class="comment-item" @click="replyToComment(item.author)">
-          <img class="comment-avatar" :src="item.avatarUrl" :alt="item.author" draggable="false" />
+          <img class="comment-avatar" :src="item.avatarUrl" :alt="item.author" draggable="false" @error="applyFallbackAvatar" />
 
           <div class="comment-main">
             <header class="comment-top">
@@ -482,9 +715,9 @@ onMounted(async () => {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #f2f2f2;
@@ -1091,8 +1324,8 @@ onMounted(async () => {
 
 @media (min-width: 561px) {
   .lecture-detail-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -1133,3 +1366,4 @@ onMounted(async () => {
   }
 }
 </style>
+

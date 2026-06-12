@@ -108,7 +108,7 @@ npm install
 
 ```bash
 npm run dev:user
-```
+``` 
 
 后台端：
 
@@ -415,7 +415,7 @@ scripts/
 建议阅读顺序：
 
 1. 本文档
-2. [architecture.md](./architecture.md)
+2. [项目架构文档.md](./项目架构文档.md)
 3. [backend-architecture.md](./backend-architecture.md)
 4. [user-web-analysis-and-api.md](./user-web-analysis-and-api.md)
 5. [intellihealthcare-multi-agent-blueprint.md](./intellihealthcare-multi-agent-blueprint.md)

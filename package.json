@@ -8,11 +8,28 @@
   ],
   "scripts": {
     "dev:user": "node ./scripts/dev-user.mjs --app user",
+    "dev:user:desktop": "node ./apps/user-desktop/scripts/dev.mjs",
     "dev:page": "node ./scripts/dev-page.mjs --app user",
     "dev:admin": "node ./scripts/dev-user.mjs --app admin",
     "dev:admin:page": "node ./scripts/dev-page.mjs --app admin",
     "dev:backend": "npm run dev --workspace @ihc/backend",
+    "serve:backend": "npm run build --workspace @ihc/backend && npm run start --workspace @ihc/backend",
+    "dev:backend:tmux": "bash ./scripts/dev-backend-tmux.sh start",
+    "dev:backend:tmux:attach": "bash ./scripts/dev-backend-tmux.sh attach",
+    "dev:backend:tmux:status": "bash ./scripts/dev-backend-tmux.sh status",
+    "dev:backend:tmux:stop": "bash ./scripts/dev-backend-tmux.sh stop",
+    "dev:backend:tmux:restart": "bash ./scripts/dev-backend-tmux.sh restart",
+    "serve:backend:tmux": "bash ./scripts/dev-backend-tmux.sh start stable",
+    "serve:backend:tmux:attach": "bash ./scripts/dev-backend-tmux.sh attach stable",
+    "serve:backend:tmux:status": "bash ./scripts/dev-backend-tmux.sh status stable",
+    "serve:backend:tmux:stop": "bash ./scripts/dev-backend-tmux.sh stop stable",
+    "serve:backend:tmux:restart": "bash ./scripts/dev-backend-tmux.sh restart stable",
     "build:user": "node ./scripts/build-user-web.mjs --app user",
+    "build:user:desktop": "node ./apps/user-desktop/scripts/build.mjs --dir --win --x64",
+    "build:user:desktop:win": "node ./apps/user-desktop/scripts/build.mjs --dir --win --x64",
+    "dist:user:desktop": "node ./apps/user-desktop/scripts/build.mjs --win zip --x64",
+    "dist:user:desktop:win": "node ./apps/user-desktop/scripts/build.mjs --win zip --x64",
+    "dist:user:desktop:win:nsis": "node ./apps/user-desktop/scripts/build.mjs --win nsis --x64",
     "build:admin": "node ./scripts/build-user-web.mjs --app admin",
     "build:backend": "npm run build --workspace @ihc/backend",
     "build": "npm run build:user && npm run build:admin && npm run build:backend",
@@ -24,6 +41,7 @@
     "test:backend:integration": "npm run test:integration --workspace @ihc/backend",
     "test:backend:smoke:baseline": "node ./scripts/backend-smoke-baseline.mjs",
     "test:backend:smoke:expanded": "node ./scripts/backend-smoke-expanded.mjs",
+    "test:backend:contract:user": "node ./scripts/backend-user-frontend-contract.mjs",
     "test:backend:smoke:regression": "node ./scripts/backend-smoke-expanded.mjs",
     "check": "npm run check:user && npm run check:admin && npm run check:backend",
     "db:generate:backend": "npm run prisma:generate --workspace @ihc/backend",
@@ -38,6 +56,10 @@
     "prompt:admin-page": "node ./scripts/codex-prompt.mjs --app admin"
   },
   "devDependencies": {
-    "localtunnel": "^2.0.2"
+    "localtunnel": "^2.0.2",
+    "muggle-string": "^0.4.1"
+  },
+  "dependencies": {
+    "echarts": "^6.0.0"
   }
 }

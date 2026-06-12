@@ -18,7 +18,7 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8190),
   APP_NAME: z.string().min(1).default("IntelliHealthCare Backend"),
   API_PREFIX: z.string().min(1).default("api/v1"),
-  CORS_ORIGINS: z.string().default("http://localhost:5173,http://localhost:5174"),
+  CORS_ORIGINS: z.string().default("http://server.mctown.online:5173,http://server.mctown.online:5174"),
   DATABASE_URL: z.string().min(1),
   DATABASE_DEV_FALLBACK_ENABLED: booleanStringTrue,
   DATABASE_DEV_FALLBACK_AUTO_SEED: booleanStringTrue,
@@ -92,6 +92,15 @@ export type EnvironmentVariables = z.infer<typeof envSchema>;
 
 export function validateEnv(config: Record<string, unknown>) {
   const normalized = { ...config };
+  const llmProvider =
+    typeof normalized.AGENT_LLM_PROVIDER === "string"
+      ? normalized.AGENT_LLM_PROVIDER.trim()
+      : "";
+  const resolvedLlmProvider = llmProvider || "deepseek";
+  const llmBaseUrl =
+    typeof normalized.AGENT_LLM_BASE_URL === "string"
+      ? normalized.AGENT_LLM_BASE_URL.trim()
+      : "";
 
   const agentApiKey =
     typeof normalized.AGENT_LLM_API_KEY === "string"
@@ -106,10 +115,14 @@ export function validateEnv(config: Record<string, unknown>) {
     normalized.AGENT_LLM_API_KEY = deepseekApiKey;
   }
 
-  const llmProvider =
-    typeof normalized.AGENT_LLM_PROVIDER === "string"
-      ? normalized.AGENT_LLM_PROVIDER.trim()
-      : "";
+  if (!llmProvider) {
+    normalized.AGENT_LLM_PROVIDER = resolvedLlmProvider;
+  }
+
+  if (!llmBaseUrl && resolvedLlmProvider === "deepseek") {
+    normalized.AGENT_LLM_BASE_URL = "https://api.deepseek.com";
+  }
+
   const embeddingProvider =
     typeof normalized.AGENT_EMBEDDING_PROVIDER === "string"
       ? normalized.AGENT_EMBEDDING_PROVIDER.trim()
@@ -125,8 +138,8 @@ export function validateEnv(config: Record<string, unknown>) {
 
   if (!embeddingProvider) {
     normalized.AGENT_EMBEDDING_PROVIDER =
-      llmProvider === "openrouter" || llmProvider === "openai-compatible"
-        ? llmProvider
+      resolvedLlmProvider === "openrouter" || resolvedLlmProvider === "openai-compatible"
+        ? resolvedLlmProvider
         : "mock";
   }
 

@@ -1,18 +1,25 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import {
-  Comment,
-  Coupon,
-  Headset,
-  Help,
-  MedicalFiles,
-  Setting,
-  Star,
-} from "@icon-park/vue-next";
+import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
+import Comment from "@icon-park/vue-next/es/icons/Comment";
+import Coupon from "@icon-park/vue-next/es/icons/Coupon";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
+import Help from "@icon-park/vue-next/es/icons/Help";
+import MedicalFiles from "@icon-park/vue-next/es/icons/MedicalFiles";
+import Setting from "@icon-park/vue-next/es/icons/Setting";
+import Star from "@icon-park/vue-next/es/icons/Star";
+import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import { loadUserProfileState, syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
+const profileState = ref(loadUserProfileState());
+
+let assistantRive: Rive | null = null;
+let assistantResizeObserver: ResizeObserver | null = null;
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -66,23 +73,71 @@ function openSubPage(pageId: string, label: string) {
 
   props.navigation.navigateTo(pageId);
 }
+
+function openCheckupHistory() {
+  props.navigation.navigateTo("orders/checkup-history");
+}
+
+function openSupportChat() {
+  openSubPage("home/customer-service-chat", "客服");
+}
+
+function resizeAssistant() {
+  assistantRive?.resizeDrawingSurfaceToCanvas();
+}
+
+onMounted(() => {
+  profileState.value = loadUserProfileState();
+  void syncUserProfileStateFromApi()
+    .then((state) => {
+      profileState.value = state;
+    })
+    .catch(() => {});
+
+  if (!assistantCanvasRef.value) return;
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: "State Machine 1",
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    onLoad: resizeAssistant,
+  });
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistant);
+  assistantResizeObserver.observe(assistantCanvasRef.value);
+});
+
+const profileAvatar = computed(() => profileState.value.avatarUrl || mock.profile.avatar);
+const profileName = computed(() => profileState.value.nickname || mock.profile.name);
+
+onBeforeUnmount(() => {
+  assistantResizeObserver?.disconnect();
+  assistantResizeObserver = null;
+  assistantRive?.cleanup();
+  assistantRive = null;
+});
 </script>
 
 <template>
   <section class="mine-page">
     <main class="mine-scroll">
       <header class="profile-header">
-        <button class="support-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
-          <Headset theme="outline" size="22" fill="#34383f" />
+        <button class="support-button" type="button" aria-label="客服" @click="openSupportChat">
+          <Headset theme="outline" size="22" fill="#1aaeba" />
         </button>
         <div class="profile-main">
-          <img class="avatar" :src="mock.profile.avatar" :alt="mock.profile.name" />
+          <img class="avatar" :src="profileAvatar" :alt="profileName" />
           <button class="homepage-link" type="button" @click="openSubPage(mock.profile.homepagePageId, '个人主页')">
             个人主页 >
           </button>
           <div class="profile-text">
             <div class="name-row">
-              <h1>{{ mock.profile.name }}</h1>
+              <h1>{{ profileName }}</h1>
             </div>
             <span class="level-badge">{{ mock.profile.level }}</span>
           </div>
@@ -96,23 +151,12 @@ function openSubPage(pageId: string, label: string) {
         </div>
       </header>
 
-      <section class="health-section" aria-label="健康数据">
-        <div class="section-heading">
-          <h2>健康数据</h2>
-          <span>•••</span>
+      <section class="health-analyse" aria-label="报告分析">
+        <div class="assistant-entry-avatar" aria-hidden="true">
+          <canvas ref="assistantCanvasRef" width="92" height="92"></canvas>
         </div>
-        <div class="health-card-list">
-          <article v-for="item in mock.profile.healthCards" :key="item.key" class="health-card" :class="`health-card--${item.tone}`">
-            <div class="health-card-top">
-              <span>{{ item.label }}</span>
-              <i aria-hidden="true"></i>
-            </div>
-            <strong>{{ item.value }} <em>{{ item.unit }}</em></strong>
-            <div class="health-visual" :class="`health-visual--${item.key}`" aria-hidden="true">
-              <span v-for="bar in 7" :key="bar"></span>
-            </div>
-          </article>
-        </div>
+        <span>AI评估报告入口</span>
+        <button type="button" @click="openCheckupHistory">立即体验</button>
       </section>
 
       <button class="order-entry-card" type="button" @click="openPage(mock.orderEntry.pageId, mock.orderEntry.label)">
@@ -127,7 +171,13 @@ function openSubPage(pageId: string, label: string) {
       </button>
 
       <section class="menu-card">
-        <button v-for="item in mock.menus" :key="item.key" class="menu-row" type="button">
+        <button
+          v-for="item in mock.menus"
+          :key="item.key"
+          class="menu-row"
+          type="button"
+          @click="openSubPage(item.pageId || '', item.label)"
+        >
           <span class="menu-icon">
             <component :is="menuIconMap[item.icon]" theme="outline" size="18" fill="currentColor" />
           </span>
@@ -154,8 +204,8 @@ function openSubPage(pageId: string, label: string) {
           <svg class="tab-svg" viewBox="0 0 48 48" focusable="false">
             <defs>
               <linearGradient :id="getNavGradientId(item.key)" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#6a74f1" />
-                <stop offset="100%" stop-color="#ef6f8e" />
+                <stop offset="0%" stop-color="#75d6df" />
+                <stop offset="100%" stop-color="#7be28e" />
               </linearGradient>
             </defs>
             <g
@@ -177,15 +227,16 @@ function openSubPage(pageId: string, label: string) {
 <style scoped>
 .mine-page {
   position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px 0;
-  transform: translateX(-50%);
+  width: calc(100% + 36px);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
+  margin: -18px 0 -18px -18px;
   overflow: hidden;
-  background: #f5f6f7;
+  background:
+    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
   color: #252939;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -195,15 +246,9 @@ function openSubPage(pageId: string, label: string) {
 .mine-scroll {
   position: relative;
   z-index: 1;
-  height: 100%;
-  padding: 16px 22px 100px;
+  min-height: var(--ihc-page-min-height);
+  padding: 16px 22px calc(126px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.mine-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .profile-header {
@@ -222,7 +267,8 @@ function openSubPage(pageId: string, label: string) {
   place-items: center;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(117, 214, 223, 0.18) 0%, rgba(123, 226, 142, 0.16) 100%);
   cursor: pointer;
 }
 
@@ -348,6 +394,74 @@ function openSubPage(pageId: string, label: string) {
 
 .health-section {
   margin-bottom: 16px;
+}
+
+.health-analyse {
+  position: relative;
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: 74px 1fr 86px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 13px 10px 8px;
+  overflow: hidden;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.92), transparent 34%),
+    linear-gradient(105deg, rgba(117, 214, 223, 0.98) 0%, rgba(45, 144, 240, 0.72) 52%, rgba(123, 226, 142, 0.88) 100%);
+  box-shadow: 0 14px 30px rgba(45, 144, 240, 0.14);
+}
+
+.health-analyse::after {
+  position: absolute;
+  right: -38px;
+  bottom: -48px;
+  width: 124px;
+  height: 124px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.assistant-entry-avatar {
+  position: relative;
+  transform: translateX(-10px) translateY(-18px);
+  z-index: 1;
+  width: 74px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+}
+
+.assistant-entry-avatar canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 8px 10px rgba(31, 42, 68, 0.13));
+}
+
+.health-analyse span {
+  position: relative;
+  z-index: 1;
+  color: #1f2a44;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.health-analyse button {
+  position: relative;
+  z-index: 1;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #0b0b0f 0%, #2a2111 42%, #d8a844 100%);
+  color: #fff6d5;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 9px 18px rgba(43, 31, 10, 0.24), inset 0 1px 0 rgba(255, 238, 178, 0.34);
 }
 
 .health-card-list {
@@ -546,8 +660,9 @@ function openSubPage(pageId: string, label: string) {
   display: grid;
   place-items: center;
   border-radius: 13px;
-  background: #eceaff;
-  color: #6872f0;
+  background: linear-gradient(135deg, rgba(117, 214, 223, 0.22) 0%, rgba(45, 144, 240, 0.14) 100%);
+  color: #1aaeba;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 8px 16px rgba(45, 144, 240, 0.08);
 }
 
 .order-entry-copy {
@@ -575,7 +690,7 @@ function openSubPage(pageId: string, label: string) {
   width: 100%;
   height: 58px;
   display: grid;
-  grid-template-columns: 26px 1fr 18px;
+  grid-template-columns: 36px 1fr 18px;
   gap: 10px;
   align-items: center;
   padding: 0 18px;
@@ -593,9 +708,14 @@ function openSubPage(pageId: string, label: string) {
 }
 
 .menu-icon {
-  color: #6872f0;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(117, 214, 223, 0.2) 0%, rgba(123, 226, 142, 0.14) 100%);
+  color: #1aaeba;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .chevron {
@@ -605,18 +725,20 @@ function openSubPage(pageId: string, label: string) {
 }
 
 .home-tabbar {
-  position: absolute;
-  right: 0;
+  position: fixed;
+  left: 50%;
   bottom: 0;
-  left: 0;
   z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  height: 74px;
-  padding: 9px 12px 10px;
+  width: min(402px, 100vw);
+  height: calc(74px + env(safe-area-inset-bottom, 0px));
+  padding: 9px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
+  transform: translateX(-50%);
 }
 
 .home-tabbar::before {
@@ -648,7 +770,7 @@ function openSubPage(pageId: string, label: string) {
 }
 
 .tab-item--active {
-  color: #6872f0;
+  color: #66cfa7;
 }
 
 .tab-image {
@@ -682,8 +804,8 @@ function openSubPage(pageId: string, label: string) {
   height: 42px;
   margin-top: -29px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6872f0 0%, #ed6d88 100%);
-  box-shadow: 0 15px 25px rgba(102, 112, 240, 0.26);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
 }
 
 .tab-icon--publish::before,
@@ -705,8 +827,8 @@ function openSubPage(pageId: string, label: string) {
 
 @media (min-width: 561px) {
   .mine-page {
-    height: 874px;
-    min-height: 874px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 </style>

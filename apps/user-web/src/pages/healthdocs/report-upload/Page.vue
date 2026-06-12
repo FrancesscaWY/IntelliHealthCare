@@ -5,13 +5,13 @@ import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { addUploadedReport } = useReportCenter();
+const { addUploadedReport, isUploadingReport } = useReportCenter();
 
 const form = reactive({
   title: "",
   reportDate: "",
   file: null as File | null,
-  fileName: "",
+  fileName: ""
 });
 
 const showUploadSheet = ref(false);
@@ -69,7 +69,7 @@ function handleFileChange(event: Event) {
   input.value = "";
 }
 
-function saveReport() {
+async function saveReport() {
   if (!form.title.trim()) {
     props.showToast("请输入报告名称");
     return;
@@ -85,15 +85,19 @@ function saveReport() {
     return;
   }
 
-  addUploadedReport(form.file, {
-    title: form.title.trim(),
-    reportDate: form.reportDate,
-  });
+  try {
+    await addUploadedReport(form.file, {
+      title: form.title.trim(),
+      reportDate: form.reportDate
+    });
 
-  props.showToast("报告上传成功");
-  window.setTimeout(() => {
-    props.navigation.reLaunch("healthdocs/checkup-reports");
-  }, 220);
+    props.showToast("报告上传成功");
+    window.setTimeout(() => {
+      props.navigation.reLaunch("healthdocs/checkup-reports");
+    }, 220);
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "报告上传失败");
+  }
 }
 </script>
 
@@ -138,7 +142,9 @@ function saveReport() {
     </main>
 
     <footer class="save-area">
-      <button class="save-btn" type="button" @click="saveReport">{{ mock.saveText }}</button>
+      <button class="save-btn" type="button" :disabled="isUploadingReport" @click="saveReport">
+        {{ isUploadingReport ? "上传中..." : mock.saveText }}
+      </button>
     </footer>
 
     <input
@@ -171,16 +177,16 @@ function saveReport() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -213,17 +219,17 @@ function saveReport() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -255,7 +261,7 @@ function saveReport() {
   min-height: 58px;
   padding: 0 18px;
   border-top: 1px solid #eef1f6;
-  color: #9ea2a8;
+  color: #8f95a2;
   text-align: left;
 }
 
@@ -264,9 +270,9 @@ function saveReport() {
 }
 
 .field-label {
-  color: #8f96a0;
-  font-size: 15px;
-  font-weight: 500;
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -280,9 +286,9 @@ function saveReport() {
 .field-input,
 .field-value {
   min-width: 0;
-  color: #30343f;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .field-input {
@@ -381,12 +387,16 @@ function saveReport() {
   width: 100%;
   height: 56px;
   border-radius: 16px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 14px 28px rgba(89, 200, 162, 0.22);
   color: #ffffff;
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.save-btn:disabled {
+  opacity: 0.7;
 }
 
 .sheet-mask {
@@ -413,13 +423,13 @@ function saveReport() {
   width: 100%;
   height: 52px;
   border-radius: 12px;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .sheet-action {
-  background: #6670f0;
-  box-shadow: 0 12px 24px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 12px 24px rgba(89, 200, 162, 0.22);
   color: #ffffff;
 }
 
@@ -434,8 +444,8 @@ function saveReport() {
 
 @media (min-width: 561px) {
   .upload-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

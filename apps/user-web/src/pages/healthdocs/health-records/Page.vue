@@ -1,9 +1,15 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { setHealthDataBackTarget } from "@/pages/health/health-data/source";
+import { getArchiveBasicInfo, type ArchiveBasicInfo } from "@/shared/api/health-archive";
+import avatarImage from "@/assets/community/activities/people.png";
 import mock from "./mock";
+import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
+const { ensureReportsLoaded, reportCount, isReportsLoading } = useReportCenter();
+const basicInfo = ref<ArchiveBasicInfo | null>(null);
 
 const sectionIconMarkup: Record<string, string> = {
   basic: `
@@ -34,8 +40,53 @@ const sectionIconMarkup: Record<string, string> = {
     <path d="M20.5 6.5v4.6H25" />
     <path d="M16.5 13v9" />
     <path d="M12 17.5h9" />
-  `,
+  `
 };
+
+const sections = computed(() =>
+  mock.sections.map((item) =>
+    item.key === "report"
+      ? {
+          ...item,
+          meta: isReportsLoading.value ? "同步中" : `${reportCount.value} 份报告`
+        }
+      : item
+  )
+);
+
+const profileSummary = computed(() => {
+  const source = basicInfo.value;
+
+  return {
+    name: source?.name || mock.profile.name,
+    subtitle: mock.profile.subtitle,
+    updatedAt: mock.profile.updatedAt,
+    completion: mock.profile.completion,
+    avatar: source?.avatar || avatarImage,
+    metrics: [
+      {
+        key: "age",
+        label: "年龄",
+        value: getAgeText(source?.birthday) || mock.profile.metrics[0].value
+      },
+      {
+        key: "height",
+        label: "身高",
+        value: source?.height ? `${source.height}cm` : mock.profile.metrics[1].value
+      },
+      {
+        key: "weight",
+        label: "体重",
+        value: source?.weight ? `${source.weight}kg` : mock.profile.metrics[2].value
+      }
+    ]
+  };
+});
+
+onMounted(() => {
+  void ensureReportsLoaded();
+  void loadBasicInfo();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -52,11 +103,41 @@ function openPage(pageId: string) {
 }
 
 function showSupport() {
-  props.showToast("档案助手功能待接入");
+  props.navigation.navigateTo("home/customer-service-chat");
 }
 
 function getSectionIconMarkup(key: string) {
   return sectionIconMarkup[key] || sectionIconMarkup.basic;
+}
+
+async function loadBasicInfo() {
+  try {
+    basicInfo.value = await getArchiveBasicInfo();
+  } catch (error) {
+    console.error("load archive basic info failed", error);
+  }
+}
+
+function getAgeText(birthday: string | null | undefined) {
+  if (!birthday) {
+    return "";
+  }
+
+  const date = new Date(birthday);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDiff = today.getMonth() - date.getMonth();
+  const dayDiff = today.getDate() - date.getDate();
+
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    age -= 1;
+  }
+
+  return age > 0 ? String(age) : "";
 }
 </script>
 
@@ -66,6 +147,11 @@ function getSectionIconMarkup(key: string) {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
+
+      <div class="page-heading">
+        <strong>{{ mock.title }}</strong>
+        <span>{{ profileSummary.subtitle }}</span>
+      </div>
 
       <button class="support-btn" type="button" aria-label="档案助手" @click="showSupport">
         <svg viewBox="0 0 32 32" focusable="false" aria-hidden="true">
@@ -80,20 +166,20 @@ function getSectionIconMarkup(key: string) {
     <main class="page-scroll">
       <section class="hero-card">
         <div class="hero-main">
-          <div class="profile-avatar" aria-hidden="true">
-            <span class="profile-avatar__glow"></span>
-            <span class="profile-avatar__head"></span>
-            <span class="profile-avatar__body"></span>
-          </div>
+          <img class="profile-avatar" :src="profileSummary.avatar" :alt="profileSummary.name" draggable="false" />
 
           <div class="hero-copy">
             <div class="hero-copy__top">
-              <h1>{{ mock.profile.name }}</h1>
+              <h1>{{ profileSummary.name }}</h1>
+              <span class="hero-status">完善度 {{ profileSummary.completion }}</span>
             </div>
-            <p class="hero-caption">{{ mock.profile.subtitle }}</p>
+            <p class="hero-caption">{{ profileSummary.subtitle }}</p>
+            <div class="hero-meta">
+              <span>最近更新 {{ profileSummary.updatedAt }}</span>
+            </div>
 
             <div class="stats-card" aria-label="基础指标">
-              <article v-for="item in mock.profile.metrics" :key="item.key" class="stat-item">
+              <article v-for="item in profileSummary.metrics" :key="item.key" class="stat-item">
                 <span class="stat-item__label">{{ item.label }}</span>
                 <strong class="stat-item__value">{{ item.value }}</strong>
               </article>
@@ -104,7 +190,7 @@ function getSectionIconMarkup(key: string) {
 
       <section class="menu-list" :aria-label="mock.title">
         <button
-          v-for="item in mock.sections"
+          v-for="item in sections"
           :key="item.key"
           class="menu-item"
           type="button"
@@ -136,33 +222,28 @@ function getSectionIconMarkup(key: string) {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
-    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family:
-    "HarmonyOS Sans SC",
-    "MiSans",
-    "Source Han Sans SC",
-    "Noto Sans SC",
-    "PingFang SC",
-    "Microsoft YaHei UI",
-    sans-serif;
+    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
+    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
+    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .page-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 62px;
-  padding: 0 29px;
+  height: 76px;
+  padding: 0 22px;
 }
 
 .back-btn,
@@ -177,7 +258,7 @@ function getSectionIconMarkup(key: string) {
 .support-btn {
   display: grid;
   place-items: center;
-  width: 36px;
+  width: 40px;
   height: 40px;
   padding: 0;
 }
@@ -185,24 +266,52 @@ function getSectionIconMarkup(key: string) {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
+.page-heading {
+  display: grid;
+  flex: 1;
+  justify-items: center;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.page-heading strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-heading span {
+  max-width: 100%;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .support-btn {
-  width: 36px;
-  height: 36px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 8px 18px rgba(72, 104, 148, 0.06);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 22px rgba(72, 104, 148, 0.08);
 }
 
 .support-btn svg {
   width: 22px;
   height: 22px;
   fill: none;
-  stroke: #3e4350;
+  stroke: #48bfa3;
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -210,9 +319,9 @@ function getSectionIconMarkup(key: string) {
 
 .page-scroll {
   display: grid;
-  gap: 10px;
-  height: calc(100% - 62px);
-  padding: 6px 31px 24px;
+  gap: 14px;
+  height: calc(100% - 76px);
+  padding: 4px 22px 24px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -223,101 +332,104 @@ function getSectionIconMarkup(key: string) {
 
 .hero-card,
 .menu-item {
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
 }
 
 .hero-card {
   align-self: start;
   height: auto;
   min-height: 0;
-  padding: 14px 16px;
+  padding: 18px 16px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(244, 248, 255, 0.94) 56%, rgba(240, 250, 246, 0.88) 100%);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 247, 255, 0.96) 52%, rgba(236, 249, 242, 0.9) 100%);
 }
 
 .hero-main {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
   min-width: 0;
 }
 
 .profile-avatar {
-  position: relative;
   flex: 0 0 82px;
   width: 82px;
   height: 82px;
-  overflow: hidden;
+  display: block;
+  box-sizing: border-box;
   border: 2px solid rgba(255, 255, 255, 0.96);
-  border-radius: 25px;
-  background: linear-gradient(145deg, #d8dde6 0%, #8a909c 100%);
-  box-shadow: 0 10px 20px rgba(54, 67, 92, 0.1);
-}
-
-.profile-avatar__glow {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 24% 20%, rgba(255, 255, 255, 0.78), transparent 28%),
-    radial-gradient(circle at 76% 78%, rgba(0, 0, 0, 0.18), transparent 40%);
-}
-
-.profile-avatar__head,
-.profile-avatar__body {
-  position: absolute;
-  z-index: 1;
-  background: rgba(35, 35, 38, 0.84);
-}
-
-.profile-avatar__head {
-  top: 17px;
-  left: 26px;
-  width: 21px;
-  height: 21px;
-  border-radius: 50%;
-}
-
-.profile-avatar__body {
-  bottom: 13px;
-  left: 16px;
-  width: 49px;
-  height: 33px;
-  border-radius: 24px 24px 16px 16px;
-  transform: rotate(-14deg);
+  border-radius: 22px;
+  object-fit: cover;
+  box-shadow: 0 14px 28px rgba(54, 67, 92, 0.12);
+  user-select: none;
 }
 
 .hero-copy {
   display: grid;
   align-content: center;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
 }
 
 .hero-copy__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   min-height: auto;
 }
 
 .hero-copy h1 {
   margin: 0;
-  color: #253247;
-  font-size: 22px;
-  font-weight: 650;
+  color: #222733;
+  font-size: 24px;
+  font-weight: 900;
   line-height: 1;
-  letter-spacing: 0.005em;
+  letter-spacing: 0;
+}
+
+.hero-status {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 8px 16px rgba(89, 200, 162, 0.18);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .hero-caption {
   margin: 0;
-  color: #9aa4b3;
-  font-size: 10px;
-  font-weight: 400;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1.35;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hero-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .stats-card {
@@ -325,8 +437,8 @@ function getSectionIconMarkup(key: string) {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: flex-start;
   width: 100%;
-  max-width: 198px;
-  padding: 7px 9px;
+  max-width: 100%;
+  padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.66);
   border-radius: 15px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(243, 247, 254, 0.66) 100%);
@@ -358,18 +470,18 @@ function getSectionIconMarkup(key: string) {
 
 .stat-item__label {
   display: block;
-  color: #a3acba;
-  font-size: 10px;
-  font-weight: 400;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .stat-item__value {
   display: block;
-  color: #334055;
-  font-size: 15px;
-  font-weight: 500;
+  color: #222733;
+  font-size: 17px;
+  font-weight: 900;
   line-height: 1;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -377,16 +489,16 @@ function getSectionIconMarkup(key: string) {
 
 .menu-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .menu-item {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 10px;
-  gap: 12px;
+  grid-template-columns: 48px minmax(0, 1fr) 10px;
+  gap: 14px;
   align-items: center;
   width: 100%;
-  min-height: 78px;
+  min-height: 88px;
   padding: 0 16px;
   text-align: left;
 }
@@ -394,9 +506,9 @@ function getSectionIconMarkup(key: string) {
 .menu-item__icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
 }
 
 .menu-item__icon svg {
@@ -418,8 +530,8 @@ function getSectionIconMarkup(key: string) {
 }
 
 .menu-item__icon--health {
-  background: rgba(106, 122, 248, 0.1);
-  color: #6678ff;
+  background: rgba(105, 213, 209, 0.12);
+  color: #69d5d1;
 }
 
 .menu-item__icon--medication {
@@ -428,8 +540,8 @@ function getSectionIconMarkup(key: string) {
 }
 
 .menu-item__icon--data {
-  background: rgba(53, 119, 255, 0.1);
-  color: #3577ff;
+  background: rgba(117, 214, 223, 0.12);
+  color: #4fbfca;
 }
 
 .menu-item__icon--report {
@@ -439,7 +551,7 @@ function getSectionIconMarkup(key: string) {
 
 .menu-item__copy {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -451,22 +563,24 @@ function getSectionIconMarkup(key: string) {
 }
 
 .menu-item__top strong {
-  color: #3a3f4b;
+  color: #222733;
   font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .menu-item__top em {
   font-style: normal;
-  color: #9aa2b1;
-  font-size: 12px;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .menu-item__desc {
-  color: #7f8998;
-  font-size: 12px;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1.45;
 }
 
@@ -480,56 +594,55 @@ function getSectionIconMarkup(key: string) {
 
 @media (min-width: 561px) {
   .healthdocs-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
 @media (max-width: 389px) {
   .page-scroll {
-    padding-right: 24px;
-    padding-left: 24px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .page-heading strong {
+    font-size: 18px;
   }
 
   .hero-main {
-    gap: 12px;
+    gap: 10px;
   }
 
   .profile-avatar {
     flex-basis: 76px;
     width: 76px;
     height: 76px;
-    border-radius: 22px;
-  }
-
-  .profile-avatar__head {
-    top: 16px;
-    left: 24px;
-    width: 18px;
-    height: 18px;
-  }
-
-  .profile-avatar__body {
-    bottom: 12px;
-    left: 15px;
-    width: 44px;
-    height: 30px;
+    border-radius: 18px;
   }
 
   .hero-copy {
     gap: 7px;
   }
 
+  .hero-copy__top {
+    gap: 8px;
+  }
+
   .hero-copy h1 {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .hero-caption {
-    font-size: 9px;
+    font-size: 12px;
+  }
+
+  .hero-status {
+    padding: 6px 8px;
+    font-size: 11px;
   }
 
   .stats-card {
-    max-width: 176px;
+    max-width: 100%;
     padding: 6px 7px;
   }
 
@@ -548,21 +661,24 @@ function getSectionIconMarkup(key: string) {
   }
 
   .stat-item__label {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   .stat-item__value {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .menu-item__top {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
+    gap: 8px;
   }
 
   .menu-item__top strong {
     font-size: 16px;
+  }
+
+  .menu-item__top em,
+  .menu-item__desc {
+    font-size: 12px;
   }
 }
 </style>

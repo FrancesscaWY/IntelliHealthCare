@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive } from "vue";
+import { computed, onBeforeUnmount, reactive } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { AuthVerificationBanner } from "@/shared/components";
 import {
-  getCurrentUser,
   getPrivacyAgreement,
   loginWithPassword,
   loginWithSms,
@@ -10,7 +10,10 @@ import {
   sendSmsCode
 } from "@/shared/api/auth";
 import type { LoginResponse } from "@/shared/api/auth";
-import { saveUserAuthSession, clearUserAuthSession, hasUserAuthSession } from "@/shared/auth/session";
+import { ApiClientError } from "@/shared/api/client";
+import { resolvePostLoginPageId } from "@/shared/auth/navigation";
+import { getUserAuthSession, saveUserAuthSession } from "@/shared/auth/session";
+import { syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 import { setLastLoginPhone } from "../session";
 
@@ -27,6 +30,8 @@ const state = reactive({
   submitting: false,
   sendingCode: false,
   codeCountdown: 0,
+  smsDebugCode: "",
+  smsDebugPhone: ""
 });
 
 const submitButtonText = computed(() => (state.submitting ? "登录中..." : "登录"));
@@ -81,18 +86,57 @@ function createDeviceId(prefix: string) {
   return `${prefix}-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
 }
 
-async function redirectAfterLogin() {
-  const currentUser = await getCurrentUser();
-  props.navigation.reLaunch(currentUser.realNameVerified ? "home/dashboard" : "auth/real-name");
-}
-
 function storeSession(session: LoginResponse) {
   saveUserAuthSession(session);
   setLastLoginPhone(session.user.phone);
 }
 
+function resolvePostLoginTargetPageId(session: LoginResponse) {
+  const syncedRealNameVerified = getUserAuthSession()?.user.realNameVerified;
+  const realNameVerified =
+    typeof syncedRealNameVerified === "boolean"
+      ? syncedRealNameVerified
+      : session.user.realNameVerified === true;
+
+  return resolvePostLoginPageId(realNameVerified);
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function isAuthServiceUnavailable(error: unknown) {
+  return error instanceof ApiClientError && (error.status === 0 || error.status >= 500);
+}
+
+function createDemoSession(phone: string): LoginResponse {
+  return {
+    accessToken: `demo-access-token-${phone}`,
+    refreshToken: `demo-refresh-token-${phone}`,
+    tokenType: "Bearer",
+    expiresIn: 60 * 60 * 2,
+    user: {
+      userId: `demo-user-${phone.slice(-4)}`,
+      phone,
+      type: "ELDERLY",
+      roles: ["USER"],
+      realName: null,
+      realNameVerified: false
+    }
+  };
+}
+
+function handleDebugCode(result: { debugCode?: string }, phone: string) {
+  state.smsDebugCode = result.debugCode?.trim() || "";
+  state.smsDebugPhone = state.smsDebugCode ? phone : "";
+}
+
+function handleCodeCopied() {
+  props.showToast("验证码已复制");
+}
+
+function handleCodeCopyFailed() {
+  props.showToast("复制失败，请手动输入验证码");
 }
 
 async function sendCode() {
@@ -104,8 +148,9 @@ async function sendCode() {
     const phone = validatePhone();
     state.sendingCode = true;
     const result = await sendSmsCode(phone);
+    handleDebugCode(result, phone);
     startCodeCountdown();
-    props.showToast(result.debugCode ? `验证码已发送：${result.debugCode}` : "验证码已发送");
+    props.showToast(result.debugCode ? "验证码已发送，可直接复制" : "验证码已发送");
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -115,6 +160,14 @@ async function sendCode() {
 
 function forgetPassword() {
   props.navigation.navigateTo("auth/forgot-password");
+}
+
+async function trySyncProfile() {
+  try {
+    await syncUserProfileStateFromApi();
+  } catch {
+    // Keep login usable even if profile sync is temporarily unavailable.
+  }
 }
 
 async function submitForm() {
@@ -139,22 +192,37 @@ async function submitForm() {
 
     state.submitting = true;
 
-    const session =
-      state.loginMode === "password"
-        ? await loginWithPassword({
-            phone,
-            password: state.password.trim(),
-            agreePrivacy: state.agreed,
-            deviceId: createDeviceId("user-web")
-          })
-        : await loginWithSms({
-            phone,
-            code: state.code.trim()
-          });
+    let session: LoginResponse;
+
+    if (state.loginMode === "password") {
+      try {
+        session = await loginWithPassword({
+          phone,
+          password: state.password.trim(),
+          agreePrivacy: state.agreed,
+          deviceId: createDeviceId("user-web")
+        });
+      } catch (error) {
+        const demoSession = isAuthServiceUnavailable(error) ? createDemoSession(phone) : null;
+
+        if (!demoSession) {
+          throw error;
+        }
+
+        session = demoSession;
+        props.showToast("登录接口异常，已切换到本地演示登录");
+      }
+    } else {
+      session = await loginWithSms({
+        phone,
+        code: state.code.trim()
+      });
+    }
 
     storeSession(session);
+    await trySyncProfile();
     props.showToast("登录成功");
-    await redirectAfterLogin();
+    props.navigation.reLaunch(resolvePostLoginTargetPageId(session));
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -180,8 +248,9 @@ async function handleThirdPartyLogin(provider: string, label: string) {
     });
 
     storeSession(session);
+    await trySyncProfile();
     props.showToast(`${label}登录成功`);
-    await redirectAfterLogin();
+    props.navigation.reLaunch(resolvePostLoginTargetPageId(session));
   } catch (error) {
     props.showToast(getErrorMessage(error));
   } finally {
@@ -198,18 +267,6 @@ async function showPolicy() {
   }
 }
 
-onMounted(async () => {
-  if (!hasUserAuthSession()) {
-    return;
-  }
-
-  try {
-    await redirectAfterLogin();
-  } catch {
-    clearUserAuthSession();
-  }
-});
-
 onBeforeUnmount(() => {
   window.clearInterval(codeTimer);
 });
@@ -222,6 +279,14 @@ onBeforeUnmount(() => {
         <span class="back-arrow" aria-hidden="true"></span>
       </button>
     </header>
+
+    <AuthVerificationBanner
+      v-if="state.smsDebugCode"
+      :code="state.smsDebugCode"
+      :phone="state.smsDebugPhone"
+      @copied="handleCodeCopied"
+      @copy-failed="handleCodeCopyFailed"
+    />
 
     <section class="brand-block">
       <div class="brand-logo" aria-hidden="true">
@@ -262,7 +327,14 @@ onBeforeUnmount(() => {
           <span class="lock-ring"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="password" v-model="state.password" class="login-input" type="password" placeholder="密码" :disabled="state.submitting" />
+        <input
+          id="password"
+          v-model="state.password"
+          class="login-input"
+          type="password"
+          placeholder="密码"
+          :disabled="state.submitting"
+        />
       </label>
 
       <label v-else class="input-box" for="code">
@@ -271,8 +343,21 @@ onBeforeUnmount(() => {
           <span class="code-dot"></span>
         </span>
         <span class="input-divider" aria-hidden="true"></span>
-        <input id="code" v-model="state.code" class="login-input code-input" type="text" maxlength="6" placeholder="验证码" :disabled="state.submitting" />
-        <button class="code-action" type="button" :disabled="state.sendingCode || state.codeCountdown > 0 || state.submitting" @click="sendCode">
+        <input
+          id="code"
+          v-model="state.code"
+          class="login-input code-input"
+          type="text"
+          maxlength="6"
+          placeholder="验证码"
+          :disabled="state.submitting"
+        />
+        <button
+          class="code-action"
+          type="button"
+          :disabled="state.sendingCode || state.codeCountdown > 0 || state.submitting"
+          @click="sendCode"
+        >
           {{ sendCodeButtonText }}
         </button>
       </label>
@@ -287,7 +372,7 @@ onBeforeUnmount(() => {
         {{ state.loginMode === "password" ? "手机验证码登录" : "手机号密码登录" }}
       </button>
 
-      <p class="account-tip">测试账号：家属 13900139000 / 123456，长者 13800138000 / 123456</p>
+      <!-- <p class="account-tip">测试账号：家属 13900139000 / 123456，长者 13800138000 / 123456</p> -->
     </form>
 
     <section class="third-party-area" aria-label="第三方登录">
@@ -329,13 +414,15 @@ onBeforeUnmount(() => {
 <style scoped>
 .login-page {
   position: relative;
+  display: flex;
+  flex-direction: column;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
-  padding: 0 29px 0;
+  padding: 0 29px 24px;
   transform: translateX(-50%);
   overflow: hidden;
   background: linear-gradient(180deg, #cfe6ff 0%, #eef3fb 44%, #f9f9fb 100%);
@@ -388,8 +475,8 @@ onBeforeUnmount(() => {
   width: 48px;
   height: 48px;
   border-radius: 15px;
-  background: linear-gradient(180deg, #7280ff 0%, #f07b82 100%);
-  box-shadow: 0 18px 36px rgba(108, 117, 235, 0.16);
+  background: linear-gradient(180deg, #8391ff 0%, #6965f0 100%);
+  box-shadow: 0 18px 36px rgba(96, 103, 228, 0.22);
 }
 
 .brand-heart {
@@ -633,7 +720,7 @@ onBeforeUnmount(() => {
 }
 
 .third-party-area {
-  margin-top: 76px;
+  margin-top: 56px;
 }
 
 .third-party-title {
@@ -696,13 +783,13 @@ onBeforeUnmount(() => {
 }
 
 .agreement-row {
-  position: absolute;
-  right: 27px;
-  bottom: 10px;
-  left: 27px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 28px;
+  padding-bottom: 8px;
   color: #c4c9d3;
 }
 
@@ -741,20 +828,26 @@ onBeforeUnmount(() => {
 }
 
 .agreement-text {
-  margin-left: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  line-height: 1.5;
+  gap: 0 2px;
   font-size: 16px;
 }
 
 .policy-link {
   padding: 0;
+  margin: 0 2px;
   color: #22273e;
   font-size: inherit;
 }
 
 @media (min-width: 561px) {
   .login-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -769,7 +862,7 @@ onBeforeUnmount(() => {
   }
 
   .third-party-area {
-    margin-top: 90px;
+    margin-top: 72px;
   }
 
   .third-party-list {

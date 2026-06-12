@@ -103,13 +103,41 @@ npm run dev:admin
 npm run dev:backend
 ```
 
+如需让后端常驻在独立 `tmux` 会话中：
+
+```bash
+npm run dev:backend:tmux
+npm run dev:backend:tmux:attach
+```
+
+如果希望后端在联调期间保持稳定，不随代码改动自动重启，可改用编译后常驻模式：
+
+```bash
+npm run serve:backend
+```
+
+如需让稳定模式在独立 `tmux` 会话中常驻：
+
+```bash
+npm run serve:backend:tmux
+npm run serve:backend:tmux:attach
+```
+
+说明：
+
+- 默认创建 `ihc-backend` 会话。
+- `backend` 窗口会先执行 `docker compose -f docker-compose.backend.yml up -d`，再启动 `npm run dev:backend`。
+- `infra` 窗口会展示依赖容器状态。
+- `npm run dev:backend:tmux:stop` 只关闭 `tmux` 会话，不会自动执行 `docker compose down`。
+- `serve:backend` / `serve:backend:tmux` 会先编译后端，再运行 `dist/main.js`，只有手动重启才会更新代码。
+
 默认访问地址：
 
-- 用户端：`http://127.0.0.1:5173`
-- 后台端：`http://127.0.0.1:5174`
-- 后端 API：`http://localhost:8190/api/v1`
-- Swagger：`http://localhost:8190/api/v1/docs`
-- 健康检查：`http://localhost:8190/api/v1/system/health`
+- 用户端：`http://server.mctown.online:5173`
+- 后台端：`http://server.mctown.online:5174`
+- 后端 API：`http://server.mctown.online:8190/api/v1`
+- Swagger：`http://server.mctown.online:8190/api/v1/docs`
+- 健康检查：`http://server.mctown.online:8190/api/v1/system/health`
 
 ## 常用命令
 
@@ -208,7 +236,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 
 ## 文档索引
 
-- [项目架构说明](./docs/architecture.md)
+- [项目架构说明](./docs/项目架构文档.md)
 - [后端架构说明](./docs/backend-architecture.md)
 - [后端开发文档](./docs/智诊康养后端开发文档.md)
 - [后端 API 手册](./docs/backend-api-manual.md)

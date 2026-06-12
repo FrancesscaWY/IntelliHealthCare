@@ -1,29 +1,34 @@
 <script setup lang="ts">
+import { onMounted, ref, computed, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getHealthMedications } from "@/shared/api/health";
+import type { MedicationItem } from "@/shared/api/health";
+import { setSelectedMedication } from "@/shared/health/medication-selection";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const isLoading = ref(true);
+const loadError = ref<string | null>(null);
+const medications = ref<MedicationItem[]>([]);
 
-const mealIconMarkup: Record<string, string> = {
-  breakfast: `
-    <path d="M9 10h14v6a7 7 0 0 1-7 7 7 7 0 0 1-7-7v-6Z" />
-    <path d="M23 12h3.3a3 3 0 0 1 0 6H23" />
-    <path d="M7 26h18" />
-  `,
-  lunch: `
-    <path d="M7 13h18v2a9 9 0 0 1-9 9 9 9 0 0 1-9-9v-2Z" />
-    <path d="M9 26h14" />
-    <path d="M10 7v3" />
-    <path d="M16 6v4" />
-    <path d="M22 7v3" />
-  `,
-  dinner: `
-    <path d="M9 6v20" />
-    <path d="M5 6v7a4 4 0 0 0 8 0V6" />
-    <path d="M21 6v20" />
-    <path d="M21 6c4 2.6 4 8.4 0 11" />
-  `,
-};
+const overview = computed(() => {
+  const total = medications.value.length;
+  const takenCount = medications.value.filter((m) =>
+    m.logs.some((log) => log.status === "TAKEN")
+  ).length;
+  const nextTime = medications.value
+    .flatMap((m) => m.scheduleTimes)
+    .sort()
+    .find(() => true);
+
+  return {
+    total: `${total}次`,
+    next: nextTime ?? "-",
+    completed: `${takenCount}/${total}`,
+  };
+});
+
+let lastStackLength = 0;
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -31,53 +36,145 @@ function goBack() {
   }
 }
 
-function getMealIconMarkup(key: string) {
-  return mealIconMarkup[key] || mealIconMarkup.breakfast;
-}
-
 function addMedication() {
   props.navigation.navigateTo("health/medication-add");
 }
 
-function editMedication() {
+function editMedication(medication: MedicationItem) {
+  setSelectedMedication(medication);
   props.navigation.navigateTo("health/medication-edit");
 }
+
+function getDoseTone(dosage: string): string {
+  const match = dosage.match(/(\d+)/);
+  if (!match) return "green";
+  const num = parseInt(match[1], 10);
+  if (num >= 3) return "red";
+  if (num >= 2) return "blue";
+  return "green";
+}
+
+function getStatusLabel(logs: MedicationItem["logs"]): string {
+  if (logs.some((log) => log.status === "TAKEN")) return "已服用";
+  if (logs.some((log) => log.status === "SKIPPED")) return "已跳过";
+  return "待服用";
+}
+
+async function loadMedications() {
+  try {
+    isLoading.value = true;
+    loadError.value = null;
+    const data = await getHealthMedications();
+    medications.value = data ?? [];
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : "加载用药信息失败";
+    // 回退到 mock 数据
+    medications.value = mock.meals.flatMap((meal) =>
+      meal.medicines.map((med) => ({
+        medicationId: `${meal.key}-${med.name}`,
+        name: med.name,
+        dosage: med.dose,
+        frequency: "每日",
+        mealTiming: meal.title,
+        route: null,
+        indication: null,
+        scheduleTimes: [med.time],
+        startDate: "",
+        endDate: null,
+        active: true,
+        logs: [],
+      }))
+    );
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  lastStackLength = props.navigation.getStack().length;
+  loadMedications();
+});
+
+// 监听导航栈变化：当从其他页面返回此页面时重新加载数据
+watch(
+  () => props.navigation.getStack().length,
+  (newLength) => {
+    if (newLength < lastStackLength) {
+      loadMedications();
+    }
+    lastStackLength = newLength;
+  }
+);
 </script>
 
 <template>
   <section class="medication-page">
-    <header class="medication-nav">
-      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
-        <span class="back-arrow" aria-hidden="true"></span>
-      </button>
+    <header class="page-header">
+      <button class="back-button" type="button" aria-label="返回" @click="goBack">‹</button>
       <h1>{{ mock.title }}</h1>
+      <span></span>
     </header>
 
     <main class="medication-scroll">
-      <article v-for="meal in mock.meals" :key="meal.key" class="meal-card">
-        <header class="meal-header">
-          <span class="meal-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" focusable="false">
-              <g v-html="getMealIconMarkup(meal.key)"></g>
-            </svg>
-          </span>
-          <h2>{{ meal.title }}</h2>
-          <p>{{ meal.timeRange }}</p>
-        </header>
+      <template v-if="isLoading">
+        <div class="loading-state">加载中...</div>
+      </template>
 
-        <section class="medicine-list">
-          <button v-for="item in meal.medicines" :key="`${meal.key}-${item.name}-${item.time}`" class="medicine-row" type="button" @click="editMedication">
-            <span class="medicine-name">
-              <span aria-hidden="true"></span>
-              {{ item.name }}
-            </span>
-            <span class="medicine-dose" :class="`medicine-dose--${item.tone}`">{{ item.dose }}</span>
-            <span class="medicine-time">{{ item.time }}</span>
-          </button>
+      <template v-else-if="loadError && !medications.length">
+        <div class="error-state">{{ loadError }}</div>
+      </template>
+
+      <template v-else>
+        <section class="overview-card">
+          <small>{{ mock.overview.eyebrow }}</small>
+          <h2>{{ mock.overview.title }}</h2>
+          <div class="overview-metrics">
+            <article>
+              <span>今日总计</span>
+              <strong>{{ overview.total }}</strong>
+            </article>
+            <article>
+              <span>下一次</span>
+              <strong>{{ overview.next }}</strong>
+            </article>
+            <article>
+              <span>已完成</span>
+              <strong>{{ overview.completed }}</strong>
+            </article>
+          </div>
         </section>
-      </article>
 
-      <p class="no-more">没有更多了</p>
+        <article v-for="item in medications" :key="item.medicationId" class="medication-card">
+          <header class="medication-header">
+            <div class="medication-info">
+              <h3>{{ item.name }}</h3>
+              <p class="medication-meta">
+                <span v-if="item.mealTiming">{{ item.mealTiming }}</span>
+                <span v-if="item.dosage">{{ item.dosage }}</span>
+                <span>{{ item.frequency }}</span>
+              </p>
+            </div>
+            <span class="medication-status" :class="{ 'status-taken': getStatusLabel(item.logs) === '已服用' }">
+              {{ getStatusLabel(item.logs) }}
+            </span>
+          </header>
+
+          <section class="schedule-list">
+            <button
+              v-for="time in item.scheduleTimes"
+              :key="time"
+              class="schedule-chip"
+              type="button"
+              @click="editMedication(item)"
+            >
+              {{ time }}
+            </button>
+          </section>
+        </article>
+
+        <p v-if="!medications.length" class="no-more">暂无用药信息</p>
+        <p v-else class="no-more">没有更多了</p>
+      </template>
     </main>
 
     <footer class="add-area">
@@ -90,62 +187,59 @@ function editMedication() {
 .medication-page {
   position: relative;
   left: 50%;
-  width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  width: min(402px, 100vw);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
+  padding: 16px 18px 28px;
+  box-sizing: border-box;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.13) 0, rgba(102, 112, 240, 0) 28%),
-    linear-gradient(180deg, #f1f8ff 0%, #f7f9fb 42%, #f5f6f7 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  background: #f5f6f7;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
 
-.medication-nav {
-  display: flex;
-  align-items: center;
-  height: 74px;
-  padding: 0 29px;
-}
-
-.back-btn,
-.add-btn {
+button {
   border: 0;
   background: transparent;
   color: inherit;
+  font: inherit;
 }
 
-.back-btn {
+.page-header {
+  height: 52px;
   display: grid;
-  place-items: center;
-  width: 30px;
-  height: 44px;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+}
+
+.back-button {
+  width: 32px;
+  height: 38px;
   padding: 0;
+  color: #252939;
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 30px;
 }
 
-.back-arrow {
-  width: 14px;
-  height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
-  transform: rotate(45deg);
-}
-
-.medication-nav h1 {
-  margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+.page-header h1 {
+  margin: 0;
+  overflow: hidden;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .medication-scroll {
-  height: calc(100% - 74px);
-  padding: 20px 31px 104px;
+  height: calc(100% - 52px);
+  padding: 16px 0 104px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -154,141 +248,158 @@ function editMedication() {
   display: none;
 }
 
-.meal-card {
-  overflow: hidden;
-  margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 24px rgba(72, 104, 148, 0.06);
+.loading-state,
+.error-state {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
 }
 
-.meal-card:first-child {
+.overview-card {
+  padding: 22px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
+}
+
+.overview-card small {
+  color: #66cfa7;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.overview-card h2 {
+  margin: 10px 0 18px;
+  color: #222733;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-metrics article {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.overview-metrics span {
+  display: block;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.overview-metrics strong {
+  display: block;
+  margin-top: 8px;
+  color: #222733;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.medication-card {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
+}
+
+.medication-card:first-child {
   margin-top: 0;
 }
 
-.meal-header {
-  display: grid;
-  grid-template-columns: 32px auto minmax(0, 1fr);
+.medication-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.medication-info {
+  min-width: 0;
+}
+
+.medication-info h3 {
+  margin: 0;
+  color: #222733;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.medication-meta {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  height: 47px;
-  padding: 0 20px;
-  background: linear-gradient(90deg, rgba(247, 249, 255, 0.9) 0%, rgba(255, 255, 255, 0) 100%);
+  margin: 6px 0 0;
+  color: #8f95a2;
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.meal-icon {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  border-radius: 50%;
-  background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
-  box-shadow: 0 8px 18px rgba(54, 67, 92, 0.06);
-  transform: translateY(4px);
+.medication-meta span + span::before {
+  content: "·";
+  margin-right: 8px;
 }
 
-.meal-icon svg {
-  display: block;
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: #30343f;
-  stroke-width: 2.15;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.meal-header h2 {
-  margin: 12px 0 0;
-  color: #30343f;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-}
-
-.meal-header p {
-  margin: 14px 0 0;
-  color: #b7b7bb;
+.medication-status {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #fff3e0;
+  color: #e6a23c;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 900;
   white-space: nowrap;
 }
 
-.medicine-list {
-  padding: 0 20px 4px;
+.medication-status.status-taken {
+  background: #e8f8f0;
+  color: #39a980;
 }
 
-.medicine-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px 42px;
-  align-items: center;
-  width: 100%;
-  height: 37px;
-  padding: 0;
-  border-top: 1px solid #eeeeee;
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
-  background: transparent;
-  text-align: left;
+.schedule-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
 
-.medicine-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #30343f;
+.schedule-chip {
+  min-width: 62px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid #e1e1e1;
+  border-radius: 7px;
+  background: #f0f0f0;
+  color: #606060;
   font-size: 15px;
   font-weight: 500;
-}
-
-.medicine-name span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #c8d1df;
-}
-
-.medicine-dose {
-  justify-self: end;
-  min-width: 46px;
-  height: 22px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 22px;
+  line-height: 32px;
   text-align: center;
 }
 
-.medicine-dose--green {
-  background: #d7f5eb;
-  color: #31c79b;
-}
-
-.medicine-dose--red {
-  background: #fff0f0;
-  color: #f06969;
-}
-
-.medicine-dose--blue {
-  background: #f0f0ff;
-  color: #6872f0;
-}
-
-.medicine-time {
-  justify-self: end;
-  color: #8e8f94;
-  font-size: 14px;
-  font-weight: 400;
-}
-
 .no-more {
-  margin: 49px 0 0;
-  color: #c9c9c9;
-  font-size: 17px;
-  font-weight: 500;
+  margin: 28px 0 0;
+  color: #8f95a2;
+  font-size: 12px;
+  font-weight: 800;
   text-align: center;
 }
 
@@ -301,37 +412,29 @@ function editMedication() {
 
 .add-btn {
   width: 100%;
-  height: 54px;
-  border-radius: 11px;
-  background: #6670f0;
-  box-shadow: 0 14px 28px rgba(102, 112, 240, 0.18);
+  height: 50px;
+  border-radius: 999px;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
   color: #ffffff;
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 @media (min-width: 561px) {
   .medication-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
 @media (max-width: 389px) {
   .medication-scroll {
-    padding-right: 26px;
-    padding-left: 26px;
+    padding-bottom: 110px;
   }
 
-  .meal-header {
-    padding-right: 26px;
-    padding-left: 26px;
-  }
-
-  .medicine-list {
-    padding-right: 26px;
-    padding-left: 26px;
+  .overview-metrics {
+    grid-template-columns: 1fr;
   }
 }
 </style>

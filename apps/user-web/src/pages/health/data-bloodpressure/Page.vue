@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { loadBloodPressureSource } from "../measurement-source";
 
 type ChartMode = "day" | "week" | "month";
 type BloodPressureRecord = {
@@ -29,16 +29,22 @@ type PeriodItem = {
 
 const props = defineProps<PageComponentProps>();
 const selectedChartMode = ref<ChartMode>("day");
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadBloodPressureSource>>>({
+  list: [],
+  dailyTimeline: [],
+  monthlyData: []
+});
 
 const healthList = computed<BloodPressureRecord[] | null>(() => {
-  if (mock && Array.isArray(mock.list) && mock.list.length > 0) {
-    return mock.list as BloodPressureRecord[];
+  if (pageData.value.list.length > 0) {
+    return pageData.value.list as BloodPressureRecord[];
   }
   return null;
 });
 
 const bloodPressureData = computed(() => healthList.value ?? []);
-const dailyTimelines = computed<DailyTimeline[]>(() => (mock.dailyTimeline ?? []) as DailyTimeline[]);
+const dailyTimelines = computed<DailyTimeline[]>(() => pageData.value.dailyTimeline as DailyTimeline[]);
 
 const latest = computed(
   () =>
@@ -78,7 +84,7 @@ const weekItems = computed<PeriodItem[]>(() =>
 );
 
 const monthItems = computed<PeriodItem[]>(() =>
-  (mock.monthlyData ?? []).map(
+  pageData.value.monthlyData.map(
     (item: { label: string; systolic: number; diastolic: number; maxSystolic: number; minDiastolic: number }) => ({
       label: item.label,
       systolic: Number(item.systolic),
@@ -250,11 +256,16 @@ function getTableChangeClass(index: number, key: "systolic" | "diastolic") {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("health/health-data");
-  } else {
-    window.history.back();
+  if (props.navigation?.navigateBack?.()) {
+    return;
   }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
+    return;
+  }
+
+  window.history.back();
 }
 
 function goToAddData() {
@@ -262,6 +273,18 @@ function goToAddData() {
   sessionStorage.setItem("addReturnPath", "health/data-bloodpressure");
   props.navigation?.navigateTo?.("health/add-data");
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadBloodPressureSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -492,6 +515,9 @@ function goToAddData() {
         </section>
       </template>
 
+      <div v-else-if="isLoading" class="error-card">
+        <strong>加载中...</strong>
+      </div>
       <div v-else class="error-card">
         <strong>数据加载失败</strong>
         <p>请检查 `mock.ts` 文件，确认已导出有效的 `list` 数据。</p>
@@ -509,9 +535,9 @@ function goToAddData() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:

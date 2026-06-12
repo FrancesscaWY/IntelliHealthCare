@@ -9,9 +9,11 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@ihc/page-core": "file:../../packages/page-core",
     "@icon-park/vue-next": "^1.4.2",
-    "vue": "latest"
+    "@ihc/page-core": "file:../../packages/page-core",
+    "@rive-app/canvas": "^2.37.3",
+    "vue": "latest",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@types/node": "latest",

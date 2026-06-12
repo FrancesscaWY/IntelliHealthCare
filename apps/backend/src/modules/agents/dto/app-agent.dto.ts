@@ -2,10 +2,12 @@ import { Transform, Type } from "class-transformer";
 import {
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsObject,
   IsOptional,
+  IsNumber,
   IsString,
   Max,
   Min
@@ -24,9 +26,36 @@ export class CreateAssistantConversationDto {
 }
 
 export class SendAssistantMessageDto {
+  @IsOptional()
+  @IsIn(["TEXT", "AUDIO"])
+  contentType?: "TEXT" | "AUDIO";
+
+  @IsOptional()
+  @IsIn(["TEXT", "VOICE"])
+  replyMode?: "TEXT" | "VOICE";
+
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  content!: string;
+  content?: string;
+
+  @IsOptional()
+  @IsString()
+  transcript?: string;
+
+  @IsOptional()
+  @IsString()
+  fileId?: string;
+
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(60 * 10)
+  durationSeconds?: number;
 
   @IsOptional()
   @IsString()

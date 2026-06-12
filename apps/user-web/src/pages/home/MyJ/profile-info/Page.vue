@@ -1,8 +1,21 @@
 <script setup lang="ts">
+import { onMounted, reactive } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { loadUserProfileState, syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const profile = reactive(loadUserProfileState());
+
+onMounted(async () => {
+  Object.assign(profile, loadUserProfileState());
+
+  try {
+    Object.assign(profile, await syncUserProfileStateFromApi());
+  } catch {
+    props.showToast("个人资料加载失败，已显示本地缓存");
+  }
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -10,8 +23,12 @@ function goBack() {
   }
 }
 
+function triggerAvatarUpload() {
+  props.showToast("当前后端未提供头像写回接口，页面资料已改为以后端信息为准");
+}
+
 function openField(label: string) {
-  props.showToast(`${label}编辑功能待接入`);
+  props.showToast(`${label}暂不支持写回后端，当前展示以后端资料为准`);
 }
 </script>
 
@@ -26,8 +43,9 @@ function openField(label: string) {
 
     <main class="page-content">
       <section class="panel">
-        <button class="avatar-row" type="button" @click="openField('头像')">
-          <img class="avatar" :src="mock.avatar" alt="个人头像" />
+        <button class="avatar-row" type="button" @click="triggerAvatarUpload">
+          <span class="info-label">头像</span>
+          <img class="avatar" :src="profile.avatarUrl" alt="个人头像" />
           <span class="row-arrow" aria-hidden="true"></span>
         </button>
 
@@ -41,7 +59,15 @@ function openField(label: string) {
         >
           <span class="info-label">{{ item.label }}</span>
           <span class="info-value" :class="{ 'info-value--placeholder': !item.value }">
-            {{ item.value || item.placeholder }}
+            {{
+              item.key === "nickname"
+                ? profile.nickname
+                : item.key === "gender"
+                  ? profile.gender
+                  : item.key === "intro"
+                    ? profile.intro
+                    : item.value || item.placeholder
+            }}
           </span>
           <span v-if="item.editable" class="row-arrow" aria-hidden="true"></span>
         </button>
@@ -57,7 +83,7 @@ function openField(label: string) {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  min-height: min(844px, calc(100vh - 36px));
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   background: #f5f6f7;
   color: #2c322d;
@@ -179,4 +205,3 @@ function openField(label: string) {
   font-size: 13px;
 }
 </style>
-

@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { currentReport, removeCurrentReport } = useReportCenter();
+const { currentReport, removeCurrentReport, ensureCurrentReportReady, isCurrentReportLoading } =
+  useReportCenter();
 const showDeleteDialog = ref(false);
+const isDeleting = ref(false);
+
+onMounted(() => {
+  void ensureCurrentReportReady();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -22,20 +28,33 @@ function cancelDelete() {
   showDeleteDialog.value = false;
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!currentReport.value) {
     showDeleteDialog.value = false;
     return;
   }
 
-  removeCurrentReport();
-  showDeleteDialog.value = false;
-  props.showToast("已删除报告");
-  props.navigation.reLaunch("healthdocs/checkup-reports");
+  isDeleting.value = true;
+
+  try {
+    await removeCurrentReport();
+    showDeleteDialog.value = false;
+    props.showToast("已删除报告");
+    props.navigation.reLaunch("healthdocs/checkup-reports");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "删除失败");
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function downloadReport() {
-  props.showToast("下载功能待接入");
+  if (!currentReport.value?.attachmentUrl) {
+    props.showToast("当前暂无可下载附件");
+    return;
+  }
+
+  window.open(currentReport.value.attachmentUrl, "_blank", "noopener,noreferrer");
 }
 
 function interpretReport() {
@@ -53,7 +72,11 @@ function interpretReport() {
     </header>
 
     <main class="page-scroll">
-      <article v-if="currentReport" class="paper-sheet">
+      <article v-if="isCurrentReportLoading && !currentReport" class="empty-card">
+        <p>正在加载报告...</p>
+      </article>
+
+      <article v-else-if="currentReport" class="paper-sheet">
         <header class="paper-header">
           <h2>{{ currentReport.hospital }}</h2>
           <p>{{ currentReport.reportName }}</p>
@@ -79,10 +102,10 @@ function interpretReport() {
 
         <section class="paper-block result-block">
           <div class="result-head">
-            <span>检测指标</span>
+            <span>项目</span>
             <span>结果</span>
             <span>单位</span>
-            <span>参考值</span>
+            <span>参考</span>
           </div>
 
           <div v-for="item in currentReport.metrics" :key="`${item.name}-${item.result}`" class="result-row">
@@ -101,6 +124,9 @@ function interpretReport() {
           </div>
           <div class="footer-line">
             <p><span>报告时间：</span>{{ currentReport.reportTime }}</p>
+          </div>
+          <div v-if="currentReport.attachmentName" class="footer-line">
+            <p><span>附件：</span>{{ currentReport.attachmentName }}</p>
           </div>
           <div class="footer-line">
             <p><span>审核时间：</span>{{ currentReport.reviewTime }}</p>
@@ -126,7 +152,9 @@ function interpretReport() {
         <p>确定删除这条体检报告吗？</p>
         <div class="dialog-actions">
           <button class="dialog-btn dialog-btn--ghost" type="button" @click="cancelDelete">取消</button>
-          <button class="dialog-btn dialog-btn--primary" type="button" @click="confirmDelete">确定删除</button>
+          <button class="dialog-btn dialog-btn--primary" type="button" :disabled="isDeleting" @click="confirmDelete">
+            {{ isDeleting ? "删除中..." : "确认删除" }}
+          </button>
         </div>
       </section>
     </div>
@@ -138,16 +166,16 @@ function interpretReport() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 8%, rgba(102, 112, 240, 0.11) 0, rgba(102, 112, 240, 0) 28%),
+    radial-gradient(circle at 82% 8%, rgba(117, 214, 223, 0.18) 0, rgba(117, 214, 223, 0) 28%),
     linear-gradient(180deg, #f4f7fb 0%, #f7f8fa 100%);
-  color: #30343f;
-  font-family: var(--ihc-font-family);
+  color: #222733;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
@@ -177,17 +205,17 @@ function interpretReport() {
 .back-arrow {
   width: 14px;
   height: 14px;
-  border-bottom: 4px solid #333333;
-  border-left: 4px solid #333333;
+  border-bottom: 3px solid #252939;
+  border-left: 3px solid #252939;
   transform: rotate(45deg);
 }
 
 .page-nav h1 {
   margin: 0 0 0 9px;
-  color: #30343f;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  color: #222733;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .page-scroll {
@@ -216,17 +244,17 @@ function interpretReport() {
 
 .paper-header h2 {
   margin: 0;
-  color: #2f3135;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  color: #222733;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .paper-header p {
   margin: 6px 0 0;
-  color: #3d4148;
-  font-size: 18px;
-  font-weight: 600;
+  color: #8f95a2;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .paper-block {
@@ -325,7 +353,7 @@ function interpretReport() {
 
 .empty-card p {
   margin: 0;
-  color: #9aa1aa;
+  color: #8f95a2;
   font-size: 16px;
   font-weight: 500;
 }
@@ -343,8 +371,8 @@ function interpretReport() {
 .bar-btn {
   height: 48px;
   border-radius: 16px;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .bar-btn--ghost {
@@ -355,8 +383,8 @@ function interpretReport() {
 }
 
 .bar-btn--primary {
-  background: #6670f0;
-  box-shadow: 0 12px 22px rgba(102, 112, 240, 0.18);
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  box-shadow: 0 12px 22px rgba(89, 200, 162, 0.22);
   color: #ffffff;
 }
 
@@ -383,9 +411,9 @@ function interpretReport() {
 
 .dialog-card h3 {
   margin: 0;
-  color: #30343f;
-  font-size: 18px;
-  font-weight: 700;
+  color: #222733;
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .dialog-card p {
@@ -417,14 +445,18 @@ function interpretReport() {
 }
 
 .dialog-btn--primary {
-  background: #6670f0;
+  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
   color: #ffffff;
+}
+
+.dialog-btn:disabled {
+  opacity: 0.7;
 }
 
 @media (min-width: 561px) {
   .report-detail-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

@@ -17,7 +17,7 @@ import {
   ApiPropertyOptional,
   ApiTags
 } from "@nestjs/swagger";
-import { ReportStatus } from "@prisma/client";
+import { ReportStatus, ReportType } from "@prisma/client";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { JwtAuthGuard } from "../../common/auth/jwt-auth.guard";
 import { Roles } from "../../common/auth/roles.decorator";
@@ -84,6 +84,23 @@ class AdminReportsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(ReportStatus)
   status?: ReportStatus;
+
+  @ApiPropertyOptional({
+    description: "报告类型筛选。",
+    enum: ReportType,
+    example: ReportType.CHECKUP
+  })
+  @IsOptional()
+  @IsEnum(ReportType)
+  type?: ReportType;
+
+  @ApiPropertyOptional({
+    description: "关键字，可匹配报告标题、长者姓名、上传人或关联订单号。",
+    example: "体检"
+  })
+  @IsOptional()
+  @IsString()
+  keyword?: string;
 }
 
 class ReviewReportDto {
@@ -94,6 +111,59 @@ class ReviewReportDto {
   })
   @IsEnum(ReportStatus)
   status!: ReportStatus;
+}
+
+class CreateAdminReportDto {
+  @ApiPropertyOptional({
+    description: "长者 ID。",
+    example: "user_elder_joy"
+  })
+  @IsOptional()
+  @IsString()
+  elderId?: string;
+
+  @ApiPropertyOptional({
+    description: "关联订单 ID。",
+    example: "order_exam_done"
+  })
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiProperty({
+    description: "报告类型。",
+    enum: ReportType,
+    example: ReportType.CHECKUP
+  })
+  @IsEnum(ReportType)
+  type!: ReportType;
+
+  @ApiProperty({
+    description: "报告标题。",
+    example: "2026 年 4 月常规血脂检查"
+  })
+  @IsString()
+  title!: string;
+
+  @ApiProperty({
+    description: "报告摘要。",
+    example: {
+      conclusion: "建议继续复查血压和血脂"
+    }
+  })
+  @IsObject()
+  summary!: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: "附件信息。",
+    example: {
+      fileId: "file_report_exam_pdf",
+      fileName: "exam.pdf"
+    }
+  })
+  @IsOptional()
+  @IsObject()
+  attachment?: Record<string, unknown>;
 }
 
 @Controller("app/health/reports/checkups")
@@ -178,7 +248,49 @@ export class AdminReportsController {
     description: "后台报告管理页接口，可按审核状态筛选。"
   })
   listReports(@Query() query: AdminReportsQueryDto) {
-    return this.reportsService.listAdminReports(query.page, query.pageSize, query.status);
+    return this.reportsService.listAdminReports(
+      query.page,
+      query.pageSize,
+      query.status,
+      query.type,
+      query.keyword
+    );
+  }
+
+  @Get(":reportId")
+  @ApiOperation({
+    summary: "后台获取报告详情",
+    description: "后台报告管理页详情接口。"
+  })
+  getReportDetail(@Param("reportId") reportId: string) {
+    return this.reportsService.getAdminReportDetail(reportId);
+  }
+
+  @Post()
+  @ApiOperation({
+    summary: "后台上传报告",
+    description: "后台报告上传接口。"
+  })
+  createAdminReport(@Body() body: CreateAdminReportDto) {
+    return this.reportsService.createAdminReport(body);
+  }
+
+  @Delete(":reportId")
+  @ApiOperation({
+    summary: "后台删除报告",
+    description: "后台报告删除接口。"
+  })
+  deleteAdminReport(@Param("reportId") reportId: string) {
+    return this.reportsService.deleteAdminReport(reportId);
+  }
+
+  @Get(":reportId/download-metadata")
+  @ApiOperation({
+    summary: "获取报告下载元数据",
+    description: "后台报告下载按钮先调用，返回 fileId、fileName、url 等元数据。"
+  })
+  getDownloadMetadata(@Param("reportId") reportId: string) {
+    return this.reportsService.getAdminReportDownloadMetadata(reportId);
   }
 
   @Put(":reportId/review")

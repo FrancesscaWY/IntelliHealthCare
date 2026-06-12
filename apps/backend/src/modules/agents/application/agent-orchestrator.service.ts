@@ -23,6 +23,7 @@ import type {
   AgentToolName,
   ArchiveContext,
   AssistantConversationInput,
+  AssistantDomainInsight,
   CareCoordinationCardInput,
   ContentActivityOpsInput,
   DeviceOperationsInput,
@@ -87,6 +88,20 @@ interface AgentExecutionData {
 interface CoordinatedExecutionResult {
   execution: AgentExecutionData;
   coordinationSteps: AgentCoordinationStepTrace[];
+}
+
+interface AssistantWorkflowRequest {
+  taskType: "report-interpretation" | "health-summary" | "service-recommendation" | "booking-prefill";
+  payload: Record<string, unknown>;
+  reason: string;
+}
+
+interface NestedWorkflowExecution {
+  data: unknown;
+  trace: AgentExecutionData["trace"];
+  coordinationSteps: AgentCoordinationStepTrace[];
+  resolved: AgentDefinition;
+  toolCalls: ToolCallTrace[];
 }
 
 @Injectable()
@@ -285,6 +300,8 @@ export class AgentOrchestratorService {
     toolCalls: ToolCallTrace[];
   }): Promise<CoordinatedExecutionResult> {
     switch (input.resolved.name) {
+      case ASSISTANT_CONVERSATION_AGENT:
+        return this.executeAssistantWorkflow(input.task, input.resolved, input.toolCalls);
       case HEALTH_MANAGEMENT_AGENT:
         return this.executeHealthWorkflow(input.task, input.resolved, input.toolCalls);
       case RISK_OPERATIONS_AGENT:
@@ -297,6 +314,119 @@ export class AgentOrchestratorService {
           coordinationSteps: []
         };
     }
+  }
+
+  private async executeAssistantWorkflow(
+    task: SerializableAgentTask,
+    definition: AgentDefinition,
+    toolCalls: ToolCallTrace[]
+  ): Promise<CoordinatedExecutionResult> {
+    const input = assistantConversationInputSchema.parse(task.payload);
+    const directExecution = this.buildAssistantDirectConversationExecution(input);
+
+    if (directExecution) {
+      return {
+        execution: directExecution,
+        coordinationSteps: []
+      };
+    }
+
+    const requests = this.buildAssistantWorkflowRequests(input);
+    const knowledgeInsight = await this.buildAssistantKnowledgeInsight({
+      definition,
+      toolCalls,
+      ownerId: task.ownerId,
+      input
+    });
+    const baseInsights = [...(input.domainInsights ?? [])];
+
+    if (knowledgeInsight) {
+      baseInsights.push(knowledgeInsight);
+    }
+
+    if (requests.length === 0) {
+      return {
+        execution: await this.executeAssistantConversation(
+          {
+            ...task,
+            payload: {
+              ...input,
+              domainInsights: baseInsights.slice(0, 6)
+            }
+          },
+          definition
+        ),
+        coordinationSteps: []
+      };
+    }
+
+    const coordinationSteps: AgentCoordinationStepTrace[] = [];
+    const domainInsights = [...baseInsights];
+    const referencedTaskTypes: string[] = [];
+    let latestHealthContextRef: string | null = null;
+
+    for (const request of requests) {
+      const nestedExecution = await this.executeNestedWorkflowTask({
+        parentTask: task,
+        taskType: request.taskType,
+        payload:
+          request.taskType === "booking-prefill" &&
+          latestHealthContextRef &&
+          !("healthContextRef" in request.payload)
+            ? {
+                ...request.payload,
+                healthContextRef: latestHealthContextRef
+              }
+            : request.payload,
+        reason: request.reason
+      });
+
+      toolCalls.push(...nestedExecution.toolCalls);
+      coordinationSteps.push(...nestedExecution.coordinationSteps);
+      referencedTaskTypes.push(request.taskType);
+      domainInsights.push(
+        this.buildAssistantDomainInsight(
+          request.taskType,
+          nestedExecution.resolved.name,
+          nestedExecution.data
+        )
+      );
+      latestHealthContextRef =
+        this.extractAssistantHealthContextRef(nestedExecution.data) ?? latestHealthContextRef;
+    }
+
+    const assistantExecution = await this.executeAssistantConversation(
+      {
+        ...task,
+        payload: {
+          ...input,
+          resolvedIntent: this.buildAssistantResolvedIntent(requests),
+          domainInsights: domainInsights.slice(0, 6)
+        }
+      },
+      definition
+    );
+    const nextOutput = this.toRecord(assistantExecution.data);
+    nextOutput.referencedTaskTypes = Array.from(new Set(referencedTaskTypes)).slice(0, 6);
+    const parsedOutput = assistantConversationOutputSchema.parse(nextOutput);
+
+    coordinationSteps.push({
+      step: "assistant-response",
+      agentName: definition.name,
+      taskType: task.taskType,
+      status: "succeeded",
+      reason: "AssistantConversationAgent 汇总下游多智能体结果，生成面向用户的最终回复。",
+      outputSummary: this.summarizeCoordinationOutput(parsedOutput),
+      llm: assistantExecution.trace.llm
+    });
+
+    return {
+      execution: {
+        data: parsedOutput,
+        trace: assistantExecution.trace
+      },
+      coordinationSteps
+    };
   }
 
   private async executeHealthWorkflow(
@@ -1010,18 +1140,25 @@ export class AgentOrchestratorService {
       );
     }
 
+    const directExecution = this.buildAssistantDirectConversationExecution(input);
+    if (directExecution) {
+      return directExecution;
+    }
+
     const fallback = this.buildAssistantConversationFallback(input);
     const llmResponse = await this.llmGateway.generateStructuredObject({
       agentName: definition.name,
       modelTier: "light",
       systemPrompt:
-        "你是 IntelliHealthCare 的统一康养助手门面。只能输出 JSON，回复要克制、清晰，不伪造医学结论。",
+        "你是 IntelliHealthCare 用户端的康养助手“豆沙包”。只能输出 JSON。回复要自然、简短、亲切。用户提出明确问题时，必须先直接回答这个问题；domainInsights 只能作为辅助上下文，不能替代答案。不要机械回显用户问题，不要说“已收到你的问题”这类模板话术，不要重复自我介绍，也不要把多段固定模板直接拼接在一起。除非用户明确要求生成摘要，不要用“健康摘要已生成”“当前重点为”“建议下一步”这类摘要模板开头。对问候、感谢、闲聊、笑话、自我介绍可以直接自然回答；涉及医学结论时保持谨慎，不伪造诊断。",
       userPrompt: JSON.stringify(
         {
           userMessage: input.userMessage,
           conversationHistory: input.conversationHistory ?? [],
           resolvedIntent: input.resolvedIntent ?? null,
-          pageContext: input.pageContext ?? null
+          pageContext: input.pageContext ?? null,
+          contextSnapshot: input.contextSnapshot ?? null,
+          domainInsights: input.domainInsights ?? []
         },
         null,
         2
@@ -1036,6 +1173,352 @@ export class AgentOrchestratorService {
         llm: llmResponse.trace
       }
     };
+  }
+
+  private buildAssistantDirectConversationExecution(
+    input: AssistantConversationInput
+  ): AgentExecutionData | null {
+    const directReply = this.resolveAssistantDirectReply(input.userMessage);
+
+    if (!directReply) {
+      return null;
+    }
+
+    return {
+      data: assistantConversationOutputSchema.parse({
+        assistantReply: directReply,
+        followUpQuestion: null,
+        navigationSuggestion: null,
+        pendingTaskHint: null,
+        referencedTaskTypes: []
+      }),
+      trace: {
+        llm: {
+          provider: "local",
+          model: "assistant-direct-answer",
+          fallbackMode: true,
+          modelTier: "light",
+          attemptedModels: ["assistant-direct-answer"],
+          strictJson: true,
+          toolCalling: false
+        }
+      }
+    };
+  }
+
+  resolveAssistantDirectReply(userMessage: string) {
+    return this.buildAssistantCommonKnowledgeReply(userMessage.trim());
+  }
+
+  private async executeNestedWorkflowTask(input: {
+    parentTask: SerializableAgentTask;
+    taskType: AssistantWorkflowRequest["taskType"];
+    payload: Record<string, unknown>;
+    reason: string;
+  }): Promise<NestedWorkflowExecution> {
+    const resolution = this.agentRegistry.resolve(TASK_ORCHESTRATOR_AGENT, input.taskType);
+    const nestedTask: SerializableAgentTask = {
+      ...input.parentTask,
+      agentName: TASK_ORCHESTRATOR_AGENT,
+      taskType: resolution.taskType,
+      payload: input.payload
+    };
+    const nestedToolCalls: ToolCallTrace[] = [];
+    const coordinatedExecution = await this.executeWithCoordination({
+      task: nestedTask,
+      resolved: resolution.resolved,
+      toolCalls: nestedToolCalls
+    });
+    const safetyReview = await this.maybeRunSafetyReview(
+      nestedTask,
+      resolution.resolved,
+      coordinatedExecution.execution.data
+    );
+    const output = safetyReview
+      ? this.applySafetyReviewResult(coordinatedExecution.execution.data, safetyReview)
+      : coordinatedExecution.execution.data;
+    const coordinationSteps =
+      coordinatedExecution.coordinationSteps.length > 0
+        ? coordinatedExecution.coordinationSteps
+        : [
+            {
+              step: `assistant-${resolution.taskType}`,
+              agentName: resolution.resolved.name,
+              taskType: resolution.taskType,
+              status: "succeeded" as const,
+              reason: input.reason,
+              outputSummary: this.summarizeCoordinationOutput(output),
+              llm: coordinatedExecution.execution.trace.llm,
+              toolCalls: nestedToolCalls
+            }
+          ];
+
+    return {
+      data: output,
+      trace: coordinatedExecution.execution.trace,
+      coordinationSteps,
+      resolved: resolution.resolved,
+      toolCalls: nestedToolCalls
+    };
+  }
+
+  private buildAssistantWorkflowRequests(
+    input: AssistantConversationInput
+  ): AssistantWorkflowRequest[] {
+    const userMessage = input.userMessage.trim();
+    const selectedReportId =
+      input.contextSnapshot?.selectedReportId ?? input.contextSnapshot?.latestReportId ?? null;
+    const targetUserId = input.contextSnapshot?.targetUserId;
+    const authorizedScope = input.contextSnapshot?.authorizedScope ?? [];
+    const metricTypes = this.inferAssistantMetricTypes(userMessage);
+    const hasPersonalContextReference =
+      /我|我的|我们|家里|家属|父母|爸妈|爸爸|妈妈|爷爷|奶奶|姥姥|姥爷|外公|外婆|长辈|本人|最近|近期|这几天|目前|当前|这项|这个|这些|刚做完|刚查完/.test(
+        userMessage
+      );
+    const hasReportContextReference =
+      selectedReportId !== null &&
+      /这份报告|这个报告|报告里|报告单|当前报告|这张单子|这个结果|这些指标/.test(
+        userMessage
+      );
+    const hasReportIntent =
+      /报告|体检报告|检查结果|解读|分析|复查/.test(userMessage) ||
+      hasReportContextReference;
+    const hasServiceContextReference =
+      Boolean(input.contextSnapshot?.preferredServiceCategory) &&
+      /这项服务|这个服务|这类服务|适合我|适不适合|怎么选|怎么约|继续说说|详细说说/.test(
+        userMessage
+      );
+    const hasServiceTopic =
+      /服务|项目|上门|家政|护理|康复|理疗|养老机构|养老院|照护|陪诊|陪护|日间照料/.test(
+        userMessage
+      );
+    const hasServiceActionIntent =
+      /推荐|适合|怎么选|如何选|怎么约|预约|下单|安排|档期|想约|帮我选|筛选|比较|对比|哪种|哪项|哪家|继续说说|详细说说/.test(
+        userMessage
+      );
+    const hasServiceIntent =
+      hasServiceContextReference || (hasServiceTopic && hasServiceActionIntent);
+    const hasHealthTopic =
+      /血压|血糖|心率|睡眠|体重|血氧|压力|步数|指标|健康|慢病|异常|风险|预警/.test(
+        userMessage
+      );
+    const hasHealthDataAnalysisIntent =
+      hasReportContextReference ||
+      /(?:我的|我们|家里|家属|父母|爸妈|爸爸|妈妈|爷爷|奶奶|姥姥|姥爷|外公|外婆|长辈|本人|帮我|给我|替我).*(?:报告|体检|检查|指标|数据|记录|趋势|摘要|档案|结果)/.test(
+        userMessage
+      ) ||
+      /(?:血压|血糖|心率|睡眠|体重|血氧|压力|步数|指标|慢病).*(?:记录|数据|趋势|曲线|报告|结果|档案|监测|复查|复测)/.test(
+        userMessage
+      ) ||
+      /(?:帮我|给我|替我).*(?:看|分析|解读|总结|评估).*(?:健康|血压|血糖|心率|睡眠|体重|血氧|指标|报告|体检|检查)/.test(
+        userMessage
+      ) ||
+      /(?:刚做完|刚查完|上传了|记录了|测了|量了).*(?:报告|体检|检查|指标|血压|血糖|心率|血氧)/.test(
+        userMessage
+      );
+    const hasHealthIntent =
+      hasHealthTopic && hasHealthDataAnalysisIntent;
+    const wantsBooking = /预约|下单|安排|时间|档期|什么时候|上门时间/.test(userMessage);
+    const requests: AssistantWorkflowRequest[] = [];
+
+    if (hasReportIntent && selectedReportId) {
+      requests.push({
+        taskType: "report-interpretation",
+        payload: {
+          reportId: selectedReportId,
+          userId: targetUserId,
+          includeArchive: true,
+          includeLatestMetrics: true,
+          ...(metricTypes.length > 0 ? { metricTypes } : {})
+        },
+        reason: "命中报告解读意图，优先调用健康理解工作流解析当前报告。"
+      });
+    } else if (
+      targetUserId &&
+      (
+        hasHealthIntent ||
+        (hasServiceIntent &&
+          hasPersonalContextReference &&
+          /(适合|怎么选|如何选|需要|推荐)/.test(userMessage))
+      )
+    ) {
+      requests.push({
+        taskType: "health-summary",
+        payload: {
+          userId: targetUserId,
+          viewMode: "health-summary",
+          authorizedScope,
+          ...(metricTypes.length > 0 ? { metricTypes } : {})
+        },
+        reason: "命中健康背景意图，先补充健康摘要作为后续建议的上下文。"
+      });
+    }
+
+    if (hasServiceIntent) {
+      requests.push({
+        taskType: "service-recommendation",
+        payload: {
+          userId: targetUserId,
+          query: userMessage,
+          category: this.inferAssistantServiceCategory(
+            userMessage,
+            input.contextSnapshot?.preferredServiceCategory ?? null
+          ),
+          limit: 3
+        },
+        reason: "命中服务推荐意图，调用服务协同工作流给出候选项目。"
+      });
+    }
+
+    if (wantsBooking && hasServiceIntent) {
+      requests.push({
+        taskType: "booking-prefill",
+        payload: {
+          requestMode: "booking-prefill",
+          userId: targetUserId,
+          serviceRequest: userMessage
+        },
+        reason: "命中预约诉求，补充预约草稿和缺失信息提示。"
+      });
+    }
+
+    return requests.slice(0, 3);
+  }
+
+  private async buildAssistantKnowledgeInsight(input: {
+    definition: AgentDefinition;
+    toolCalls: ToolCallTrace[];
+    ownerId?: string | null;
+    input: AssistantConversationInput;
+  }): Promise<AssistantDomainInsight | null> {
+    const userMessage = input.input.userMessage.trim();
+
+    if (!this.shouldAssistantSearchKnowledge(userMessage)) {
+      return null;
+    }
+
+    const result = await this.searchKnowledgeBase(input.definition, input.toolCalls, {
+      query: userMessage,
+      knowledgeTypes: this.resolveAssistantKnowledgeTypes(userMessage),
+      actorUserId: input.ownerId ?? null,
+      targetUserId: input.input.contextSnapshot?.targetUserId ?? null,
+      limit: 3
+    });
+
+    if (!result || result.results.length === 0) {
+      return null;
+    }
+
+    const topHits = result.results.slice(0, 2);
+    const answerSegments = topHits
+      .map((item) => this.normalizeAssistantExcerpt(item.excerpt))
+      .filter(Boolean);
+
+    if (answerSegments.length === 0) {
+      return null;
+    }
+
+    return {
+      sourceTaskType: "knowledge-search",
+      sourceAgent: ASSISTANT_CONVERSATION_AGENT,
+      title: "养老知识检索",
+      summary: `按知识库里现有资料，${answerSegments.join(" ")}`,
+      highlights: topHits.map((item) => item.document.title).slice(0, 2),
+      followUpActions: [
+        "如果你愿意，我可以再结合老人年龄、慢病、用药或家庭照护场景，把建议收窄一点。"
+      ],
+      data: {
+        citationTitles: topHits.map((item) => item.document.title),
+        knowledgeTypes: topHits.map((item) => item.knowledgeBase.knowledgeType)
+      }
+    };
+  }
+
+  private buildAssistantResolvedIntent(
+    requests: AssistantWorkflowRequest[]
+  ): TaskOrchestratorOutput {
+    const steps: TaskOrchestratorOutput["executionPlan"]["steps"] = [
+      {
+        step: "assistant-route",
+        agent: TASK_ORCHESTRATOR_AGENT,
+        reason: "统一助手先识别用户意图，再按需调用领域 Agent。"
+      }
+    ];
+    const targetAgentList = new Set<string>();
+
+    for (const request of requests) {
+      const resolution = this.agentRegistry.resolve(TASK_ORCHESTRATOR_AGENT, request.taskType);
+      targetAgentList.add(resolution.resolved.name);
+      steps.push({
+        step: request.taskType,
+        agent: resolution.resolved.name,
+        reason: request.reason
+      });
+
+      if (this.shouldSeriallyReview(resolution.resolved)) {
+        targetAgentList.add(SAFETY_REVIEW_AGENT);
+      }
+    }
+
+    if (Array.from(targetAgentList).includes(SAFETY_REVIEW_AGENT)) {
+      steps.push({
+        step: "assistant-safety-review",
+        agent: SAFETY_REVIEW_AGENT,
+        reason: "命中中高风险或需要人工复核的结果时，进入统一安全门禁。"
+      });
+    }
+
+    const targetAgents = Array.from(targetAgentList);
+
+    return {
+      executionPlan: {
+        summary: `助手会话将串联 ${targetAgents.join(" -> ")} 处理当前诉求。`,
+        steps
+      },
+      targetAgentList: targetAgents,
+      workflowRoute: requests.length > 1 ? "serial" : "single-agent",
+      requiredContext: this.collectRequiredContext(targetAgents),
+      humanReviewHint: targetAgents.includes(SAFETY_REVIEW_AGENT)
+        ? "当前链路包含中高风险结果，必要时会触发统一安全复核。"
+        : null
+    };
+  }
+
+  private buildAssistantDomainInsight(
+    taskType: AssistantWorkflowRequest["taskType"],
+    sourceAgent: string,
+    output: unknown
+  ): AssistantDomainInsight {
+    const record = this.toRecord(output);
+    const summary =
+      this.readString(record.conclusion) ??
+      this.readString(record.healthSummary) ??
+      this.readString(record.assistantReply) ??
+      "已生成辅助结果。";
+    const followUpActions = this.pickAssistantFollowUpActions(record);
+    const insight: AssistantDomainInsight = {
+      sourceTaskType: taskType,
+      sourceAgent,
+      title: this.assistantInsightTitle(taskType),
+      summary,
+      highlights: this.pickAssistantInsightHighlights(record),
+      followUpActions,
+      data: this.buildAssistantInsightData(taskType, record)
+    };
+
+    if (!insight.highlights?.length) {
+      delete insight.highlights;
+    }
+
+    if (!insight.followUpActions?.length) {
+      delete insight.followUpActions;
+    }
+
+    if (!insight.data || Object.keys(insight.data).length === 0) {
+      delete insight.data;
+    }
+
+    return insight;
   }
 
   private async executeHealthManagement(
@@ -1499,9 +1982,13 @@ export class AgentOrchestratorService {
       outputSchema: serviceRecommendationOutputSchema,
       fallbackFactory: () => deterministicOutput
     });
+    const output = serviceRecommendationOutputSchema.parse(llmResponse.output);
 
     return {
-      data: serviceRecommendationOutputSchema.parse(llmResponse.output),
+      data: {
+        ...output,
+        recommendations: this.withRecommendationImages(output.recommendations, services)
+      },
       trace: {
         llm: llmResponse.trace
       }
@@ -1852,14 +2339,21 @@ export class AgentOrchestratorService {
   }
 
   private buildAssistantConversationFallback(input: AssistantConversationInput) {
-    const keywordHint = this.pickAssistantHint(input.userMessage);
+    const insightReply = this.composeAssistantReplyFromInsights(input.domainInsights ?? []);
+    const helperReply = this.buildAssistantHelperReply(input);
+    const directReply = this.buildAssistantCommonKnowledgeReply(input.userMessage.trim());
+    const followUpQuestion = this.buildAssistantFollowUpQuestion(input.domainInsights ?? []);
+    const pendingTaskHint = this.buildAssistantPendingTaskHint(input);
+    const referencedTaskTypes = Array.from(
+      new Set((input.domainInsights ?? []).map((item) => item.sourceTaskType))
+    ).slice(0, 6);
 
     return {
-      assistantReply: `已收到你的问题：“${input.userMessage}”。${keywordHint}`,
+      assistantReply:
+        directReply || insightReply || helperReply,
       followUpQuestion:
-        input.userMessage.length < 8
-          ? "可以再补充一下具体需求，例如报告、服务或风险提醒。"
-          : null,
+        followUpQuestion ??
+        this.buildAssistantGenericFollowUpQuestion(input),
       navigationSuggestion: input.pageContext?.pageId
         ? {
             pageId: input.pageContext.pageId,
@@ -1867,10 +2361,8 @@ export class AgentOrchestratorService {
             reason: "继续在当前页面补充上下文可以减少来回跳转。"
           }
         : null,
-      pendingTaskHint:
-        input.resolvedIntent?.workflowRoute === "serial"
-          ? "当前请求可能需要进入受控任务处理和人工复核。"
-          : null
+      pendingTaskHint: pendingTaskHint,
+      referencedTaskTypes
     };
   }
 
@@ -1957,6 +2449,35 @@ export class AgentOrchestratorService {
     resolved: AgentDefinition;
     payload?: unknown;
   }): TaskOrchestratorOutput["executionPlan"]["steps"] {
+    if (input.resolved.name === ASSISTANT_CONVERSATION_AGENT) {
+      const parsed = assistantConversationInputSchema.safeParse(input.payload);
+      const requests = parsed.success ? this.buildAssistantWorkflowRequests(parsed.data) : [];
+
+      if (requests.length === 0) {
+        return [
+          {
+            step: "assistant-response",
+            agent: ASSISTANT_CONVERSATION_AGENT,
+            reason: "AssistantConversationAgent 直接处理通用会话请求。"
+          }
+        ];
+      }
+
+      return [
+        ...requests.map((request) => ({
+          step: request.taskType,
+          agent: this.agentRegistry.resolve(TASK_ORCHESTRATOR_AGENT, request.taskType).resolved
+            .name,
+          reason: request.reason
+        })),
+        {
+          step: "assistant-response",
+          agent: ASSISTANT_CONVERSATION_AGENT,
+          reason: "AssistantConversationAgent 汇总领域 Agent 结果并输出最终回复。"
+        }
+      ];
+    }
+
     if (input.resolved.name === HEALTH_MANAGEMENT_AGENT) {
       return [
         {
@@ -2226,7 +2747,8 @@ export class AgentOrchestratorService {
       category: service.category,
       price: service.price,
       regionScope: service.regionScope,
-      reason: this.buildServiceReason(service, input, archive, metrics)
+      reason: this.buildServiceReason(service, input, archive, metrics),
+      imageUrl: service.coverUrl
     }));
     const matchingSignals = [
       ...(input.query ? [input.query] : []),
@@ -2285,6 +2807,18 @@ export class AgentOrchestratorService {
       recommendations,
       matchingSignals
     };
+  }
+
+  private withRecommendationImages(
+    recommendations: ServiceRecommendationOutput["recommendations"],
+    services: ServiceCatalogItem[]
+  ): ServiceRecommendationOutput["recommendations"] {
+    const serviceImageMap = new Map(services.map((item) => [item.id, item.coverUrl]));
+
+    return recommendations.map((item) => ({
+      ...item,
+      imageUrl: serviceImageMap.get(item.serviceId) ?? item.imageUrl ?? null
+    }));
   }
 
   private buildRiskOperationsFallback(input: RiskOperationsInput) {
@@ -2514,6 +3048,370 @@ export class AgentOrchestratorService {
     }
 
     return value.filter((item): item is string => typeof item === "string");
+  }
+
+  private inferAssistantMetricTypes(userMessage: string) {
+    const metricTypes = new Set<MetricType>();
+
+    if (/血压/.test(userMessage)) {
+      metricTypes.add(MetricType.BLOOD_PRESSURE);
+    }
+
+    if (/血糖/.test(userMessage)) {
+      metricTypes.add(MetricType.BLOOD_GLUCOSE);
+    }
+
+    if (/心率|心跳|脉搏/.test(userMessage)) {
+      metricTypes.add(MetricType.HEART_RATE);
+    }
+
+    if (/睡眠/.test(userMessage)) {
+      metricTypes.add(MetricType.SLEEP);
+    }
+
+    if (/体重/.test(userMessage)) {
+      metricTypes.add(MetricType.WEIGHT);
+    }
+
+    if (/血氧/.test(userMessage)) {
+      metricTypes.add(MetricType.OXYGEN);
+    }
+
+    if (/压力/.test(userMessage)) {
+      metricTypes.add(MetricType.STRESS);
+    }
+
+    if (/步数|运动/.test(userMessage)) {
+      metricTypes.add(MetricType.STEPS);
+    }
+
+    return Array.from(metricTypes);
+  }
+
+  private inferAssistantServiceCategory(
+    userMessage: string,
+    preferredCategory: ServiceCategory | null
+  ) {
+    if (preferredCategory) {
+      return preferredCategory;
+    }
+
+    if (/康复|理疗|训练|关节|步态/.test(userMessage)) {
+      return ServiceCategory.REHAB_THERAPY;
+    }
+
+    if (/体检|复查|慢病|检查|检验/.test(userMessage)) {
+      return ServiceCategory.HOME_EXAM;
+    }
+
+    if (/养老|机构|入住|床位|照料/.test(userMessage)) {
+      return ServiceCategory.ELDERLY_CARE;
+    }
+
+    return ServiceCategory.HOME_CARE;
+  }
+
+  private assistantInsightTitle(taskType: AssistantWorkflowRequest["taskType"]) {
+    switch (taskType) {
+      case "report-interpretation":
+        return "报告解读";
+      case "health-summary":
+        return "健康摘要";
+      case "service-recommendation":
+        return "服务推荐";
+      case "booking-prefill":
+        return "预约草稿";
+      default:
+        return "智能体结果";
+    }
+  }
+
+  private pickAssistantInsightHighlights(record: Record<string, unknown>) {
+    return [
+      ...this.readStringArray(record.reportHighlights),
+      ...this.readStringArray(record.keyFindings),
+      ...this.readStringArray(record.riskSignals),
+      ...this.readStringArray(record.matchingSignals),
+      ...this.readStringArray(record.missingInfo)
+    ].slice(0, 6);
+  }
+
+  private pickAssistantFollowUpActions(record: Record<string, unknown>) {
+    const actions = [
+      ...this.readStringArray(record.followUpActions),
+      ...this.readStringArray(record.followUpSuggestions),
+      ...this.readStringArray(record.rankingReasons)
+    ];
+
+    return Array.from(new Set(actions)).slice(0, 6);
+  }
+
+  private buildAssistantInsightData(
+    taskType: AssistantWorkflowRequest["taskType"],
+    record: Record<string, unknown>
+  ) {
+    const nextData: Record<string, unknown> = {};
+
+    if ("requiresHumanReview" in record) {
+      nextData.requiresHumanReview = this.readBoolean(record.requiresHumanReview);
+    }
+
+    if ("humanReviewRequired" in record) {
+      nextData.humanReviewRequired = this.readBoolean(record.humanReviewRequired);
+    }
+
+    if (taskType === "service-recommendation") {
+      nextData.recommendationTitles = this.ensureServiceRecommendationTitles(record);
+    }
+
+    if (taskType === "booking-prefill") {
+      const bookingPrefill = this.toRecord(record.bookingPrefill);
+      nextData.suggestedSlots = this.readStringArray(bookingPrefill.suggestedSlots);
+      nextData.missingFields = this.readStringArray(bookingPrefill.missingFields);
+    }
+
+    return nextData;
+  }
+
+  private ensureServiceRecommendationTitles(record: Record<string, unknown>) {
+    const recommendations = Array.isArray(record.recommendations)
+      ? record.recommendations
+      : Array.isArray(record.recommendedServices)
+        ? record.recommendedServices
+        : [];
+
+    return recommendations
+      .map((item) => this.readString(this.toRecord(item).title))
+      .filter((item): item is string => Boolean(item))
+      .slice(0, 3);
+  }
+
+  private extractAssistantHealthContextRef(output: unknown) {
+    const record = this.toRecord(output);
+
+    return (
+      this.readString(record.conclusion) ??
+      this.readString(record.healthSummary) ??
+      this.readString(record.assistantReply)
+    );
+  }
+
+  private composeAssistantReplyFromInsights(insights: AssistantDomainInsight[]) {
+    if (!insights.length) {
+      return "";
+    }
+
+    if (insights.every((insight) => insight.sourceTaskType === "knowledge-search")) {
+      return insights
+        .map((insight) => insight.summary)
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    }
+
+    const segments = insights.map((insight) => insight.summary).filter(Boolean);
+    const highlights = Array.from(
+      new Set(insights.flatMap((insight) => insight.highlights ?? []))
+    ).slice(0, 3);
+    const followUpActions = Array.from(
+      new Set(insights.flatMap((insight) => insight.followUpActions ?? []))
+    ).slice(0, 2);
+    const recommendationTitles = Array.from(
+      new Set(
+        insights.flatMap((insight) => {
+          const titles = insight.data?.recommendationTitles;
+          return Array.isArray(titles)
+            ? titles.filter((item): item is string => typeof item === "string")
+            : [];
+        })
+      )
+    ).slice(0, 3);
+    const lines = [segments.join(" ")];
+
+    if (recommendationTitles.length > 0) {
+      lines.push(`如果你想先看具体项目，可以先从 ${recommendationTitles.join("、")} 看起。`);
+    }
+
+    if (highlights.length > 0) {
+      lines.push(`我先帮你抓到的重点有：${highlights.join("；")}。`);
+    }
+
+    if (followUpActions.length > 0) {
+      lines.push(`接下来可以考虑：${followUpActions.join("；")}。`);
+    }
+
+    return lines.filter(Boolean).join(" ").trim();
+  }
+
+  private buildAssistantFollowUpQuestion(insights: AssistantDomainInsight[]) {
+    const missingFields = Array.from(
+      new Set(
+        insights.flatMap((insight) => {
+          const values = insight.data?.missingFields;
+          return Array.isArray(values)
+            ? values.filter((item): item is string => typeof item === "string")
+            : [];
+        })
+      )
+    ).slice(0, 2);
+
+    if (missingFields.length === 0) {
+      return null;
+    }
+
+    return `如果继续帮你往下看，还可以再补充：${missingFields.join("、")}。`;
+  }
+
+  private buildAssistantPendingTaskHint(input: AssistantConversationInput) {
+    const needsHumanReview = (input.domainInsights ?? []).some((insight) => {
+      const data = insight.data ?? {};
+      return (
+        this.readBoolean(data.requiresHumanReview) ||
+        this.readBoolean(data.humanReviewRequired)
+      );
+    });
+
+    if (needsHumanReview) {
+      return "当前结果包含需人工复核的环节，系统会保留人工确认入口。";
+    }
+
+    if (input.resolvedIntent?.workflowRoute === "serial") {
+      return "当前请求已进入受控多智能体串行处理链路。";
+    }
+
+    return null;
+  }
+
+  private buildAssistantHelperReply(input: AssistantConversationInput) {
+    const userMessage = input.userMessage.trim();
+    const rawContextHint = this.buildAssistantContextHint(input);
+    const contextHint = this.shouldUseAssistantContextHint(userMessage)
+      ? rawContextHint
+      : "";
+    const capabilitySummary = this.buildAssistantCapabilitySummary(input);
+
+    if (this.isAssistantUntranscribedVoiceRequest(userMessage)) {
+      return "我先收到了这条语音，但当前环境还没拿到可用转写。你可以再说一遍，或者直接打字给我，我马上继续接着看。";
+    }
+
+    const commonKnowledgeReply = this.buildAssistantCommonKnowledgeReply(userMessage);
+    if (commonKnowledgeReply) {
+      return commonKnowledgeReply;
+    }
+
+    if (this.isAssistantIdentityQuestion(userMessage)) {
+      return this.joinAssistantReplySegments(
+        "我是豆沙包，一个陪你看健康、报告和照护服务的康养助手。",
+        rawContextHint || capabilitySummary
+      );
+    }
+
+    if (this.isAssistantGreeting(userMessage)) {
+      return this.joinAssistantReplySegments(
+        "你好，我在。",
+        contextHint || "你可以直接告诉我，想聊报告、健康情况，还是服务安排。"
+      );
+    }
+
+    if (this.isAssistantCapabilityQuestion(userMessage)) {
+      return this.joinAssistantReplySegments(capabilitySummary, contextHint);
+    }
+
+    if (this.isAssistantThanks(userMessage)) {
+      return this.joinAssistantReplySegments(
+        "不客气。",
+        contextHint || "如果你愿意，我们可以继续把报告、健康重点或服务安排往下聊。"
+      );
+    }
+
+    if (this.isAssistantCompanionSmallTalk(userMessage)) {
+      return "可以，我陪你聊会儿。想轻松说说话也行，想认真看看健康、照护、体检或服务问题也行。";
+    }
+
+    if (this.isAssistantJokeRequest(userMessage)) {
+      return this.buildAssistantJokeReply(userMessage);
+    }
+
+    if (this.isAssistantComfortRequest(userMessage)) {
+      return "辛苦了，先缓一口气。你把现在最困扰你的事告诉我，我陪你一件件拆开看。";
+    }
+
+    if (this.isAssistantFarewell(userMessage)) {
+      return "好，先这样。你随时叫我，我都在。";
+    }
+
+    return this.joinAssistantReplySegments(this.pickAssistantHint(userMessage), contextHint);
+  }
+
+  private buildAssistantGenericFollowUpQuestion(input: AssistantConversationInput) {
+    if (input.userMessage.length >= 8 && !this.isAssistantGreeting(input.userMessage.trim())) {
+      return null;
+    }
+
+    const selectedReportTitle = input.contextSnapshot?.latestReportTitle;
+
+    if (selectedReportTitle) {
+      return `要不要先从《${selectedReportTitle}》开始？你也可以直接说“帮我解读这份报告”。`;
+    }
+
+    switch (input.contextSnapshot?.preferredServiceCategory) {
+      case ServiceCategory.REHAB_THERAPY:
+        return "你想继续看康复理疗推荐、预约建议，还是先总结近期健康情况？";
+      case ServiceCategory.HOME_EXAM:
+        return "你想继续看上门体检推荐，还是先结合最近指标做个健康摘要？";
+      case ServiceCategory.ELDERLY_CARE:
+        return "你想继续筛选养老机构，还是先说一下老人当前照护需求？";
+      case ServiceCategory.HOME_CARE:
+        return "你想继续筛选家政护理服务，还是先告诉我老人当前最需要解决的问题？";
+      default:
+        return "你现在想看报告解读、健康摘要，还是服务推荐？";
+    }
+  }
+
+  private buildAssistantCapabilitySummary(input: AssistantConversationInput) {
+    const routeText = `${input.pageContext?.route ?? ""} ${input.pageContext?.pageId ?? ""}`;
+
+    if (/health|metric|diet|report/i.test(routeText)) {
+      return "我能结合当前页面帮你看报告，也能把近期指标变化和需要留意的风险重点梳理清楚。";
+    }
+
+    if (/service|order/i.test(routeText)) {
+      return "我能先陪你把需求聊清楚，再一起筛服务、看适不适合，也能补上预约前要准备的信息。";
+    }
+
+    return "我可以陪你聊日常，也能帮你解读报告、整理健康重点、挑选更合适的康养服务。";
+  }
+
+  private buildAssistantContextHint(input: AssistantConversationInput) {
+    const selectedReportTitle = input.contextSnapshot?.latestReportTitle;
+
+    if (selectedReportTitle) {
+      return `你现在关联着《${selectedReportTitle}》，想继续的话可以直接围绕这份报告往下问。`;
+    }
+
+    switch (input.contextSnapshot?.preferredServiceCategory) {
+      case ServiceCategory.REHAB_THERAPY:
+        return "你现在在看康复理疗，我可以直接帮你比较项目、适用人群和预约前要问的问题。";
+      case ServiceCategory.HOME_EXAM:
+        return "你现在在看上门体检，我可以继续帮你筛项目，并把体检前要准备的事一起列出来。";
+      case ServiceCategory.ELDERLY_CARE:
+        return "你现在在看养老机构，我可以继续帮你对照照护需求、入住条件和服务侧重点。";
+      case ServiceCategory.HOME_CARE:
+        return "你现在在看家政护理，我可以继续帮你梳理需求、筛服务，或者顺手生成预约草稿。";
+      default:
+        return "";
+    }
+  }
+
+  private shouldUseAssistantContextHint(userMessage: string) {
+    return (
+      this.isAssistantGreeting(userMessage) ||
+      this.isAssistantThanks(userMessage) ||
+      this.isAssistantCapabilityQuestion(userMessage) ||
+      /这份报告|这个报告|报告里|这项服务|这个服务|适合我|这个指标|这些指标/.test(
+        userMessage
+      )
+    );
   }
 
   private async searchKnowledgeBase(
@@ -2823,18 +3721,132 @@ export class AgentOrchestratorService {
 
   private pickAssistantHint(userMessage: string) {
     if (/报告|体检|检查/.test(userMessage)) {
-      return "这更像报告解读场景，我会优先走健康理解链路。";
+      return "把报告里的结论、指标或你看不懂的地方发我，我先帮你抓重点。";
     }
 
     if (/服务|上门|预约|护理/.test(userMessage)) {
-      return "这更像服务协同场景，我会优先走服务推荐和预约链路。";
+      return "你把想解决的问题告诉我，我先帮你缩小服务范围，再看怎么约更合适。";
     }
 
     if (/风险|异常|预警/.test(userMessage)) {
-      return "这更像风险提醒场景，我会优先走风险运营链路。";
+      return "你先把异常或预警说给我，我帮你分清现在最该留意哪一项。";
     }
 
-    return "如需更精确处理，可以继续补充报告、服务或风险相关细节。";
+    return "你直接把情况告诉我就行，我会结合当前页面和已有信息一起看。";
+  }
+
+  private joinAssistantReplySegments(...segments: Array<string | null | undefined>) {
+    return segments
+      .map((segment) => (typeof segment === "string" ? segment.trim() : ""))
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
+
+  private isAssistantGreeting(userMessage: string) {
+    return /^(你好|您好|嗨|哈喽|hi|hello|在吗|早上好|上午好|下午好|晚上好)[\s!！?？。~～]*$/i.test(
+      userMessage
+    );
+  }
+
+  private isAssistantThanks(userMessage: string) {
+    return /谢谢|感谢|辛苦了|麻烦你了/.test(userMessage);
+  }
+
+  private isAssistantCapabilityQuestion(userMessage: string) {
+    return /你能做什么|你可以做什么|怎么用|如何用|帮助|帮我做什么|能帮我什么/.test(
+      userMessage
+    );
+  }
+
+  private isAssistantIdentityQuestion(userMessage: string) {
+    return /你是谁|你叫什么|怎么称呼你|你叫啥|你是干嘛的/.test(userMessage);
+  }
+
+  private isAssistantJokeRequest(userMessage: string) {
+    return /笑话|段子|逗我|幽默一点|讲个梗/.test(userMessage);
+  }
+
+  private isAssistantCompanionSmallTalk(userMessage: string) {
+    return /无聊|陪我聊|聊聊天|陪陪我|想找人说说话/.test(userMessage);
+  }
+
+  private isAssistantUntranscribedVoiceRequest(userMessage: string) {
+    return /未转写的语音|无法直接理解纯音频内容|重试语音或补充文字/.test(userMessage);
+  }
+
+  private isAssistantComfortRequest(userMessage: string) {
+    return /有点烦|有点累|心情不好|难受|焦虑|安慰我|鼓励我/.test(userMessage);
+  }
+
+  private isAssistantFarewell(userMessage: string) {
+    return /^(拜拜|再见|回头聊|先这样|晚安)[\s!！?？。~～]*$/i.test(userMessage);
+  }
+
+  private buildAssistantJokeReply(userMessage: string) {
+    const jokes = [
+      "讲个轻松的: 医生问你最近睡得怎么样，你说挺好，就是闹钟还没响，压力先醒了。",
+      "来个不伤身的冷笑话: 体重秤最擅长的不是测体重，是提醒人昨天那顿夜宵还没下班。",
+      "给你一个康养版段子: 我问血压计今天稳不稳，它说先别问我，先问你昨晚几点睡的。"
+    ];
+
+    return jokes[userMessage.length % jokes.length] ?? jokes[0];
+  }
+
+  private buildAssistantCommonKnowledgeReply(userMessage: string) {
+    if (/HPV.*(2价|二价).*(4价|四价).*(9价|九价)|HPV.*(4价|四价).*(9价|九价)|HPV2价|HPV4价|HPV9价/.test(userMessage)) {
+      return "简单说：2价主要覆盖 HPV 16、18 型；4价在此基础上增加 6、11 型；9价再增加 31、33、45、52、58 型，覆盖范围更广。怎么选主要看年龄、性别、当地可接种范围、预算和医生建议，不是价越高就一定越适合。";
+    }
+
+    if (/(血压).*(高|偏高|升高)|高血压|血压有点高/.test(userMessage)) {
+      return "血压偏高先别只看一次结果，建议连续几天在固定时间测量并记录。近期重点是少盐、少酒、睡够、避免熬夜和情绪激动；如果多次达到 140/90 mmHg 以上，或伴有头痛、胸闷、头晕、视物模糊，要尽快咨询医生。";
+    }
+
+    if (/防癌体检|肿瘤筛查|癌症筛查/.test(userMessage)) {
+      return "防癌体检要按年龄、性别、家族史和既往病史来选，不建议只买项目最多的套餐。一般可先覆盖常规体检、胸部影像、腹部/甲状腺等超声、便潜血或肠镜评估；女性再关注乳腺和宫颈筛查，男性可结合前列腺风险。";
+    }
+
+    if (/体检前.*注意|注意.*体检前|体检.*准备/.test(userMessage)) {
+      return "体检前一天尽量清淡饮食、别饮酒、别熬夜；抽血项目通常需要空腹 8-12 小时。降压药等长期用药不要自行停，糖尿病用药和胰岛素最好提前按医生要求确认。带好身份证、既往报告和正在服用的药物清单。";
+    }
+
+    return null;
+  }
+
+  private shouldAssistantSearchKnowledge(userMessage: string) {
+    if (userMessage.length < 6) {
+      return false;
+    }
+
+    return !(
+      this.isAssistantGreeting(userMessage) ||
+      this.isAssistantThanks(userMessage) ||
+      this.isAssistantJokeRequest(userMessage) ||
+      this.isAssistantIdentityQuestion(userMessage) ||
+      this.isAssistantCapabilityQuestion(userMessage) ||
+      this.isAssistantFarewell(userMessage) ||
+      this.isAssistantCompanionSmallTalk(userMessage)
+    );
+  }
+
+  private resolveAssistantKnowledgeTypes(userMessage: string) {
+    const knowledgeTypes = new Set<RagKnowledgeType>();
+
+    if (/服务|预约|项目|家政|护理|康复|理疗|养老|机构|照护/.test(userMessage)) {
+      knowledgeTypes.add(RagKnowledgeType.SERVICE_CATALOG);
+    }
+
+    if (/退款|改期|取消|规则|怎么约|流程|平台/.test(userMessage)) {
+      knowledgeTypes.add(RagKnowledgeType.PLATFORM_RULE);
+    }
+
+    knowledgeTypes.add(RagKnowledgeType.HEALTH_KNOWLEDGE);
+
+    return Array.from(knowledgeTypes);
+  }
+
+  private normalizeAssistantExcerpt(excerpt: string) {
+    return excerpt.replace(/\s+/g, " ").trim().replace(/^[，。；、\s]+/, "");
   }
 
   private pickHighlights(summary: Record<string, unknown>) {

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
-import { selectedDeviceId } from "./state";
+import { currentDeviceItems, selectDevice, syncHealthDeviceItems } from "./state";
 
 const props = defineProps<PageComponentProps>();
+const deviceItems = computed(() => currentDeviceItems.value);
 
 const deviceIconMarkup: Record<string, string> = {
   watch: `
@@ -46,14 +48,24 @@ function addDevice() {
   props.navigation.navigateTo("health/device-add");
 }
 
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
+}
+
 function openDevice(id: string) {
-  selectedDeviceId.value = id;
+  selectDevice(id);
   props.navigation.navigateTo("health/device-detail");
 }
 
 function getDeviceIconMarkup(type: string) {
   return deviceIconMarkup[type] || deviceIconMarkup.watch;
 }
+
+onMounted(() => {
+  void syncHealthDeviceItems().catch((error) => {
+    props.showToast(getDeviceErrorMessage(error));
+  });
+});
 </script>
 
 <template>
@@ -73,26 +85,30 @@ function getDeviceIconMarkup(type: string) {
     </header>
 
     <main class="device-scroll">
-      <button
-        v-for="item in mock.devices"
-        :key="item.id"
-        class="device-card"
-        type="button"
-        @click="openDevice(item.id)"
-      >
-        <span class="device-icon-wrap" :style="{ background: item.halo, color: item.color }" aria-hidden="true">
-          <svg viewBox="0 0 32 32" focusable="false">
-            <g v-html="getDeviceIconMarkup(item.type)"></g>
-          </svg>
-        </span>
+      <template v-if="deviceItems.length">
+        <button
+          v-for="item in deviceItems"
+          :key="item.id"
+          class="device-card"
+          type="button"
+          @click="openDevice(item.id)"
+        >
+          <span class="device-icon-wrap" :style="{ background: item.halo, color: item.color }" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <g v-html="getDeviceIconMarkup(item.type)"></g>
+            </svg>
+          </span>
 
-        <span class="device-copy">
-          <strong>{{ item.name }}</strong>
-          <small>{{ item.status }}</small>
-        </span>
+          <span class="device-copy">
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.status }}</small>
+          </span>
 
-        <span class="device-arrow" aria-hidden="true"></span>
-      </button>
+          <span class="device-arrow" aria-hidden="true"></span>
+        </button>
+      </template>
+
+      <div v-else class="device-empty">暂无已绑定设备</div>
     </main>
   </section>
 </template>
@@ -101,26 +117,28 @@ function getDeviceIconMarkup(type: string) {
 .device-page {
   position: relative;
   left: 50%;
-  width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  box-sizing: border-box;
+  width: min(402px, 100vw);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
+  padding: 16px 18px 28px;
   overflow: hidden;
-  background: linear-gradient(180deg, #f7f8fc 0%, #f8f9fd 100%);
-  color: #1d2432;
-  font-family: var(--ihc-font-family);
+  background: #f5f6f7;
+  color: #252939;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
   -webkit-font-smoothing: antialiased;
 }
 
 .device-nav {
   display: grid;
-  grid-template-columns: 28px 1fr 28px;
+  grid-template-columns: 34px 1fr 34px;
   align-items: center;
-  gap: 10px;
-  height: 60px;
-  padding: 0 20px;
+  gap: 18px;
+  height: 52px;
+  padding: 0 2px;
 }
 
 .back-btn,
@@ -135,25 +153,28 @@ function getDeviceIconMarkup(type: string) {
 .add-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 38px;
   padding: 0;
 }
 
 .back-arrow {
-  width: 12px;
-  height: 12px;
-  border-bottom: 3px solid #2c3038;
-  border-left: 3px solid #2c3038;
-  transform: rotate(45deg);
+  width: 15px;
+  height: 15px;
+  border-bottom: 4px solid #34383f;
+  border-left: 4px solid #34383f;
+  transform: rotate(45deg) translate(3px, -3px);
 }
 
 .device-nav h1 {
   margin: 0;
-  color: #1f2430;
-  font-size: 17px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  overflow: hidden;
+  color: #34383f;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .add-btn {
@@ -162,18 +183,18 @@ function getDeviceIconMarkup(type: string) {
 
 .add-btn svg {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 38px;
+  height: 38px;
   fill: none;
-  stroke: #3a3f4a;
-  stroke-width: 1.9;
+  stroke: #34383f;
+  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .device-scroll {
-  height: calc(100% - 60px);
-  padding: 8px 18px 20px;
+  height: calc(100% - 52px);
+  padding: 34px 2px 0;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -184,15 +205,15 @@ function getDeviceIconMarkup(type: string) {
 
 .device-card {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 18px;
+  grid-template-columns: 100px minmax(0, 1fr) 22px;
   align-items: center;
   width: 100%;
-  min-height: 96px;
-  margin-top: 14px;
-  padding: 0 16px 0 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 20px rgba(110, 124, 154, 0.04);
+  min-height: 132px;
+  margin-top: 24px;
+  padding: 0 22px 0 26px;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(31, 40, 58, 0.04);
   text-align: left;
 }
 
@@ -200,81 +221,97 @@ function getDeviceIconMarkup(type: string) {
   margin-top: 0;
 }
 
+.device-empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  margin-top: 12px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #9a9fa8;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 14px 34px rgba(31, 40, 58, 0.04);
+}
+
 .device-icon-wrap {
   display: grid;
   place-items: center;
-  width: 50px;
-  height: 50px;
+  width: 78px;
+  height: 78px;
   border-radius: 50%;
 }
 
 .device-icon-wrap svg {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   fill: currentColor;
   stroke: currentColor;
-  stroke-width: 1.95;
+  stroke-width: 2.1;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .device-copy {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   min-width: 0;
 }
 
 .device-copy strong {
-  color: #222834;
-  font-size: 15px;
-  font-weight: 500;
+  color: #252939;
+  font-size: 22px;
+  font-weight: 900;
   line-height: 1.2;
 }
 
 .device-copy small {
-  color: #9ca3af;
-  font-size: 11px;
-  font-weight: 400;
+  color: #9a9fa8;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
 }
 
 .device-arrow {
   justify-self: end;
-  width: 10px;
-  height: 10px;
-  border-top: 2px solid #c9ccd3;
-  border-right: 2px solid #c9ccd3;
+  width: 15px;
+  height: 15px;
+  border-top: 4px solid #c9ccd3;
+  border-right: 4px solid #c9ccd3;
   transform: rotate(45deg);
 }
 
 @media (min-width: 561px) {
   .device-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
 @media (max-width: 389px) {
   .device-nav {
-    padding-right: 18px;
-    padding-left: 18px;
+    gap: 14px;
   }
 
   .device-scroll {
-    padding-right: 16px;
-    padding-left: 16px;
+    padding-top: 28px;
   }
 
   .device-card {
-    grid-template-columns: 60px minmax(0, 1fr) 18px;
-    min-height: 90px;
-    padding-right: 14px;
-    padding-left: 12px;
+    grid-template-columns: 86px minmax(0, 1fr) 20px;
+    min-height: 116px;
+    padding-right: 18px;
+    padding-left: 20px;
+  }
+
+  .device-icon-wrap {
+    width: 68px;
+    height: 68px;
   }
 
   .device-copy strong {
-    font-size: 14px;
+    font-size: 19px;
   }
 }
 </style>

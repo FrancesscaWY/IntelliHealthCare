@@ -1,24 +1,44 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
+import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
+import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
+import { getRehabTherapyServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
+import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
 type FilterKey = 'popular' | 'sales' | 'price'
 
+interface DisplayRehabProduct {
+  id: string
+  serviceId: string
+  title: string
+  image: string
+  tags: string[]
+  price: number
+  sales: number
+}
+
 const activeFilter = ref<FilterKey>('popular')
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
+const products = ref<DisplayRehabProduct[]>(createMockProducts())
+
+let assistantRive: Rive | null = null
+let assistantResizeObserver: ResizeObserver | null = null
 
 const productList = computed(() => {
   if (activeFilter.value === 'price') {
-    return [...mock.products].sort((a, b) => a.price - b.price)
+    return [...products.value].sort((a, b) => a.price - b.price)
   }
 
   if (activeFilter.value === 'sales') {
-    return [...mock.products].sort((a, b) => b.sales - a.sales)
+    return [...products.value].sort((a, b) => b.sales - a.sales)
   }
 
-  return mock.products
+  return [...products.value].sort((a, b) => b.sales - a.sales)
 })
 
 const goBack = () => {
@@ -27,9 +47,93 @@ const goBack = () => {
   }
 }
 
-const openProduct = () => {
+function createMockProducts(): DisplayRehabProduct[] {
+  return mock.products.map((item, index) => ({
+    id: `mock-rehab-${index + 1}`,
+    serviceId: `mock-rehab-${index + 1}`,
+    title: item.title,
+    image: item.image,
+    tags: item.tags,
+    price: item.price,
+    sales: item.sales,
+  }))
+}
+
+function mapServiceItemToRehabProduct(item: ServiceCatalogItem): DisplayRehabProduct {
+  const tags = normalizeServiceStringArray(item.tags)
+
+  return {
+    id: item.serviceId,
+    serviceId: item.serviceId,
+    title: item.title,
+    image: item.coverUrl || mock.products[0]?.image || '',
+    tags: tags.length ? tags : ['康复理疗'],
+    price: item.price,
+    sales: item.salesVolume,
+  }
+}
+
+async function loadRehabTherapyServices() {
+  try {
+    const services = await getRehabTherapyServices()
+
+    if (!services.list.length) {
+      return
+    }
+
+    products.value = services.list.map(mapServiceItemToRehabProduct)
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '康复理疗加载失败')
+  }
+}
+
+const openProduct = (item: DisplayRehabProduct) => {
+  saveSelectedServiceContext({
+    categorySlug: 'rehab-therapy',
+    serviceId: item.serviceId,
+    title: item.title,
+    coverUrl: item.image,
+    price: item.price,
+  })
+
   props.navigation.navigateTo('service/rehab-therapy-detail')
 }
+
+const openSmartRecommend = () => {
+  props.navigation.navigateTo('service/rehab-recommend-waiting')
+}
+
+const resizeAssistant = () => {
+  assistantRive?.resizeDrawingSurfaceToCanvas()
+}
+
+onMounted(() => {
+  void loadRehabTherapyServices()
+
+  if (!assistantCanvasRef.value) return
+
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
+    src: assistantRiveUrl,
+    stateMachines: 'State Machine 1',
+    autoplay: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
+    onLoad: resizeAssistant,
+  })
+
+  assistantResizeObserver = new ResizeObserver(resizeAssistant)
+  assistantResizeObserver.observe(assistantCanvasRef.value)
+})
+
+onBeforeUnmount(() => {
+  assistantResizeObserver?.disconnect()
+  assistantResizeObserver = null
+  assistantRive?.cleanup()
+  assistantRive = null
+})
 </script>
 
 <template>
@@ -58,8 +162,16 @@ const openProduct = () => {
       </button>
     </div>
 
+    <button class="smart-recommend-entry" type="button" @click="openSmartRecommend">
+      <span class="smart-assistant" aria-hidden="true">
+        <canvas ref="assistantCanvasRef" width="110" height="110"></canvas>
+      </span>
+      <span class="smart-entry-text">试试豆沙包为您推荐～</span>
+      <span class="smart-entry-action">进入</span>
+    </button>
+
     <section class="product-grid" aria-label="康复理疗项目">
-      <article v-for="item in productList" :key="item.id" class="product-card" @click="openProduct">
+      <article v-for="item in productList" :key="item.id" class="product-card" @click="openProduct(item)">
         <img class="product-image" :src="item.image" :alt="item.title" />
         <h2>{{ item.title }}</h2>
         <div class="tag-row">
@@ -79,13 +191,13 @@ const openProduct = () => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   padding: 16px 22px 28px;
   box-sizing: border-box;
   transform: translateX(-50%);
   overflow-x: hidden;
-  background: #f6f7f8;
+  background: #ffffff;
   color: #34383f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -121,7 +233,7 @@ const openProduct = () => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin: 10px 0 30px;
+  margin: 10px 0 18px;
 }
 
 .filter-button {
@@ -142,10 +254,10 @@ const openProduct = () => {
 }
 
 .filter-button.active {
-  border-color: #6a72f4;
-  background: #6a72f4;
+  border-color: #75d6df;
+  background: #75d6df;
   color: #fff;
-  box-shadow: none;
+  box-shadow: 0 8px 18px rgba(45, 144, 240, 0.16);
 }
 
 .price-arrows {
@@ -167,6 +279,82 @@ const openProduct = () => {
 
 .price-arrows i:last-child {
   border-top: 5px solid #d2d4d8;
+}
+
+.smart-recommend-entry {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  display: grid;
+  grid-template-columns: 74px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 10px 13px 12px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  background:
+      radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.92), transparent 34%),
+      linear-gradient(105deg, rgba(117, 214, 223, 0.98) 0%, rgba(45, 144, 240, 0.72) 52%, rgba(123, 226, 142, 0.88) 100%);
+  box-shadow: 0 14px 30px rgba(45, 144, 240, 0.14);
+  color: #0a0e17;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.86;
+}
+
+.smart-recommend-entry::after {
+  position: absolute;
+  right: -38px;
+  bottom: -48px;
+  width: 124px;
+  height: 124px;
+  content: "";
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.smart-assistant {
+  position: relative;
+  z-index: 1;
+  width: 74px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  transform: translateX(-10px) translateY(-18px);
+}
+
+.smart-assistant canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 8px 10px rgba(31, 42, 68, 0.13));
+}
+
+.smart-entry-text {
+  position: relative;
+  z-index: 1;
+  color: #050303;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.smart-entry-action {
+  position: relative;
+  z-index: 1;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2a44;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(31, 42, 68, 0.08);
 }
 
 .product-grid {
@@ -219,7 +407,7 @@ const openProduct = () => {
   padding: 0 7px;
   border-radius: 4px;
   background: rgba(51, 201, 158, 0.1);
-  color: #28bf97;
+  color: #12bfae;
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -227,7 +415,7 @@ const openProduct = () => {
 
 .product-tag:nth-child(2) {
   background: rgba(246, 201, 92, 0.12);
-  color: #f0c85c;
+  color: #BE2DEA;
 }
 
 .meta-row {
@@ -237,7 +425,7 @@ const openProduct = () => {
 }
 
 .price {
-  color: #f2736d;
+  color: #006DFF;
   font-size: 20px;
   font-weight: 800;
 }

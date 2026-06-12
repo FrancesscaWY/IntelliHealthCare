@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { bindHealthDevice } from "@/shared/api/health";
+import { selectDevice, syncHealthDeviceItems } from "../device-center/state";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const isSearching = ref(true);
+const isBinding = ref(false);
+const manualDeviceId = ref("");
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 function goBack() {
@@ -26,6 +30,27 @@ function startSearch() {
 
 function openScanner() {
   props.navigation.navigateTo("health/device-scan");
+}
+
+async function bindByManualInput() {
+  const deviceId = manualDeviceId.value.trim();
+  if (!deviceId || isBinding.value) {
+    return;
+  }
+
+  try {
+    isBinding.value = true;
+    const device = await bindHealthDevice(deviceId);
+    selectDevice(device.deviceId);
+    await syncHealthDeviceItems();
+    props.showToast("绑定成功");
+    props.navigation.reLaunch("health/device-detail");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "绑定失败，请检查设备ID是否正确";
+    props.showToast(message);
+  } finally {
+    isBinding.value = false;
+  }
 }
 
 onMounted(() => {
@@ -59,6 +84,27 @@ onBeforeUnmount(() => {
         <span>{{ mock.deviceName }}</span>
         <span class="row-arrow" aria-hidden="true"></span>
       </button>
+
+      <section class="manual-bind-section">
+        <h2 class="manual-bind-title">手动绑定</h2>
+        <label class="manual-bind-field">
+          <span class="sr-only">输入设备ID</span>
+          <input
+            v-model="manualDeviceId"
+            type="text"
+            placeholder="请输入设备ID或序列号"
+            :disabled="isBinding"
+          />
+        </label>
+        <button
+          class="manual-bind-btn"
+          type="button"
+          :disabled="!manualDeviceId.trim() || isBinding"
+          @click="bindByManualInput"
+        >
+          {{ isBinding ? "绑定中..." : "绑定设备" }}
+        </button>
+      </section>
     </main>
 
     <footer class="add-footer">
@@ -72,9 +118,9 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: linear-gradient(180deg, #f7f8fc 0%, #f8f9fd 100%);
@@ -96,7 +142,8 @@ onBeforeUnmount(() => {
 .back-btn,
 .retry-btn,
 .search-result,
-.scan-btn {
+.scan-btn,
+.manual-bind-btn {
   border: 0;
   color: inherit;
 }
@@ -136,6 +183,12 @@ onBeforeUnmount(() => {
 .add-content {
   height: calc(100% - 60px - 98px);
   padding: 52px 18px 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.add-content::-webkit-scrollbar {
+  display: none;
 }
 
 .search-panel {
@@ -184,6 +237,62 @@ onBeforeUnmount(() => {
   transform: rotate(45deg);
 }
 
+.manual-bind-section {
+  margin-top: 32px;
+  padding: 20px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 26px rgba(110, 124, 154, 0.04);
+}
+
+.manual-bind-title {
+  margin: 0 0 16px;
+  color: #323742;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.manual-bind-field {
+  display: block;
+  border-bottom: 1px solid #ececef;
+}
+
+.manual-bind-field input {
+  width: 100%;
+  height: 48px;
+  padding: 0 8px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #383d46;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.manual-bind-field input::placeholder {
+  color: #d1d3d8;
+}
+
+.manual-bind-btn {
+  width: 100%;
+  height: 48px;
+  margin-top: 20px;
+  border-radius: 14px;
+  background: #cfd3ff;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.manual-bind-btn:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.manual-bind-btn:not(:disabled) {
+  background: linear-gradient(180deg, #aeb7ff 0%, #9ea9ff 100%);
+}
+
 .add-footer {
   position: absolute;
   right: 0;
@@ -203,6 +312,18 @@ onBeforeUnmount(() => {
   box-shadow: 0 14px 28px rgba(102, 112, 240, 0.2);
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -215,8 +336,8 @@ onBeforeUnmount(() => {
 
 @media (min-width: 561px) {
   .device-add-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
