@@ -28,6 +28,7 @@ export interface LoginResponse {
     type: string;
     roles: string[];
     realName: string | null;
+    realNameVerified: boolean;
   };
 }
 
@@ -43,10 +44,45 @@ export interface CurrentUserResponse {
   roles: string[];
 }
 
+export interface CurrentUserProfileResponse {
+  userId: string;
+  nickname: string | null;
+  realName: string | null;
+  avatar: string | null;
+  phone: string;
+  city: string | null;
+  gender: string | null;
+  birthday: string | null;
+  realNameStatus: string | null;
+}
+
+export interface SubmitRealNameResponse {
+  userId: string;
+  realName: string | null;
+  realNameStatus: string | null;
+}
+
 export interface PrivacyAgreementResponse {
   title: string;
   version: string;
   content: string;
+}
+
+export interface SendSmsCodeResponse {
+  phone: string;
+  purpose: string;
+  sent: boolean;
+  expiresInSeconds: number;
+  debugCode?: string;
+}
+
+export interface VerifyResetCodeRequest {
+  phone: string;
+  code: string;
+}
+
+export interface ResetPasswordRequest extends VerifyResetCodeRequest {
+  newPassword: string;
 }
 
 export function loginWithPassword(payload: LoginRequest) {
@@ -71,12 +107,26 @@ export function loginWithThirdParty(payload: ThirdPartyLoginRequest) {
 }
 
 export function sendSmsCode(phone: string, purpose = "login") {
-  return request<{ sent: boolean; debugCode?: string }>("/app/auth/sms/send", {
+  return request<SendSmsCodeResponse>("/app/auth/sms/send", {
     method: "POST",
     body: {
       phone,
       purpose
     }
+  });
+}
+
+export function verifyResetCode(payload: VerifyResetCodeRequest) {
+  return request<{ verified: boolean }>("/app/auth/password/verify-code", {
+    method: "POST",
+    body: payload
+  });
+}
+
+export function resetPassword(payload: ResetPasswordRequest) {
+  return request<{ reset: boolean }>("/app/auth/password/reset", {
+    method: "POST",
+    body: payload
   });
 }
 
@@ -86,8 +136,14 @@ export function getCurrentUser() {
   });
 }
 
+export function getCurrentUserProfile() {
+  return request<CurrentUserProfileResponse>("/app/users/me/profile", {
+    auth: true
+  });
+}
+
 export function submitRealName(payload: { realName: string; idCard: string }) {
-  return request<{ verified?: boolean }>("/app/users/me/real-name", {
+  return request<SubmitRealNameResponse>("/app/users/me/real-name", {
     method: "PUT",
     auth: true,
     body: payload

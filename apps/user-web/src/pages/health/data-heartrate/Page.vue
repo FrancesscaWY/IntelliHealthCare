@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Like } from "@icon-park/vue-next";
-import mock from "./mock";
+import Like from "@icon-park/vue-next/es/icons/Like";
+import { loadHeartRateSource } from "../measurement-source";
 
 type ChartMode = "day" | "week" | "month" | "all";
 
@@ -14,10 +14,16 @@ type RangeChartItem = {
 };
 
 const props = defineProps<PageComponentProps>();
+const isLoading = ref(true);
+const pageData = ref<Awaited<ReturnType<typeof loadHeartRateSource>>>({
+  list: [],
+  dailyTimeline: [],
+  monthlyData: []
+});
 
 const healthList = computed(() => {
-  if (mock && Array.isArray(mock.list) && mock.list.length > 0) {
-    return mock.list;
+  if (pageData.value.list.length > 0) {
+    return pageData.value.list;
   }
   return null;
 });
@@ -74,11 +80,22 @@ const latestChangeText = computed(() => {
 });
 
 const dailyTimeline = computed(() => {
-  const entry = mock.dailyTimeline?.find((item) => item.date === latest.value.date);
+  const entry = pageData.value.dailyTimeline.find((item) => item.date === latest.value.date);
   return entry?.items ?? [];
 });
 
 function createHeartHeroChart(items: RangeChartItem[], width = 336, height = 236) {
+  if (!items.length) {
+    return {
+      width,
+      height,
+      axisY: 184,
+      labelY: 216,
+      guideLines: [42, 83, 124, 165],
+      columns: [],
+    };
+  }
+
   const left = 28;
   const right = 24;
   const top = 42;
@@ -152,7 +169,7 @@ const chartItems = computed<RangeChartItem[]>(() => {
     }));
   }
 
-  return (mock.monthlyData ?? []).map((item) => ({
+  return pageData.value.monthlyData.map((item) => ({
     label: item.week,
     low: item.lowHeartRate ?? item.heartRate,
     avg: item.heartRate,
@@ -209,11 +226,16 @@ function getChangeClass(idx: number) {
 }
 
 function goBack() {
-  if (props.navigation?.navigateTo) {
-    props.navigation.navigateTo("health/health-data");
-  } else {
-    window.history.back();
+  if (props.navigation?.navigateBack?.()) {
+    return;
   }
+
+  if (props.navigation?.reLaunch) {
+    props.navigation.reLaunch("health/health-data");
+    return;
+  }
+
+  window.history.back();
 }
 
 function goToAddData() {
@@ -221,6 +243,18 @@ function goToAddData() {
   sessionStorage.setItem("addReturnPath", "health/data-heartrate");
   props.navigation?.navigateTo?.("health/add-data");
 }
+
+async function loadPageData() {
+  try {
+    pageData.value = await loadHeartRateSource();
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadPageData();
+});
 </script>
 
 <template>
@@ -338,6 +372,10 @@ function goToAddData() {
       <button class="add-btn" type="button" @click="goToAddData">+ 添加心率记录</button>
     </main>
 
+    <div v-else-if="isLoading" class="error-card">
+      <strong>加载中...</strong>
+    </div>
+
     <div v-else class="error-card">
       <strong>数据加载失败</strong>
       <p>请检查 `mock.ts` 文件，确保导出了有效的 `list` 数组。</p>
@@ -350,9 +388,9 @@ function goToAddData() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;

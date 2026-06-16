@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { listCheckupReports, type CheckupReportCard } from "@/shared/api/reports";
+import { setSelectedAiReportId } from "@/shared/ai/state";
 
 const props = defineProps<PageComponentProps>();
+const reports = ref<CheckupReportCard[]>([]);
+const isLoading = ref(false);
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -10,13 +14,61 @@ function goBack() {
   }
 }
 
-function viewReport() {
+function formatDateLabel(value: string | null) {
+  if (!value) {
+    return "待同步";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatStatusLabel(status: string) {
+  if (status === "PUBLISHED") {
+    return "已出具";
+  }
+
+  if (status === "PENDING_REVIEW") {
+    return "待审核";
+  }
+
+  return status;
+}
+
+async function loadReports() {
+  isLoading.value = true;
+
+  try {
+    const response = await listCheckupReports({
+      page: 1,
+      pageSize: 20
+    });
+    reports.value = response.list;
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "报告列表加载失败");
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function viewReport(reportId: string) {
+  setSelectedAiReportId(reportId);
   props.navigation.navigateTo("orders/checkup-report");
 }
 
-function viewAiEvaluation() {
+function viewAiEvaluation(reportId: string) {
+  setSelectedAiReportId(reportId);
   props.navigation.navigateTo("orders/checkup-ai-waiting");
 }
+
+onMounted(() => {
+  void loadReports();
+});
 </script>
 
 <template>
@@ -25,22 +77,32 @@ function viewAiEvaluation() {
       <button class="back-btn" type="button" aria-label="返回" @click="goBack">
         <span aria-hidden="true"></span>
       </button>
-      <h1>{{ mock.title }}</h1>
+      <h1>历史报告</h1>
     </header>
 
     <main class="history-scroll">
-      <article v-for="item in mock.reports" :key="item.id" class="history-card">
+      <article v-if="isLoading" class="empty-card">
+        <strong>报告加载中</strong>
+        <p>正在同步最新体检报告，请稍候。</p>
+      </article>
+
+      <article v-else-if="reports.length === 0" class="empty-card">
+        <strong>暂无历史报告</strong>
+        <p>完成体检并生成报告后，这里会展示可供 AI 解读的报告列表。</p>
+      </article>
+
+      <article v-for="item in reports" :key="item.reportId" class="history-card">
         <header>
           <div>
-            <h2>{{ item.name }}</h2>
-            <p>{{ item.center }} · {{ item.date }}</p>
+            <h2>{{ item.title }}</h2>
+            <p>体检中心 · {{ formatDateLabel(item.publishedAt || item.createdAt) }}</p>
           </div>
-          <span>{{ item.status }}</span>
+          <span>{{ formatStatusLabel(item.status) }}</span>
         </header>
-        <p class="summary">{{ item.summary }}</p>
+        <p class="summary">报告编号：{{ item.reportId }}，点击 AI 评估可查看智能解读、风险信号与后续建议。</p>
         <div class="history-actions">
-          <button type="button" @click="viewReport">查看报告</button>
-          <button type="button" @click="viewAiEvaluation">AI评估</button>
+          <button type="button" @click="viewReport(item.reportId)">查看报告</button>
+          <button type="button" @click="viewAiEvaluation(item.reportId)">AI评估</button>
         </div>
       </article>
     </main>
@@ -52,9 +114,9 @@ function viewAiEvaluation() {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;
@@ -108,12 +170,24 @@ function viewAiEvaluation() {
   display: none;
 }
 
-.history-card {
+.history-card,
+.empty-card {
   padding: 18px;
   margin-bottom: 14px;
   border-radius: 18px;
   background: #f8fbfc;
   box-shadow: 0 14px 34px rgba(70, 110, 140, 0.08);
+}
+
+.empty-card {
+  display: grid;
+  gap: 8px;
+}
+
+.empty-card strong {
+  color: #1f2a44;
+  font-size: 17px;
+  font-weight: 900;
 }
 
 .history-card header {
@@ -131,7 +205,8 @@ function viewAiEvaluation() {
 }
 
 .history-card header p,
-.summary {
+.summary,
+.empty-card p {
   margin: 8px 0 0;
   color: rgba(48, 52, 63, 0.6);
   font-size: 13px;

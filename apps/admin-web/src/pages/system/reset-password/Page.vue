@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { updateAdminPassword } from "@/shared/api/auth";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
 
 const form = reactive({
   oldPassword: "",
@@ -11,7 +14,7 @@ const form = reactive({
   confirmPassword: "",
 });
 
-function submitForm() {
+async function submitForm() {
   if (!form.oldPassword || !form.newPassword || !form.confirmPassword) {
     props.showToast("请完整填写密码信息。");
     return;
@@ -22,7 +25,23 @@ function submitForm() {
     return;
   }
 
-  props.showToast("密码修改成功。");
+  try {
+    await updateAdminPassword({
+      oldPassword: form.oldPassword,
+      newPassword: form.newPassword,
+      confirmPassword: form.confirmPassword,
+    });
+    form.oldPassword = "";
+    form.newPassword = "";
+    form.confirmPassword = "";
+    props.showToast("密码修改成功。");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "密码修改失败，请稍后重试",
+    });
+  }
 }
 </script>
 
@@ -56,13 +75,16 @@ function submitForm() {
 
 <style scoped>
 .reset-page {
+  min-height: 100%;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .reset-panel {
-  min-height: 920px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 100%;
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 6px 20px rgba(59, 103, 82, 0.05);
@@ -93,9 +115,12 @@ function submitForm() {
 
 .reset-form {
   display: grid;
+  align-content: start;
   gap: 30px;
   width: min(720px, 100%);
-  margin: 112px auto 0;
+  padding: clamp(40px, 8vh, 112px) 28px 48px;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 
 .form-row {
@@ -139,8 +164,7 @@ function submitForm() {
 }
 
 .reset-footer {
-  margin-top: 360px;
-  padding: 30px 28px 60px;
+  padding: 24px 28px 40px;
   border-top: 1px solid #eef2ef;
 }
 
@@ -159,8 +183,7 @@ function submitForm() {
 @media (max-width: 980px) {
   .reset-form {
     width: 100%;
-    margin-top: 48px;
-    padding: 0 16px;
+    padding: 40px 16px 32px;
   }
 
   .form-row {
@@ -173,7 +196,6 @@ function submitForm() {
   }
 
   .reset-footer {
-    margin-top: 120px;
     padding: 24px 16px 32px;
   }
 }

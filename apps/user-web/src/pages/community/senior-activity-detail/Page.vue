@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { currentUserCommentProfile } from "../../content/comment-mock";
+import { getCurrentUserCommentProfile } from "../../content/comment-mock";
 import { getSeniorActivityById } from "../senior-activities/activities";
 import { selectedSeniorActivityId } from "../senior-activities/state";
 
@@ -114,6 +114,7 @@ function deleteComment(commentId: string) {
 
 function submitComment() {
   const content = commentDraft.value.trim();
+  const currentUserCommentProfile = getCurrentUserCommentProfile();
 
   if (!content) {
     props.showToast("请输入评论内容");
@@ -319,9 +320,9 @@ function registerActivity() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;
@@ -794,8 +795,8 @@ function registerActivity() {
 
 @media (min-width: 561px) {
   .senior-activity-detail-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

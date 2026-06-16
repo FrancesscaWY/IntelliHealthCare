@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
-import { Like, Share, Star } from '@icon-park/vue-next'
+import Like from '@icon-park/vue-next/es/icons/Like'
+import Share from '@icon-park/vue-next/es/icons/Share'
+import Star from '@icon-park/vue-next/es/icons/Star'
 import mock from './mock'
 
 const props = defineProps<PageComponentProps>()
@@ -118,9 +120,9 @@ function pending(label: string) {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   transform: translateX(-50%);
   padding-top: 16px;

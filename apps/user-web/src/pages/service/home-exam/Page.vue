@@ -3,14 +3,45 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
+import { getHomeExamServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
+import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
-const activeCategory = ref(mock.categories[0]?.key ?? '')
-const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
+interface DisplayExamPackage {
+  id: string
+  serviceId: string
+  title: string
+  price: number
+  image: string
+  category: string
+}
 
-const packageList = computed(() => mock.packages)
+const activeCategory = ref('all')
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
+const packages = ref<DisplayExamPackage[]>(createMockPackages())
+
+const categoryOptions = computed(() => {
+  const uniqueCategories = Array.from(new Set(packages.value.map((item) => item.category).filter(Boolean)))
+
+  return [
+    { key: 'all', label: '全部' },
+    ...uniqueCategories.map((item) => ({
+      key: item,
+      label: item,
+    })),
+  ]
+})
+
+const packageList = computed(() => {
+  if (activeCategory.value === 'all') {
+    return packages.value
+  }
+
+  return packages.value.filter((item) => item.category === activeCategory.value)
+})
 
 let assistantRive: Rive | null = null
 let assistantResizeObserver: ResizeObserver | null = null
@@ -21,7 +52,53 @@ const goBack = () => {
   }
 }
 
-const openPackage = () => {
+function createMockPackages(): DisplayExamPackage[] {
+  return mock.packages.map((item, index) => ({
+    id: `mock-home-exam-${index + 1}`,
+    serviceId: `mock-home-exam-${index + 1}`,
+    title: item.title,
+    price: item.price,
+    image: item.image,
+    category: mock.categories[index]?.label || '上门体检',
+  }))
+}
+
+function mapServiceItemToExamPackage(item: ServiceCatalogItem): DisplayExamPackage {
+  const tags = normalizeServiceStringArray(item.tags)
+
+  return {
+    id: item.serviceId,
+    serviceId: item.serviceId,
+    title: item.title,
+    price: item.price,
+    image: item.coverUrl || mock.packages[0]?.image || '',
+    category: tags[0] || item.institution?.name || '上门体检',
+  }
+}
+
+async function loadHomeExamServices() {
+  try {
+    const services = await getHomeExamServices()
+
+    if (!services.list.length) {
+      return
+    }
+
+    packages.value = services.list.map(mapServiceItemToExamPackage)
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '上门体检加载失败')
+  }
+}
+
+const openPackage = (item: DisplayExamPackage) => {
+  saveSelectedServiceContext({
+    categorySlug: 'home-exam',
+    serviceId: item.serviceId,
+    title: item.title,
+    coverUrl: item.image,
+    price: item.price,
+  })
+
   props.navigation.navigateTo('service/home-exam-detail')
 }
 
@@ -34,6 +111,8 @@ const resizeAssistant = () => {
 }
 
 onMounted(() => {
+  void loadHomeExamServices()
+
   if (!assistantCanvasRef.value) return
 
   assistantRive = new Rive({
@@ -78,7 +157,7 @@ onBeforeUnmount(() => {
     <main class="exam-layout">
       <aside class="category-panel" aria-label="体检分类">
         <button
-          v-for="item in mock.categories"
+          v-for="item in categoryOptions"
           :key="item.key"
           class="category-button"
           :class="{ active: activeCategory === item.key }"
@@ -90,7 +169,7 @@ onBeforeUnmount(() => {
       </aside>
 
       <section class="package-list" aria-label="体检套餐">
-        <article v-for="item in packageList" :key="item.id" class="package-card" @click="openPackage">
+        <article v-for="item in packageList" :key="item.id" class="package-card" @click="openPackage(item)">
           <img class="package-image" :src="item.image" :alt="item.title" />
           <div class="package-content">
             <h2>{{ item.title }}</h2>
@@ -107,7 +186,7 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   padding: 16px 18px 28px;
   box-sizing: border-box;

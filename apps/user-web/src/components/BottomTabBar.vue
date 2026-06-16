@@ -43,11 +43,13 @@ function handleClick(pageId: string, label: string) {
 .mobile-tabbar {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  padding: 14px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 40px rgba(24, 42, 77, 0.08);
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 12px 32px rgba(42, 58, 74, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .mobile-tabbar__item {
@@ -55,8 +57,10 @@ function handleClick(pageId: string, label: string) {
   background: transparent;
   display: grid;
   justify-items: center;
-  gap: 5px;
-  color: #8a96ac;
+  gap: 4px;
+  padding: 6px 0;
+  color: #a0acb8;
+  transition: color 0.2s ease;
 }
 
 .mobile-tabbar__item.is-active {
@@ -64,21 +68,23 @@ function handleClick(pageId: string, label: string) {
 }
 
 .mobile-tabbar__item.is-center .mobile-tabbar__icon {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #ffad61);
-  color: #fff;
+  background: linear-gradient(135deg, var(--brand-light) 0%, var(--brand) 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(91, 184, 166, 0.25);
 }
 
 .mobile-tabbar__icon {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .mobile-tabbar__label {
   font-size: 11px;
+  font-weight: 500;
 }
 </style>

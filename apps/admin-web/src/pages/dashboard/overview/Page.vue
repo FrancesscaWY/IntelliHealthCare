@@ -2,7 +2,10 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import * as echarts from "echarts";
 import type { ECharts, EChartsOption } from "echarts";
+import type { PageComponentProps } from "@ihc/page-core/types";
 import shanghaiGeoJson from "@/assets/map/shanghai.json";
+import { getAdminDashboardOverview } from "@/shared/api/dashboard";
+import { handleAdminPageError } from "@/shared/api/error";
 import mock from "./mock";
 
 type ChartItem = {
@@ -13,6 +16,8 @@ type ChartItem = {
   count?: string;
   percent?: string;
 };
+
+const props = defineProps<PageComponentProps>();
 
 const iconMarkup: Record<string, string> = {
   users: `
@@ -72,6 +77,7 @@ const ageChartEl = ref<HTMLElement | null>(null);
 const healthChartEl = ref<HTMLElement | null>(null);
 const trendChartEl = ref<HTMLElement | null>(null);
 const mapChartEl = ref<HTMLElement | null>(null);
+const pageData = ref<typeof mock>(mock);
 
 const serviceChart = shallowRef<ECharts | null>(null);
 const ageChart = shallowRef<ECharts | null>(null);
@@ -83,6 +89,28 @@ let resizeObserver: ResizeObserver | null = null;
 
 function renderIcon(name: string) {
   return iconMarkup[name] || iconMarkup.users;
+}
+
+function buildSparkArea(points: string, baseline = 38) {
+  const normalizedPoints = points.trim().split(/\s+/);
+  const firstPoint = normalizedPoints[0];
+  const lastPoint = normalizedPoints[normalizedPoints.length - 1];
+
+  if (!firstPoint || !lastPoint) {
+    return points;
+  }
+
+  const [firstX] = firstPoint.split(",");
+  const [lastX] = lastPoint.split(",");
+  return `${firstX},${baseline} ${points} ${lastX},${baseline}`;
+}
+
+function getSparkGradientId(index: number) {
+  return `metric-spark-gradient-${index}`;
+}
+
+function getSparkShadowId(index: number) {
+  return `metric-spark-shadow-${index}`;
 }
 
 function getChartInstance(target: HTMLElement | null, current: ECharts | null) {
@@ -98,7 +126,6 @@ function createRingOption(
   items: ChartItem[],
   centerText: string,
   centerSubtext: string,
-  rounded = false,
 ): EChartsOption {
   const ringData = items.map((item) => {
     const baseColor = item.color;
@@ -108,44 +135,40 @@ function createRingOption(
       name: item.label,
       value: item.value,
       itemStyle: {
-        color: rounded
-          ? {
-              type: "linear",
-              x: 0,
-              y: 0,
-              x2: 1,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: highlightColor },
-                { offset: 1, color: baseColor },
-              ],
-            }
-          : baseColor,
-        shadowBlur: rounded ? 14 : 0,
-        shadowColor: rounded ? `${baseColor}80` : "transparent",
-        shadowOffsetY: rounded ? 6 : 0,
+        color: {
+          type: "linear" as const,
+          x: 0,
+          y: 0,
+          x2: 1,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: highlightColor },
+            { offset: 1, color: baseColor },
+          ],
+        },
+        shadowBlur: 14,
+        shadowColor: `${baseColor}80`,
+        shadowOffsetY: 6,
       },
-      emphasis: rounded
-        ? {
-            itemStyle: {
-              color: {
-                type: "linear",
-                x: 0,
-                y: 0,
-                x2: 1,
-                y2: 1,
-                colorStops: [
-                  { offset: 0, color: "#ffffff" },
-                  { offset: 0.42, color: highlightColor },
-                  { offset: 1, color: baseColor },
-                ],
-              },
-              shadowBlur: 24,
-              shadowColor: `${baseColor}a8`,
-              shadowOffsetY: 8,
-            },
-          }
-        : undefined,
+      emphasis: {
+        itemStyle: {
+          color: {
+            type: "linear" as const,
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "#ffffff" },
+              { offset: 0.42, color: highlightColor },
+              { offset: 1, color: baseColor },
+            ],
+          },
+          shadowBlur: 24,
+          shadowColor: `${baseColor}a8`,
+          shadowOffsetY: 8,
+        },
+      },
     };
   });
 
@@ -191,21 +214,21 @@ function createRingOption(
         style: {
           text: centerText,
           fill: "#23302e",
-          fontSize: 19,
+          fontSize: 20,
           fontWeight: 900,
-          textAlign: "center",
+          align: "center",
         },
       },
       {
         type: "text",
         left: "center",
-        top: "56%",
+        top: "57%",
         style: {
           text: centerSubtext,
           fill: "#41515e",
           fontSize: 12,
           fontWeight: 800,
-          textAlign: "center",
+          align: "center",
         },
       },
     ],
@@ -217,9 +240,8 @@ function createRingOption(
         center: ["50%", "52%"],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: rounded ? 10 : 0,
-          borderWidth: 2,
-          borderColor: "rgba(255, 255, 255, 0.9)",
+          borderWidth: 0,
+          borderColor: "transparent",
         },
         label: {
           show: false,
@@ -228,7 +250,7 @@ function createRingOption(
         emphasis: {
           label: {
             show: true,
-            fontSize: 40,
+            fontSize: 36,
             fontWeight: "bold",
             color: "#1f7b70",
           },
@@ -270,7 +292,7 @@ function createTrendOption(): EChartsOption {
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: mock.serviceTrend.labels,
+      data: pageData.value.serviceTrend.labels,
       axisLine: {
         lineStyle: {
           color: "#edf3f1",
@@ -313,7 +335,7 @@ function createTrendOption(): EChartsOption {
       {
         name: "服务人次",
         type: "line",
-        data: mock.serviceTrend.values,
+        data: pageData.value.serviceTrend.values,
         smooth: true,
         symbol: "circle",
         symbolSize: 9,
@@ -338,7 +360,7 @@ function createTrendOption(): EChartsOption {
 }
 
 function createMapOption(): EChartsOption {
-  const values = mock.mapPoints.map((item) => item.value);
+  const values = pageData.value.mapPoints.map((item) => item.value);
   const mapLayout = {
     roam: false,
     zoom: 1,
@@ -348,7 +370,7 @@ function createMapOption(): EChartsOption {
     left: -22,
     right: -22,
   };
-  const centerPointData = mock.mapPoints.map((item) => ({
+  const centerPointData = pageData.value.mapPoints.map((item) => ({
     name: item.name,
     value: [...item.coordinate, item.value],
   }));
@@ -433,7 +455,7 @@ function createMapOption(): EChartsOption {
             shadowOffsetY: 6,
           },
         },
-        data: mock.mapPoints,
+        data: pageData.value.mapPoints,
       },
       {
         name: "区域中心点",
@@ -482,9 +504,9 @@ function renderCharts() {
   trendChart.value = getChartInstance(trendChartEl.value, trendChart.value);
   mapChart.value = getChartInstance(mapChartEl.value, mapChart.value);
 
-  serviceChart.value?.setOption(createRingOption("服务类型分布", mock.serviceTypes, mock.serviceTotal, "服务人次", true), true);
-  ageChart.value?.setOption(createRingOption("用户年龄结构", mock.ageGroups, mock.registeredTotal, "在册用户", true), true);
-  healthChart.value?.setOption(createRingOption("健康状态分布", mock.healthStatus, mock.healthScore, "健康/良好", true), true);
+  serviceChart.value?.setOption(createRingOption("服务类型分布", pageData.value.serviceTypes, pageData.value.serviceTotal, "服务人次"), true);
+  ageChart.value?.setOption(createRingOption("用户年龄结构", pageData.value.ageGroups, pageData.value.registeredTotal, "在册用户"), true);
+  healthChart.value?.setOption(createRingOption("健康状态分布", pageData.value.healthStatus, pageData.value.healthScore, "健康/良好"), true);
   trendChart.value?.setOption(createTrendOption(), true);
   mapChart.value?.setOption(createMapOption(), true);
 }
@@ -498,6 +520,17 @@ function resizeCharts() {
 }
 
 onMounted(async () => {
+  try {
+    pageData.value = (await getAdminDashboardOverview()) as typeof mock;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "后台首页加载失败，已保留演示数据"
+    });
+    pageData.value = mock;
+  }
+
   await nextTick();
   renderCharts();
 
@@ -528,7 +561,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="overview-dashboard">
     <section class="metric-grid" aria-label="核心指标">
-      <article v-for="item in mock.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
+      <article v-for="(item, index) in pageData.stats" :key="item.label" class="metric-card" :class="`metric-card--${item.tone}`">
         <span class="metric-icon" aria-hidden="true">
           <svg viewBox="0 0 44 44" focusable="false">
             <g v-html="renderIcon(item.icon)"></g>
@@ -543,7 +576,25 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <svg class="metric-spark" viewBox="0 0 96 38" preserveAspectRatio="none" aria-hidden="true">
-          <polyline :points="item.spark" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" />
+          <defs>
+            <linearGradient :id="getSparkGradientId(index)" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="currentColor" stop-opacity="0.34" />
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0.04" />
+            </linearGradient>
+            <filter :id="getSparkShadowId(index)" x="-20%" y="-20%" width="160%" height="180%">
+              <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="currentColor" flood-opacity="0.22" />
+            </filter>
+          </defs>
+          <polygon :points="buildSparkArea(item.spark)" :fill="`url(#${getSparkGradientId(index)})`" />
+          <polyline
+            :points="item.spark"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            :filter="`url(#${getSparkShadowId(index)})`"
+          />
         </svg>
       </article>
     </section>
@@ -556,7 +607,7 @@ onBeforeUnmount(() => {
         <div class="ring-with-list">
           <div ref="serviceChartEl" class="echart echart--ring"></div>
           <div class="side-legend side-legend--service">
-            <div v-for="item in mock.serviceTypes" :key="item.label" class="side-legend__row">
+            <div v-for="item in pageData.serviceTypes" :key="item.label" class="side-legend__row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
               <strong>{{ item.count }}</strong>
@@ -580,7 +631,7 @@ onBeforeUnmount(() => {
         <div class="ring-with-list">
           <div ref="ageChartEl" class="echart echart--ring"></div>
           <div class="side-legend side-legend--service">
-            <div v-for="item in mock.ageGroups" :key="item.label" class="side-legend__row">
+            <div v-for="item in pageData.ageGroups" :key="item.label" class="side-legend__row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
               <strong>{{ item.count }}</strong>
@@ -596,7 +647,7 @@ onBeforeUnmount(() => {
         </header>
         <div class="trend-chart">
           <div ref="trendChartEl" class="echart echart--trend"></div>
-          <strong>{{ mock.serviceTrend.current }}</strong>
+          <strong>{{ pageData.serviceTrend.current }}</strong>
         </div>
       </article>
 
@@ -607,7 +658,7 @@ onBeforeUnmount(() => {
         <div class="ring-with-list">
           <div ref="healthChartEl" class="echart echart--ring"></div>
           <div class="side-legend side-legend--service">
-            <div v-for="item in mock.healthStatus" :key="item.label" class="side-legend__row">
+            <div v-for="item in pageData.healthStatus" :key="item.label" class="side-legend__row">
               <i :style="{ background: item.color }"></i>
               <span>{{ item.label }}</span>
               <strong>{{ item.count }}</strong>
@@ -623,11 +674,11 @@ onBeforeUnmount(() => {
         </header>
         <div class="satisfaction-layout">
           <div class="satisfaction-score">
-            <strong>{{ mock.userTags.total }}<small>人</small></strong>
+            <strong>{{ pageData.userTags.total }}<small>人</small></strong>
             <span>标签总数</span>
           </div>
           <div class="satisfaction-bars">
-            <div v-for="item in mock.userTags.items" :key="item.label">
+            <div v-for="item in pageData.userTags.items" :key="item.label">
               <span>{{ item.label }}</span>
               <i><b :style="{ width: item.value }"></b></i>
               <em>{{ item.count }}</em>
@@ -641,7 +692,7 @@ onBeforeUnmount(() => {
           <h2>预警提醒 <small>（今日）</small></h2>
         </header>
         <div class="alert-grid">
-          <article v-for="item in mock.alerts" :key="item.label" class="alert-card" :class="`alert-card--${item.tone}`">
+          <article v-for="item in pageData.alerts" :key="item.label" class="alert-card" :class="`alert-card--${item.tone}`">
             <span aria-hidden="true">
               <svg viewBox="0 0 44 44" focusable="false">
                 <g v-html="renderIcon(item.icon)"></g>
@@ -659,7 +710,7 @@ onBeforeUnmount(() => {
           <h2>支付榜商品排行TOP5</h2>
         </header>
         <div class="workload-list">
-          <div v-for="item in mock.workloadTop" :key="item.rank">
+          <div v-for="item in pageData.workloadTop" :key="item.rank">
             <strong>{{ item.rank }}</strong>
             <span>{{ item.name }}</span>
             <i><b :style="{ width: item.rate }"></b></i>
@@ -673,13 +724,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .overview-dashboard {
-  --mint: #4fbf91;
+  --mint: #f6f8f7;
   --green-deep: #1f7b70;
   --blue: #5aaef5;
   --rose: #ff7f98;
   --amber: #ffa63d;
   --yellow: #ffc531;
   display: grid;
+
   gap: 16px;
   width: 100%;
   min-width: 0;
@@ -697,7 +749,6 @@ onBeforeUnmount(() => {
 .panel {
   border: 1px solid rgba(224, 240, 238, 0.86);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 8px 24px rgba(66, 122, 116, 0.08);
 }
 
@@ -709,6 +760,10 @@ onBeforeUnmount(() => {
   min-height: 106px;
   padding: 14px 14px 12px;
   overflow: hidden;
+  --metric-title-bg-start: color-mix(in srgb, var(--tone) 18%, #ffffff);
+  --metric-title-bg-end: color-mix(in srgb, var(--tone) 8%, #f7fffc);
+  --metric-title-border: color-mix(in srgb, var(--tone) 42%, rgba(255, 255, 255, 0.82));
+  --metric-title-shadow: color-mix(in srgb, var(--tone) 20%, transparent);
 }
 
 .metric-icon {
@@ -754,9 +809,19 @@ onBeforeUnmount(() => {
 
 .metric-copy h2 {
   margin: 0;
-  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  max-width: max-content;
+  padding: 7px 12px;
+  border-radius: 12px 18px 12px 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 10px 20px -16px var(--metric-title-shadow);
+  color: #334155;
   font-size: 14px;
   font-weight: 900;
+  line-height: 1.15;
+  position: relative;
 }
 
 .metric-copy strong {
@@ -796,7 +861,8 @@ onBeforeUnmount(() => {
   width: 62px;
   height: 24px;
   color: var(--tone);
-  opacity: 0.82;
+  overflow: visible;
+  opacity: 0.92;
 }
 
 .dashboard-grid {
@@ -814,56 +880,149 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding: 16px;
   overflow: hidden;
+  --title-bg-start: #f5fcf9;
+  --title-bg-end: #e8f7f1;
+  --title-border: rgba(94, 181, 157, 0.34);
+  --title-shadow: rgba(70, 127, 115, 0.18);
+  --title-accent: #42b884;
+  --title-divider: rgba(83, 127, 117, 0.18);
 }
 
 .panel-head {
   margin-bottom: 12px;
+  display: flex;
+  align-items: center;
 }
 
 .panel-head h2 {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  max-width: max-content;
+  padding: 5px 58px;
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--title-border);
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--title-bg-start), var(--title-bg-end));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 14px 28px -20px var(--title-shadow);
   color: #1f6f67;
   font-size: 18px;
   font-weight: 900;
   line-height: 1.2;
 }
 
+.panel-head h2::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 10px 20px 10px 20px;
+  pointer-events: none;
+  z-index: -1;
+}
+
 .panel-head small {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  padding-left: 10px;
+  position: relative;
   color: #557c77;
   font-size: 14px;
   font-weight: 900;
 }
 
+.panel-head small::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1px;
+  height: 14px;
+  background: var(--title-divider);
+  transform: translateY(-50%);
+}
+
 .service-panel {
   grid-area: service;
+
+  --title-bg-start: #f7fff9;
+  --title-bg-end: #f2f8f5;
+  --title-border: rgba(107, 204, 145, 0.36);
+  --title-shadow: rgba(84, 194, 125, 0.28);
+  --title-accent: #56c47f;
+  --title-divider: rgba(73, 127, 97, 0.18);
 }
 
 .map-panel {
   grid-area: map;
+  --title-bg-start: #f7fbff;
+  --title-bg-end: #e2efff;
+  --title-border: rgba(105, 167, 241, 0.4);
+  --title-shadow: rgba(84, 137, 224, 0.28);
+  --title-accent: #5a9df2;
+  --title-divider: rgba(73, 110, 160, 0.2);
 }
 
 .age-panel {
   grid-area: age;
+  --title-bg-start: #f7fffc;
+  --title-bg-end: #ddf7f0;
+  --title-border: rgba(87, 201, 174, 0.36);
+  --title-shadow: rgba(77, 187, 166, 0.26);
+  --title-accent: #52c6af;
+  --title-divider: rgba(73, 127, 117, 0.18);
 }
 
 .trend-panel {
   grid-area: trend;
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
 }
 
 .health-panel {
-  grid-area: health;
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
 }
 
 .satisfaction-panel {
   grid-area: satisfaction;
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
 }
 
 .alert-panel {
   grid-area: alert;
+  --title-bg-start: #fff8fb;
+  --title-bg-end: #ffe4ed;
+  --title-border: rgba(255, 134, 167, 0.4);
+  --title-shadow: rgba(243, 115, 146, 0.26);
+  --title-accent: #f47f9c;
+  --title-divider: rgba(150, 85, 101, 0.18);
 }
 
 .workload-panel {
-  grid-area: workload;
+  --title-bg-start: #f8fff9;
+  --title-bg-end: #e4f9eb;
+  --title-border: rgba(84, 195, 154, 0.36);
+  --title-shadow: rgba(66, 184, 132, 0.28);
+  --title-accent: #42b884;
+  --title-divider: rgba(66, 127, 103, 0.18);
 }
 
 .echart {
@@ -1032,7 +1191,6 @@ onBeforeUnmount(() => {
   min-height: 488px;
   overflow: hidden;
   border-radius: 10px;
-  background: #ffffff;
 }
 
 .map-center {

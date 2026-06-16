@@ -44,7 +44,7 @@ export class HealthMetricsService {
 
   async getOverview(currentUser: AuthenticatedUser, elderId?: string) {
     const targetUserId = await this.resolveTargetUserId(currentUser, elderId);
-    const [user, devices, alerts, records] = await Promise.all([
+    const [user, devices, alerts, records, archive] = await Promise.all([
       this.prismaService.user.findUnique({ where: { id: targetUserId } }),
       this.prismaService.device.findMany({
         where: { ownerId: targetUserId },
@@ -59,6 +59,9 @@ export class HealthMetricsService {
         where: { userId: targetUserId },
         orderBy: { measuredAt: "desc" },
         take: 50
+      }),
+      this.prismaService.healthArchive.findUnique({
+        where: { userId: targetUserId }
       })
     ]);
 
@@ -87,31 +90,17 @@ export class HealthMetricsService {
 
     const activeAlerts = alerts.length;
     const score = Math.max(55, 90 - activeAlerts * 6);
+    const baseProfile = ensureRecord(archive?.baseProfile);
 
     return {
       score,
       scoreLabel: score >= 80 ? "状态良好" : score >= 65 ? "需要关注" : "重点关注",
       profileSummary: {
         name: user.realName ?? user.nickname ?? user.phone,
+        avatar: user.avatarUrl ?? null,
         age: getAge(user.birthday),
-        height: toNumber(
-          ensureRecord(
-            (
-              await this.prismaService.healthArchive.findUnique({
-                where: { userId: targetUserId }
-              })
-            )?.baseProfile
-          ).height
-        ),
-        weight: toNumber(
-          ensureRecord(
-            (
-              await this.prismaService.healthArchive.findUnique({
-                where: { userId: targetUserId }
-              })
-            )?.baseProfile
-          ).weight
-        ),
+        height: toNumber(baseProfile.height),
+        weight: toNumber(baseProfile.weight),
         deviceCount: devices.length
       },
       summaryCards,

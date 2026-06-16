@@ -4,6 +4,7 @@ import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
 import { getHomeCareRecommendWaitMs } from "./recommendation";
+import { prepareAiServiceScene } from "@/shared/ai/runtime";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
@@ -21,6 +22,7 @@ let finishTimer: ReturnType<typeof setTimeout> | null = null;
 let progressFrame: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let startTime = 0;
+let destroyed = false;
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -69,7 +71,22 @@ onMounted(() => {
   const waitMs = getHomeCareRecommendWaitMs();
   startTime = performance.now();
   progressFrame = requestAnimationFrame(updateProgress);
-  finishTimer = setTimeout(goToRecommendation, waitMs);
+  void Promise.allSettled([
+    prepareAiServiceScene("home-care"),
+    new Promise<void>((resolve) => {
+      finishTimer = setTimeout(() => resolve(), waitMs);
+    })
+  ]).then((results) => {
+    if (destroyed) {
+      return;
+    }
+
+    if (results[0].status === "rejected") {
+      props.showToast(results[0].reason instanceof Error ? results[0].reason.message : "AI 推荐生成失败");
+    }
+
+    goToRecommendation();
+  });
 
   if (canvasRef.value) {
     riveInstance = new Rive({
@@ -94,6 +111,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  destroyed = true;
   if (progressFrame !== null) {
     cancelAnimationFrame(progressFrame);
   }
@@ -132,9 +150,9 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:

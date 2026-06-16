@@ -156,6 +156,19 @@
     "legacySources": []
   },
   {
+    "id": "content/health-news-detail",
+    "title": "鍋ュ悍璧勮璇︽儏",
+    "group": "content",
+    "route": "/content/health-news-detail",
+    "owner": "寰呭垎閰?",
+    "status": "implemented",
+    "summary": "璧勮姝ｆ枃銆佸浘鐗囥€佺偣璧炴敹钘忓垎浜笌璇勮浜掑姩璇︽儏椤甸潰銆?",
+    "folderPath": "/apps/user-web/src/pages/content/health-news-detail",
+    "modulePath": "/apps/user-web/src/pages/content/health-news-detail/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/content/health-news-detail/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "content/health-lecture",
     "title": "健康讲堂",
     "group": "content",
@@ -767,6 +780,19 @@
     "legacySources": []
   },
   {
+    "id": "home/customer-service-chat",
+    "title": "在线客服",
+    "group": "home",
+    "route": "/home/customer-service-chat",
+    "owner": "待分配",
+    "status": "implemented",
+    "summary": "客服聊天页，承接我的页、消息页和 AI 助手中的人工客服咨询入口。",
+    "folderPath": "/apps/user-web/src/pages/home/customer-service-chat",
+    "modulePath": "/apps/user-web/src/pages/home/customer-service-chat/Page.vue",
+    "mockPath": "/apps/user-web/src/pages/home/customer-service-chat/mock.ts",
+    "legacySources": []
+  },
+  {
     "id": "home/doctor-chat",
     "title": "医生咨询",
     "group": "home",
@@ -885,7 +911,7 @@
   },
   {
     "id": "orders/checkup-ai-waiting",
-    "title": "AI评估",
+    "title": "AI健康检查报告评估",
     "group": "orders",
     "route": "/orders/checkup-ai-waiting",
     "owner": "待分配",

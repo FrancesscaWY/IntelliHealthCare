@@ -1,4 +1,4 @@
-import { clearAdminAuthSession, getAdminAccessToken } from "@/shared/auth/session";
+import { clearAdminAuthSession, getAdminAuthorizationValue } from "@/shared/auth/session";
 
 const REMOTE_API_ORIGIN = "http://server.mctown.online:8190";
 const DEFAULT_API_BASE_URL = `${REMOTE_API_ORIGIN}/api/v1`;
@@ -67,13 +67,13 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
   const requestHeaders = new Headers(headers);
 
   if (auth) {
-    const accessToken = getAdminAccessToken();
+    const authorizationValue = getAdminAuthorizationValue();
 
-    if (!accessToken) {
+    if (!authorizationValue) {
       throw new ApiClientError("后台登录已失效，请重新登录");
     }
 
-    requestHeaders.set("Authorization", `Bearer ${accessToken}`);
+    requestHeaders.set("Authorization", authorizationValue);
   }
 
   let requestBody: BodyInit | undefined;

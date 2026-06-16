@@ -1,26 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { getAdminStaffs, updateAdminStaffStatus } from "@/shared/api/catalog";
+import { handleAdminPageError } from "@/shared/api/error";
+import { deriveDateRange, extractDatePart } from "@/shared/date-range";
+import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
 
-const selectedServiceType = ref(mock.serviceTypeOptions[0]);
-const selectedTag = ref(mock.tagOptions[0]);
-const joinStart = ref("2024-10-01");
-const joinEnd = ref("2024-10-31");
+const selectedServiceType = ref(mockSeed.serviceTypeOptions[0]);
+const selectedTag = ref(mockSeed.tagOptions[0]);
+const joinStart = ref("");
+const joinEnd = ref("");
 const keyword = ref("");
-const rows = ref(mock.rows);
 
 const filteredRows = computed(() =>
-  rows.value.filter((row) => {
+  mock.value.rows.filter((row) => {
     const matchesServiceType =
-      selectedServiceType.value === "请选择" || row.serviceType === selectedServiceType.value;
-    const matchesTag = selectedTag.value === "请选择" || row.tag === selectedTag.value;
+      selectedServiceType.value === mock.value.serviceTypeOptions[0] || row.serviceType === selectedServiceType.value;
+    const matchesTag = selectedTag.value === mock.value.tagOptions[0] || row.tag === selectedTag.value;
     const keywordValue = keyword.value.trim();
     const matchesKeyword =
       !keywordValue || `${row.name}${row.phone}${row.staffId}${row.district}`.includes(keywordValue);
-    const joinDate = row.joinTime.slice(0, 10);
+    const joinDate = extractDatePart(row.joinTime);
     const matchesDate =
       (!joinStart.value || joinDate >= joinStart.value) && (!joinEnd.value || joinDate <= joinEnd.value);
 
@@ -28,29 +31,96 @@ const filteredRows = computed(() =>
   }),
 );
 
-function searchRows() {
+function syncJoinDateRange(nextRows = mock.value.rows, force = false) {
+  if (!force && joinStart.value && joinEnd.value) {
+    return;
+  }
+
+  const range = deriveDateRange(nextRows.map((row) => row.joinTime));
+  joinStart.value = range.start;
+  joinEnd.value = range.end;
+}
+
+async function syncPageData(options: { resetDateRange?: boolean } = {}) {
+  try {
+    mock.value = (await getAdminStaffs({
+      page: 1,
+      pageSize: 100,
+      serviceType: selectedServiceType.value !== mock.value.serviceTypeOptions[0] ? selectedServiceType.value : undefined,
+      tag: selectedTag.value !== mock.value.tagOptions[0] ? selectedTag.value : undefined,
+    })) as typeof mockSeed;
+
+    if (!mock.value.serviceTypeOptions.includes(selectedServiceType.value)) {
+      selectedServiceType.value = mock.value.serviceTypeOptions[0];
+    }
+
+    if (!mock.value.tagOptions.includes(selectedTag.value)) {
+      selectedTag.value = mock.value.tagOptions[0];
+    }
+
+    syncJoinDateRange(mock.value.rows, options.resetDateRange);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "服务人员列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function searchRows() {
+  await syncPageData();
   props.showToast(`已筛选 ${filteredRows.value.length} 位服务人员`);
 }
 
 function resetFilters() {
-  selectedServiceType.value = mock.serviceTypeOptions[0];
-  selectedTag.value = mock.tagOptions[0];
-  joinStart.value = "2024-10-01";
-  joinEnd.value = "2024-10-31";
+  selectedServiceType.value = mock.value.serviceTypeOptions[0];
+  selectedTag.value = mock.value.tagOptions[0];
+  joinStart.value = "";
+  joinEnd.value = "";
   keyword.value = "";
+  void syncPageData({
+    resetDateRange: true,
+  });
   props.showToast("筛选条件已重置");
 }
 
-function toggleEnabled(id: string) {
-  rows.value = rows.value.map((row) =>
-    row.id === id
-      ? {
-          ...row,
-          enabled: !row.enabled,
-        }
-      : row,
-  );
+async function toggleEnabled(id: string) {
+  const target = mock.value.rows.find((row) => row.id === id);
+
+  if (!target) {
+    return;
+  }
+
+  try {
+    await updateAdminStaffStatus(id, {
+      enabled: !target.enabled,
+    });
+    mock.value = {
+      ...mock.value,
+      rows: mock.value.rows.map((row) =>
+        row.id === id
+          ? {
+              ...row,
+              enabled: !row.enabled,
+            }
+          : row,
+      ),
+    };
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "更新服务人员状态失败，请稍后重试",
+    });
+  }
 }
+
+onMounted(() => {
+  void syncPageData({
+    resetDateRange: true,
+  });
+});
 </script>
 
 <template>

@@ -77,6 +77,17 @@ export function getAdminAccessToken() {
   return currentAdminAuthSession.value?.accessToken || "";
 }
 
+export function getAdminAuthorizationValue() {
+  const session = currentAdminAuthSession.value;
+
+  if (!session?.accessToken) {
+    return "";
+  }
+
+  const tokenType = session.tokenType.trim() || "Bearer";
+  return `${tokenType} ${session.accessToken}`;
+}
+
 export function saveAdminAuthSession(
   session: AdminAuthSession,
   options?: { persist?: boolean }

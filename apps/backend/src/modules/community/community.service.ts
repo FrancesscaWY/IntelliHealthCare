@@ -21,6 +21,12 @@ import {
   toPrismaNullableJson
 } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import {
+  resolvePresentedCommunityActivityCover,
+  resolvePresentedCommunityAvatar,
+  resolvePresentedCommunityPostImages,
+  resolvePresentedCommunityTopicCover,
+} from "./community-presentation";
 
 type PostReactionAction = "LIKE" | "FAVORITE" | "SHARE";
 type ActivityReactionAction = "LIKE" | "FAVORITE" | "SHARE";
@@ -40,7 +46,7 @@ export class AppCommunityService {
       topicId: item.id,
       id: item.id,
       title: item.title,
-      coverUrl: item.coverUrl,
+      coverUrl: resolvePresentedCommunityTopicCover(item),
       participantCount: item.participantCount,
       tone: item.tone
     }));
@@ -316,25 +322,32 @@ export class AppCommunityService {
     );
 
     return paginate(
-      comments.map((item) => ({
-        commentId: item.id,
-        id: item.id,
-        parentId: item.parentId,
-        content: item.content,
-        createdAt: toDateTimeString(item.createdAt),
-        author: item.user.realName ?? item.user.nickname ?? item.user.phone,
-        avatarUrl: item.user.avatarUrl,
-        city: item.user.city,
-        replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
-        likes: 0,
-        liked: false,
-        isMine: item.userId === userId,
-        user: {
+      comments.map((item) => {
+        const avatarUrl = resolvePresentedCommunityAvatar({
           userId: item.user.id,
-          name: item.user.realName ?? item.user.nickname ?? item.user.phone,
-          avatar: item.user.avatarUrl
-        }
-      })),
+          avatarUrl: item.user.avatarUrl,
+        });
+
+        return {
+          commentId: item.id,
+          id: item.id,
+          parentId: item.parentId,
+          content: item.content,
+          createdAt: toDateTimeString(item.createdAt),
+          author: item.user.realName ?? item.user.nickname ?? item.user.phone,
+          avatarUrl,
+          city: item.user.city,
+          replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
+          likes: 0,
+          liked: false,
+          isMine: item.userId === userId,
+          user: {
+            userId: item.user.id,
+            name: item.user.realName ?? item.user.nickname ?? item.user.phone,
+            avatar: avatarUrl
+          }
+        };
+      }),
       page,
       pageSize
     );
@@ -592,25 +605,32 @@ export class AppCommunityService {
     );
 
     return paginate(
-      comments.map((item) => ({
-        commentId: item.id,
-        id: item.id,
-        parentId: item.parentId,
-        content: item.content,
-        createdAt: toDateTimeString(item.createdAt),
-        author: item.user.realName ?? item.user.nickname ?? item.user.phone,
-        avatarUrl: item.user.avatarUrl,
-        city: item.user.city,
-        replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
-        likes: 0,
-        liked: false,
-        isMine: item.userId === userId,
-        user: {
+      comments.map((item) => {
+        const avatarUrl = resolvePresentedCommunityAvatar({
           userId: item.user.id,
-          name: item.user.realName ?? item.user.nickname ?? item.user.phone,
-          avatar: item.user.avatarUrl
-        }
-      })),
+          avatarUrl: item.user.avatarUrl,
+        });
+
+        return {
+          commentId: item.id,
+          id: item.id,
+          parentId: item.parentId,
+          content: item.content,
+          createdAt: toDateTimeString(item.createdAt),
+          author: item.user.realName ?? item.user.nickname ?? item.user.phone,
+          avatarUrl,
+          city: item.user.city,
+          replyTo: item.parentId ? commentUserNameMap.get(item.parentId) ?? undefined : undefined,
+          likes: 0,
+          liked: false,
+          isMine: item.userId === userId,
+          user: {
+            userId: item.user.id,
+            name: item.user.realName ?? item.user.nickname ?? item.user.phone,
+            avatar: avatarUrl
+          }
+        };
+      }),
       page,
       pageSize
     );
@@ -734,23 +754,27 @@ export class AppCommunityService {
     });
 
     return paginate(
-      registrations.map((item) => ({
-        registrationId: item.id,
-        status: item.status,
-        registeredAt: toDateTimeString(item.registeredAt),
-        checkedInAt: toDateTimeString(item.checkedInAt),
-        cancellationReason: item.cancellationReason,
-        activity: {
-          activityId: item.activity.id,
-          title: item.activity.title,
-          category: item.activity.category,
-          status: item.activity.status,
-          location: item.activity.location,
-          coverUrl: item.activity.coverUrl,
-          startAt: toDateTimeString(item.activity.startAt),
-          endAt: toDateTimeString(item.activity.endAt)
-        }
-      })),
+      registrations.map((item) => {
+        const coverUrl = resolvePresentedCommunityActivityCover(item.activity);
+
+        return {
+          registrationId: item.id,
+          status: item.status,
+          registeredAt: toDateTimeString(item.registeredAt),
+          checkedInAt: toDateTimeString(item.checkedInAt),
+          cancellationReason: item.cancellationReason,
+          activity: {
+            activityId: item.activity.id,
+            title: item.activity.title,
+            category: item.activity.category,
+            status: item.activity.status,
+            location: item.activity.location,
+            coverUrl,
+            startAt: toDateTimeString(item.activity.startAt),
+            endAt: toDateTimeString(item.activity.endAt)
+          }
+        };
+      }),
       page,
       pageSize
     );
@@ -785,12 +809,25 @@ export class AppCommunityService {
     currentUserId?: string
   ) {
     const authorName = item.author.realName ?? item.author.nickname ?? item.author.phone;
+    const images = resolvePresentedCommunityPostImages({
+      id: item.id,
+      images: ensureArray<string>(item.images),
+    });
+    const authorAvatar = resolvePresentedCommunityAvatar({
+      userId: item.author.id,
+      avatarUrl: item.author.avatarUrl,
+    });
+    const headline = this.buildPostHeadline(item.content, item.tagLabel ?? item.topic?.title ?? "");
 
     return {
       postId: item.id,
       id: item.id,
+      headline,
+      excerpt: this.getTextSnippet(item.content),
       content: item.content,
-      images: ensureArray<string>(item.images),
+      images,
+      primaryImage: images[0] ?? null,
+      imageCount: images.length,
       tagLabel: item.tagLabel,
       likesCount: item.likesCount,
       favoritesCount: item.favoritesCount,
@@ -801,10 +838,10 @@ export class AppCommunityService {
       author: {
         userId: item.author.id,
         name: authorName,
-        avatar: item.author.avatarUrl
+        avatar: authorAvatar
       },
       authorName,
-      avatar: item.author.avatarUrl,
+      avatar: authorAvatar,
       badge: item.topic?.title?.replace(/^#/, "") ?? "社区成员",
       topic: item.topic
         ? {
@@ -846,6 +883,7 @@ export class AppCommunityService {
     favorited: boolean
   ) {
     const fee = toNumber(item.fee);
+    const coverUrl = resolvePresentedCommunityActivityCover(item);
 
     return {
       activityId: item.id,
@@ -857,8 +895,8 @@ export class AppCommunityService {
       fee,
       price: fee && fee > 0 ? `${fee}元` : "免费",
       location: item.location,
-      coverUrl: item.coverUrl,
-      image: item.coverUrl,
+      coverUrl,
+      image: coverUrl,
       startAt: toDateTimeString(item.startAt),
       endAt: toDateTimeString(item.endAt),
       signupDeadline: toDateTimeString(item.signupDeadline),
@@ -1057,6 +1095,19 @@ export class AppCommunityService {
 
   private getTextSnippet(value: string | null | undefined) {
     return (value ?? "").slice(0, 80);
+  }
+
+  private buildPostHeadline(content: string, fallbackTag: string) {
+    const firstSentence = content
+      .split(/[。！？!?]/)
+      .map((item) => item.trim())
+      .find(Boolean);
+
+    if (firstSentence) {
+      return firstSentence.length > 24 ? `${firstSentence.slice(0, 24)}...` : firstSentence;
+    }
+
+    return fallbackTag.replace(/^#/, "") || "生活圈动态";
   }
 
   private async createPostNotice(

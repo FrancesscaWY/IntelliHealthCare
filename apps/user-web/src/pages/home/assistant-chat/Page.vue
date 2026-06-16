@@ -1,55 +1,147 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Camera, Commodity, Editor, Stethoscope } from "@icon-park/vue-next";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
+import AddOne from "@icon-park/vue-next/es/icons/AddOne";
+import Camera from "@icon-park/vue-next/es/icons/Camera";
+import Commodity from "@icon-park/vue-next/es/icons/Commodity";
+import Down from "@icon-park/vue-next/es/icons/Down";
+import Editor from "@icon-park/vue-next/es/icons/Editor";
+import History from "@icon-park/vue-next/es/icons/History";
+import Microphone from "@icon-park/vue-next/es/icons/Microphone";
+import PauseOne from "@icon-park/vue-next/es/icons/PauseOne";
+import Refresh from "@icon-park/vue-next/es/icons/Refresh";
+import Stethoscope from "@icon-park/vue-next/es/icons/Stethoscope";
+import Up from "@icon-park/vue-next/es/icons/Up";
+import VolumeSmall from "@icon-park/vue-next/es/icons/VolumeSmall";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import AiConversationHistorySheet from "@/shared/ai/components/AiConversationHistorySheet.vue";
+import type { AssistantConversationMessage } from "@/shared/api/ai";
+import {
+  createAssistantConversation,
+  getAssistantConversation,
+  listAssistantMessages,
+  sendAssistantMessage
+} from "@/shared/api/ai";
+import { uploadUserFile } from "@/shared/api/files";
+import {
+  BrowserVoiceRecorder,
+  canSpeakText,
+  speakText,
+  stopSpeaking,
+  type VoiceCaptureResult
+} from "@/shared/ai/voice";
+import {
+  activeAssistantConversationId,
+  aiReportAnalysisState,
+  aiServiceRecommendationState,
+  assistantConversationHistory,
+  consumeAssistantEntryIntent,
+  rememberAssistantConversation,
+  selectedAiReportId,
+  setActiveAssistantConversation
+} from "@/shared/ai/state";
+import { ensureLocalRiveRuntime } from "@/shared/rive/runtime";
 
 const props = defineProps<PageComponentProps>();
 
+const STATE_MACHINE_NAME = "State Machine 1";
+const BLINK_TRIGGER_NAME = "blinkTrigger";
+
 interface ChatMessage {
-  id: number;
+  id: string;
+  role: "user" | "assistant";
   type: "text" | "image" | "voice";
   content: string;
   time: string;
   imageUrl?: string;
   audioUrl?: string;
+  audioDurationSeconds?: number | null;
+  transcript?: string | null;
+  speech?: {
+    text: string;
+    language: string;
+    autoplay: boolean;
+  } | null;
 }
 
-const STATE_MACHINE_NAME = "State Machine 1";
-const BLINK_TRIGGER_NAME = "blinkTrigger";
-const questionList = [
-  "HPV2价、4价、9价有什么区别？",
-  "防癌体检怎么选？",
-  "如何定制适合自己的体检套餐？",
-  "体检前需要注意哪些？",
-];
+const DEFAULT_ASSISTANT_TOPIC = "豆沙包健康咨询";
+const DEFAULT_ASSISTANT_WELCOME = "你好，我在。你可以直接和我聊报告、健康变化，或者服务怎么选。";
+const questionGroups = [
+  [
+    "HPV2价、4价、9价有什么区别？",
+    "防癌体检怎么选？",
+    "如何定制适合自己的体检套餐？",
+    "体检前需要注意哪些？"
+  ],
+  [
+    "最近血压偏高，饮食上要注意什么？",
+    "空腹血糖高一点，需要马上去医院吗？",
+    "老年人上门康复服务怎么选？",
+    "慢病随访体检前要准备哪些资料？"
+  ]
+] as const;
 
 const quickActions = [
   { label: "报告解读", icon: Editor },
-  { label: "商品智选", icon: Commodity },
-  { label: "体检定制", icon: Stethoscope },
+  { label: "服务智选", icon: Commodity },
+  { label: "体检定制", icon: Stethoscope }
 ];
+const initialEntryIntent = consumeAssistantEntryIntent();
+function getLatestHistoryConversationId() {
+  const latestEntry = Array.isArray(assistantConversationHistory.value)
+    ? assistantConversationHistory.value[0]
+    : null;
+
+  return latestEntry?.conversationId || "";
+}
+
 const draft = ref("");
 const messages = ref<ChatMessage[]>([]);
 const showImagePanel = ref(false);
 const isRecording = ref(false);
 const recordingSeconds = ref(0);
-const canvasRef = ref<HTMLCanvasElement | null>(null);
+const voiceEntryHint = ref("");
+const currentConversationId = ref(
+  activeAssistantConversationId.value || getLatestHistoryConversationId()
+);
+const currentConversationTopic = ref(DEFAULT_ASSISTANT_TOPIC);
+const questionGroupIndex = ref(0);
+const isQuestionCardCollapsed = ref(true);
+const isConversationHistoryOpen = ref(false);
+const isConversationLoading = ref(false);
+const isSending = ref(false);
+const speakingMessageId = ref("");
 const scrollRef = ref<HTMLElement | null>(null);
+const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
 const albumInputRef = ref<HTMLInputElement | null>(null);
 const cameraInputRef = ref<HTMLInputElement | null>(null);
+const questionList = computed(
+  () => questionGroups[questionGroupIndex.value % questionGroups.length]
+);
+const latestAiServiceContext = computed(() => {
+  const scenes = Object.values(aiServiceRecommendationState.value).filter(
+    (item): item is NonNullable<
+      (typeof aiServiceRecommendationState.value)[keyof typeof aiServiceRecommendationState.value]
+    > => Boolean(item)
+  );
 
-let riveInstance: Rive | null = null;
-let blinkTrigger: StateMachineInput | null = null;
-let blinkTimer: ReturnType<typeof setTimeout> | null = null;
-let resizeObserver: ResizeObserver | null = null;
-let mediaRecorder: MediaRecorder | null = null;
-let mediaStream: MediaStream | null = null;
-let audioChunks: Blob[] = [];
-let recordingTimer: number | null = null;
-let recordingMimeType = "audio/webm";
+  return (
+    scenes.sort(
+      (left, right) =>
+        new Date(right.fetchedAt).getTime() - new Date(left.fetchedAt).getTime()
+    )[0] ?? null
+  );
+});
+
+let voiceRecorder: BrowserVoiceRecorder | null = null;
+let assistantRive: Rive | null = null;
+let assistantBlinkTrigger: StateMachineInput | null = null;
+let assistantBlinkTimer: ReturnType<typeof setTimeout> | null = null;
+let assistantResizeObserver: ResizeObserver | null = null;
 const mediaObjectUrls = new Set<string>();
+
+ensureLocalRiveRuntime();
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -57,47 +149,21 @@ function goBack() {
   }
 }
 
-function getBlinkDelay() {
-  return Math.round(3000 + Math.random() * 3000);
-}
-
-function clearBlinkTimer() {
-  if (blinkTimer) {
-    clearTimeout(blinkTimer);
-    blinkTimer = null;
-  }
-}
-
-function bindStateMachineInputs() {
-  const inputs = riveInstance?.stateMachineInputs(STATE_MACHINE_NAME) ?? [];
-  blinkTrigger = inputs.find((input) => input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger) ?? null;
-}
-
-function triggerBlink() {
-  if (!blinkTrigger) {
-    bindStateMachineInputs();
-  }
-
-  blinkTrigger?.fire();
-}
-
-function scheduleBlink() {
-  clearBlinkTimer();
-  blinkTimer = setTimeout(() => {
-    triggerBlink();
-    scheduleBlink();
-  }, getBlinkDelay());
-}
-
-function resizeRive() {
-  riveInstance?.resizeDrawingSurfaceToCanvas();
-}
-
 function scrollToBottom() {
   void nextTick(() => {
-    if (scrollRef.value) {
-      scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+    const container = scrollRef.value;
+
+    if (!container) {
+      return;
     }
+
+    const syncBottom = () => {
+      container.scrollTop = container.scrollHeight;
+    };
+
+    syncBottom();
+    setTimeout(syncBottom, 16);
+    setTimeout(syncBottom, 48);
   });
 }
 
@@ -106,34 +172,330 @@ function getCurrentTime() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatMessageTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return getCurrentTime();
+  }
+
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败，请稍后重试";
+}
+
+function buildAssistantMetadata() {
+  const metadata: Record<string, unknown> = {};
+  const selectedReport =
+    selectedAiReportId.value || aiReportAnalysisState.value?.reportId || "";
+  const latestServiceContext = latestAiServiceContext.value;
+
+  if (selectedReport) {
+    metadata.selectedReportId = selectedReport;
+  }
+
+  if (aiReportAnalysisState.value?.reportTitle) {
+    metadata.reportTitle = aiReportAnalysisState.value.reportTitle;
+  }
+
+  if (latestServiceContext?.scene) {
+    metadata.aiScene = latestServiceContext.scene;
+  }
+
+  if (latestServiceContext?.category) {
+    metadata.serviceCategory = latestServiceContext.category;
+  }
+
+  if (latestServiceContext?.recommendations.length) {
+    metadata.recommendationIds = latestServiceContext.recommendations
+      .slice(0, 3)
+      .map((item) => item.serviceId);
+  }
+
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function syncConversationHistory(previewContent?: string, updatedAt?: string) {
+  if (!currentConversationId.value) {
+    return;
+  }
+
+  rememberAssistantConversation({
+    conversationId: currentConversationId.value,
+    topic: currentConversationTopic.value || DEFAULT_ASSISTANT_TOPIC,
+    preview:
+      previewContent ||
+      messages.value[messages.value.length - 1]?.content ||
+      DEFAULT_ASSISTANT_WELCOME,
+    createdAt: updatedAt || new Date().toISOString(),
+    updatedAt: updatedAt || new Date().toISOString()
+  });
+}
+
+function mapRemoteMessage(item: AssistantConversationMessage) {
+  return {
+    id: item.messageId,
+    role: item.role,
+    type: item.type === "voice" ? "voice" : item.type === "image" ? "image" : "text",
+    content: item.content,
+    time: formatMessageTime(item.createdAt),
+    audioUrl: item.audio?.url,
+    audioDurationSeconds: item.audio?.durationSeconds ?? null,
+    transcript: item.audio?.transcript ?? null,
+    speech: item.speech
+      ? {
+          text: item.speech.text,
+          language: item.speech.language || "zh-CN",
+          autoplay: item.speech.autoplay
+        }
+      : null
+  } satisfies ChatMessage;
+}
+
+function replaceMessage(messageId: string, nextMessage: ChatMessage) {
+  const targetIndex = messages.value.findIndex((item) => item.id === messageId);
+
+  if (targetIndex >= 0) {
+    messages.value.splice(targetIndex, 1, nextMessage);
+    return;
+  }
+
+  messages.value.push(nextMessage);
+}
+
 function selectQuestion(question: string) {
   draft.value = question;
 }
 
 function changeQuestions() {
-  props.showToast("已为你换一批问题");
+  questionGroupIndex.value = (questionGroupIndex.value + 1) % questionGroups.length;
+  isQuestionCardCollapsed.value = false;
+}
+
+function toggleQuestionCard() {
+  isQuestionCardCollapsed.value = !isQuestionCardCollapsed.value;
+}
+
+function getMessageSpeechText(message: ChatMessage) {
+  if (message.role !== "assistant") {
+    return "";
+  }
+
+  return message.speech?.text || message.content;
+}
+
+function canPlayAssistantSpeech(message: ChatMessage) {
+  return message.role === "assistant" && message.type === "text" && Boolean(getMessageSpeechText(message).trim());
+}
+
+function playAssistantSpeech(message: ChatMessage, options: { silentUnsupported?: boolean } = {}) {
+  const speechText = getMessageSpeechText(message);
+
+  if (!speechText.trim()) {
+    return;
+  }
+
+  if (!canSpeakText()) {
+    if (!options.silentUnsupported) {
+      props.showToast("当前浏览器不支持语音播报");
+    }
+    return;
+  }
+
+  speakingMessageId.value = message.id;
+  const didStart = speakText(speechText, {
+    language: message.speech?.language || "zh-CN",
+    onEnd: () => {
+      if (speakingMessageId.value === message.id) {
+        speakingMessageId.value = "";
+      }
+    },
+    onError: () => {
+      if (speakingMessageId.value === message.id) {
+        speakingMessageId.value = "";
+      }
+      if (!options.silentUnsupported) {
+        props.showToast("语音播报失败，请稍后重试");
+      }
+    }
+  });
+
+  if (!didStart) {
+    speakingMessageId.value = "";
+  }
+}
+
+function toggleAssistantSpeech(message: ChatMessage) {
+  if (speakingMessageId.value === message.id) {
+    stopSpeaking();
+    speakingMessageId.value = "";
+    return;
+  }
+
+  playAssistantSpeech(message);
 }
 
 function useQuickAction(action: string) {
+  if (action === "报告解读") {
+    props.navigation.navigateTo("orders/checkup-ai-waiting");
+    return;
+  }
+
+  if (action === "服务智选") {
+    props.navigation.navigateTo("service/home-care-recommend-waiting");
+    return;
+  }
+
+  if (action === "体检定制") {
+    props.navigation.navigateTo("service/home-exam-recommend-waiting");
+    return;
+  }
+
   props.showToast(`${action}功能待接入`);
 }
 
-function sendMessage() {
-  const content = draft.value.trim();
+async function createConversation(topic?: string) {
+  const conversation = await createAssistantConversation({
+    topic: topic?.trim() || undefined
+  });
 
-  if (!content) {
+  currentConversationId.value = conversation.conversationId;
+  currentConversationTopic.value = conversation.topic || DEFAULT_ASSISTANT_TOPIC;
+  setActiveAssistantConversation(conversation.conversationId);
+  syncConversationHistory(DEFAULT_ASSISTANT_WELCOME, conversation.createdAt);
+  await loadConversation(conversation.conversationId);
+}
+
+async function loadConversation(conversationId: string) {
+  isConversationLoading.value = true;
+
+  try {
+    const [conversation, pageData] = await Promise.all([
+      getAssistantConversation(conversationId),
+      listAssistantMessages(conversationId, {
+        page: 1,
+        pageSize: 100
+      })
+    ]);
+
+    currentConversationId.value = conversation.conversationId;
+    currentConversationTopic.value = conversation.topic || DEFAULT_ASSISTANT_TOPIC;
+    messages.value = pageData.list.map(mapRemoteMessage);
+    setActiveAssistantConversation(conversation.conversationId);
+    syncConversationHistory(
+      pageData.list[pageData.list.length - 1]?.content,
+      conversation.lastMessageAt || conversation.updatedAt || conversation.createdAt
+    );
+    isConversationHistoryOpen.value = false;
+    scrollToBottom();
+  } finally {
+    isConversationLoading.value = false;
+  }
+}
+
+async function ensureConversation() {
+  const preferredConversationId =
+    currentConversationId.value ||
+    activeAssistantConversationId.value ||
+    getLatestHistoryConversationId() ||
+    "";
+
+  if (preferredConversationId) {
+    try {
+      await loadConversation(preferredConversationId);
+      return;
+    } catch {
+      currentConversationId.value = "";
+    }
+  }
+
+  await createConversation();
+}
+
+async function createNewConversation() {
+  isConversationHistoryOpen.value = false;
+  messages.value = [];
+  currentConversationId.value = "";
+  await createConversation(`健康咨询 ${new Date().toLocaleDateString("zh-CN")}`);
+}
+
+async function selectConversation(conversationId: string) {
+  try {
+    await loadConversation(conversationId);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+async function ensureConversationReady(seedText = "") {
+  if (currentConversationId.value) {
+    return currentConversationId.value;
+  }
+
+  await createConversation(seedText.slice(0, 12) || undefined);
+  return currentConversationId.value;
+}
+
+async function sendTextMessage(content: string, options: { speakReply?: boolean } = {}) {
+  const normalizedContent = content.trim();
+
+  if (!normalizedContent || isSending.value) {
     props.showToast("请输入你想咨询的问题");
     return;
   }
 
-  messages.value.push({
-    id: Date.now(),
+  try {
+    await ensureConversationReady(normalizedContent);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+    return;
+  }
+
+  const optimisticMessage: ChatMessage = {
+    id: `local-${Date.now()}`,
+    role: "user",
     type: "text",
-    content,
-    time: getCurrentTime(),
-  });
+    content: normalizedContent,
+    time: getCurrentTime()
+  };
+
+  messages.value.push(optimisticMessage);
   draft.value = "";
+  voiceEntryHint.value = "";
   scrollToBottom();
+  isSending.value = true;
+
+  try {
+    const response = await sendAssistantMessage(currentConversationId.value, {
+      contentType: "TEXT",
+      content: normalizedContent,
+      pageId: props.pageEntry.id,
+      route: props.pageEntry.route,
+      metadata: buildAssistantMetadata()
+    });
+
+    replaceMessage(optimisticMessage.id, mapRemoteMessage(response.userMessage));
+    const replyMessage = mapRemoteMessage(response.reply);
+    messages.value.push(replyMessage);
+    syncConversationHistory(response.reply.content, response.reply.createdAt);
+    scrollToBottom();
+
+    if (options.speakReply || replyMessage.speech?.autoplay) {
+      playAssistantSpeech(replyMessage, { silentUnsupported: false });
+    }
+  } catch (error) {
+    messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
+    draft.value = normalizedContent;
+    props.showToast(getErrorMessage(error));
+  } finally {
+    isSending.value = false;
+  }
+}
+
+async function sendMessage() {
+  await sendTextMessage(draft.value);
 }
 
 function openAlbum() {
@@ -157,11 +519,12 @@ function handleImageSelected(event: Event) {
   const imageUrl = URL.createObjectURL(file);
   mediaObjectUrls.add(imageUrl);
   messages.value.push({
-    id: Date.now(),
+    id: `image-${Date.now()}`,
+    role: "user",
     type: "image",
     content: file.name || "图片",
     imageUrl,
-    time: getCurrentTime(),
+    time: getCurrentTime()
   });
   input.value = "";
   scrollToBottom();
@@ -171,207 +534,377 @@ function formatDuration(seconds: number) {
   return `${Math.max(1, seconds)}"`;
 }
 
-function startTimer() {
-  recordingSeconds.value = 0;
-  recordingTimer = window.setInterval(() => {
-    recordingSeconds.value += 1;
-  }, 1000);
+function buildVoiceMessageLabel(capture: VoiceCaptureResult) {
+  return capture.transcript.trim() || `语音 ${formatDuration(capture.durationSeconds)}`;
 }
 
-function stopTimer() {
-  if (recordingTimer !== null) {
-    window.clearInterval(recordingTimer);
-    recordingTimer = null;
+async function sendVoiceCapture(capture: VoiceCaptureResult) {
+  if (isSending.value) {
+    props.showToast("请等待上一条消息发送完成");
+    return;
+  }
+
+  try {
+    await ensureConversationReady(capture.transcript || "语音咨询");
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+    return;
+  }
+
+  const optimisticMessage: ChatMessage = {
+    id: `voice-${Date.now()}`,
+    role: "user",
+    type: "voice",
+    content: buildVoiceMessageLabel(capture),
+    audioUrl: capture.objectUrl,
+    audioDurationSeconds: capture.durationSeconds,
+    transcript: capture.transcript || null,
+    time: getCurrentTime()
+  };
+
+  messages.value.push(optimisticMessage);
+  scrollToBottom();
+  isSending.value = true;
+
+  if (!capture.transcript.trim()) {
+    props.showToast("这条语音没有识别到明确文本，豆沙包会先收到录音文件。");
+  }
+
+  try {
+    const uploadedAudio = await uploadUserFile({
+      category: "CHAT_AUDIO",
+      file: capture.file,
+      metadata: {
+        durationSeconds: capture.durationSeconds,
+        transcript: capture.transcript || null,
+        sourcePageId: props.pageEntry.id
+      }
+    });
+
+    const response = await sendAssistantMessage(currentConversationId.value, {
+      contentType: "AUDIO",
+      replyMode: "VOICE",
+      fileId: uploadedAudio.fileId,
+      mimeType: uploadedAudio.mimeType,
+      durationSeconds: capture.durationSeconds,
+      transcript: capture.transcript || undefined,
+      pageId: props.pageEntry.id,
+      route: props.pageEntry.route,
+      metadata: buildAssistantMetadata()
+    });
+
+    replaceMessage(optimisticMessage.id, mapRemoteMessage(response.userMessage));
+    const replyMessage = mapRemoteMessage(response.reply);
+    messages.value.push(replyMessage);
+    syncConversationHistory(response.reply.content, response.reply.createdAt);
+    scrollToBottom();
+    playAssistantSpeech(replyMessage, { silentUnsupported: false });
+  } catch (error) {
+    messages.value = messages.value.filter((item) => item.id !== optimisticMessage.id);
+    props.showToast(getErrorMessage(error));
+  } finally {
+    isSending.value = false;
   }
 }
 
-function stopAudioTracks() {
-  mediaStream?.getTracks().forEach((track) => track.stop());
-  mediaStream = null;
-}
-
 async function startVoiceRecording() {
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+  if (isSending.value) {
+    props.showToast("请等待当前消息发送完成");
+    return;
+  }
+
+  if (!BrowserVoiceRecorder.isRecordingSupported()) {
     props.showToast("当前浏览器不支持录音");
     return;
   }
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(mediaStream);
-    recordingMimeType = mediaRecorder.mimeType || "audio/webm";
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
+    voiceRecorder = new BrowserVoiceRecorder({
+      onTick: (seconds) => {
+        recordingSeconds.value = seconds;
+      },
+      onRecognitionError: (message) => {
+        props.showToast(message);
       }
-    };
-
-    mediaRecorder.onstop = () => {
-      const duration = recordingSeconds.value;
-      stopTimer();
-      stopAudioTracks();
-      isRecording.value = false;
-
-      if (!audioChunks.length) {
-        return;
-      }
-
-      const audioBlob = new Blob(audioChunks, { type: recordingMimeType });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      mediaObjectUrls.add(audioUrl);
-      messages.value.push({
-        id: Date.now(),
-        type: "voice",
-        content: `语音 ${formatDuration(duration)}`,
-        audioUrl,
-        time: getCurrentTime(),
-      });
-      scrollToBottom();
-    };
-
+    });
     showImagePanel.value = false;
-    mediaRecorder.start();
+    voiceEntryHint.value = "";
+    await voiceRecorder.start();
     isRecording.value = true;
-    startTimer();
-  } catch (error) {
-    stopTimer();
-    stopAudioTracks();
+
+    if (!BrowserVoiceRecorder.isSpeechRecognitionSupported()) {
+      props.showToast("当前浏览器不支持语音转写，将先发送录音文件");
+    }
+  } catch {
+    voiceRecorder?.dispose();
+    voiceRecorder = null;
     isRecording.value = false;
+    recordingSeconds.value = 0;
     props.showToast("无法访问麦克风，请检查权限");
   }
 }
 
-function stopVoiceRecording() {
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
+async function stopVoiceRecording() {
+  if (!voiceRecorder) {
+    isRecording.value = false;
+    recordingSeconds.value = 0;
     return;
   }
 
-  stopTimer();
-  stopAudioTracks();
   isRecording.value = false;
+  const recorder = voiceRecorder;
+  voiceRecorder = null;
+
+  const capture = await recorder.stop();
+  recordingSeconds.value = 0;
+
+  if (!capture) {
+    return;
+  }
+
+  mediaObjectUrls.add(capture.objectUrl);
+  await sendVoiceCapture(capture);
 }
 
 function toggleVoiceRecording() {
   if (isRecording.value) {
-    stopVoiceRecording();
+    void stopVoiceRecording();
     return;
   }
 
   void startVoiceRecording();
 }
 
-onMounted(() => {
-  const canvas = canvasRef.value;
+function resizeAssistantAvatar() {
+  assistantRive?.resizeDrawingSurfaceToCanvas();
+}
 
-  if (!canvas) {
+function bindAssistantStateMachineInputs() {
+  const inputs = assistantRive?.stateMachineInputs(STATE_MACHINE_NAME) ?? [];
+  assistantBlinkTrigger =
+    inputs.find(
+      (input) =>
+        input.name === BLINK_TRIGGER_NAME && input.type === StateMachineInputType.Trigger
+    ) ?? null;
+}
+
+function clearAssistantBlinkTimer() {
+  if (assistantBlinkTimer) {
+    clearTimeout(assistantBlinkTimer);
+    assistantBlinkTimer = null;
+  }
+}
+
+function scheduleAssistantBlink() {
+  clearAssistantBlinkTimer();
+  assistantBlinkTimer = setTimeout(() => {
+    if (!assistantBlinkTrigger) {
+      bindAssistantStateMachineInputs();
+    }
+
+    assistantBlinkTrigger?.fire();
+    scheduleAssistantBlink();
+  }, 2600 + Math.random() * 2200);
+}
+
+onMounted(() => {
+  void (async () => {
+    await ensureConversation();
+
+    if (initialEntryIntent?.mode === "text" && initialEntryIntent.draft?.trim()) {
+      await sendTextMessage(initialEntryIntent.draft.trim());
+      return;
+    }
+
+    if (initialEntryIntent?.mode === "voice") {
+      voiceEntryHint.value = "已切换到语音咨询，请点击左下角麦克风开始说话。";
+    }
+  })().catch((error) => {
+    props.showToast(getErrorMessage(error));
+  });
+
+  if (!assistantCanvasRef.value) {
     return;
   }
 
-  riveInstance = new Rive({
-    canvas,
+  assistantRive = new Rive({
+    canvas: assistantCanvasRef.value,
     src: assistantRiveUrl,
     stateMachines: STATE_MACHINE_NAME,
     autoplay: true,
     layout: new Layout({
       fit: Fit.Contain,
-      alignment: Alignment.Center,
+      alignment: Alignment.Center
     }),
     onLoad: () => {
-      resizeRive();
-      bindStateMachineInputs();
-      scheduleBlink();
-    },
+      resizeAssistantAvatar();
+      bindAssistantStateMachineInputs();
+      scheduleAssistantBlink();
+    }
   });
 
-  resizeObserver = new ResizeObserver(resizeRive);
-  resizeObserver.observe(canvas);
+  assistantResizeObserver = new ResizeObserver(resizeAssistantAvatar);
+  assistantResizeObserver.observe(assistantCanvasRef.value);
 });
 
 onBeforeUnmount(() => {
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
-  }
-  stopTimer();
-  stopAudioTracks();
+  voiceRecorder?.dispose();
+  voiceRecorder = null;
+  clearAssistantBlinkTimer();
+  assistantResizeObserver?.disconnect();
+  assistantResizeObserver = null;
+  assistantBlinkTrigger = null;
+  assistantRive?.cleanup();
+  assistantRive = null;
+  stopSpeaking();
   mediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
   mediaObjectUrls.clear();
-  clearBlinkTimer();
-  resizeObserver?.disconnect();
-  resizeObserver = null;
-  blinkTrigger = null;
-  riveInstance?.cleanup();
-  riveInstance = null;
 });
+
+watch(
+  () => messages.value.length,
+  () => {
+    scrollToBottom();
+  },
+  { flush: "post" }
+);
+
+watch(
+  isSending,
+  (sending) => {
+    if (sending) {
+      scrollToBottom();
+    }
+  },
+  { flush: "post" }
+);
 </script>
 
 <template>
   <section class="assistant-chat-page">
-    <main ref="scrollRef" class="assistant-chat-main">
-      <header class="assistant-hero">
+    <header class="assistant-topbar">
+      <div class="assistant-topbar__main">
         <button class="assistant-back" type="button" aria-label="返回" @click="goBack">
           <span aria-hidden="true"></span>
         </button>
-        <canvas ref="canvasRef" class="assistant-avatar" width="180" height="140" aria-label="AI 小助手"></canvas>
-        <span class="hi-badge">Hi</span>
-        <div class="welcome-bubble">
-          <strong>您好～我是豆沙包</strong>
-          <strong>很高兴为您服务。</strong>
-          <p>回复仅供参考，医学建议请询问专业医生</p>
+        <div class="assistant-brand">
+          <div class="assistant-avatar" aria-hidden="true">
+            <div class="assistant-avatar__fallback">豆</div>
+            <canvas ref="assistantCanvasRef" class="assistant-avatar__canvas" width="66" height="66"></canvas>
+          </div>
+          <div class="assistant-copy">
+            <strong>豆沙包在线</strong>
+            <p v-if="voiceEntryHint" class="voice-entry-hint">{{ voiceEntryHint }}</p>
+          </div>
         </div>
-        <button class="more-btn" type="button" @click="props.showToast('更多功能待接入')">更多</button>
-      </header>
+      </div>
+      <div class="assistant-header-actions">
+        <button class="header-icon-btn" type="button" aria-label="创建新对话" @click="createNewConversation">
+          <AddOne theme="outline" size="18" fill="currentColor" aria-hidden="true" />
+        </button>
+        <button class="header-icon-btn" type="button" aria-label="查看历史对话记录" @click="isConversationHistoryOpen = true">
+          <History theme="outline" size="18" fill="currentColor" aria-hidden="true" />
+        </button>
+      </div>
+    </header>
 
-      <section class="consult-section" aria-label="健康咨询">
-        <div class="section-title">
-          <span></span>
-          <strong>健康咨询</strong>
-          <span></span>
-        </div>
-        <div class="section">
-        <p>
-          您好！很高兴为您提供健康咨询服务。如果您在医疗健康方面有任何疑问或需求，欢迎随时与我对话。让我们携手开启健康之旅，守护您的健康每一天！
-        </p>
-        </div>
-      </section>
-
-      <section class="question-card">
+    <section class="question-card" :class="{ 'question-card--collapsed': isQuestionCardCollapsed }">
+      <div class="question-card__header">
         <h2>
           <span aria-hidden="true">?</span>
           猜你想问
         </h2>
-        <div class="question-list">
+        <div class="question-toolbar">
+          <button class="question-tool-btn" type="button" aria-label="刷新推荐问题" @click="changeQuestions">
+            <Refresh theme="outline" size="16" fill="currentColor" aria-hidden="true" />
+          </button>
+          <button
+            class="question-tool-btn"
+            type="button"
+            :aria-label="isQuestionCardCollapsed ? '展开推荐问题' : '收起推荐问题'"
+            @click="toggleQuestionCard"
+          >
+            <component
+              :is="isQuestionCardCollapsed ? Down : Up"
+              theme="outline"
+              size="16"
+              fill="currentColor"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+      </div>
+      <transition name="question-fold">
+        <div v-if="!isQuestionCardCollapsed" class="question-list">
           <button v-for="(item, index) in questionList" :key="item" type="button" @click="selectQuestion(item)">
             <em>{{ index + 1 }}</em>
             <strong>{{ item }}</strong>
             <i aria-hidden="true"></i>
           </button>
         </div>
-        <button class="change-btn" type="button" @click="changeQuestions">
-          <span aria-hidden="true"></span>
-          换一换
-        </button>
-      </section>
+      </transition>
+      <p v-if="isQuestionCardCollapsed" class="question-card__collapsed-hint">
+        推荐问题已收起，点击右上角可再次展开。
+      </p>
+    </section>
+
+    <main ref="scrollRef" class="assistant-chat-main">
 
       <section v-if="messages.length" class="chat-messages" aria-label="对话记录">
-        <article v-for="message in messages" :key="message.id" class="chat-message">
-          <div class="message-bubble" :class="`message-bubble--${message.type}`">
+        <article
+          v-for="message in messages"
+          :key="message.id"
+          class="chat-message"
+          :class="`chat-message--${message.role}`"
+        >
+          <div class="message-bubble" :class="[`message-bubble--${message.type}`, `message-bubble--${message.role}`]">
             <template v-if="message.type === 'image'">
               <img v-if="message.imageUrl" :src="message.imageUrl" :alt="message.content" />
               <span v-else>{{ message.content }}</span>
             </template>
             <template v-else-if="message.type === 'voice'">
               <span class="voice-message-icon" aria-hidden="true"></span>
-              <strong>{{ message.content }}</strong>
+              <div class="voice-message-copy">
+                <strong>{{ message.content }}</strong>
+                <small v-if="message.transcript">转写：{{ message.transcript }}</small>
+                <small v-else>语音消息 {{ formatDuration(message.audioDurationSeconds || 1) }}</small>
+              </div>
               <audio v-if="message.audioUrl" :src="message.audioUrl" controls></audio>
             </template>
             <template v-else>
-              {{ message.content }}
+              <span class="message-text">{{ message.content }}</span>
+              <button
+                v-if="canPlayAssistantSpeech(message)"
+                class="assistant-speech-control"
+                :class="{ 'assistant-speech-control--playing': speakingMessageId === message.id }"
+                type="button"
+                :aria-label="speakingMessageId === message.id ? '停止豆沙包语音播报' : '播放豆沙包语音回复'"
+                @click="toggleAssistantSpeech(message)"
+              >
+                <component
+                  :is="speakingMessageId === message.id ? PauseOne : VolumeSmall"
+                  theme="outline"
+                  size="15"
+                  fill="currentColor"
+                  aria-hidden="true"
+                />
+                <span>{{ speakingMessageId === message.id ? "正在播报" : "语音播放" }}</span>
+                <i aria-hidden="true"></i>
+                <i aria-hidden="true"></i>
+                <i aria-hidden="true"></i>
+              </button>
             </template>
           </div>
           <time>{{ message.time }}</time>
+        </article>
+        <article v-if="isSending" class="chat-message chat-message--assistant chat-message--thinking" aria-live="polite">
+          <p class="assistant-thinking">
+            <span>思考中</span>
+            <i aria-hidden="true"></i>
+            <i aria-hidden="true"></i>
+            <i aria-hidden="true"></i>
+            <i aria-hidden="true"></i>
+          </p>
         </article>
       </section>
     </main>
@@ -397,7 +930,8 @@ onBeforeUnmount(() => {
           :aria-label="isRecording ? '停止录音并发送' : '语音输入'"
           @click="toggleVoiceRecording"
         >
-          <span aria-hidden="true"></span>
+          <Microphone v-if="!isRecording" theme="outline" size="22" fill="currentColor" aria-hidden="true" />
+          <span v-else class="recording-stop" aria-hidden="true"></span>
           <em v-if="isRecording">{{ recordingSeconds }}s</em>
         </button>
         <button
@@ -409,40 +943,344 @@ onBeforeUnmount(() => {
         >
           <Camera theme="outline" size="23" fill="currentColor" aria-hidden="true" />
         </button>
-        <input v-model="draft" type="text" placeholder="有任何健康、医学相关问题，请随时问我～" @keyup.enter="sendMessage" />
-        <button class="send-btn" type="button" @click="sendMessage">发送</button>
+        <input v-model="draft" type="text" placeholder="直接说说你的情况，报告、健康、服务都可以" @keyup.enter="sendMessage" />
+        <button class="send-btn" :disabled="isSending" type="button" @click="sendMessage">
+          {{ isSending ? "发送中" : "发送" }}
+        </button>
       </div>
     </footer>
 
     <input ref="albumInputRef" class="media-input" type="file" accept="image/*" @change="handleImageSelected" />
     <input ref="cameraInputRef" class="media-input" type="file" accept="image/*" capture="environment" @change="handleImageSelected" />
+    <AiConversationHistorySheet
+      :open="isConversationHistoryOpen"
+      :entries="assistantConversationHistory"
+      :active-conversation-id="currentConversationId"
+      :loading="isConversationLoading"
+      @close="isConversationHistoryOpen = false"
+      @create="createNewConversation"
+      @select="selectConversation"
+    />
   </section>
 </template>
 
 <style scoped>
 .assistant-chat-page {
+  --ihc-accent: var(--brand);
+  --ihc-accent-deep: var(--brand-dark);
+  --ihc-text-primary: #24372e;
+  --ihc-text-secondary: rgba(56, 92, 79, 0.78);
+  --ihc-text-tertiary: rgba(81, 114, 103, 0.58);
+  --ihc-border-soft: rgba(203, 224, 218, 0.9);
+  --ihc-shadow-soft: 0 6px 18px rgba(53, 161, 152, 0.06);
+  --ihc-shadow-float: 0 12px 24px rgba(53, 161, 152, 0.1);
+  --assistant-font-family:
+    "HarmonyOS Sans SC",
+    "MiSans",
+    "PingFang SC",
+    "Noto Sans SC",
+    "Source Han Sans SC",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    system-ui,
+    sans-serif;
   position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  box-sizing: border-box;
+  justify-self: stretch;
+  width: calc(100% + 36px);
+  max-width: none;
+  height: var(--ihc-viewport-height);
+  min-height: var(--ihc-viewport-height);
+  max-height: var(--ihc-viewport-height);
+  margin: -18px 0 -18px -18px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
-    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
-    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
-  color: #1f2a44;
-  font-family: var(--ihc-font-family);
-  transform: translateX(-50%);
+  background: linear-gradient(180deg, #edf8f5 0%, #f6fbf9 44%, #eef7f4 100%);
+  color: var(--ihc-text-primary);
+  font-family: var(--assistant-font-family);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.assistant-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(247, 252, 250, 0.94);
+  border-bottom: 1px solid rgba(203, 224, 218, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.assistant-back,
+.header-icon-btn,
+.question-tool-btn,
+.question-list button,
+.quick-actions button,
+.image-source-panel button,
+.assistant-speech-control,
+.voice-btn,
+.camera-btn,
+.send-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--assistant-font-family);
+}
+
+.assistant-topbar__main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  flex: 1;
+}
+
+.assistant-back {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  color: rgba(51, 91, 78, 0.92);
+  background: transparent;
+  box-shadow: none;
+}
+
+.assistant-back span {
+  width: 10px;
+  height: 10px;
+  border-bottom: 2.5px solid rgba(36, 55, 46, 0.62);
+  border-left: 2.5px solid rgba(36, 55, 46, 0.62);
+  transform: rotate(45deg);
+}
+
+.assistant-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.header-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  color: rgba(51, 91, 78, 0.92);
+  background: transparent;
+  box-shadow: none;
+}
+
+.assistant-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.assistant-avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 66px;
+  height: 66px;
+  margin: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.assistant-avatar__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(51, 91, 78, 0.34);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.assistant-avatar__canvas {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 66px;
+  height: 66px;
+  transform: scale(1.16);
+}
+
+.assistant-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-self: center;
+  min-height: 66px;
+  padding-top: 0;
+}
+
+.assistant-copy strong {
+  display: block;
+  margin: 0;
+  color: var(--ihc-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: pretty;
+}
+
+.assistant-copy p {
+  margin: 0;
+  color: rgba(76, 104, 94, 0.48);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
+.voice-entry-hint {
+  margin-top: 4px;
+  padding: 0;
+  background: transparent;
+  color: var(--ihc-accent-deep);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.question-card {
+  position: relative;
+  margin: 8px 14px 0;
+  padding: 10px 12px 9px;
+  border: 1px solid var(--ihc-border-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--ihc-shadow-soft);
+}
+
+.question-card--collapsed {
+  padding-bottom: 8px;
+}
+
+.question-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.question-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ihc-accent-deep);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.question-card h2 span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ihc-accent);
+  color: #ffffff;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.question-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.question-tool-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(236, 248, 245, 0.94);
+  color: rgba(26, 174, 186, 0.9);
+  box-shadow: none;
+}
+
+.question-list {
+  display: grid;
+  gap: 6px;
+}
+
+.question-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(193, 227, 220, 0.92);
+  border-radius: 8px;
+  background: #fbfffe;
+  box-shadow: none;
+  text-align: left;
+}
+
+.question-list em {
+  color: var(--ihc-accent);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.question-list strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #355043;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  text-wrap: pretty;
+}
+
+.question-list i {
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid rgba(56, 92, 79, 0.28);
+  border-right: 2px solid rgba(56, 92, 79, 0.28);
+  transform: rotate(45deg);
+}
+
+.question-card__collapsed-hint {
+  margin: 0;
+  color: var(--ihc-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .assistant-chat-main {
-  height: calc(100% - 126px);
-  padding: 8px 14px 0;
+  min-height: 0;
+  padding: 8px 14px 16px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -450,261 +1288,10 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.assistant-hero {
-  position: relative;
-  display: grid;
-  grid-template-columns: 148px minmax(0, 1fr) 44px;
-  align-items: start;
-  min-height: 134px;
-  padding-top: 8px;
-}
-
-.assistant-back,
-.more-btn,
-.question-list button,
-.change-btn,
-.quick-actions button,
-.image-source-panel button,
-.voice-btn,
-.camera-btn,
-.send-btn {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-}
-
-.assistant-back {
-  position: absolute;
-  top: 10px;
-  left: 0;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 38px;
-  padding: 0;
-}
-
-.assistant-back span {
-  width: 12px;
-  height: 12px;
-  border-bottom: 3px solid rgba(31, 42, 68, 0.58);
-  border-left: 3px solid rgba(31, 42, 68, 0.58);
-  transform: rotate(45deg);
-}
-
-.assistant-avatar {
-  grid-column: 1;
-  display: block;
-  width: 200px;
-  height: 200px;
-  margin: 2px 0 0 -20px;
-  filter: drop-shadow(0 12px 18px rgba(50, 112, 167, 0.16));
-}
-
-.hi-badge {
-  position: absolute;
-  top: 50px;
-  left: 110px;
-  color: #95a6c0;
-  font-size: 20px;
-  font-weight: 900;
-}
-
-.welcome-bubble {
-  grid-column: 2;
-  min-height: 74px;
-  margin: 24px 4px 0 0;
-  padding: 12px 14px;
-  border-radius: 17px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 14px 32px rgba(61, 103, 152, 0.08);
-}
-
-.welcome-bubble strong {
-  display: block;
-  color: #25305a;
-  font-size: 15px;
-  font-weight: 900;
-  line-height: 1.35;
-}
-
-.welcome-bubble p {
-  margin: 8px 0 0;
-  color: rgba(90, 102, 126, 0.58);
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-
-.more-btn {
-  grid-column: 3;
-  justify-self: end;
-  margin-top: 5px;
-  padding: 0;
-  color: #2d344b;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.section-title {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 10px;
-  align-items: center;
-  margin: 0 12px 5px;
-}
-
-.section-title span {
-  height: 1px;
-  background: rgba(84, 101, 134, 0.24);
-}
-
-.section-title strong {
-  color: #1f2a44;
-  font-size: 17px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.section p{
-  font-size: 17px;
-}
-
-.consult-section {
-  margin-top: -58px;
-}
-
-.consult-section p {
-  margin: 0;
-  padding: 0 0 0 2px;
-  color: rgba(45, 55, 79, 0.68);
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.75;
-  text-align: justify;
-}
-
-.question-card {
-  position: relative;
-  margin-top: 12px;
-  padding: 14px 14px 54px;
-  border-radius: 6px;
-  background:
-    radial-gradient(circle at 14% 0%, rgba(117, 214, 223, 0.28), transparent 28%),
-    radial-gradient(circle at 86% 4%, rgba(190, 45, 234, 0.14), transparent 30%),
-    rgba(255, 255, 255, 0.62);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
-}
-
-.question-card h2 {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 12px;
-  color: #4f92d5;
-  font-size: 19px;
-  font-weight: 900;
-  font-style: italic;
-}
-
-.question-card h2 span {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #65aeea;
-  color: #ffffff;
-  font-size: 15px;
-  font-style: normal;
-}
-
-.question-list {
-  display: grid;
-  gap: 8px;
-}
-
-.question-list button {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 18px;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
-  text-align: left;
-}
-
-.question-list em {
-  color: #3a8ed5;
-  font-size: 15px;
-  font-style: normal;
-  font-weight: 900;
-}
-
-.question-list strong {
-  overflow: hidden;
-  color: #3f4b63;
-  font-size: 14px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.question-list i {
-  width: 7px;
-  height: 7px;
-  border-top: 2px solid rgba(64, 80, 111, 0.22);
-  border-right: 2px solid rgba(64, 80, 111, 0.22);
-  transform: rotate(45deg);
-}
-
-.change-btn {
-  position: absolute;
-  right: 18px;
-  bottom: 15px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #64718b;
-  font-size: 13px;
-  font-weight: 900;
-  box-shadow: 0 10px 18px rgba(76, 108, 151, 0.08);
-}
-
-.change-btn span,
-.voice-btn span {
-  position: relative;
-  display: inline-block;
-}
-
-.change-btn span {
-  width: 13px;
-  height: 13px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-}
-
-.chat-footer {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding: 0 16px 14px;
-}
-
 .chat-messages {
   display: grid;
-  gap: 12px;
-  margin: 14px 0 20px;
+  gap: 13px;
+  padding: 4px 0 12px;
 }
 
 .chat-message {
@@ -713,28 +1300,138 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
+.chat-message--assistant {
+  justify-items: start;
+}
+
+.chat-message--thinking {
+  margin-top: -3px;
+}
+
+.assistant-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0 2px;
+  color: rgba(102, 116, 110, 0.42);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.assistant-thinking i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.34;
+  animation: assistant-thinking-dot 1.15s ease-in-out infinite;
+}
+
+.assistant-thinking i:nth-of-type(2) {
+  animation-delay: 0.16s;
+}
+
+.assistant-thinking i:nth-of-type(3) {
+  animation-delay: 0.32s;
+}
+
+.assistant-thinking i:nth-of-type(4) {
+  animation-delay: 0.48s;
+}
+
 .message-bubble {
-  max-width: 270px;
-  padding: 11px 13px;
-  border-radius: 16px 16px 6px 16px;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  max-width: min(78%, 312px);
+  padding: 10px 13px;
+  border: 1px solid rgba(104, 212, 140, 0.42);
+  border-radius: 10px;
+  background: #6fdc91;
   color: #ffffff;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif;
   font-size: 14px;
-  font-weight: 900;
-  line-height: 1.55;
-  box-shadow: 0 10px 22px rgba(78, 169, 171, 0.16);
+  font-weight: 400;
+  line-height: 1.62;
+  box-shadow: 0 5px 14px rgba(53, 161, 152, 0.1);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.message-bubble--assistant {
+  border-color: rgba(202, 224, 218, 0.88);
+  background: rgba(255, 255, 255, 0.96);
+  color: #31483e;
+  font-weight: 400;
+  box-shadow: 0 3px 10px rgba(53, 161, 152, 0.045);
+}
+
+.message-bubble strong {
+  font-weight: 400;
+}
+
+.message-text {
+  display: block;
+}
+
+.assistant-speech-control {
+  display: inline-grid;
+  grid-template-columns: 15px auto repeat(3, 3px);
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin-top: 9px;
+  padding: 0 10px;
+  border: 1px solid rgba(185, 220, 211, 0.92);
+  border-radius: 999px;
+  background: rgba(241, 250, 247, 0.96);
+  color: var(--ihc-accent-deep);
+  font-family: var(--assistant-font-family);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.assistant-speech-control :deep(.i-icon) {
+  display: block;
+}
+
+.assistant-speech-control i {
+  width: 3px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.32;
+  transform-origin: center;
+}
+
+.assistant-speech-control--playing {
+  border-color: rgba(111, 220, 145, 0.68);
+  background: rgba(232, 250, 239, 0.98);
+  color: #25945a;
+}
+
+.assistant-speech-control--playing i {
+  animation: assistant-voice-wave 0.92s ease-in-out infinite;
+}
+
+.assistant-speech-control--playing i:nth-of-type(2) {
+  animation-delay: 0.12s;
+}
+
+.assistant-speech-control--playing i:nth-of-type(3) {
+  animation-delay: 0.24s;
 }
 
 .message-bubble--image {
-  padding: 6px;
-  background: rgba(255, 255, 255, 0.9);
+  padding: 7px;
+  background: #ffffff;
 }
 
 .message-bubble--image img {
   display: block;
   width: 184px;
   max-height: 190px;
-  border-radius: 13px;
+  border-radius: 8px;
   object-fit: cover;
 }
 
@@ -744,15 +1441,16 @@ onBeforeUnmount(() => {
   gap: 8px;
   align-items: center;
   min-width: 198px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #364055;
+  border-color: rgba(202, 224, 218, 0.88);
+  background: rgba(255, 255, 255, 0.96);
+  color: #31483e;
 }
 
 .voice-message-icon {
   position: relative;
   width: 22px;
   height: 22px;
-  border: 2px solid #75a7f7;
+  border: 2px solid var(--brand);
   border-radius: 50%;
 }
 
@@ -763,7 +1461,7 @@ onBeforeUnmount(() => {
   width: 2px;
   height: 8px;
   border-radius: 999px;
-  background: #75a7f7;
+  background: var(--brand);
   content: "";
 }
 
@@ -775,6 +1473,26 @@ onBeforeUnmount(() => {
   left: 12px;
 }
 
+.voice-message-copy {
+  min-width: 0;
+}
+
+.voice-message-copy strong,
+.voice-message-copy small {
+  display: block;
+}
+
+.voice-message-copy small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: rgba(73, 103, 91, 0.62);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message-bubble--voice audio {
   grid-column: 1 / -1;
   width: 100%;
@@ -782,30 +1500,42 @@ onBeforeUnmount(() => {
 }
 
 .chat-message time {
-  color: rgba(90, 102, 126, 0.58);
-  font-size: 10px;
-  font-weight: 800;
+  color: rgba(83, 108, 98, 0.42);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chat-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: rgba(244, 251, 248, 0.98);
+  border-top: 1px solid rgba(203, 224, 218, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .image-source-panel {
   position: absolute;
-  right: 90px;
-  bottom: 72px;
+  right: 92px;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   z-index: 2;
   display: grid;
   gap: 8px;
-  width: 104px;
-  padding: 10px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 16px 36px rgba(61, 103, 152, 0.16);
+  width: 112px;
+  padding: 12px;
+  border: 1px solid rgba(193, 227, 220, 0.92);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--ihc-shadow-float);
 }
 
 .image-source-panel button {
-  height: 32px;
-  border-radius: 10px;
-  background: #f2fbff;
-  color: #364055;
+  height: 34px;
+  border-radius: 6px;
+  background: #f4fbf9;
+  color: #355043;
   font-size: 13px;
   font-weight: 900;
 }
@@ -813,111 +1543,91 @@ onBeforeUnmount(() => {
 .quick-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .quick-actions button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   height: 34px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 8px 18px rgba(52, 87, 126, 0.06);
-  color: #364055;
-  font-size: 13px;
-  font-weight: 900;
+  border: 1px solid rgba(193, 227, 220, 0.92);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+  color: #355043;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .message-bar {
   display: grid;
-  grid-template-columns: 36px 36px minmax(0, 1fr) 67px;
+  grid-template-columns: 34px 34px minmax(0, 1fr) 64px;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 4px 5px 4px 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 28px rgba(61, 103, 152, 0.1);
+  min-height: 48px;
+  padding: 5px 6px;
+  border: 1px solid rgba(179, 212, 204, 0.98);
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(53, 161, 152, 0.07);
 }
 
 .voice-btn {
   position: relative;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
+  border-radius: 0;
+  color: #4c6a5f;
 }
 
 .voice-btn.recording {
-  color: #ffffff;
-}
-
-.voice-btn.recording span {
-  border-color: #75d6df;
-  background: #75d6df;
-}
-
-.voice-btn.recording span::before,
-.voice-btn.recording span::after {
-  background: #ffffff;
+  color: #c74646;
 }
 
 .voice-btn em {
   position: absolute;
   top: -14px;
   left: 50%;
-  color: #2d90f0;
+  color: var(--brand);
   font-size: 10px;
   font-style: normal;
   font-weight: 900;
   transform: translateX(-50%);
 }
 
-.voice-btn span {
-  width: 24px;
-  height: 24px;
-  border: 2px solid #596575;
-  border-radius: 50%;
-}
-
-.voice-btn span::before,
-.voice-btn span::after {
-  position: absolute;
-  top: 6px;
-  width: 2px;
-  height: 8px;
-  border-radius: 999px;
-  background: #596575;
-  content: "";
-}
-
-.voice-btn span::before {
-  left: 8px;
-}
-
-.voice-btn span::after {
-  left: 13px;
+.recording-stop {
+  display: block;
+  width: 15px;
+  height: 15px;
+  background: currentColor;
 }
 
 .camera-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  color: #596575;
+  border-radius: 0;
+  color: #4c6a5f;
 }
 
 .camera-btn.active {
-  color: #2d90f0;
+  color: var(--brand);
 }
 
 .quick-actions :deep(.i-icon),
-.camera-btn :deep(.i-icon) {
+.camera-btn :deep(.i-icon),
+.voice-btn :deep(.i-icon),
+.assistant-speech-control :deep(.i-icon),
+.question-tool-btn :deep(.i-icon),
+.header-icon-btn :deep(.i-icon) {
   display: block;
   flex: 0 0 auto;
 }
@@ -927,23 +1637,71 @@ onBeforeUnmount(() => {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #2d344b;
+  color: #294036;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .message-bar input::placeholder {
-  color: rgba(92, 104, 126, 0.42);
+  color: rgba(87, 111, 101, 0.42);
   opacity: 1;
 }
 
 .send-btn {
   height: 36px;
-  border-radius: 999px;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
+  border-radius: 0;
+  background: var(--brand);
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.send-btn:disabled {
+  opacity: 0.72;
+}
+
+.assistant-back,
+.header-icon-btn,
+.question-tool-btn,
+.question-list button,
+.quick-actions button,
+.image-source-panel button,
+.assistant-speech-control,
+.voice-btn,
+.camera-btn,
+.send-btn {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.assistant-back:active,
+.header-icon-btn:active,
+.question-tool-btn:active,
+.question-list button:active,
+.quick-actions button:active,
+.image-source-panel button:active,
+.assistant-speech-control:active,
+.voice-btn:active,
+.camera-btn:active,
+.send-btn:active {
+  transform: scale(0.97);
+}
+
+.question-fold-enter-active,
+.question-fold-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform-origin: top center;
+}
+
+.question-fold-enter-from,
+.question-fold-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .media-input {
@@ -952,5 +1710,51 @@ onBeforeUnmount(() => {
   height: 1px;
   opacity: 0;
   pointer-events: none;
+}
+
+@keyframes assistant-thinking-dot {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  45% {
+    opacity: 0.86;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes assistant-voice-wave {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scaleY(0.72);
+  }
+
+  50% {
+    opacity: 0.88;
+    transform: scaleY(1.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-back,
+  .header-icon-btn,
+  .question-tool-btn,
+  .question-list button,
+  .quick-actions button,
+  .image-source-panel button,
+  .assistant-speech-control,
+  .assistant-speech-control--playing i,
+  .voice-btn,
+  .camera-btn,
+  .send-btn,
+  .assistant-thinking i,
+  .question-fold-enter-active,
+  .question-fold-leave-active {
+    transition: none;
+    animation: none;
+  }
 }
 </style>

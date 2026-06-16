@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import {
+  deleteAdminProduct,
+  getAdminProducts,
+  updateAdminProductStatus,
+} from "@/shared/api/catalog";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
-type LineKey = (typeof mock.lineOptions)[number]["key"];
+type LineKey = (typeof mockSeed.lineOptions)[number]["key"];
 type ProductRow = {
   id: string;
   title: string;
@@ -18,25 +24,27 @@ type ProductRow = {
 };
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
+const productEditorStorageKey = "admin:service:selected-product-id";
 
-const selectedLine = ref<LineKey>(mock.lineOptions[0].key);
-const selectedStatus = ref(mock.statusOptions[0]);
-const selectedCategory = ref<string>(mock.lineConfigs.housekeeping.categoryOptions[0]);
+const selectedLine = ref<LineKey>(mockSeed.lineOptions[0].key);
+const selectedStatus = ref(mockSeed.statusOptions[0]);
+const selectedCategory = ref<string>(mockSeed.lineConfigs.housekeeping.categoryOptions[0]);
 const minPrice = ref("");
 const maxPrice = ref("");
 const startDate = ref("");
 const endDate = ref("");
 const keyword = ref("");
 
-const currentConfig = computed(() => mock.lineConfigs[selectedLine.value]);
+const currentConfig = computed(() => mock.value.lineConfigs[selectedLine.value]);
 const showCategoryFilter = computed(() => currentConfig.value.categoryOptions.length > 0);
 const categoryColumnLabel = computed(() => currentConfig.value.categoryLabel);
 
 watch(
   selectedLine,
   (line) => {
-    selectedCategory.value = mock.lineConfigs[line].categoryOptions[0] || "";
-    selectedStatus.value = mock.statusOptions[0];
+    selectedCategory.value = mock.value.lineConfigs[line].categoryOptions[0] || "";
+    selectedStatus.value = mock.value.statusOptions[0];
     minPrice.value = "";
     maxPrice.value = "";
     startDate.value = "";
@@ -48,7 +56,7 @@ watch(
 
 const filteredRows = computed(() => {
   return (currentConfig.value.rows as readonly ProductRow[]).filter((row) => {
-    const matchesStatus = selectedStatus.value === mock.statusOptions[0] || row.status === selectedStatus.value;
+    const matchesStatus = selectedStatus.value === mock.value.statusOptions[0] || row.status === selectedStatus.value;
     const matchesCategory =
       !showCategoryFilter.value ||
       selectedCategory.value === currentConfig.value.categoryOptions[0] ||
@@ -66,24 +74,127 @@ const filteredRows = computed(() => {
   });
 });
 
-function searchRows() {
+async function syncPageData() {
+  try {
+    mock.value = (await getAdminProducts({
+      page: 1,
+      pageSize: 100,
+      status: selectedStatus.value !== mock.value.statusOptions[0] ? selectedStatus.value : undefined,
+      keyword: keyword.value.trim() || undefined,
+    })) as typeof mockSeed;
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "商品管理列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function searchRows() {
+  await syncPageData();
   props.showToast(`已筛选 ${filteredRows.value.length} 条商品`);
 }
 
 function resetFilters() {
-  selectedStatus.value = mock.statusOptions[0];
+  selectedStatus.value = mock.value.statusOptions[0];
   selectedCategory.value = currentConfig.value.categoryOptions[0] || "";
   minPrice.value = "";
   maxPrice.value = "";
   startDate.value = "";
   endDate.value = "";
   keyword.value = "";
+  void syncPageData();
   props.showToast("筛选条件已重置");
 }
 
-function triggerAction(label: string, title?: string) {
-  props.showToast(title ? `${label}：${title}` : `${label}功能为演示状态`);
+function updateProductStorage(productId = "") {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (productId) {
+    window.sessionStorage.setItem(productEditorStorageKey, productId);
+    return;
+  }
+
+  window.sessionStorage.removeItem(productEditorStorageKey);
 }
+
+function openProductEditor(productId = "") {
+  updateProductStorage(productId);
+  props.navigation.navigateTo("service/product-editor");
+}
+
+async function triggerAction(label: string, row?: ProductRow) {
+  if (label === "新增商品") {
+    openProductEditor();
+    return;
+  }
+
+  if (!row) {
+    props.showToast(`${label}功能为演示状态`);
+    return;
+  }
+
+  if (label === "编辑") {
+    openProductEditor(row.id);
+    return;
+  }
+
+  if (label === "复制") {
+    props.showToast(`复制功能暂保留为演示状态：${row.title}`);
+    return;
+  }
+
+  try {
+    if (label === "删除") {
+      await deleteAdminProduct(row.id);
+      mock.value = {
+        ...mock.value,
+        lineConfigs: {
+          housekeeping: {
+            ...mock.value.lineConfigs.housekeeping,
+            rows: mock.value.lineConfigs.housekeeping.rows.filter((item: ProductRow) => item.id !== row.id),
+          },
+          exam: {
+            ...mock.value.lineConfigs.exam,
+            rows: mock.value.lineConfigs.exam.rows.filter((item: ProductRow) => item.id !== row.id),
+          },
+          rehab: {
+            ...mock.value.lineConfigs.rehab,
+            rows: mock.value.lineConfigs.rehab.rows.filter((item: ProductRow) => item.id !== row.id),
+          },
+        },
+      };
+      props.showToast(`已删除：${row.title}`);
+      return;
+    }
+
+    if (label === "上架" || label === "下架") {
+      const enabled = label === "上架";
+      await updateAdminProductStatus(row.id, {
+        enabled,
+      });
+      await syncPageData();
+      props.showToast(`${label}成功：${row.title}`);
+      return;
+    }
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: `${label}失败，请稍后重试`,
+    });
+    return;
+  }
+
+  props.showToast(`${label}：${row.title}`);
+}
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -234,12 +345,12 @@ function triggerAction(label: string, title?: string) {
             <div class="cell">{{ row.updater }}</div>
             <div class="cell">{{ row.updatedAt }}</div>
             <div class="cell cell--actions">
-              <button type="button" class="table-link table-link--green" @click="triggerAction('复制', row.title)">复制</button>
-              <button type="button" class="table-link table-link--green" @click="triggerAction('编辑', row.title)">编辑</button>
-              <button type="button" class="table-link table-link--green" @click="triggerAction(row.status === '已上架' ? '下架' : '上架', row.title)">
+              <button type="button" class="table-link table-link--green" @click="triggerAction('复制', row)">复制</button>
+              <button type="button" class="table-link table-link--green" @click="triggerAction('编辑', row)">编辑</button>
+              <button type="button" class="table-link table-link--green" @click="triggerAction(row.status === '已上架' ? '下架' : '上架', row)">
                 {{ row.status === "已上架" ? "下架" : "上架" }}
               </button>
-              <button type="button" class="table-link table-link--red" @click="triggerAction('删除', row.title)">删除</button>
+              <button type="button" class="table-link table-link--red" @click="triggerAction('删除', row)">删除</button>
             </div>
           </article>
           </div>

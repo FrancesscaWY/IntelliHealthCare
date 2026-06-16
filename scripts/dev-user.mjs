@@ -13,6 +13,7 @@ const requestedPageId = normalizePageId(args.page);
 const mode = requestedPageId || args.mode === "page" ? "page" : "app";
 const enablePublicTunnel = args.public === "true";
 const bindHost = args.host || "0.0.0.0";
+const allowPortFallback = args.portFallback === "true";
 
 function getLanIpv4Address() {
   const networkInterfaces = os.networkInterfaces();
@@ -111,7 +112,19 @@ if (workspaceErrors.length > 0) {
 
 const localPreviewHost = bindHost === "0.0.0.0" ? "127.0.0.1" : bindHost;
 const portProbeHosts = collectPortProbeHosts(bindHost, localPreviewHost);
-const port = await findAvailablePort(requestedPort, portProbeHosts);
+const requestedPortAvailable = await canUsePortOnAllHosts(requestedPort, portProbeHosts);
+
+if (!requestedPortAvailable && !allowPortFallback) {
+  console.error(`Port ${requestedPort} is already in use.`);
+  console.error(`Stop the existing process or run with another port, for example: npm run dev:${appTarget.key} -- --port ${requestedPort + 1}`);
+  console.error("If you explicitly want automatic port fallback, pass --portFallback true.");
+  process.exit(1);
+}
+
+const port = requestedPortAvailable
+  ? requestedPort
+  : await findAvailablePort(requestedPort + 1, portProbeHosts);
+
 if (port !== requestedPort) {
   console.warn(`Port ${requestedPort} is already in use, switched to ${port}.`);
 }
@@ -152,6 +165,7 @@ const child =
         },
       })
     : spawn("npm", extraArgs, {
+        detached: true,
         stdio: "inherit",
         env: {
           ...process.env,
@@ -171,6 +185,23 @@ async function openPublicTunnel() {
 
 void openPublicTunnel();
 
+function terminateChild(signal = "SIGTERM") {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Fall back to terminating only the direct child.
+    }
+  }
+
+  child.kill(signal);
+}
+
 child.on("exit", (code) => {
   process.exit(code ?? 0);
 });
@@ -182,6 +213,6 @@ child.on("error", (error) => {
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
-    child.kill(signal);
+    terminateChild(signal);
   });
 }

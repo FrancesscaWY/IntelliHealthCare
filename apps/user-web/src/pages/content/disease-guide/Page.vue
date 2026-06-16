@@ -1,11 +1,117 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { listDiseaseDepartments, listDiseases, type DiseaseDepartmentItem, type DiseaseListItem } from "@/shared/api/content";
 import mock from "./mock";
+import { selectedDiseaseId } from "./state";
 
 const props = defineProps<PageComponentProps>();
 const searchValue = ref("");
-const activeDepartment = ref(mock.activeDepartment);
+const activeDepartmentId = ref("");
+
+type DepartmentViewModel = {
+  id: string;
+  name: string;
+};
+
+type DiseaseViewModel = {
+  id: string;
+  diseaseId: string;
+  title: string;
+  summary: string;
+  departmentId: string;
+  departmentName: string;
+  publishedAt: string;
+};
+
+const departments = ref<DepartmentViewModel[]>(
+  mock.departments.map((item) => ({
+    id: item.id,
+    name: item.name
+  }))
+);
+
+const diseases = ref<DiseaseViewModel[]>(
+  mock.diseases.map((item) => ({
+    ...item,
+    publishedAt: ""
+  }))
+);
+
+const filteredDiseases = computed(() => {
+  const keyword = searchValue.value.trim().toLowerCase();
+
+  return diseases.value.filter((item) => {
+    const matchesDepartment = !activeDepartmentId.value || item.departmentId === activeDepartmentId.value;
+    const matchesKeyword =
+      !keyword ||
+      item.title.toLowerCase().includes(keyword) ||
+      item.summary.toLowerCase().includes(keyword) ||
+      item.departmentName.toLowerCase().includes(keyword);
+
+    return matchesDepartment && matchesKeyword;
+  });
+});
+
+function mapDepartment(item: DiseaseDepartmentItem): DepartmentViewModel {
+  return {
+    id: item.departmentId || item.id,
+    name: item.name
+  };
+}
+
+function mapDisease(item: DiseaseListItem, index: number): DiseaseViewModel {
+  const diseaseId = item.diseaseId || item.id || `disease-${index + 1}`;
+
+  return {
+    id: item.id || diseaseId,
+    diseaseId,
+    title: item.title || item.name || "未命名疾病",
+    summary: item.summary || "暂无疾病简介",
+    departmentId: item.department?.departmentId || "unknown",
+    departmentName: item.department?.name || "未分类",
+    publishedAt: item.publishedAt || ""
+  };
+}
+
+function applyFallbackData() {
+  departments.value = mock.departments.map((item) => ({
+    id: item.id,
+    name: item.name
+  }));
+  diseases.value = mock.diseases.map((item) => ({
+    ...item,
+    publishedAt: ""
+  }));
+  activeDepartmentId.value = departments.value[0]?.id || "";
+}
+
+async function loadDiseaseGuide() {
+  try {
+    const [departmentList, diseaseList] = await Promise.all([
+      listDiseaseDepartments(),
+      listDiseases({
+        page: 1,
+        pageSize: 100
+      })
+    ]);
+
+    departments.value = departmentList.map(mapDepartment);
+    diseases.value = diseaseList.list.map(mapDisease);
+    activeDepartmentId.value =
+      departments.value.find((item) => item.id === activeDepartmentId.value)?.id || departments.value[0]?.id || "";
+
+    if (diseases.value.length === 0) {
+      diseases.value = mock.diseases.map((item) => ({
+        ...item,
+        publishedAt: ""
+      }));
+    }
+  } catch {
+    applyFallbackData();
+    props.showToast("疾病内容加载失败，已显示本地示例");
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -13,13 +119,19 @@ function goBack() {
   }
 }
 
-function selectDepartment(name: string) {
-  activeDepartment.value = name;
+function selectDepartment(departmentId: string) {
+  activeDepartmentId.value = departmentId;
 }
 
-function openDisease(name: string) {
+function openDisease(item: DiseaseViewModel) {
+  selectedDiseaseId.value = item.diseaseId;
   props.navigation.navigateTo("content/disease-detail");
 }
+
+onMounted(() => {
+  applyFallbackData();
+  void loadDiseaseGuide();
+});
 </script>
 
 <template>
@@ -38,22 +150,32 @@ function openDisease(name: string) {
       </label>
 
       <section class="disease-content">
-        <aside class="department-list" aria-label="科室分类">
+        <aside class="department-list" aria-label="疾病科室">
           <button
-            v-for="department in mock.departments"
-            :key="department"
+            v-for="department in departments"
+            :key="department.id"
             type="button"
-            :class="{ 'department-item--active': activeDepartment === department }"
-            @click="selectDepartment(department)"
+            :class="{ 'department-item--active': activeDepartmentId === department.id }"
+            @click="selectDepartment(department.id)"
           >
-            {{ department }}
+            {{ department.name }}
           </button>
         </aside>
 
         <section class="disease-list-panel" aria-label="疾病列表">
-          <button v-for="(item, index) in mock.diseases" :key="`${item}-${index}`" type="button" @click="openDisease(item)">
-            {{ item }}
+          <button
+            v-for="item in filteredDiseases"
+            :key="item.id"
+            type="button"
+            class="disease-card"
+            @click="openDisease(item)"
+          >
+            <strong>{{ item.title }}</strong>
+            <span>{{ item.departmentName }}</span>
+            <p>{{ item.summary }}</p>
           </button>
+
+          <p v-if="filteredDiseases.length === 0" class="empty-text">{{ mock.emptyText }}</p>
         </section>
       </section>
     </main>
@@ -65,9 +187,9 @@ function openDisease(name: string) {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #f5f6f7;
@@ -114,7 +236,6 @@ function openDisease(name: string) {
   color: #222733;
   font-size: 20px;
   font-weight: 900;
-  letter-spacing: 0;
 }
 
 .disease-main {
@@ -202,14 +323,13 @@ function openDisease(name: string) {
 
 .department-list button {
   width: calc(100% - 20px);
-  height: 53px;
+  min-height: 53px;
   margin: 0 auto;
-  padding: 0;
+  padding: 0 10px;
   border-radius: 15px;
   color: #8f95a2;
   font-size: 14px;
   font-weight: 800;
-  letter-spacing: 0;
 }
 
 .department-item--active {
@@ -220,7 +340,7 @@ function openDisease(name: string) {
 
 .disease-list-panel {
   height: 100%;
-  padding: 0 24px;
+  padding: 12px 18px 20px;
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.68);
   border-radius: 15px 15px 0 0;
@@ -229,22 +349,50 @@ function openDisease(name: string) {
   scrollbar-width: none;
 }
 
-.disease-list-panel button {
+.disease-card {
   display: block;
   width: 100%;
-  height: 64px;
-  padding: 0;
+  padding: 16px 0 14px;
   border-bottom: 1px solid rgba(205, 207, 215, 0.72);
+  text-align: left;
+}
+
+.disease-card strong {
+  display: block;
   color: #222733;
   font-size: 15px;
   font-weight: 800;
-  text-align: left;
+}
+
+.disease-card span {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef7f3;
+  color: #39a980;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.disease-card p {
+  margin: 10px 0 0;
+  color: #6f7888;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.empty-text {
+  margin: 22px 0 0;
+  color: #9aa3b1;
+  font-size: 14px;
+  text-align: center;
 }
 
 @media (min-width: 561px) {
   .disease-guide-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -257,10 +405,6 @@ function openDisease(name: string) {
   .disease-content {
     grid-template-columns: 94px minmax(0, 1fr);
     gap: 20px;
-  }
-
-  .department-list button {
-    font-size: 17px;
   }
 }
 </style>

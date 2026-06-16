@@ -1,5 +1,5 @@
 const mock = {
-  title: "智能推荐",
+  title: "服务智选",
   loadingText: "豆沙包正为您推荐中",
 };
 

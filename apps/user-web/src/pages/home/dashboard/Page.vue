@@ -1,16 +1,168 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { favoriteHealthNews, likeHealthNews, listHealthNews, shareHealthNews } from "@/shared/api/content";
+import fallbackNewsImage from "@/assets/content/health-lecture-hot.jpg";
+import { healthNewsDetailTarget, selectedHealthNewsId } from "@/pages/content/health-news/state";
+import { normalizeNewsImages } from "@/shared/utils/healthNewsMedia";
 import locationIcon from "@/assets/home/topbar/定位.png";
 import scanIcon from "@/assets/home/topbar/二维码.png";
 import sectionImage from "@/assets/home/sections/img.png";
+import {
+  getHomeDashboard,
+  type HomeDashboardArticle,
+  type HomeDashboardServiceEntry,
+} from "@/shared/api/home";
+import { addSearchHistory, getGlobalSearch } from "@/shared/api/search";
+import { saveGlobalSearchState } from "@/shared/search/session";
 import FloatingAssistant from "./FloatingAssistant.vue";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const searchValue = ref("");
+const homeCity = ref(mock.city);
+const serviceCards = ref([...mock.services]);
+const healthReminder = ref({ ...mock.reminder });
+const hotDiseases = ref([...mock.diseases]);
+const articles = ref(createFallbackArticles());
 const featurePages = [mock.features.slice(0, 4), mock.features.slice(4)];
 const activeFeaturePage = ref(0);
+const isSubmittingSearch = ref(false);
+
+interface ArticleCardState {
+  id: string;
+  newsId: string;
+  title: string;
+  desc: string;
+  likes: number;
+  stars: number;
+  comments: number;
+  coverUrl: string | null;
+  isLiked: boolean;
+  isStarred: boolean;
+}
+
+function createArticleState(
+  items: Array<{
+    id?: string;
+    newsId?: string;
+    title: string;
+    desc: string;
+    likes: number;
+    stars: number;
+    comments: number;
+    coverUrl?: string | null;
+  }>
+): ArticleCardState[] {
+  return items.map((item, index) => ({
+    ...item,
+    id: item.id || item.newsId || `article-${index + 1}`,
+    newsId: item.newsId || item.id || `article-${index + 1}`,
+    coverUrl: item.coverUrl ?? null,
+    isLiked: false,
+    isStarred: false,
+  }));
+}
+
+function createFallbackArticles() {
+  return createArticleState(
+    mock.articles.map((item, index) => ({
+      id: `mock-article-${index + 1}`,
+      newsId: `mock-article-${index + 1}`,
+      title: item.title,
+      desc: item.desc,
+      likes: item.likes,
+      stars: item.stars,
+      comments: item.comments,
+      coverUrl: fallbackNewsImage,
+    }))
+  );
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "\u9996\u9875\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5";
+}
+
+function getSearchErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "搜索失败，请稍后重试";
+}
+
+function formatServicePrice(price: number) {
+  if (!Number.isFinite(price) || price <= 0) {
+    return "";
+  }
+
+  return Number.isInteger(price)
+    ? `\u00A5${price}\u8D77`
+    : `\u00A5${price.toFixed(2)}\u8D77`;
+}
+
+function mapServiceEntries(entries: HomeDashboardServiceEntry[]) {
+  const serviceCategoryOrder = ["HOME_CARE", "REHAB_THERAPY", "HOME_EXAM"] as const;
+  const serviceCardConfigByCategory = {
+    HOME_CARE: mock.services[0],
+    REHAB_THERAPY: mock.services[1],
+    HOME_EXAM: mock.services[2],
+  };
+
+  return serviceCategoryOrder.flatMap((category) => {
+    const entry = entries.find((item) => item.category === category);
+
+    if (!entry) {
+      return [];
+    }
+
+    const config = serviceCardConfigByCategory[category];
+    return [
+      {
+        ...config,
+        desc: formatServicePrice(entry.price) || config.desc,
+      },
+    ];
+  });
+}
+
+function mapRecommendedArticles(items: HomeDashboardArticle[]) {
+  return createArticleState(
+    items.map((item, index) => ({
+      id: item.articleId || `article-${index + 1}`,
+      newsId: item.articleId || `article-${index + 1}`,
+      title: item.title,
+      desc: item.summary || mock.articles[index]?.desc || "",
+      likes: mock.articles[index]?.likes ?? 0,
+      stars: mock.articles[index]?.stars ?? 0,
+      comments: mock.articles[index]?.comments ?? 0,
+      coverUrl: item.coverUrl || fallbackNewsImage,
+    }))
+  );
+}
+
+async function loadDashboard() {
+  try {
+    const dashboard = await getHomeDashboard();
+    const nextServiceCards = mapServiceEntries(dashboard.serviceEntries);
+
+    homeCity.value = dashboard.city || mock.city;
+    serviceCards.value = nextServiceCards.length ? nextServiceCards : [...mock.services];
+    healthReminder.value = dashboard.healthReminder
+      ? {
+          ...mock.reminder,
+          title: dashboard.healthReminder.title,
+          detail: dashboard.healthReminder.content,
+        }
+      : {
+          ...mock.reminder,
+          title: "\u5065\u5EB7\u63D0\u9192",
+          detail: "\u6682\u672A\u751F\u6210\u4ECA\u65E5\u63D0\u9192",
+        };
+    hotDiseases.value = dashboard.hotDiseases.map((item) => item.title);
+    articles.value = dashboard.recommendedArticles.length
+      ? mapRecommendedArticles(dashboard.recommendedArticles)
+      : createFallbackArticles();
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
 
 const navIconMarkup: Record<string, string> = {
   home: `
@@ -151,9 +303,13 @@ function getFeatureIconMarkup(icon: string) {
   return featureIconMarkup[icon] || featureIconMarkup.chart;
 }
 
+function openSearchPage() {
+  props.navigation.navigateTo("home/search");
+}
+
 function openPage(pageId: string, label?: string) {
   if (!pageId) {
-    props.showToast(`${label || "该"}功能待接入`);
+    props.showToast(`${label || "该功能"}待接入`);
     return;
   }
 
@@ -162,6 +318,41 @@ function openPage(pageId: string, label?: string) {
 
 function applyTag(tag: string) {
   searchValue.value = tag;
+  void submitSearch(tag);
+}
+
+async function submitSearch(keyword = searchValue.value) {
+  const normalizedKeyword = keyword.trim();
+
+  if (!normalizedKeyword) {
+    openSearchPage();
+    return;
+  }
+
+  if (isSubmittingSearch.value) {
+    return;
+  }
+
+  try {
+    isSubmittingSearch.value = true;
+    searchValue.value = normalizedKeyword;
+
+    const result = await getGlobalSearch(normalizedKeyword, 1, 10);
+    saveGlobalSearchState({
+      keyword: normalizedKeyword,
+      list: result.list,
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+      hasMore: result.hasMore
+    });
+    void addSearchHistory(normalizedKeyword).catch(() => undefined);
+    openSearchPage();
+  } catch (error) {
+    props.showToast(getSearchErrorMessage(error));
+  } finally {
+    isSubmittingSearch.value = false;
+  }
 }
 
 function showAction(label: string) {
@@ -172,27 +363,138 @@ function openAssistantPanel() {
   props.navigation.navigateTo("home/assistant-chat");
 }
 
-function toggleLike(articleId: string) {
+function openHealthNewsDetail(newsId: string, target: "default" | "comments" = "default") {
+  selectedHealthNewsId.value = newsId;
+  healthNewsDetailTarget.value = target;
+  props.navigation.navigateTo("content/health-news-detail");
+}
+
+function applyFallbackImage(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = fallbackNewsImage;
+}
+
+async function loadHealthNews() {
+  try {
+    const response = await listHealthNews({
+      page: 1,
+      pageSize: 3,
+      sort: "LATEST"
+    });
+
+    if (response.list.length === 0) {
+      articles.value = createFallbackArticles();
+      return;
+    }
+
+    articles.value = response.list.map((item, index) => ({
+      id: item.id || item.newsId || `article-${index + 1}`,
+      newsId: item.newsId || item.id || `article-${index + 1}`,
+      title: item.title,
+      desc: item.summary || "暂无资讯摘要",
+      likes: item.likesCount ?? 0,
+      stars: item.favoritesCount ?? 0,
+      comments: item.commentsCount ?? 0,
+      coverUrl:
+        item.coverUrl ||
+        normalizeNewsImages(
+          item.newsId || item.id || `article-${index + 1}`,
+          item.title,
+          Array.isArray(item.images) ? item.images : [],
+          item.coverUrl
+        )[0] ||
+        fallbackNewsImage,
+      isLiked: false,
+      isStarred: false,
+    }));
+  } catch {
+    articles.value = createFallbackArticles();
+  }
+}
+
+async function recordArticleShare(articleId: string) {
   const targetArticle = articles.value.find((item) => item.id === articleId);
 
   if (!targetArticle) {
     return;
   }
 
-  targetArticle.isLiked = !targetArticle.isLiked;
-  targetArticle.likes += targetArticle.isLiked ? 1 : -1;
+  if (targetArticle.newsId.startsWith("mock-article-")) {
+    showAction("分享");
+    return;
+  }
+
+  try {
+    await shareHealthNews(targetArticle.newsId);
+    props.showToast("分享记录已更新");
+  } catch {
+    props.showToast("分享失败，请稍后再试");
+  }
 }
 
-function toggleStar(articleId: string) {
+async function toggleLike(articleId: string) {
   const targetArticle = articles.value.find((item) => item.id === articleId);
 
   if (!targetArticle) {
     return;
   }
 
-  targetArticle.isStarred = !targetArticle.isStarred;
-  targetArticle.stars += targetArticle.isStarred ? 1 : -1;
+  if (targetArticle.isLiked) {
+    props.showToast("已点赞");
+    return;
+  }
+
+  if (targetArticle.newsId.startsWith("mock-article-")) {
+    targetArticle.isLiked = true;
+    targetArticle.likes += 1;
+    return;
+  }
+
+  try {
+    await likeHealthNews(targetArticle.newsId);
+    targetArticle.isLiked = true;
+    targetArticle.likes += 1;
+  } catch {
+    props.showToast("点赞失败，请稍后再试");
+  }
 }
+
+async function toggleStar(articleId: string) {
+  const targetArticle = articles.value.find((item) => item.id === articleId);
+
+  if (!targetArticle) {
+    return;
+  }
+
+  if (targetArticle.isStarred) {
+    props.showToast("已收藏");
+    return;
+  }
+
+  if (targetArticle.newsId.startsWith("mock-article-")) {
+    targetArticle.isStarred = true;
+    targetArticle.stars += 1;
+    return;
+  }
+
+  try {
+    await favoriteHealthNews(targetArticle.newsId);
+    targetArticle.isStarred = true;
+    targetArticle.stars += 1;
+  } catch {
+    props.showToast("收藏失败，请稍后再试");
+  }
+}
+
+onMounted(() => {
+  void loadDashboard();
+});
 </script>
 
 <template>
@@ -201,7 +503,7 @@ function toggleStar(articleId: string) {
       <header class="home-topbar">
         <button class="location-btn" type="button" @click="openPage('home/location-select', '选择地区')">
           <img class="location-icon" :src="locationIcon" alt="定位" draggable="false" />
-          <span>{{ mock.city }}</span>
+          <span>{{ homeCity }}</span>
           <span class="location-caret" aria-hidden="true"></span>
         </button>
 
@@ -212,14 +514,26 @@ function toggleStar(articleId: string) {
           <button class="search-scan-btn" type="button" aria-label="扫一扫" @click="showAction('扫一扫')">
             <img :src="scanIcon" alt="扫一扫" draggable="false" />
           </button>
-          <button class="search-field" type="button" @click="openPage('home/search', '搜索')">
-            <span class="search-placeholder">搜索服务 / 疾病 / 资讯等</span>
+          <button class="search-field" type="button" @click="openSearchPage">
+            <span class="search-placeholder" :class="{ 'search-placeholder--active': searchValue }">
+              {{ searchValue || "搜索服务 / 疾病 / 资讯等" }}
+            </span>
           </button>
-          <button class="search-submit" type="button" @click="openPage('home/search', '搜索')">搜索</button>
+          <button class="search-submit" type="button" @click="submitSearch()">
+            {{ isSubmittingSearch ? "搜索中" : "搜索" }}
+          </button>
         </div>
 
         <div class="search-tags">
-          <button v-for="tag in mock.searchTags" :key="tag" type="button" @click="applyTag(tag)">{{ tag }}</button>
+          <button
+            v-for="tag in mock.searchTags"
+            :key="tag"
+            type="button"
+            :class="{ 'search-tag--active': tag === searchValue }"
+            @click="applyTag(tag)"
+          >
+            {{ tag }}
+          </button>
         </div>
 
         <div class="section-image-box">
@@ -230,7 +544,7 @@ function toggleStar(articleId: string) {
 
 
       <section class="service-grid" aria-label="上门服务">
-        <button v-for="item in mock.services" :key="item.key" class="service-card" type="button" @click="openPage(item.pageId, item.title)">
+        <button v-for="item in serviceCards" :key="item.key" class="service-card" type="button" @click="openPage(item.pageId, item.title)">
           <span class="service-icon" :class="`service-icon--${item.key}`" aria-hidden="true">
             <img :src="item.icon" :alt="item.title" draggable="false" />
           </span>
@@ -278,9 +592,9 @@ function toggleStar(articleId: string) {
         <div class="reminder-content">
           <strong>
             <span class="bell-icon" aria-hidden="true"></span>
-            {{ mock.reminder.title }}
+            {{ healthReminder.title }}
           </strong>
-          <p>{{ mock.reminder.detail }}</p>
+          <p>{{ healthReminder.detail }}</p>
         </div>
       </section>
 
@@ -294,7 +608,7 @@ function toggleStar(articleId: string) {
         </header>
 
         <div class="disease-list">
-          <button v-for="item in mock.diseases" :key="item" type="button" class="disease-pill" @click="openPage('content/disease-guide', item)">
+          <button v-for="item in hotDiseases" :key="item" type="button" class="disease-pill" @click="openPage('content/disease-guide', item)">
             {{ item }}
           </button>
         </div>
@@ -306,14 +620,19 @@ function toggleStar(articleId: string) {
               <p>{{ item.desc }}</p>
             </section>
 
-            <div class="article-photos" aria-hidden="true">
-              <span class="article-photo article-photo--fruit"></span>
-              <span class="article-photo article-photo--needle"></span>
-              <span class="article-photo article-photo--food"></span>
+            <div class="article-cover-wrap">
+              <img
+                v-if="item.coverUrl"
+                class="article-cover"
+                :src="item.coverUrl"
+                :alt="item.title"
+                draggable="false"
+              />
+              <div v-else class="article-cover article-cover--empty">暂无封面</div>
             </div>
 
             <footer class="article-actions">
-              <button class="article-action article-action--share" type="button" aria-label="分享" @click="showAction('分享')">
+              <button class="article-action article-action--share" type="button" aria-label="鍒嗕韩" @click.stop="recordArticleShare(item.id)">
                 <svg class="article-icon article-icon--share" viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="18" cy="5" r="2.7" />
                   <circle cx="6" cy="12" r="2.7" />
@@ -326,7 +645,7 @@ function toggleStar(articleId: string) {
                 class="article-action article-action--like"
                 :class="{ 'article-action--active-like': item.isLiked }"
                 type="button"
-                @click="toggleLike(item.id)"
+                @click.stop="toggleLike(item.id)"
               >
                 <svg class="article-icon article-icon--heart" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
@@ -337,14 +656,14 @@ function toggleStar(articleId: string) {
                 class="article-action article-action--star"
                 :class="{ 'article-action--active-star': item.isStarred }"
                 type="button"
-                @click="toggleStar(item.id)"
+                @click.stop="toggleStar(item.id)"
               >
                 <svg class="article-icon article-icon--star" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
                 </svg>
                 {{ item.stars }}
               </button>
-              <button class="article-action article-action--comment" type="button" @click="showAction('评论')">
+              <button class="article-action article-action--comment" type="button" @click.stop="openHealthNewsDetail(item.newsId, 'comments')">
                 <svg class="article-icon article-icon--comment" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
                 </svg>
@@ -398,17 +717,12 @@ function toggleStar(articleId: string) {
 <style scoped>
 .home-page {
   position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px 0;
-  transform: translateX(-50%);
-  background:
-    radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
-    radial-gradient(circle at 88% 0%, rgba(123, 226, 142, 0.2), transparent 24%),
-    linear-gradient(180deg, #eef5ff 0%, #f7fbff 46%, #eef4fb 100%);
+  width: calc(100% + 36px);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
+  margin: -18px 0 -18px -18px;
+  background: var(--bg-gradient-strong);
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -416,15 +730,8 @@ function toggleStar(articleId: string) {
 }
 
 .home-scroll {
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 22px 22px 108px;
-  scrollbar-width: none;
-}
-
-.home-scroll::-webkit-scrollbar {
-  display: none;
+  min-height: var(--ihc-page-min-height);
+  padding: 22px 22px calc(126px + env(safe-area-inset-bottom, 0px));
 }
 
 .home-topbar {
@@ -453,9 +760,9 @@ function toggleStar(articleId: string) {
   align-items: center;
   gap: 6px;
   padding: 0;
-  color: #222733;
+  color: var(--text);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .location-icon {
@@ -470,9 +777,10 @@ function toggleStar(articleId: string) {
   width: 7px;
   height: 7px;
   margin-top: -2px;
-  border-right: 2px solid #252939;
-  border-bottom: 2px solid #252939;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
   transform: rotate(45deg);
+  transition: border-color 0.2s ease;
 }
 
 .search-wrap {
@@ -485,14 +793,19 @@ function toggleStar(articleId: string) {
   align-items: center;
   gap: 0;
   width: 100%;
-  height: 40px;
+  height: 42px;
   padding: 3px 4px 3px 12px;
   border: 2px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background:
     linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(92deg, #8e72e8 0%, #69d5d1 48%, #68db87 100%) border-box;
-  box-shadow: 0 13px 28px rgba(68, 144, 162, 0.08);
+    linear-gradient(96deg, rgba(117, 214, 223, 0.96) 0%, rgba(93, 214, 190, 0.92) 52%, rgba(123, 226, 142, 0.92) 100%) border-box;
+  box-shadow: 0 14px 30px rgba(53, 161, 152, 0.12);
+  transition: box-shadow 0.2s ease;
+}
+
+.search-box:focus-within {
+  box-shadow: var(--shadow);
 }
 
 .search-scan-btn {
@@ -501,7 +814,7 @@ function toggleStar(articleId: string) {
   place-items: center;
   width: 38px;
   height: 30px;
-  border-right: 1px solid rgba(205, 207, 215, 0.72);
+  border-right: 1px solid var(--line);
 }
 
 .search-scan-btn img {
@@ -524,23 +837,27 @@ function toggleStar(articleId: string) {
 .search-placeholder {
   display: block;
   overflow: hidden;
-  color: #9a9da6;
+  color: var(--text-muted);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.search-placeholder--active {
+  color: var(--text-secondary);
+}
+
 .search-submit {
   flex: 0 0 72px;
   height: 30px;
-  border-radius: 999px;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
-  box-shadow: 0 8px 16px rgba(89, 200, 162, 0.18);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+  box-shadow: 0 8px 18px rgba(102, 112, 240, 0.22);
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -551,21 +868,34 @@ function toggleStar(articleId: string) {
 }
 
 .search-tags button {
-  height: 24px;
+  height: 26px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 8px 18px rgba(107, 126, 160, 0.06);
-  color: #8f95a2;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface-ghost);
+  color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.search-tags button:hover {
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.search-tags button.search-tag--active {
+  border-color: var(--brand-light);
+  background: var(--brand-ghost);
+  color: var(--brand-dark);
 }
 
 .section-image-box {
   margin-top: 16px;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .section-image-box img {
@@ -578,10 +908,9 @@ function toggleStar(articleId: string) {
 .service-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 10px;
-  padding-top: 28px;
-  perspective: 900px;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 26px;
 }
 
 .service-card {
@@ -590,52 +919,55 @@ function toggleStar(articleId: string) {
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
-  min-height: 112px;
-  padding: 56px 8px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.08);
-  isolation: isolate;
-  overflow: visible;
-  transform-style: preserve-3d;
+  min-height: 116px;
+  padding: 58px 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.25s ease;
+}
+
+.service-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
 }
 
 .service-card::before {
   position: absolute;
-  top: 12px;
-  left: 13px;
-  right: 13px;
-  height: 46px;
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  height: 48px;
   content: "";
-  border-radius: 999px;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.46) 46%, rgba(255, 255, 255, 0) 72%);
+  border-radius: var(--radius-full);
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0) 76%);
   z-index: -1;
 }
 
 .service-card::after {
   position: absolute;
-  top: 39px;
+  top: 36px;
   left: 50%;
-  width: 58px;
-  height: 14px;
+  width: 52px;
+  height: 12px;
   content: "";
   border-radius: 50%;
-  background: rgba(72, 91, 124, 0.14);
-  filter: blur(5px);
-  transform: translateX(-50%) scaleX(0.88);
+  background: rgba(42, 58, 74, 0.08);
+  filter: blur(6px);
+  transform: translateX(-50%) scaleX(0.9);
   z-index: -1;
 }
 
 .service-icon {
   position: absolute;
-  top: -45px;
+  top: -42px;
   left: 50%;
   display: grid;
   place-items: center;
-  width: 86px;
-  height: 86px;
-  transform: translateX(-50%) translateZ(26px) rotateX(8deg);
+  width: 82px;
+  height: 82px;
+  transform: translateX(-50%);
   z-index: 2;
   pointer-events: none;
 }
@@ -646,7 +978,7 @@ function toggleStar(articleId: string) {
   height: 100%;
   object-fit: contain;
   overflow: visible;
-  filter: drop-shadow(0 14px 11px rgba(208, 211, 213, 0.18));
+  filter: drop-shadow(0 8px 12px rgba(42, 58, 74, 0.12));
   user-select: none;
 }
 
@@ -670,18 +1002,18 @@ function toggleStar(articleId: string) {
 
 .service-card strong {
   margin-top: 0;
-  color: #252939;
+  color: var(--text);
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: 0;
   white-space: nowrap;
 }
 
 .service-card small {
   margin-top: 6px;
-  color: #90949f;
+  color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -692,20 +1024,20 @@ function toggleStar(articleId: string) {
   scroll-snap-type: x mandatory;
   scroll-padding: 0;
   box-sizing: border-box;
-  height: 105px;
+  height: 108px;
   margin-top: 16px;
-  padding: 24px 0 25px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 15px 34px rgba(82, 105, 148, 0.065);
+  padding: 22px 0 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   transition: height 0.22s ease;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
 .feature-panel--expanded {
-  height: 165px;
+  height: 168px;
 }
 
 .feature-panel::-webkit-scrollbar {
@@ -729,63 +1061,69 @@ function toggleStar(articleId: string) {
 .feature-item {
   display: grid;
   justify-items: center;
-  gap: 9px;
+  gap: 10px;
   padding: 0;
 }
 
 .feature-item strong {
-  color: #202534;
-  font-size: 14px;
-  font-weight: 800;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0;
-  line-height: 1.1;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
 .feature-icon {
   display: grid;
   place-items: center;
-  width: 31px;
-  height: 31px;
+  width: 28px;
+  height: 28px;
 }
 
 .feature-svg {
   display: block;
-  width: 31px;
-  height: 31px;
+  width: 28px;
+  height: 28px;
   overflow: visible;
-  filter: drop-shadow(0 5px 6px rgba(103, 113, 151, 0.1));
+  filter: drop-shadow(0 3px 5px rgba(42, 58, 74, 0.08));
 }
 
 .reminder-card {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   margin-top: 16px;
-  padding: 18px 32px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 30px rgba(82, 105, 148, 0.06);
+  padding: 18px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reminder-card:hover {
+  box-shadow: var(--shadow);
 }
 
 .reminder-label {
   display: grid;
   gap: 2px;
   min-width: 52px;
-  color: #ba0303;
-  font-size: 22px;
-  font-weight: 999;
-  line-height: 1.18;
-  letter-spacing: 0.04em;
+  color: #d85b5b;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 .reminder-divider {
   width: 2px;
-  height: 44px;
-  background: #131313;
+  height: 40px;
+  background: var(--line-strong);
+  border-radius: 1px;
 }
 
 .reminder-content {
@@ -795,18 +1133,18 @@ function toggleStar(articleId: string) {
 .reminder-content strong {
   display: flex;
   align-items: center;
-  gap: 11px;
-  color: #000000;
+  gap: 10px;
+  color: var(--text);
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .bell-icon {
   position: relative;
-  width: 15px;
-  height: 17px;
+  width: 14px;
+  height: 16px;
   border-radius: 10px 10px 5px 5px;
-  background: #ed0505;
+  background: #d85b5b;
 }
 
 .bell-icon::after {
@@ -817,14 +1155,14 @@ function toggleStar(articleId: string) {
   height: 4px;
   content: "";
   border-radius: 0 0 999px 999px;
-  background: #ed0505;
+  background: #d85b5b;
 }
 
 .reminder-content p {
   margin: 8px 0 0;
-  color: #000000;
+  color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -840,157 +1178,126 @@ function toggleStar(articleId: string) {
 
 .section-header h2 {
   margin: 0;
-  color: #202534;
+  color: var(--text);
   font-size: 22px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
 .section-header button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0;
-  color: #8f96a3;
+  color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .section-header button span {
   width: 8px;
   height: 8px;
-  border-top: 2px solid #c9c9c9;
-  border-right: 2px solid #c9c9c9;
+  border-top: 2px solid var(--text-muted);
+  border-right: 2px solid var(--text-muted);
   transform: rotate(45deg);
 }
 
 .disease-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 11px 12px;
-  margin-top: 28px;
+  gap: 10px 12px;
+  margin-top: 20px;
 }
 
 .disease-pill {
   min-width: 62px;
   height: 34px;
   padding: 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 9px 20px rgba(82, 105, 148, 0.045);
-  color: #202534;
-  font-size: 15px;
-  font-weight: 800;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
   letter-spacing: 0;
   white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.disease-pill:hover {
+  box-shadow: var(--shadow);
+  background: var(--surface-strong);
 }
 
 .article-list {
   display: grid;
-  gap: 20px;
-  margin-top: 49px;
+  gap: 16px;
+  margin-top: 24px;
 }
 
 .article-card {
-  padding: 26px 22px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 16px 34px rgba(82, 105, 148, 0.065);
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.article-card:hover {
+  box-shadow: var(--shadow);
+}
+
+.article-entry {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  font: inherit;
 }
 
 .article-copy h3 {
   margin: 0;
-  color: #202534;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.45;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .article-copy p {
-  margin: 15px 0 0;
-  color: #828b99;
+  margin: 14px 0 0;
+  color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 600;
-  line-height: 1.75;
+  font-weight: 400;
+  line-height: 1.7;
 }
 
-.article-photos {
+.article-cover-wrap {
+  margin-top: 14px;
+}
+
+.article-cover {
+  display: block;
+  width: 100%;
+  height: 172px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: #f0f4f6;
+  user-select: none;
+}
+
+.article-cover--empty {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 13px;
-}
-
-.article-photo {
-  position: relative;
-  height: 81px;
-  overflow: hidden;
-  border-radius: 13px;
-  background: #eef4f8;
-}
-
-.article-photo--fruit {
-  background:
-    radial-gradient(circle at 38% 50%, #d71f24 0 12%, transparent 13%),
-    radial-gradient(circle at 57% 42%, #e33a35 0 11%, transparent 12%),
-    radial-gradient(circle at 70% 62%, #c91520 0 9%, transparent 10%),
-    radial-gradient(circle at 24% 66%, #ef3e37 0 10%, transparent 11%),
-    radial-gradient(ellipse at 55% 78%, rgba(92, 183, 87, 0.9) 0 20%, transparent 22%),
-    linear-gradient(135deg, #f8fbff 0%, #d9eff0 100%);
-}
-
-.article-photo--fruit::before {
-  position: absolute;
-  top: 25px;
-  left: 37px;
-  width: 42px;
-  height: 4px;
-  content: "";
-  border-radius: 999px;
-  background: #8cc849;
-  transform: rotate(-23deg);
-}
-
-.article-photo--needle {
-  background:
-    linear-gradient(90deg, transparent 0 36%, #2d8fe6 36% 39%, transparent 39%),
-    linear-gradient(24deg, transparent 0 51%, #df555b 51% 54%, transparent 54%),
-    radial-gradient(circle at 27% 69%, #45a9f0 0 16%, transparent 17%),
-    linear-gradient(135deg, #daf8ff 0%, #98e0ef 100%);
-}
-
-.article-photo--needle::before {
-  position: absolute;
-  right: 26px;
-  bottom: 21px;
-  width: 54px;
-  height: 16px;
-  content: "";
-  border-radius: 10px;
-  background: #2f84d4;
-  transform: rotate(-18deg);
-}
-
-.article-photo--food {
-  background:
-    radial-gradient(circle at 72% 22%, #e4302c 0 7%, transparent 8%),
-    radial-gradient(circle at 82% 31%, #f26522 0 8%, transparent 9%),
-    radial-gradient(circle at 63% 46%, #df4050 0 6%, transparent 7%),
-    radial-gradient(circle at 43% 53%, rgba(255, 120, 116, 0.45) 0 18%, transparent 19%),
-    linear-gradient(150deg, #fff9e5 0 37%, #ffe6a7 38% 49%, #ffffff 50% 100%);
-}
-
-.article-photo--food::before {
-  position: absolute;
-  top: 32px;
-  left: 31px;
-  width: 32px;
-  height: 32px;
-  content: "";
-  border: 2px solid rgba(247, 124, 133, 0.8);
-  border-radius: 50%;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px dashed var(--line-strong);
 }
 
 .article-actions {
@@ -998,21 +1305,22 @@ function toggleStar(articleId: string) {
   grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 20px;
-  margin-top: 19px;
+  margin-top: 18px;
 }
 
 .article-action {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #202534;
-  font-size: 13px;
-  font-weight: 800;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.15s ease;
 }
 
 .article-action--share {
@@ -1020,41 +1328,39 @@ function toggleStar(articleId: string) {
 }
 
 .article-action--active-like {
-  color: #f05b72;
+  color: #e87476;
 }
 
 .article-action--active-star {
-  color: #d8972a;
+  color: #d4a847;
 }
 
 .article-icon {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.15;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .article-icon--share {
-  width: 23px;
-  height: 23px;
+  width: 20px;
+  height: 20px;
 }
 
 .article-icon--heart,
 .article-icon--star,
 .article-icon--comment {
-  width: 25px;
-  height: 25px;
+  width: 22px;
+  height: 22px;
 }
 
 .article-icon--heart path,
 .article-icon--star path {
-  transition:
-    fill 160ms ease,
-    stroke 160ms ease;
+  transition: fill 0.15s ease;
 }
 
 .article-action--active-like .article-icon--heart path {
@@ -1066,31 +1372,37 @@ function toggleStar(articleId: string) {
 }
 
 .home-tabbar {
-  position: absolute;
-  right: 0;
+  position: fixed;
+  left: 50%;
   bottom: 0;
-  left: 0;
   z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  height: 74px;
-  padding: 9px 12px 10px;
-  background: #fff;
-  box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
+  width: min(402px, 100vw);
+  height: calc(72px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 -10px 24px rgba(95, 104, 185, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transform: translateX(-50%);
 }
 
 .home-tabbar::before {
   position: absolute;
-  top: -29px;
+  top: -28px;
   left: 50%;
   z-index: 0;
-  width: 58px;
-  height: 58px;
+  width: 54px;
+  height: 54px;
   content: "";
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 -10px 24px rgba(102, 112, 240, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 -10px 24px rgba(95, 104, 185, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transform: translateX(-50%);
 }
 
@@ -1101,20 +1413,20 @@ function toggleStar(articleId: string) {
   justify-items: center;
   gap: 0;
   padding: 0;
-  color: #252939;
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
   transform: translateY(-6px);
 }
 
 .tab-item--active {
-  color: #66cfa7;
+  color: var(--brand);
 }
 
 .tab-image {
   display: grid;
   place-items: center;
-  width: 40px;
+  width: 38px;
   height: 32px;
 }
 
@@ -1122,7 +1434,7 @@ function toggleStar(articleId: string) {
   display: block;
   width: 30px;
   height: 30px;
-  filter: drop-shadow(0 5px 7px rgba(37, 41, 57, 0.08));
+  filter: drop-shadow(0 3px 6px rgba(42, 58, 74, 0.08));
 }
 
 .tab-label {
@@ -1138,12 +1450,12 @@ function toggleStar(articleId: string) {
 .tab-icon--publish {
   position: relative;
   display: block;
-  width: 42px;
-  height: 42px;
-  margin-top: -29px;
+  width: 40px;
+  height: 40px;
+  margin-top: -28px;
   border-radius: 50%;
-  background: linear-gradient(100deg, #75d6df 0%, #7be28e 100%);
-  box-shadow: 0 15px 25px rgba(89, 200, 162, 0.26);
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+  box-shadow: 0 14px 24px rgba(53, 161, 152, 0.28);
 }
 
 .tab-icon--publish::before,
@@ -1151,7 +1463,7 @@ function toggleStar(articleId: string) {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 20px;
+  width: 18px;
   height: 2px;
   content: "";
   border-radius: 999px;
@@ -1165,8 +1477,8 @@ function toggleStar(articleId: string) {
 
 @media (min-width: 561px) {
   .home-page {
-    height: 874px;
-    min-height: 874px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -1181,7 +1493,7 @@ function toggleStar(articleId: string) {
   }
 
   .service-card strong {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .service-card small,
@@ -1195,7 +1507,7 @@ function toggleStar(articleId: string) {
   }
 
   .feature-item strong {
-    font-size: 14px;
+    font-size: 13px;
   }
 }
 </style>

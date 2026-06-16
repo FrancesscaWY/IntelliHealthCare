@@ -1,6 +1,8 @@
 import {
   ForbiddenException,
+  NotFoundException,
   Injectable,
+  BadRequestException,
   UnauthorizedException
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -16,6 +18,7 @@ import {
   hashPassword,
   verifyPassword
 } from "../../common/auth/password";
+import { ensureRecord, toDateTimeString } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 
 interface SmsCodeRecord {
@@ -28,6 +31,7 @@ interface AuthUserRecord {
   phone: string;
   type: UserType;
   realName: string | null;
+  realNameVerified: boolean;
   passwordHash: string | null;
   roles: string[];
 }
@@ -149,6 +153,164 @@ export class AuthService {
     return this.findAuthUserById(userId);
   }
 
+  async getAdminProfile(userId: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: true
+          },
+          orderBy: {
+            createdAt: "asc"
+          }
+        },
+        staffProfile: true
+      }
+    });
+
+    if (!user) {
+      throw new UnauthorizedException("User not found");
+    }
+
+    const primaryRole = user.roles[0] ?? null;
+    const scope = ensureRecord(primaryRole?.scope);
+
+    return {
+      title: "个人资料",
+      userId: user.id,
+      employeeId:
+        user.staffProfile?.staffNo ??
+        String(scope.employeeId ?? `ADM-${user.id.slice(-8).toUpperCase()}`),
+      name: user.realName ?? user.nickname ?? user.phone,
+      phone: user.phone,
+      role: primaryRole?.role.name ?? "后台账号",
+      note: String(scope.profileNote ?? ""),
+      avatarUrl: user.avatarUrl,
+      lastLoginAt: toDateTimeString(user.lastLoginAt),
+      roleOptions: this.getAdminRoleOptions()
+    };
+  }
+
+  async updateAdminProfile(
+    userId: string,
+    payload: {
+      name?: string;
+      phone?: string;
+      note?: string;
+    }
+  ) {
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          realName: payload.name?.trim() || undefined,
+          phone: payload.phone?.trim() || undefined
+        }
+      });
+
+      if (payload.note !== undefined) {
+        const userRole = await tx.userRole.findFirst({
+          where: { userId },
+          orderBy: { createdAt: "asc" }
+        });
+
+        if (userRole) {
+          const scope = ensureRecord(userRole.scope);
+          await tx.userRole.update({
+            where: {
+              userId_roleId: {
+                userId: userRole.userId,
+                roleId: userRole.roleId
+              }
+            },
+            data: {
+              scope: {
+                ...scope,
+                profileNote: payload.note
+              }
+            }
+          });
+        }
+      }
+    });
+
+    return this.getAdminProfile(userId);
+  }
+
+  async updateAdminPassword(
+    userId: string,
+    payload: {
+      oldPassword: string;
+      newPassword: string;
+      confirmPassword?: string;
+    }
+  ) {
+    if (payload.confirmPassword && payload.confirmPassword !== payload.newPassword) {
+      throw new BadRequestException("Password confirmation does not match");
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new UnauthorizedException("User not found");
+    }
+
+    if (!(await this.matchesPassword(user.passwordHash, payload.oldPassword))) {
+      throw new UnauthorizedException("Old password is incorrect");
+    }
+
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: await hashPassword(payload.newPassword)
+      }
+    });
+
+    return {
+      changed: true
+    };
+  }
+
+  async updateAdminAvatar(
+    userId: string,
+    payload: {
+      fileId?: string;
+      avatarUrl?: string;
+    }
+  ) {
+    let avatarUrl = payload.avatarUrl?.trim() || "";
+
+    if (payload.fileId) {
+      const file = await this.prismaService.fileAsset.findUnique({
+        where: { id: payload.fileId }
+      });
+
+      if (!file) {
+        throw new NotFoundException("File not found");
+      }
+
+      avatarUrl = file.url ?? "";
+    }
+
+    if (!avatarUrl) {
+      throw new BadRequestException("Avatar url is required");
+    }
+
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: {
+        avatarUrl
+      }
+    });
+
+    return {
+      avatarUrl
+    };
+  }
+
   async logout() {
     return {
       loggedOut: true
@@ -203,7 +365,8 @@ export class AuthService {
         phone: user.phone,
         type: user.type,
         roles: user.roles,
-        realName: user.realName
+        realName: user.realName,
+        realNameVerified: user.realNameVerified
       }
     };
   }
@@ -221,6 +384,10 @@ export class AuthService {
         throw new ForbiddenException("User is not allowed to access admin scope");
       }
     }
+  }
+
+  private getAdminRoleOptions() {
+    return ["平台管理员", "客服人员", "机构主管", "派单员", "医生", "护理员"];
   }
 
   private async findAuthUserByPhone(phone: string) {
@@ -244,6 +411,7 @@ export class AuthService {
       phone: user.phone,
       type: user.type,
       realName: user.realName,
+      realNameVerified: user.realNameStatus === "VERIFIED",
       passwordHash: user.passwordHash,
       roles: user.roles.map((item) => item.role.code)
     } satisfies AuthUserRecord;
@@ -270,6 +438,7 @@ export class AuthService {
       phone: user.phone,
       type: user.type,
       realName: user.realName,
+      realNameVerified: user.realNameStatus === "VERIFIED",
       passwordHash: user.passwordHash,
       roles: user.roles.map((item) => item.role.code)
     } satisfies AuthUserRecord;

@@ -4,8 +4,7 @@ const mock = {
   basicInfo: {
     staffId: "2024340089",
     name: "王晓倩",
-    avatar:
-      "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=320",
+    avatar: "/api/v1/assets/demo/staff/staff-1.png",
     phone: "15678909900",
     serviceType: "家政护工",
     tag: "金牌家政",
@@ -13,12 +12,9 @@ const mock = {
   },
   realInfo: {
     idCardNo: "430681199402163628",
-    idCardFront:
-      "https://images.pexels.com/photos/7551613/pexels-photo-7551613.jpeg?auto=compress&cs=tinysrgb&w=900",
-    idCardBack:
-      "https://images.pexels.com/photos/7551675/pexels-photo-7551675.jpeg?auto=compress&cs=tinysrgb&w=900",
-    certificate:
-      "https://images.pexels.com/photos/5726708/pexels-photo-5726708.jpeg?auto=compress&cs=tinysrgb&w=900",
+    idCardFront: "/api/v1/assets/demo/content/content-1.jpg",
+    idCardBack: "/api/v1/assets/demo/content/content-2.jpg",
+    certificate: "/api/v1/assets/demo/content/content-3.jpg",
     bankCardNo: "6222021800002456713",
     bankName: "中国建设银行长沙雨花支行",
   },

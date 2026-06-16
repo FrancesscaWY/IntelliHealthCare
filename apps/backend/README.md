@@ -168,15 +168,15 @@ npm run dev --workspace @ihc/backend
 
 默认地址：
 
-- API：`http://localhost:8190/api/v1`
-- Swagger：`http://localhost:8190/api/v1/docs`
-- 健康检查：`http://localhost:8190/api/v1/system/health`
+- API：`http://server.mctown.online:8190/api/v1`
+- Swagger：`http://server.mctown.online:8190/api/v1/docs`
+- 健康检查：`http://server.mctown.online:8190/api/v1/system/health`
 
-远程部署默认绑定 `0.0.0.0:8190`。若服务器已放通 `8190-8200`，可直接通过 `http://<服务器IP>:8190/api/v1/docs` 访问；若要在本机浏览器里以 `http://localhost:8190/api/v1/docs` 访问，请使用 VS Code 端口转发或 SSH 隧道。
+统一对外联调地址为 `http://server.mctown.online:8190/api/v1/docs`。服务器侧仍默认绑定 `0.0.0.0:8190`，如需改域名或端口，请同步更新前端 `VITE_API_BASE_URL` 与相关文档。
 
 ### 5. 数据库 fallback 说明
 
-若开发机上 `localhost:5432` PostgreSQL 不可达，且 `.env` 中保留：
+若开发机上的 PostgreSQL 默认端口 `5432` 不可达，且 `.env` 中保留：
 
 - `DATABASE_DEV_FALLBACK_ENABLED=true`
 - `DATABASE_DEV_FALLBACK_AUTO_SEED=true`
@@ -221,7 +221,7 @@ npm run dev --workspace @ihc/backend
 以下命令默认在仓库根目录执行，且使用 `bash`。
 
 ```bash
-BASE_URL=${BASE_URL:-http://localhost:8190/api/v1}
+BASE_URL=${BASE_URL:-http://server.mctown.online:8190/api/v1}
 
 json_get() {
   node -e '

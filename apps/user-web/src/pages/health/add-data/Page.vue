@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { createHealthMetricRecord } from "@/shared/api/health";
+import type { HealthMetricKey } from "@/shared/api/health";
 
 const props = defineProps<PageComponentProps>();
 
@@ -33,6 +35,7 @@ const systolic = ref<number | null>(null);
 const diastolic = ref<number | null>(null);
 const sleepHours = ref<number | null>(null);
 const sleepMinutes = ref<number | null>(null);
+const isSubmitting = ref(false);
 
 const metricConfig = computed<Record<string, MetricConfig>>(() => ({
   steps: { label: "步数", unit: "步", placeholder: "请填写" },
@@ -96,23 +99,43 @@ function goBack() {
 }
 
 async function onSubmit() {
-  if (!isFormValid.value) return;
+  if (!isFormValid.value || isSubmitting.value) return;
 
-  const record: Record<string, string | number> = {
-    date: selectedDate.value,
-  };
+  isSubmitting.value = true;
 
-  if (currentConfig.value.isBloodPressure) {
-    record.bloodPressure = `${systolic.value}/${diastolic.value}`;
-  } else if (currentConfig.value.isSleep) {
-    const totalHours = (sleepHours.value || 0) + (sleepMinutes.value || 0) / 60;
-    record.sleep = Number(totalHours.toFixed(1));
-  } else {
-    record[metric.value] = Number(value.value);
+  try {
+    const metricKey = metric.value as HealthMetricKey;
+    const measuredAt = new Date(selectedDate.value).toISOString();
+
+    let valuePayload: number | undefined;
+    let payload: Record<string, unknown> | undefined;
+
+    if (currentConfig.value.isBloodPressure) {
+      payload = {
+        systolic: systolic.value,
+        diastolic: diastolic.value,
+        displayValue: `${systolic.value}/${diastolic.value}`,
+      };
+    } else if (currentConfig.value.isSleep) {
+      const totalHours = (sleepHours.value || 0) + (sleepMinutes.value || 0) / 60;
+      valuePayload = Number(totalHours.toFixed(1));
+    } else {
+      valuePayload = Number(value.value);
+    }
+
+    await createHealthMetricRecord(metricKey, {
+      value: valuePayload,
+      payload,
+      measuredAt,
+    });
+
+    props.showToast("保存成功");
+    navigateBackToSource();
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "保存失败");
+  } finally {
+    isSubmitting.value = false;
   }
-
-  console.log("提交数据:", record);
-  navigateBackToSource();
 }
 </script>
 
@@ -179,9 +202,9 @@ async function onSubmit() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;
@@ -314,8 +337,8 @@ async function onSubmit() {
 
 @media (min-width: 561px) {
   .health-add-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

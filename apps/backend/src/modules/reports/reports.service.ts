@@ -6,12 +6,25 @@ import {
 import { ReportStatus, ReportType, UserType } from "@prisma/client";
 import type { AuthenticatedUser } from "../../common/auth/auth.types";
 import {
+  ensureArray,
+  ensureRecord,
   paginate,
+  toDateString,
   toDateTimeString,
   toPrismaJson,
   toPrismaNullableJson
 } from "../../common/utils/serializers";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+
+type ReportAttachmentPreviewKind = "image" | "pdf" | "video" | "unsupported";
+
+interface NormalizedReportAttachment {
+  fileId: string | null;
+  fileName: string;
+  url: string | null;
+  mimeType: string | null;
+  previewKind: ReportAttachmentPreviewKind;
+}
 
 @Injectable()
 export class ReportsService {
@@ -62,6 +75,7 @@ export class ReportsService {
 
   async getCheckupReport(currentUser: AuthenticatedUser, reportId: string) {
     const report = await this.getAccessibleReport(currentUser, reportId);
+    const attachment = await this.normalizeReportAttachment(report.attachment, report.title);
 
     return {
       reportId: report.id,
@@ -69,7 +83,7 @@ export class ReportsService {
       status: report.status,
       title: report.title,
       summary: report.summary,
-      attachment: report.attachment,
+      attachment,
       reviewedAt: toDateTimeString(report.reviewedAt),
       publishedAt: toDateTimeString(report.publishedAt),
       createdAt: toDateTimeString(report.createdAt)
@@ -102,15 +116,190 @@ export class ReportsService {
     };
   }
 
-  async listAdminReports(page: number, pageSize: number, status?: ReportStatus) {
+  async listAdminReports(
+    page: number,
+    pageSize: number,
+    status?: ReportStatus,
+    type?: ReportType,
+    keyword?: string
+  ) {
+    const normalizedKeyword = keyword?.trim().toLowerCase();
     const reports = await this.prismaService.report.findMany({
       where: {
-        status: status ?? undefined
+        status: status ?? undefined,
+        type: type ?? undefined
+      },
+      include: {
+        archive: {
+          include: {
+            user: true
+          }
+        },
+        order: true,
+        author: true
       },
       orderBy: { createdAt: "desc" }
     });
 
-    return paginate(reports.map((item) => this.toReportCard(item)), page, pageSize);
+    const list = reports
+      .map((item) => ({
+        reportId: item.id,
+        title: item.title,
+        type: item.type,
+        typeText: this.getReportTypeText(item.type),
+        status: item.status,
+        createdAt: toDateTimeString(item.createdAt),
+        publishedAt: toDateTimeString(item.publishedAt),
+        elderId: item.archive?.userId ?? null,
+        elderName:
+          item.archive?.user.realName ??
+          item.archive?.user.nickname ??
+          item.archive?.user.phone ??
+          null,
+        elderPhone: item.archive?.user.phone ?? null,
+        source: item.author ? "后台上传" : item.orderId ? "订单关联" : "用户上传",
+        uploader: item.author?.name ?? "系统",
+        orderId: item.orderId,
+        orderNo: item.order?.orderNo ?? null,
+        reportDate: toDateString(item.publishedAt ?? item.createdAt)
+      }))
+      .filter((item) => {
+        if (!normalizedKeyword) {
+          return true;
+        }
+
+        return [item.title, item.elderName, item.uploader, item.orderNo]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedKeyword));
+      });
+
+    const result = paginate(list, page, pageSize);
+
+    return {
+      title: "报告管理",
+      reportTypes: ["全部类型", "体检报告", "检验报告", "影像报告"],
+      rows: result.list.map((item) => ({
+        id: item.reportId,
+        uploadedAt: item.createdAt ? item.createdAt.replace("T", " ").slice(0, 16) : "-",
+        userName: item.elderName ?? "-",
+        avatar: null,
+        reportName: item.title,
+        reportType: item.typeText,
+        source: item.source,
+        uploader: item.uploader,
+        ticketNo: item.orderNo ?? "-",
+        reportDate: item.reportDate
+      })),
+      ...result
+    };
+  }
+
+  async getAdminReportDetail(reportId: string) {
+    const report = await this.prismaService.report.findUnique({
+      where: { id: reportId },
+      include: {
+        archive: {
+          include: {
+            user: true
+          }
+        },
+        order: true,
+        author: true
+      }
+    });
+
+    if (!report) {
+      throw new NotFoundException("Report not found");
+    }
+
+    return {
+      reportId: report.id,
+      type: report.type,
+      typeText: this.getReportTypeText(report.type),
+      status: report.status,
+      title: report.title,
+      summary: report.summary,
+      attachment: report.attachment,
+      reviewedAt: toDateTimeString(report.reviewedAt),
+      publishedAt: toDateTimeString(report.publishedAt),
+      createdAt: toDateTimeString(report.createdAt),
+      elderId: report.archive?.userId ?? null,
+      elderName:
+        report.archive?.user.realName ??
+        report.archive?.user.nickname ??
+        report.archive?.user.phone ??
+        null,
+      elderPhone: report.archive?.user.phone ?? null,
+      source: report.author ? "后台上传" : report.orderId ? "订单关联" : "用户上传",
+      uploader: report.author?.name ?? "系统",
+      orderId: report.orderId,
+      orderNo: report.order?.orderNo ?? null
+    };
+  }
+
+  async createAdminReport(payload: {
+    elderId?: string;
+    orderId?: string;
+    type: ReportType;
+    title: string;
+    summary: Record<string, unknown>;
+    attachment?: Record<string, unknown>;
+  }) {
+    const archiveId = payload.elderId
+      ? (
+          await this.prismaService.healthArchive.findUnique({
+            where: { userId: payload.elderId }
+          })
+        )?.id ?? null
+      : null;
+
+    const report = await this.prismaService.report.create({
+      data: {
+        archiveId,
+        orderId: payload.orderId ?? null,
+        type: payload.type,
+        status: ReportStatus.PENDING_REVIEW,
+        title: payload.title,
+        summary: toPrismaJson(payload.summary),
+        attachment: toPrismaNullableJson(payload.attachment ?? null)
+      }
+    });
+
+    return {
+      reportId: report.id,
+      status: report.status
+    };
+  }
+
+  async deleteAdminReport(reportId: string) {
+    await this.prismaService.report.delete({
+      where: { id: reportId }
+    });
+
+    return {
+      deleted: true,
+      reportId
+    };
+  }
+
+  async getAdminReportDownloadMetadata(reportId: string) {
+    const report = await this.prismaService.report.findUnique({
+      where: { id: reportId }
+    });
+
+    if (!report) {
+      throw new NotFoundException("Report not found");
+    }
+
+    const attachment = await this.normalizeReportAttachment(report.attachment, report.title);
+
+    return {
+      reportId: report.id,
+      fileId: attachment?.fileId ?? null,
+      fileName: attachment?.fileName ?? `${report.title}.pdf`,
+      url: attachment?.url ?? null,
+      mimeType: attachment?.mimeType ?? "application/pdf"
+    };
   }
 
   async reviewReport(reportId: string, status: ReportStatus) {
@@ -215,6 +404,181 @@ export class ReportsService {
     return archive.id;
   }
 
+  private async normalizeReportAttachment(
+    attachmentValue: unknown,
+    fallbackTitle: string
+  ): Promise<NormalizedReportAttachment | null> {
+    const attachment = this.pickAttachmentRecord(attachmentValue);
+
+    if (!attachment) {
+      return null;
+    }
+
+    const fileId = this.toNullableString(attachment.fileId);
+    const fileAsset = fileId
+      ? await this.prismaService.fileAsset.findUnique({
+          where: { id: fileId }
+        })
+      : null;
+    const fileName =
+      this.toNullableString(attachment.fileName) ??
+      this.toNullableString(attachment.name) ??
+      fileAsset?.fileName ??
+      `${fallbackTitle}.pdf`;
+    const url =
+      this.toNullableString(attachment.url) ??
+      this.toNullableString(attachment.fileUrl) ??
+      this.toNullableString(attachment.downloadUrl) ??
+      fileAsset?.url ??
+      null;
+    const mimeType =
+      this.normalizeAttachmentMimeType(attachment.mimeType) ??
+      this.normalizeAttachmentMimeType(attachment.type) ??
+      fileAsset?.mimeType ??
+      this.inferAttachmentMimeType(fileName, url);
+
+    return {
+      fileId,
+      fileName,
+      url,
+      mimeType,
+      previewKind: this.inferAttachmentPreviewKind(fileName, mimeType, url)
+    };
+  }
+
+  private pickAttachmentRecord(value: unknown) {
+    const direct = ensureRecord(value);
+
+    if (Object.keys(direct).length > 0) {
+      return direct;
+    }
+
+    const candidates = ensureArray(value)
+      .map((item) => ensureRecord(item))
+      .filter((item) => Object.keys(item).length > 0);
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    return (
+      candidates.find(
+        (item) =>
+          Boolean(
+            this.toNullableString(item.fileId) ??
+              this.toNullableString(item.fileName) ??
+              this.toNullableString(item.name) ??
+              this.toNullableString(item.url) ??
+              this.toNullableString(item.fileUrl) ??
+              this.toNullableString(item.downloadUrl)
+          )
+      ) ?? candidates[0]
+    );
+  }
+
+  private toNullableString(value: unknown) {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+  }
+
+  private normalizeAttachmentMimeType(value: unknown) {
+    const raw = this.toNullableString(value);
+
+    if (!raw) {
+      return null;
+    }
+
+    if (raw.includes("/")) {
+      return raw;
+    }
+
+    switch (raw.toLowerCase()) {
+      case "pdf":
+        return "application/pdf";
+      case "image":
+        return "image/jpeg";
+      case "video":
+        return "video/mp4";
+      default:
+        return null;
+    }
+  }
+
+  private inferAttachmentMimeType(fileName: string, url: string | null) {
+    const source = `${fileName} ${url ?? ""}`.toLowerCase();
+
+    if (/\.pdf(?:$|[?#\s])/.test(source)) {
+      return "application/pdf";
+    }
+
+    if (/\.png(?:$|[?#\s])/.test(source)) {
+      return "image/png";
+    }
+
+    if (/\.jpe?g(?:$|[?#\s])/.test(source)) {
+      return "image/jpeg";
+    }
+
+    if (/\.gif(?:$|[?#\s])/.test(source)) {
+      return "image/gif";
+    }
+
+    if (/\.webp(?:$|[?#\s])/.test(source)) {
+      return "image/webp";
+    }
+
+    if (/\.svg(?:$|[?#\s])/.test(source)) {
+      return "image/svg+xml";
+    }
+
+    if (/\.mp4(?:$|[?#\s])/.test(source)) {
+      return "video/mp4";
+    }
+
+    if (/\.webm(?:$|[?#\s])/.test(source)) {
+      return "video/webm";
+    }
+
+    if (/\.mov(?:$|[?#\s])/.test(source)) {
+      return "video/quicktime";
+    }
+
+    return null;
+  }
+
+  private inferAttachmentPreviewKind(
+    fileName: string,
+    mimeType: string | null,
+    url: string | null
+  ): ReportAttachmentPreviewKind {
+    if (mimeType === "application/pdf") {
+      return "pdf";
+    }
+
+    if (mimeType?.startsWith("image/")) {
+      return "image";
+    }
+
+    if (mimeType?.startsWith("video/")) {
+      return "video";
+    }
+
+    const source = `${fileName} ${url ?? ""}`.toLowerCase();
+
+    if (/\.pdf(?:$|[?#\s])/.test(source)) {
+      return "pdf";
+    }
+
+    if (/\.(?:png|jpe?g|gif|webp|bmp|svg)(?:$|[?#\s])/.test(source)) {
+      return "image";
+    }
+
+    if (/\.(?:mp4|webm|mov|m4v)(?:$|[?#\s])/.test(source)) {
+      return "video";
+    }
+
+    return "unsupported";
+  }
+
   private toReportCard(report: {
     id: string;
     type: ReportType;
@@ -231,5 +595,18 @@ export class ReportsService {
       createdAt: toDateTimeString(report.createdAt),
       publishedAt: toDateTimeString(report.publishedAt)
     };
+  }
+
+  private getReportTypeText(type: ReportType) {
+    switch (type) {
+      case ReportType.CHECKUP:
+        return "体检报告";
+      case ReportType.SERVICE:
+        return "服务报告";
+      case ReportType.REHAB:
+        return "康复报告";
+      case ReportType.ASSESSMENT:
+        return "评估报告";
+    }
   }
 }

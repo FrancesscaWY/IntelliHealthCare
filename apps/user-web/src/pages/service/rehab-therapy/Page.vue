@@ -3,28 +3,42 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PageComponentProps } from '@ihc/page-core/types'
 import { Alignment, Fit, Layout, Rive } from '@rive-app/canvas'
 import assistantRiveUrl from '@/assets/home/sections/assistant.riv?url'
+import { getRehabTherapyServices, type ServiceCatalogItem } from '@/shared/api/service-catalog'
+import { normalizeServiceStringArray, saveSelectedServiceContext } from '@/shared/service/catalog'
 import mock from './mock'
+import { setOrderFlowService } from '@/pages/service/order-flow'
 
 const props = defineProps<PageComponentProps>()
 
 type FilterKey = 'popular' | 'sales' | 'price'
 
+interface DisplayRehabProduct {
+  id: string
+  serviceId: string
+  title: string
+  image: string
+  tags: string[]
+  price: number
+  sales: number
+}
+
 const activeFilter = ref<FilterKey>('popular')
 const assistantCanvasRef = ref<HTMLCanvasElement | null>(null)
+const products = ref<DisplayRehabProduct[]>(createMockProducts())
 
 let assistantRive: Rive | null = null
 let assistantResizeObserver: ResizeObserver | null = null
 
 const productList = computed(() => {
   if (activeFilter.value === 'price') {
-    return [...mock.products].sort((a, b) => a.price - b.price)
+    return [...products.value].sort((a, b) => a.price - b.price)
   }
 
   if (activeFilter.value === 'sales') {
-    return [...mock.products].sort((a, b) => b.sales - a.sales)
+    return [...products.value].sort((a, b) => b.sales - a.sales)
   }
 
-  return mock.products
+  return [...products.value].sort((a, b) => b.sales - a.sales)
 })
 
 const goBack = () => {
@@ -33,7 +47,55 @@ const goBack = () => {
   }
 }
 
-const openProduct = () => {
+function createMockProducts(): DisplayRehabProduct[] {
+  return mock.products.map((item, index) => ({
+    id: `mock-rehab-${index + 1}`,
+    serviceId: `mock-rehab-${index + 1}`,
+    title: item.title,
+    image: item.image,
+    tags: item.tags,
+    price: item.price,
+    sales: item.sales,
+  }))
+}
+
+function mapServiceItemToRehabProduct(item: ServiceCatalogItem): DisplayRehabProduct {
+  const tags = normalizeServiceStringArray(item.tags)
+
+  return {
+    id: item.serviceId,
+    serviceId: item.serviceId,
+    title: item.title,
+    image: item.coverUrl || mock.products[0]?.image || '',
+    tags: tags.length ? tags : ['康复理疗'],
+    price: item.price,
+    sales: item.salesVolume,
+  }
+}
+
+async function loadRehabTherapyServices() {
+  try {
+    const services = await getRehabTherapyServices()
+
+    if (!services.list.length) {
+      return
+    }
+
+    products.value = services.list.map(mapServiceItemToRehabProduct)
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : '康复理疗加载失败')
+  }
+}
+
+const openProduct = (item: DisplayRehabProduct) => {
+  saveSelectedServiceContext({
+    categorySlug: 'rehab-therapy',
+    serviceId: item.serviceId,
+    title: item.title,
+    coverUrl: item.image,
+    price: item.price,
+  })
+
   props.navigation.navigateTo('service/rehab-therapy-detail')
 }
 
@@ -46,6 +108,8 @@ const resizeAssistant = () => {
 }
 
 onMounted(() => {
+  void loadRehabTherapyServices()
+
   if (!assistantCanvasRef.value) return
 
   assistantRive = new Rive({
@@ -107,7 +171,7 @@ onBeforeUnmount(() => {
     </button>
 
     <section class="product-grid" aria-label="康复理疗项目">
-      <article v-for="item in productList" :key="item.id" class="product-card" @click="openProduct">
+      <article v-for="item in productList" :key="item.id" class="product-card" @click="openProduct(item)">
         <img class="product-image" :src="item.image" :alt="item.title" />
         <h2>{{ item.title }}</h2>
         <div class="tag-row">
@@ -127,7 +191,7 @@ onBeforeUnmount(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  min-height: 874px;
+  min-height: var(--ihc-page-min-height);
   margin: -18px 0;
   padding: 16px 22px 28px;
   box-sizing: border-box;

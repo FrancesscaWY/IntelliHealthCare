@@ -1,12 +1,12 @@
 export const analyticsAvatars = [
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240",
-  "https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&w=240",
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240",
-  "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=240",
+  "/api/v1/assets/demo/avatars/avatar-1.jpg",
+  "/api/v1/assets/demo/avatars/avatar-3.jpg",
+  "/api/v1/assets/demo/staff/staff-1.png",
+  "/api/v1/assets/demo/staff/staff-3.png",
 ] as const;
 
 export const analyticsProductImages = [
-  "https://images.pexels.com/photos/7089401/pexels-photo-7089401.jpeg?auto=compress&cs=tinysrgb&w=320",
-  "https://images.pexels.com/photos/8460043/pexels-photo-8460043.jpeg?auto=compress&cs=tinysrgb&w=320",
-  "https://images.pexels.com/photos/4108279/pexels-photo-4108279.jpeg?auto=compress&cs=tinysrgb&w=320",
+  "/api/v1/assets/demo/services/service-home-care.png",
+  "/api/v1/assets/demo/services/service-home-visit.png",
+  "/api/v1/assets/demo/services/service-rehab.png",
 ] as const;

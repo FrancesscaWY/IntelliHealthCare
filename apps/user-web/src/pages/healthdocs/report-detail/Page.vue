@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { currentReport, removeCurrentReport } = useReportCenter();
+const { currentReport, removeCurrentReport, ensureCurrentReportReady, isCurrentReportLoading } =
+  useReportCenter();
 const showDeleteDialog = ref(false);
+const isDeleting = ref(false);
+
+onMounted(() => {
+  void ensureCurrentReportReady();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -22,20 +28,33 @@ function cancelDelete() {
   showDeleteDialog.value = false;
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (!currentReport.value) {
     showDeleteDialog.value = false;
     return;
   }
 
-  removeCurrentReport();
-  showDeleteDialog.value = false;
-  props.showToast("已删除报告");
-  props.navigation.reLaunch("healthdocs/checkup-reports");
+  isDeleting.value = true;
+
+  try {
+    await removeCurrentReport();
+    showDeleteDialog.value = false;
+    props.showToast("已删除报告");
+    props.navigation.reLaunch("healthdocs/checkup-reports");
+  } catch (error) {
+    props.showToast(error instanceof Error ? error.message : "删除失败");
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function downloadReport() {
-  props.showToast("下载功能待接入");
+  if (!currentReport.value?.attachmentUrl) {
+    props.showToast("当前暂无可下载附件");
+    return;
+  }
+
+  window.open(currentReport.value.attachmentUrl, "_blank", "noopener,noreferrer");
 }
 
 function interpretReport() {
@@ -53,7 +72,11 @@ function interpretReport() {
     </header>
 
     <main class="page-scroll">
-      <article v-if="currentReport" class="paper-sheet">
+      <article v-if="isCurrentReportLoading && !currentReport" class="empty-card">
+        <p>正在加载报告...</p>
+      </article>
+
+      <article v-else-if="currentReport" class="paper-sheet">
         <header class="paper-header">
           <h2>{{ currentReport.hospital }}</h2>
           <p>{{ currentReport.reportName }}</p>
@@ -79,10 +102,10 @@ function interpretReport() {
 
         <section class="paper-block result-block">
           <div class="result-head">
-            <span>检测指标</span>
+            <span>项目</span>
             <span>结果</span>
             <span>单位</span>
-            <span>参考值</span>
+            <span>参考</span>
           </div>
 
           <div v-for="item in currentReport.metrics" :key="`${item.name}-${item.result}`" class="result-row">
@@ -101,6 +124,9 @@ function interpretReport() {
           </div>
           <div class="footer-line">
             <p><span>报告时间：</span>{{ currentReport.reportTime }}</p>
+          </div>
+          <div v-if="currentReport.attachmentName" class="footer-line">
+            <p><span>附件：</span>{{ currentReport.attachmentName }}</p>
           </div>
           <div class="footer-line">
             <p><span>审核时间：</span>{{ currentReport.reviewTime }}</p>
@@ -126,7 +152,9 @@ function interpretReport() {
         <p>确定删除这条体检报告吗？</p>
         <div class="dialog-actions">
           <button class="dialog-btn dialog-btn--ghost" type="button" @click="cancelDelete">取消</button>
-          <button class="dialog-btn dialog-btn--primary" type="button" @click="confirmDelete">确定删除</button>
+          <button class="dialog-btn dialog-btn--primary" type="button" :disabled="isDeleting" @click="confirmDelete">
+            {{ isDeleting ? "删除中..." : "确认删除" }}
+          </button>
         </div>
       </section>
     </div>
@@ -138,9 +166,9 @@ function interpretReport() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
@@ -421,10 +449,14 @@ function interpretReport() {
   color: #ffffff;
 }
 
+.dialog-btn:disabled {
+  opacity: 0.7;
+}
+
 @media (min-width: 561px) {
   .report-detail-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

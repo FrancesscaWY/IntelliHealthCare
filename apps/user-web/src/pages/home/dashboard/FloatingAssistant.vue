@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Alignment, Fit, Layout, Rive, StateMachineInputType, type StateMachineInput } from "@rive-app/canvas";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import { ensureLocalRiveRuntime } from "@/shared/rive/runtime";
 
 const emit = defineEmits<{
   open: [];
@@ -12,6 +13,7 @@ const LOOK_ANIMATION_NAME = "look";
 const BLINK_TRIGGER_NAME = "blinkTrigger";
 const MIN_BLINK_DELAY = 5000;
 const MAX_BLINK_DELAY = 8000;
+const DEFAULT_RIGHT_OVERFLOW = 50;
 const DEBUG_RIVE = import.meta.env.DEV;
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -19,6 +21,8 @@ const assistantRef = ref<HTMLButtonElement | null>(null);
 const assistantPosition = ref({ x: 0, y: 0 });
 const hasAssistantPosition = ref(false);
 const isDragging = ref(false);
+
+ensureLocalRiveRuntime();
 
 let riveInstance: Rive | null = null;
 let blinkTrigger: StateMachineInput | null = null;
@@ -114,8 +118,12 @@ function syncInitialPosition() {
   }
 
   const rect = assistant.getBoundingClientRect();
+  const appCanvas = assistant.closest(".app-canvas") as HTMLElement | null;
+  const appCanvasRect = appCanvas?.getBoundingClientRect();
   assistantPosition.value = {
-    x: rect.left,
+    x: appCanvasRect
+      ? appCanvasRect.right - rect.width + DEFAULT_RIGHT_OVERFLOW
+      : rect.left,
     y: rect.top,
   };
   hasAssistantPosition.value = true;
@@ -250,7 +258,7 @@ defineExpose({
 <style scoped>
 .floating-assistant {
   position: fixed;
-  top: 70%;
+  top: 50%;
   right: -50px;
   z-index: 15;
   display: grid;
@@ -261,7 +269,7 @@ defineExpose({
   border: 0;
   background: transparent;
   cursor: pointer;
-  transform: translateY(-70%);
+  transform: translateY(-50%);
   touch-action: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

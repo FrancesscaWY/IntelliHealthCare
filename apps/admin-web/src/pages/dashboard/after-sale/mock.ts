@@ -1,9 +1,8 @@
-const cleaningImage =
-  "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320";
-const rehabImage =
-  "https://images.pexels.com/photos/5793996/pexels-photo-5793996.jpeg?auto=compress&cs=tinysrgb&w=320";
+const cleaningImage = "/api/v1/assets/demo/services/service-cleaning.jpg";
+const rehabImage = "/api/v1/assets/demo/services/service-rehab.png";
 
 export interface AfterSaleRow {
+  orderId?: string;
   orderNo: string;
   afterSaleNo: string;
   title: string;
@@ -97,6 +96,11 @@ export function upsertAfterSaleRow(row: AfterSaleRow) {
 
   rows.splice(existingIndex, 1, row);
   return row;
+}
+
+export function replaceAfterSaleRows(nextRows: AfterSaleRow[]) {
+  rows.splice(0, rows.length, ...nextRows);
+  return rows;
 }
 
 export default mock;

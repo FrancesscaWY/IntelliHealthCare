@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import { Alignment, Fit, Layout, Rive } from "@rive-app/canvas";
-import {
-  Comment,
-  Coupon,
-  Headset,
-  Help,
-  MedicalFiles,
-  Setting,
-  Star,
-} from "@icon-park/vue-next";
+import Comment from "@icon-park/vue-next/es/icons/Comment";
+import Coupon from "@icon-park/vue-next/es/icons/Coupon";
+import Headset from "@icon-park/vue-next/es/icons/Headset";
+import Help from "@icon-park/vue-next/es/icons/Help";
+import MedicalFiles from "@icon-park/vue-next/es/icons/MedicalFiles";
+import Setting from "@icon-park/vue-next/es/icons/Setting";
+import Star from "@icon-park/vue-next/es/icons/Star";
 import assistantRiveUrl from "@/assets/home/sections/assistant.riv?url";
+import { loadUserProfileState, syncUserProfileStateFromApi } from "@/pages/home/profile/profile-store";
 import mock from "./mock";
 
 const props = defineProps<PageComponentProps>();
 const assistantCanvasRef = ref<HTMLCanvasElement | null>(null);
+const profileState = ref(loadUserProfileState());
 
 let assistantRive: Rive | null = null;
 let assistantResizeObserver: ResizeObserver | null = null;
@@ -78,11 +78,22 @@ function openCheckupHistory() {
   props.navigation.navigateTo("orders/checkup-history");
 }
 
+function openSupportChat() {
+  openSubPage("home/customer-service-chat", "客服");
+}
+
 function resizeAssistant() {
   assistantRive?.resizeDrawingSurfaceToCanvas();
 }
 
 onMounted(() => {
+  profileState.value = loadUserProfileState();
+  void syncUserProfileStateFromApi()
+    .then((state) => {
+      profileState.value = state;
+    })
+    .catch(() => {});
+
   if (!assistantCanvasRef.value) return;
 
   assistantRive = new Rive({
@@ -101,6 +112,9 @@ onMounted(() => {
   assistantResizeObserver.observe(assistantCanvasRef.value);
 });
 
+const profileAvatar = computed(() => profileState.value.avatarUrl || mock.profile.avatar);
+const profileName = computed(() => profileState.value.nickname || mock.profile.name);
+
 onBeforeUnmount(() => {
   assistantResizeObserver?.disconnect();
   assistantResizeObserver = null;
@@ -113,17 +127,17 @@ onBeforeUnmount(() => {
   <section class="mine-page">
     <main class="mine-scroll">
       <header class="profile-header">
-        <button class="support-button" type="button" aria-label="客服" @click="props.showToast('客服功能待接入')">
+        <button class="support-button" type="button" aria-label="客服" @click="openSupportChat">
           <Headset theme="outline" size="22" fill="#1aaeba" />
         </button>
         <div class="profile-main">
-          <img class="avatar" :src="mock.profile.avatar" :alt="mock.profile.name" />
+          <img class="avatar" :src="profileAvatar" :alt="profileName" />
           <button class="homepage-link" type="button" @click="openSubPage(mock.profile.homepagePageId, '个人主页')">
             个人主页 >
           </button>
           <div class="profile-text">
             <div class="name-row">
-              <h1>{{ mock.profile.name }}</h1>
+              <h1>{{ profileName }}</h1>
             </div>
             <span class="level-badge">{{ mock.profile.level }}</span>
           </div>
@@ -157,7 +171,13 @@ onBeforeUnmount(() => {
       </button>
 
       <section class="menu-card">
-        <button v-for="item in mock.menus" :key="item.key" class="menu-row" type="button">
+        <button
+          v-for="item in mock.menus"
+          :key="item.key"
+          class="menu-row"
+          type="button"
+          @click="openSubPage(item.pageId || '', item.label)"
+        >
           <span class="menu-icon">
             <component :is="menuIconMap[item.icon]" theme="outline" size="18" fill="currentColor" />
           </span>
@@ -207,13 +227,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .mine-page {
   position: relative;
-  left: 50%;
-  width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
-  margin: -18px 0;
-  transform: translateX(-50%);
+  width: calc(100% + 36px);
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
+  margin: -18px 0 -18px -18px;
   overflow: hidden;
   background:
     radial-gradient(circle at 12% 7%, rgba(117, 214, 223, 0.26), transparent 25%),
@@ -228,15 +246,9 @@ onBeforeUnmount(() => {
 .mine-scroll {
   position: relative;
   z-index: 1;
-  height: 100%;
-  padding: 16px 22px 100px;
+  min-height: var(--ihc-page-min-height);
+  padding: 16px 22px calc(126px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.mine-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .profile-header {
@@ -713,18 +725,20 @@ onBeforeUnmount(() => {
 }
 
 .home-tabbar {
-  position: absolute;
-  right: 0;
+  position: fixed;
+  left: 50%;
   bottom: 0;
-  left: 0;
   z-index: 100;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  height: 74px;
-  padding: 9px 12px 10px;
+  width: min(402px, 100vw);
+  height: calc(74px + env(safe-area-inset-bottom, 0px));
+  padding: 9px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   background: #fff;
   box-shadow: 0 -7px 18px rgba(40, 58, 90, 0.04);
+  transform: translateX(-50%);
 }
 
 .home-tabbar::before {
@@ -813,8 +827,8 @@ onBeforeUnmount(() => {
 
 @media (min-width: 561px) {
   .mine-page {
-    height: 874px;
-    min-height: 874px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 </style>

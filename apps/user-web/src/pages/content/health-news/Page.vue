@@ -1,14 +1,73 @@
-<script setup lang="ts">
-import { computed, ref } from "vue";
+﻿<script setup lang="ts">
+import { onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { Comment, Like, Share, Star } from "@icon-park/vue-next";
+import { favoriteHealthNews, likeHealthNews, listHealthNews, shareHealthNews } from "@/shared/api/content";
+import fallbackNewsImage from "@/assets/content/health-lecture-hot.jpg";
+import { normalizeNewsImages } from "@/shared/utils/healthNewsMedia";
 import mock, { type HealthNewsTabKey } from "./mock";
-import { healthNewsDetailTarget } from "./state";
+import { healthNewsDetailTarget, selectedHealthNewsId } from "./state";
 
 const props = defineProps<PageComponentProps>();
 const activeTab = ref<HealthNewsTabKey>("hot");
 
-const cards = computed(() => mock.cards[activeTab.value]);
+type NewsCardViewModel = {
+  id: string;
+  newsId: string;
+  title: string;
+  summary: string;
+  images: string[];
+  likes: number;
+  stars: number;
+  comments: number;
+  isLiked: boolean;
+  isStarred: boolean;
+};
+
+const cards = ref<NewsCardViewModel[]>([]);
+
+function createFallbackCards(tabKey: HealthNewsTabKey): NewsCardViewModel[] {
+  return mock.cards[tabKey].map((item) => ({
+    id: item.id,
+    newsId: `mock-${item.id}`,
+    title: item.title,
+    summary: item.summary,
+    images: item.images,
+    likes: item.likes,
+    stars: item.stars,
+    comments: item.comments,
+    isLiked: false,
+    isStarred: false
+  }));
+}
+
+async function loadCards() {
+  try {
+    const response = await listHealthNews({
+      page: 1,
+      pageSize: 10,
+      sort: activeTab.value === "latest" ? "LATEST" : "HOT"
+    });
+
+    cards.value = response.list.map((item, index) => ({
+      id: item.id || item.newsId || `news-${index + 1}`,
+      newsId: item.newsId || item.id || `news-${index + 1}`,
+      title: item.title,
+      summary: item.summary || "暂无资讯摘要",
+      images: normalizeNewsImages(item.newsId || item.id || `news-${index + 1}`, item.title, item.images || [], item.coverUrl),
+      likes: item.likesCount ?? 0,
+      stars: item.favoritesCount ?? 0,
+      comments: item.commentsCount ?? 0,
+      isLiked: false,
+      isStarred: false
+    }));
+
+    if (cards.value.length === 0) {
+      cards.value = createFallbackCards(activeTab.value);
+    }
+  } catch {
+    cards.value = createFallbackCards(activeTab.value);
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -20,30 +79,117 @@ function selectTab(tabKey: HealthNewsTabKey) {
   activeTab.value = tabKey;
 }
 
-function openDetail() {
-  healthNewsDetailTarget.value = "default";
+function openDetail(newsId: string, target: "default" | "comments" = "default") {
+  selectedHealthNewsId.value = newsId;
+  healthNewsDetailTarget.value = target;
   props.navigation.navigateTo("content/health-news-detail");
 }
 
-function openDetailComments() {
-  healthNewsDetailTarget.value = "comments";
-  props.navigation.navigateTo("content/health-news-detail");
+function applyFallbackImage(event: Event) {
+  const target = event.target as HTMLImageElement | null;
+
+  if (!target || target.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  target.dataset.fallbackApplied = "true";
+  target.src = fallbackNewsImage;
 }
 
-function showPending(label: string) {
-  props.showToast(`${label}功能待接入`);
+async function handleShare(cardId: string) {
+  const target = cards.value.find((item) => item.id === cardId);
+
+  if (!target) {
+    return;
+  }
+
+  if (target.newsId.startsWith("mock-")) {
+    props.showToast("分享功能待接入");
+    return;
+  }
+
+  try {
+    await shareHealthNews(target.newsId);
+    props.showToast("分享记录已更新");
+  } catch {
+    props.showToast("分享失败，请稍后再试");
+  }
 }
+
+async function handleLike(cardId: string) {
+  const target = cards.value.find((item) => item.id === cardId);
+
+  if (!target) {
+    return;
+  }
+
+  if (target.isLiked) {
+    props.showToast("已点赞");
+    return;
+  }
+
+  if (target.newsId.startsWith("mock-")) {
+    target.isLiked = true;
+    target.likes += 1;
+    return;
+  }
+
+  try {
+    await likeHealthNews(target.newsId);
+    target.isLiked = true;
+    target.likes += 1;
+  } catch {
+    props.showToast("点赞失败，请稍后再试");
+  }
+}
+
+async function handleFavorite(cardId: string) {
+  const target = cards.value.find((item) => item.id === cardId);
+
+  if (!target) {
+    return;
+  }
+
+  if (target.isStarred) {
+    props.showToast("已收藏");
+    return;
+  }
+
+  if (target.newsId.startsWith("mock-")) {
+    target.isStarred = true;
+    target.stars += 1;
+    return;
+  }
+
+  try {
+    await favoriteHealthNews(target.newsId);
+    target.isStarred = true;
+    target.stars += 1;
+  } catch {
+    props.showToast("收藏失败，请稍后再试");
+  }
+}
+
+onMounted(() => {
+  void loadCards();
+});
+
+watch(activeTab, () => {
+  void loadCards();
+});
 </script>
 
 <template>
   <section class="health-news-page">
     <header class="page-nav">
-      <button class="back-btn" type="button" aria-label="返回" @click="goBack">‹</button>
+      <button class="back-btn" type="button" aria-label="杩斿洖" @click="goBack">
+        <span class="back-arrow" aria-hidden="true"></span>
+      </button>
       <h1>{{ mock.title }}</h1>
     </header>
 
     <main class="page-scroll">
-      <section class="tab-bar" aria-label="资讯分类">
+      <section class="tab-bar" aria-label="璧勮鍒嗙被">
         <button
           v-for="tab in mock.tabs"
           :key="tab.key"
@@ -56,39 +202,63 @@ function showPending(label: string) {
         </button>
       </section>
 
-      <section class="card-list" aria-label="资讯列表">
+      <section class="card-list" aria-label="璧勮鍒楄〃">
         <article v-for="card in cards" :key="card.id" class="news-card">
-          <button class="news-entry" type="button" :aria-label="`查看${card.title}`" @click="openDetail">
+          <button class="news-entry" type="button" :aria-label="`鏌ョ湅${card.title}`" @click="openDetail(card.newsId)">
             <h2>{{ card.title }}</h2>
 
-            <div class="news-layout" :class="{ 'news-layout--single': card.images.length === 1 }">
+            <div class="news-layout" :class="{ 'news-layout--single': card.images.length <= 1 }">
               <p>{{ card.summary }}</p>
 
               <div v-if="card.images.length > 1" class="news-gallery">
-                <img v-for="(image, index) in card.images" :key="`${card.id}-${index}`" :src="image" :alt="card.title" draggable="false" />
+                <img
+                  v-for="(image, index) in card.images"
+                  :key="`${card.id}-${index}`"
+                  :src="image"
+                  :alt="card.title"
+                  draggable="false"
+                  @error="applyFallbackImage"
+                />
               </div>
 
-              <img v-else class="news-thumb" :src="card.images[0]" :alt="card.title" draggable="false" />
+              <img
+                v-else-if="card.images[0]"
+                class="news-thumb"
+                :src="card.images[0]"
+                :alt="card.title"
+                draggable="false"
+                @error="applyFallbackImage"
+              />
             </div>
           </button>
 
           <footer class="card-actions">
-            <button class="action-btn action-btn--share" type="button" aria-label="分享" @click="showPending('分享')">
-              <Share theme="outline" size="22" fill="#454952" />
+            <button class="action-btn action-btn--share" type="button" aria-label="鍒嗕韩" @click.stop="handleShare(card.id)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 3h7v7" />
+                <path d="M10 14 21 3" />
+                <path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6" />
+              </svg>
             </button>
 
-            <button class="action-btn" type="button" @click="showPending('点赞')">
-              <Like theme="outline" size="22" fill="#454952" />
+            <button class="action-btn action-btn--like" :class="{ 'action-btn--liked': card.isLiked }" type="button" @click.stop="handleLike(card.id)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
+              </svg>
               <span>{{ card.likes }}</span>
             </button>
 
-            <button class="action-btn" type="button" @click="showPending('收藏')">
-              <Star theme="outline" size="22" fill="#454952" />
+            <button class="action-btn action-btn--favorite" :class="{ 'action-btn--favorited': card.isStarred }" type="button" @click.stop="handleFavorite(card.id)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
+              </svg>
               <span>{{ card.stars }}</span>
             </button>
 
-            <button class="action-btn" type="button" @click="openDetailComments">
-              <Comment theme="outline" size="22" fill="#454952" />
+            <button class="action-btn action-btn--comment" type="button" @click.stop="openDetail(card.newsId, 'comments')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
+              </svg>
               <span>{{ card.comments }}</span>
             </button>
           </footer>
@@ -103,14 +273,14 @@ function showPending(label: string) {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #f5f6f7;
   color: #252939;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   transform: translateX(-50%);
 }
 
@@ -143,13 +313,19 @@ function showPending(label: string) {
 }
 
 .back-btn {
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 38px;
   padding: 0;
-  color: #34383f;
-  font-size: 38px;
-  font-weight: 300;
-  line-height: 30px;
+}
+
+.back-arrow {
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid #2f3138;
+  border-left: 2px solid #2f3138;
+  transform: rotate(45deg);
 }
 
 .page-nav h1 {
@@ -193,6 +369,7 @@ function showPending(label: string) {
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(31, 40, 58, 0.04);
+  cursor: pointer;
 }
 
 .news-card h2 {
@@ -258,8 +435,8 @@ function showPending(label: string) {
   display: grid;
   grid-template-columns: 1fr auto auto auto;
   align-items: center;
-  gap: 22px;
-  margin-top: 13px;
+  gap: 16px;
+  margin-top: 14px;
 }
 
 .action-btn {
@@ -267,49 +444,36 @@ function showPending(label: string) {
   align-items: center;
   gap: 6px;
   padding: 0;
-  color: #454952;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
+  color: #7b8795;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .action-btn--share {
   justify-self: start;
 }
 
-@media (min-width: 561px) {
-  .health-news-page {
-    height: 874px;
-    min-height: 874px;
-  }
+.action-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-@media (max-width: 389px) {
-  .page-scroll {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
+.action-btn--liked {
+  color: #ef7b72;
+}
 
-  .news-card {
-    padding-right: 14px;
-    padding-left: 14px;
-  }
+.action-btn--favorited {
+  color: #e3b341;
+}
 
-  .news-gallery {
-    gap: 6px;
-  }
-
-  .news-layout--single {
-    grid-template-columns: minmax(0, 1fr) 92px;
-    gap: 10px;
-  }
-
-  .card-actions {
-    gap: 16px;
-  }
-
-  .action-btn {
-    font-size: 12px;
-  }
+.action-btn--liked svg,
+.action-btn--favorited svg {
+  fill: currentColor;
 }
 </style>
+

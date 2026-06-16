@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import {
+  createAdminProduct,
+  getAdminProductDetail,
+  getAdminProductEditorOptions,
+  updateAdminProduct,
+} from "@/shared/api/catalog";
+import { handleAdminPageError } from "@/shared/api/error";
+import mockSeed from "./mock";
 
 type ParameterRow = {
   id: string;
@@ -11,27 +18,83 @@ type ParameterRow = {
   placeholder: string;
 };
 
-const props = defineProps<PageComponentProps>();
+type ProductEditorForm = {
+  productName: string;
+  code: string;
+  category: string;
+  remark: string;
+  price: string;
+  strikePrice: string;
+  sales: string;
+  commission: string;
+  duration: string;
+  staffCount: string;
+  publishMode: string;
+  validity: string;
+  bookingRules: string;
+};
 
-const form = reactive({
+const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
+const productEditorStorageKey = "admin:service:selected-product-id";
+const editingProductId = ref("");
+const uploadedImages = ref<string[]>([]);
+const coverInput = ref<HTMLInputElement | null>(null);
+
+const form = reactive<ProductEditorForm>({
   productName: "",
-  code: mock.code,
-  category: mock.categoryOptions[0],
+  code: mockSeed.code,
+  category: mockSeed.categoryOptions[0],
   remark: "",
-  price: mock.sellInfo.price,
-  strikePrice: mock.sellInfo.strikePrice,
-  sales: mock.sellInfo.sales,
-  commission: mock.sellInfo.commission,
-  duration: mock.sellInfo.duration,
-  staffCount: mock.sellInfo.staffCount,
-  publishMode: mock.sellInfo.publishMode,
-  validity: mock.sellInfo.validity,
-  bookingRules: mock.sellInfo.bookingRules,
+  price: mockSeed.sellInfo.price,
+  strikePrice: mockSeed.sellInfo.strikePrice,
+  sales: mockSeed.sellInfo.sales,
+  commission: mockSeed.sellInfo.commission,
+  duration: mockSeed.sellInfo.duration,
+  staffCount: mockSeed.sellInfo.staffCount,
+  publishMode: mockSeed.sellInfo.publishMode,
+  validity: mockSeed.sellInfo.validity,
+  bookingRules: mockSeed.sellInfo.bookingRules,
 });
 
-const parameterSelect = ref(mock.parameterOptions[0]);
-const uploadedImages = ref<string[]>([]);
-const parameterRows = ref<ParameterRow[]>(mock.parameterRows.map((item) => ({ ...item })));
+const parameterSelect = ref(mockSeed.parameterOptions[0]);
+const parameterRows = ref<ParameterRow[]>(mockSeed.parameterRows.map((item) => ({ ...item })));
+
+function readEditingProductId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.sessionStorage.getItem(productEditorStorageKey) ?? "";
+}
+
+function clearEditingProductId() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(productEditorStorageKey);
+}
+
+function mapCategoryLabelToCode(label: string) {
+  if (label === "上门体检") {
+    return "HOME_EXAM";
+  }
+
+  if (label === "康复理疗") {
+    return "REHAB_THERAPY";
+  }
+
+  if (label === "慢病随访") {
+    return "CHRONIC_CARE";
+  }
+
+  return "HOME_CARE";
+}
+
+function openCoverPicker() {
+  coverInput.value?.click();
+}
 
 function uploadImage() {
   if (uploadedImages.value.length >= 9) {
@@ -39,12 +102,32 @@ function uploadImage() {
     return;
   }
 
-  uploadedImages.value = [...uploadedImages.value, `图片 ${uploadedImages.value.length + 1}`];
-  props.showToast("图片上传为演示状态");
+  openCoverPicker();
+}
+
+function onCoverChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const image = typeof reader.result === "string" ? reader.result : "";
+
+    if (!image) {
+      props.showToast("图片读取失败，请重试");
+      return;
+    }
+
+    uploadedImages.value = [image];
+  };
+  reader.readAsDataURL(file);
 }
 
 function addParameter() {
-  if (!parameterSelect.value || parameterSelect.value === mock.parameterOptions[0]) {
+  if (!parameterSelect.value || parameterSelect.value === mock.value.parameterOptions[0]) {
     props.showToast("请先选择参数");
     return;
   }
@@ -72,13 +155,107 @@ function removeParameter(id: string) {
   parameterRows.value = parameterRows.value.filter((item) => item.id !== id);
 }
 
-function submitForm() {
-  props.showToast("提交审核为演示状态");
+async function syncPageData() {
+  try {
+    mock.value = (await getAdminProductEditorOptions()) as typeof mockSeed;
+    editingProductId.value = readEditingProductId();
+
+    if (!editingProductId.value) {
+      form.code = mock.value.code;
+      form.category = mock.value.categoryOptions[0];
+      parameterSelect.value = mock.value.parameterOptions[0];
+      parameterRows.value = mock.value.parameterRows.map((item) => ({ ...item }));
+      return;
+    }
+
+    const detail = await getAdminProductDetail(editingProductId.value);
+    mock.value = detail as typeof mockSeed;
+    form.productName = String(detail.productName ?? "");
+    form.code = String(detail.code ?? "");
+    form.category = String(detail.category ?? mock.value.categoryOptions[0]);
+    form.remark = String(detail.summary ?? "");
+    form.price = String(detail.sellInfo?.price ?? "");
+    form.strikePrice = String(detail.sellInfo?.strikePrice ?? "");
+    form.sales = String(detail.sellInfo?.sales ?? "0");
+    form.commission = String(detail.sellInfo?.commission ?? "");
+    form.duration = String(detail.sellInfo?.duration ?? "");
+    form.staffCount = String(detail.sellInfo?.staffCount ?? "");
+    form.publishMode = String(detail.sellInfo?.publishMode ?? "immediate");
+    form.validity = String(detail.sellInfo?.validity ?? mock.value.validityOptions[0]);
+    form.bookingRules = String(detail.sellInfo?.bookingRules ?? "");
+    parameterSelect.value = mock.value.parameterOptions[0];
+    parameterRows.value = Array.isArray(detail.parameterRows)
+      ? detail.parameterRows.map((item: ParameterRow) => ({ ...item }))
+      : mock.value.parameterRows.map((item) => ({ ...item }));
+    uploadedImages.value = detail.coverUrl ? [String(detail.coverUrl)] : [];
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "商品编辑数据加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function submitForm() {
+  if (!form.productName.trim() || form.category === mock.value.categoryOptions[0] || !form.price.trim()) {
+    props.showToast("请完整填写商品名称、分类和价格。");
+    return;
+  }
+
+  try {
+    const payload = {
+      title: form.productName.trim(),
+      category: mapCategoryLabelToCode(form.category),
+      code: form.code.trim() || undefined,
+      summary: form.remark.trim(),
+      price: Number(form.price || 0),
+      marketPrice: form.strikePrice ? Number(form.strikePrice) : undefined,
+      coverUrl: uploadedImages.value[0] || undefined,
+      tags: parameterRows.value.map((item) => item.name),
+      serviceContent: {
+        parameterRows: parameterRows.value.map((item) => ({ ...item })),
+        sellInfo: {
+          commission: form.commission,
+          staffCount: form.staffCount,
+          publishMode: form.publishMode,
+          validity: form.validity,
+          bookingRules: form.bookingRules,
+        },
+      },
+      enabled: form.publishMode === "immediate",
+    };
+
+    if (editingProductId.value) {
+      await updateAdminProduct(editingProductId.value, payload);
+      props.showToast("商品已更新");
+    } else {
+      await createAdminProduct(payload);
+      props.showToast("商品已创建");
+    }
+
+    clearEditingProductId();
+    props.navigation.reLaunch("service/product-management");
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "商品保存失败，请稍后重试",
+    });
+  }
 }
 
 function goBack() {
-  props.showToast("返回为演示状态");
+  clearEditingProductId();
+
+  if (!props.navigation.navigateBack()) {
+    props.navigation.reLaunch("service/product-management");
+  }
 }
+
+onMounted(() => {
+  void syncPageData();
+});
 </script>
 
 <template>
@@ -126,9 +303,10 @@ function goBack() {
             <button class="upload-box" type="button" @click="uploadImage">
               <span v-if="!uploadedImages.length">+ 上传图片</span>
               <div v-else class="upload-preview">
-                <span v-for="item in uploadedImages" :key="item" class="upload-preview__chip">{{ item }}</span>
+                <img v-for="item in uploadedImages" :key="item" :src="item" alt="商品图片预览" class="upload-preview__image" />
               </div>
             </button>
+            <input ref="coverInput" type="file" accept="image/*" hidden @change="onCoverChange" />
             <p class="upload-row__hint">支持 jpg、png 等格式文件上传，文件大小不超过 10MB，最多可上传 9 张</p>
           </div>
         </div>
@@ -478,15 +656,11 @@ function goBack() {
   gap: 8px;
 }
 
-.upload-preview__chip {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: #eef8f4;
-  color: #32b88e;
-  font-size: 12px;
+.upload-preview__image {
+  width: 92px;
+  height: 92px;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .upload-row__hint {

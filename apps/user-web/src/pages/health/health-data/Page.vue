@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { SetOff } from "@icon-park/vue-next";
+import SetOff from "@icon-park/vue-next/es/icons/SetOff";
 import avatarImage from "@/assets/community/activities/people.png";
-import mock from "./mock";
+import { getAiHealthMetricExplanations } from "@/shared/api/ai";
+import { syncHealthDeviceItems } from "../device-center/state";
+import { loadHealthDataOverviewSource } from "../measurement-source";
 import { takeHealthDataBackTarget } from "./source";
 
 const props = defineProps<PageComponentProps>();
@@ -19,9 +21,34 @@ const metricColorMap: Record<string, string> = {
   stress: "#d9b46a",
 };
 
-type HealthDataItem = (typeof mock.list)[number];
+type HealthDataItem = Awaited<ReturnType<typeof loadHealthDataOverviewSource>>["list"][number];
 
-const dataList = computed<HealthDataItem[]>(() => mock.list);
+const emptyHealthDataItem: HealthDataItem = {
+  date: "",
+  steps: 0,
+  sleep: 0,
+  weight: 0,
+  heartRate: 0,
+  bloodSugar: 0,
+  bloodPressure: "0/0",
+  oxygen: 0,
+  stress: 0
+};
+
+const overviewData = ref<{ list: HealthDataItem[] }>({
+  list: []
+});
+const aiMetricBrief = ref<{
+  brief: string;
+  keyFindings: string[];
+  riskSignals: string[];
+  followUpSuggestions: string[];
+  source: "api" | "fallback";
+} | null>(null);
+
+const dataList = computed<HealthDataItem[]>(() =>
+  overviewData.value.list.length ? overviewData.value.list : [emptyHealthDataItem]
+);
 const latest = computed(() => dataList.value[dataList.value.length - 1]);
 const previous = computed(() => dataList.value[dataList.value.length - 2] ?? latest.value);
 
@@ -134,6 +161,12 @@ const scoreLabel = computed(() => {
 });
 
 const addDevicePageId = "health/add-device-placeholder";
+const deviceCount = ref(3);
+const linkedDevices = ref([
+  { id: "watch-alpha", name: "智能手表 A" },
+  { id: "watch-beta", name: "智能手表 B" },
+  { id: "watch-gamma", name: "智能手表 C" }
+]);
 
 const profileSummary = computed(() => ({
   name: "张爱清",
@@ -141,7 +174,7 @@ const profileSummary = computed(() => ({
   age: 65,
   height: 172,
   weight: latest.value.weight.toFixed(1),
-  deviceCount: 3,
+  deviceCount: deviceCount.value,
 }));
 
 const healthAlerts = computed(() =>
@@ -152,7 +185,41 @@ const healthAlerts = computed(() =>
     .map((item) => `${item.label}偏高`)
 );
 
-const linkedDevices = [
+const aiMetricCard = computed(() => {
+  if (aiMetricBrief.value) {
+    return aiMetricBrief.value;
+  }
+
+  const current = latest.value;
+  const bloodPressure = String(current.bloodPressure || "0/0");
+  const systolic = Number(bloodPressure.split("/")[0] || 0);
+  const diastolic = Number(bloodPressure.split("/")[1] || 0);
+  const bloodPressureHint =
+    systolic > 140 || diastolic > 90
+      ? "血压读数偏高，建议连续记录并关注睡眠、盐分摄入和服药情况。"
+      : "血压处于可观察区间，建议继续保持规律记录。";
+  const bloodSugarHint =
+    current.bloodSugar > 6
+      ? "血糖较前期略高，适合结合饮食记录继续观察。"
+      : "血糖记录整体平稳。";
+
+  return {
+    brief: `AI 健康解释：${bloodPressureHint}`,
+    keyFindings: [
+      `血压 ${bloodPressure} mmHg`,
+      `血糖 ${current.bloodSugar} mmol/L`,
+      `心率 ${current.heartRate} bpm`
+    ],
+    riskSignals: healthAlerts.value.length ? healthAlerts.value : [bloodSugarHint],
+    followUpSuggestions: [
+      "继续记录近 7 天血压、血糖和睡眠变化。",
+      "如连续多次异常或出现不适，请及时咨询医生。"
+    ],
+    source: "fallback" as const
+  };
+});
+
+const linkedDevicesFallback = [
   { id: "watch-alpha", name: "智能手表 A" },
   { id: "watch-beta", name: "智能手表 B" },
   { id: "watch-gamma", name: "智能手表 C" },
@@ -272,6 +339,10 @@ function getNavigateKey(key: string) {
 }
 
 function goBack() {
+  if (props.navigation?.navigateBack?.()) {
+    return;
+  }
+
   const backTarget = takeHealthDataBackTarget();
 
   if (backTarget) {
@@ -286,9 +357,7 @@ function goBack() {
     }
   }
 
-  if (!props.navigation?.navigateBack?.()) {
-    props.navigation?.reLaunch?.("home/dashboard");
-  }
+  props.navigation?.reLaunch?.("home/dashboard");
 }
 
 function goToAddDevice() {
@@ -296,6 +365,51 @@ function goToAddDevice() {
     props.navigation.navigateTo(addDevicePageId);
   }
 }
+
+function getDeviceErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "设备列表加载失败，请稍后重试";
+}
+
+async function loadOverviewData() {
+  try {
+    overviewData.value = await loadHealthDataOverviewSource();
+  } catch (error) {
+    props.showToast(getDeviceErrorMessage(error));
+  }
+}
+
+async function loadAiMetricBrief() {
+  try {
+    const result = await getAiHealthMetricExplanations({
+      metricTypes: ["bloodPressure", "bloodGlucose", "heartRate", "sleep"]
+    });
+
+    aiMetricBrief.value = {
+      brief: result.brief,
+      keyFindings: result.keyFindings,
+      riskSignals: result.riskSignals,
+      followUpSuggestions: result.followUpSuggestions,
+      source: "api"
+    };
+  } catch {
+    aiMetricBrief.value = null;
+  }
+}
+
+onMounted(() => {
+  void loadOverviewData().then(loadAiMetricBrief);
+  void syncHealthDeviceItems()
+    .then((items) => {
+      deviceCount.value = items.length;
+      linkedDevices.value = items.slice(0, 4).map((item) => ({
+        id: item.id,
+        name: item.name
+      }));
+    })
+    .catch((error) => {
+      props.showToast(getDeviceErrorMessage(error));
+    });
+});
 </script>
 
 <template>
@@ -361,6 +475,22 @@ function goToAddDevice() {
           <small>健康评分</small>
           <em>{{ scoreLabel }}</em>
         </div>
+      </section>
+
+      <section class="ai-explain-card" aria-label="AI健康解释">
+        <div class="ai-explain-card__head">
+          <span>AI 健康解释</span>
+          <strong>{{ aiMetricCard.source === "api" ? "实时生成" : "本地降级" }}</strong>
+        </div>
+        <p>{{ aiMetricCard.brief }}</p>
+        <div class="ai-explain-card__chips">
+          <span v-for="item in aiMetricCard.keyFindings.slice(0, 3)" :key="item">{{ item }}</span>
+        </div>
+        <ul>
+          <li v-for="item in [...aiMetricCard.riskSignals, ...aiMetricCard.followUpSuggestions].slice(0, 3)" :key="item">
+            {{ item }}
+          </li>
+        </ul>
       </section>
 
       <section class="metric-card-list">
@@ -493,9 +623,9 @@ function goToAddDevice() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
@@ -786,6 +916,77 @@ function goToAddDevice() {
   display: none;
 }
 
+.ai-explain-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(102, 207, 167, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 24px rgba(82, 105, 148, 0.07);
+}
+
+.ai-explain-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-explain-card__head span {
+  color: #222733;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ai-explain-card__head strong {
+  min-width: 66px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(102, 207, 167, 0.14);
+  color: #2a9e7a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 24px;
+  text-align: center;
+}
+
+.ai-explain-card p {
+  margin: 0;
+  color: #4c5668;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.ai-explain-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-explain-card__chips span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f2f7f6;
+  color: #53606f;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ai-explain-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0 0 0 16px;
+  color: #687383;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .metric-card-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -1009,8 +1210,8 @@ function goToAddDevice() {
 
 @media (min-width: 561px) {
   .health-data-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

@@ -1,10 +1,10 @@
 # 智诊康养后端 API 手册
 
-更新时间：`2026-04-22`
+更新时间：`2026-04-23`
 
 ## 1. 文档说明
 
-本文档基于当前后端控制器真实实现编写，覆盖 `apps/backend/src/modules/**/*controller.ts` 中已挂载的 HTTP 接口，共 `194` 个 API。文档目标是为前后端联调、测试验收、后台接入和内部智能体接入提供统一的 API 手册。
+本文档基于当前后端控制器真实实现编写，覆盖 `apps/backend/src/modules/**/*controller.ts` 中已挂载的 HTTP 接口。文档目标是为前后端联调、测试验收、后台接入和内部智能体接入提供统一的 API 手册。
 
 为便于后续接口扩展与 Swagger 对齐，API 分册已按 `系统层 / 用户端 / 后台端 / 内部治理层` 四级视角重新组织；新增后台模块时，建议优先归入“后台端”总册，再在其下新增模块分册。
 
@@ -509,9 +509,9 @@ Bearer <accessToken>
 
 ### 3.3 后台端
 
-后台端接口统一以 `/api/v1/admin/*` 为主路径前缀。后续新增运营、审核、配置、机构管理等能力时，建议继续在本总册下扩展新模块，保持后台 API 设计口径一致。
+后台端接口统一以 `/api/v1/admin/*` 为主路径前缀，按后台真实页面拆成 10 个 Swagger 标签模块。
 
-#### 3.3.1 后台认证模块（`auth` / admin）
+#### 3.3.1 后台认证与账号模块（`auth` / admin）
 
 模块归属：`apps/backend/src/modules/auth`
 
@@ -520,42 +520,172 @@ Bearer <accessToken>
 | 后台密码登录 | `POST /api/v1/admin/auth/login/password` | 无需鉴权 | 输入后台手机号和密码获取 `ADMIN_TOKEN`。 |
 | 刷新后台 Token | `POST /api/v1/admin/auth/token/refresh` | 无需鉴权 | 用后台 refresh token 换取新的后台 access token。 |
 | 获取当前后台登录用户 | `GET /api/v1/admin/auth/me` | `ADMIN_TOKEN` | 检查后台 token 是否有效，并查看当前后台角色信息。 |
+| 获取后台个人资料 | `GET /api/v1/admin/auth/profile` | `ADMIN_TOKEN` | 账号设置页初始化接口，返回姓名、手机号、角色、备注和头像。 |
+| 更新后台个人资料 | `PUT /api/v1/admin/auth/profile` | `ADMIN_TOKEN` | 账号设置页保存姓名、手机号和备注。 |
+| 修改后台登录密码 | `PUT /api/v1/admin/auth/password` | `ADMIN_TOKEN` | 重置密码页提交旧密码、新密码和确认密码。 |
+| 更新后台头像 | `PUT /api/v1/admin/auth/avatar` | `ADMIN_TOKEN` | 后台头像上传完成后写入账号资料。 |
 
-#### 3.3.2 后台工作台模块（`admin`）
+#### 3.3.2 后台运营分析模块（`admin/analytics`）
 
 模块归属：`apps/backend/src/modules/admin`
 
-适用角色：`PLATFORM_ADMIN`、`ORG_MANAGER`、`DOCTOR`、`CAREGIVER`、`THERAPIST`、`CUSTOMER_SERVICE`
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 获取用户概况页数据 | `GET /api/v1/admin/analytics/data-board` | `ADMIN_TOKEN` | `analytics/data-board` 页面型接口，返回统计卡片、趋势、年龄和性别分布。 |
+| 获取交易概况页数据 | `GET /api/v1/admin/analytics/trade-overview` | `ADMIN_TOKEN` | `analytics/trade-overview` 页面型接口，返回概览、漏斗、折线图和金额分布。 |
+| 获取产品分析页数据 | `GET /api/v1/admin/analytics/product-analysis` | `ADMIN_TOKEN` | `analytics/product-analysis` 页面型接口，返回筛选项、列定义和商品分析表格。 |
+| 获取业绩统计页数据 | `GET /api/v1/admin/analytics/service-performance` | `ADMIN_TOKEN` | `analytics/service-performance` 页面型接口，返回服务人员业绩统计表格。 |
+| 获取复购分析页数据 | `GET /api/v1/admin/analytics/service-repurchase` | `ADMIN_TOKEN` | `analytics/service-repurchase` 页面型接口，返回用户复购、支付金额和次单价。 |
+| 获取评价统计页数据 | `GET /api/v1/admin/analytics/service-review` | `ADMIN_TOKEN` | `analytics/service-review` 页面型接口，返回服务人员评价量和满意率。 |
+| 获取工单分析页数据 | `GET /api/v1/admin/analytics/service-workorder` | `ADMIN_TOKEN` | `analytics/service-workorder` 页面型接口，返回工单履约统计表格。 |
+| 获取用户年龄分析页数据 | `GET /api/v1/admin/analytics/user-age` | `ADMIN_TOKEN` | `analytics/user-age` 页面型接口，返回年龄图表和明细表。 |
+| 获取用户性别分析页数据 | `GET /api/v1/admin/analytics/user-gender` | `ADMIN_TOKEN` | `analytics/user-gender` 页面型接口，返回性别图表和明细表。 |
+| 获取用户社交统计页数据 | `GET /api/v1/admin/analytics/user-social` | `ADMIN_TOKEN` | `analytics/user-social` 页面型接口，返回动态、阅读、关注、点赞等统计。 |
+
+#### 3.3.3 后台长者档案模块（`admin/elders`）
+
+模块归属：`apps/backend/src/modules/admin`
 
 | API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
 | --- | --- | --- | --- |
-| 获取后台总览数据 | `GET /api/v1/admin/dashboard/overview` | `ADMIN_TOKEN` | 后台首页首接口，加载统计卡片、待办事项和运营概览。 |
-| 获取长者详情 | `GET /api/v1/admin/elders/:elderId` | `ADMIN_TOKEN` | 后台长者详情页接口。 |
-| 获取工单列表 | `GET /api/v1/admin/work-orders` | `ADMIN_TOKEN` | 后台工单列表页接口，支持分页。 |
-
-#### 3.3.3 后台订单调度模块（`orders` / admin）
-
-模块归属：`apps/backend/src/modules/orders`
-
-适用角色：`PLATFORM_ADMIN`、`ORG_MANAGER`、`DOCTOR`、`CAREGIVER`、`THERAPIST`、`CUSTOMER_SERVICE`
-
-| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
-| --- | --- | --- | --- |
-| 后台获取订单列表 | `GET /api/v1/admin/orders` | `ADMIN_TOKEN` | 后台订单管理页接口，可按状态筛选。 |
-| 后台获取订单详情 | `GET /api/v1/admin/orders/:orderId` | `ADMIN_TOKEN` | 后台订单详情页接口。 |
-| 后台派单 | `POST /api/v1/admin/orders/:orderId/dispatch` | `ADMIN_TOKEN` | 分派机构、人员或排班。 |
-| 更新工单状态 | `PUT /api/v1/admin/work-orders/:workOrderId/status` | `ADMIN_TOKEN` | 后台工单执行状态流转接口。 |
+| 获取长者列表 | `GET /api/v1/admin/elders` | `ADMIN_TOKEN` | 后台用户列表页接口，支持 `keyword / tag / page / pageSize` 查询。 |
+| 创建长者档案 | `POST /api/v1/admin/elders` | `ADMIN_TOKEN` | 新增用户信息页提交接口，创建用户并同步生成健康档案。 |
+| 删除长者档案 | `DELETE /api/v1/admin/elders/:elderId` | `ADMIN_TOKEN` | 长者列表删除动作，当前为禁用用户。 |
+| 批量维护长者标签 | `POST /api/v1/admin/elders/tags/batch` | `ADMIN_TOKEN` | 长者列表批量标签维护。 |
+| 获取长者详情总览 | `GET /api/v1/admin/elders/:elderId` | `ADMIN_TOKEN` | 长者详情首屏，返回头部摘要、tab 和关键指标。 |
+| 获取长者档案 tab | `GET /api/v1/admin/elders/:elderId/profile` | `ADMIN_TOKEN` | `member-detail/profile` tab 数据。 |
+| 获取长者健康 tab | `GET /api/v1/admin/elders/:elderId/health` | `ADMIN_TOKEN` | `member-detail/health` tab 数据。 |
+| 获取长者用药 tab | `GET /api/v1/admin/elders/:elderId/medication` | `ADMIN_TOKEN` | `member-detail/medication` tab 数据。 |
+| 获取长者健康数据 tab | `GET /api/v1/admin/elders/:elderId/metrics` | `ADMIN_TOKEN` | `member-detail/metrics` tab 数据。 |
+| 获取长者设备 tab | `GET /api/v1/admin/elders/:elderId/devices` | `ADMIN_TOKEN` | `member-detail/device` tab 数据。 |
+| 获取长者报告 tab | `GET /api/v1/admin/elders/:elderId/reports` | `ADMIN_TOKEN` | `member-detail/report` tab 数据。 |
+| 获取长者订单 tab | `GET /api/v1/admin/elders/:elderId/orders` | `ADMIN_TOKEN` | `member-detail/order` tab 数据。 |
+| 获取长者资产 tab | `GET /api/v1/admin/elders/:elderId/assets` | `ADMIN_TOKEN` | `member-detail/asset` tab 数据。 |
+| 获取长者内容 tab | `GET /api/v1/admin/elders/:elderId/contents` | `ADMIN_TOKEN` | `member-detail/content` tab 数据。 |
+| 获取长者服务记录 tab | `GET /api/v1/admin/elders/:elderId/service-records` | `ADMIN_TOKEN` | `member-detail/service` tab 数据。 |
 
 #### 3.3.4 后台报告审核模块（`reports` / admin）
 
 模块归属：`apps/backend/src/modules/reports`
 
-适用角色：`PLATFORM_ADMIN`、`ORG_MANAGER`、`DOCTOR`
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 后台获取报告列表 | `GET /api/v1/admin/reports` | `ADMIN_TOKEN` | 报告管理页接口，支持 `status / type / keyword / page / pageSize`。 |
+| 后台获取报告详情 | `GET /api/v1/admin/reports/:reportId` | `ADMIN_TOKEN` | 报告详情接口，返回报告摘要、附件、长者和订单信息。 |
+| 后台上传报告 | `POST /api/v1/admin/reports` | `ADMIN_TOKEN` | 后台上传报告，支持关联长者或订单。 |
+| 后台删除报告 | `DELETE /api/v1/admin/reports/:reportId` | `ADMIN_TOKEN` | 后台删除报告。 |
+| 获取报告下载元数据 | `GET /api/v1/admin/reports/:reportId/download-metadata` | `ADMIN_TOKEN` | 报告下载按钮先调用，返回附件元数据。 |
+| 后台审核报告 | `PUT /api/v1/admin/reports/:reportId/review` | `ADMIN_TOKEN` | 后台审核操作接口，更新报告审核状态。 |
+
+#### 3.3.5 后台订单履约模块（`orders` / admin）
+
+模块归属：`apps/backend/src/modules/orders`
 
 | API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
 | --- | --- | --- | --- |
-| 后台获取报告列表 | `GET /api/v1/admin/reports` | `ADMIN_TOKEN` | 后台报告管理页接口，支持按审核状态查询。 |
-| 后台审核报告 | `PUT /api/v1/admin/reports/:reportId/review` | `ADMIN_TOKEN` | 后台审核操作接口，更新报告审核状态。 |
+| 获取后台履约总览 | `GET /api/v1/admin/dashboard/overview` | `ADMIN_TOKEN` | 后台首页接口，返回统计卡片、快捷入口、趋势和排行。 |
+| 获取预约看板 | `GET /api/v1/admin/booking-board` | `ADMIN_TOKEN` | 预约看板页接口，按日期、服务类型和人员筛选。 |
+| 后台获取订单列表 | `GET /api/v1/admin/orders` | `ADMIN_TOKEN` | 后台订单管理页接口，支持 `status / serviceCategory / paymentChannel / keyword / page / pageSize` 查询。 |
+| 后台获取订单详情 | `GET /api/v1/admin/orders/:orderId` | `ADMIN_TOKEN` | 后台订单详情页接口。 |
+| 后台修改订单价格 | `PUT /api/v1/admin/orders/:orderId/price` | `ADMIN_TOKEN` | 订单详情页改价动作。 |
+| 后台关闭订单 | `POST /api/v1/admin/orders/:orderId/close` | `ADMIN_TOKEN` | 订单详情页手动关单动作。 |
+| 保存订单备注 | `POST /api/v1/admin/orders/:orderId/remark` | `ADMIN_TOKEN` | 订单详情页备注保存。 |
+| 获取后台订单时间线 | `GET /api/v1/admin/orders/:orderId/timeline` | `ADMIN_TOKEN` | 订单详情页时间线。 |
+| 后台派单 | `POST /api/v1/admin/orders/:orderId/dispatch` | `ADMIN_TOKEN` | 分派机构、人员或排班。 |
+| 获取后台工单列表 | `GET /api/v1/admin/work-orders` | `ADMIN_TOKEN` | 工单管理页接口。 |
+| 获取后台工单详情 | `GET /api/v1/admin/work-orders/:workOrderId` | `ADMIN_TOKEN` | 工单详情接口。 |
+| 更新工单状态 | `PUT /api/v1/admin/work-orders/:workOrderId/status` | `ADMIN_TOKEN` | 后台工单执行状态流转接口。 |
+
+#### 3.3.6 后台售后与评价模块（`orders` / admin）
+
+模块归属：`apps/backend/src/modules/orders`
+
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 获取售后列表 | `GET /api/v1/admin/after-sales` | `ADMIN_TOKEN` | 售后管理页接口，支持状态和关键字。 |
+| 获取售后详情 | `GET /api/v1/admin/after-sales/:afterSaleId` | `ADMIN_TOKEN` | 售后详情页接口。 |
+| 同意售后退款 | `PUT /api/v1/admin/after-sales/:afterSaleId/approve` | `ADMIN_TOKEN` | 售后同意退款动作。 |
+| 驳回售后申请 | `PUT /api/v1/admin/after-sales/:afterSaleId/reject` | `ADMIN_TOKEN` | 售后驳回动作。 |
+| 关闭售后申请 | `PUT /api/v1/admin/after-sales/:afterSaleId/close` | `ADMIN_TOKEN` | 售后关闭动作。 |
+| 获取评价管理列表 | `GET /api/v1/admin/order-reviews` | `ADMIN_TOKEN` | 评价管理页接口，支持服务类型、评分和置顶筛选。 |
+| 获取评价详情 | `GET /api/v1/admin/order-reviews/:reviewId` | `ADMIN_TOKEN` | 评价详情接口。 |
+| 更新评价显示状态 | `PUT /api/v1/admin/order-reviews/:reviewId/visibility` | `ADMIN_TOKEN` | 显示或隐藏评价。 |
+| 更新评价置顶状态 | `PUT /api/v1/admin/order-reviews/:reviewId/pin` | `ADMIN_TOKEN` | 置顶或取消置顶评价。 |
+| 删除评价 | `DELETE /api/v1/admin/order-reviews/:reviewId` | `ADMIN_TOKEN` | 软删除评价。 |
+| 批量处理评价 | `POST /api/v1/admin/order-reviews/batch` | `ADMIN_TOKEN` | 批量显示、隐藏、置顶、取消置顶或删除。 |
+
+#### 3.3.7 后台商品与服务人员模块（`admin`）
+
+模块归属：`apps/backend/src/modules/admin`
+
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 获取商品管理页数据 | `GET /api/v1/admin/products` | `ADMIN_TOKEN` | 商品管理页接口，返回分线配置和商品列表。 |
+| 获取商品编辑页初始化选项 | `GET /api/v1/admin/products/editor/options` | `ADMIN_TOKEN` | 商品新增页初始化接口。 |
+| 获取商品编辑详情 | `GET /api/v1/admin/products/:productId` | `ADMIN_TOKEN` | 商品编辑态详情。 |
+| 创建商品 | `POST /api/v1/admin/products` | `ADMIN_TOKEN` | 商品编辑页新增提交。 |
+| 更新商品 | `PUT /api/v1/admin/products/:productId` | `ADMIN_TOKEN` | 商品编辑页保存。 |
+| 更新商品上下架状态 | `PUT /api/v1/admin/products/:productId/status` | `ADMIN_TOKEN` | 商品管理上下架动作。 |
+| 删除商品 | `DELETE /api/v1/admin/products/:productId` | `ADMIN_TOKEN` | 商品软删除。 |
+| 获取服务人员列表 | `GET /api/v1/admin/staffs` | `ADMIN_TOKEN` | 服务人员管理页接口。 |
+| 启停服务人员 | `PUT /api/v1/admin/staffs/:staffId/status` | `ADMIN_TOKEN` | 服务人员启停动作。 |
+| 获取服务人员审核列表 | `GET /api/v1/admin/staff-applications` | `ADMIN_TOKEN` | 两套审核管理页共用列表接口。 |
+| 获取服务人员审核详情 | `GET /api/v1/admin/staff-applications/:applicationId` | `ADMIN_TOKEN` | 两套审核详情页共用详情接口。 |
+| 审核服务人员入驻申请 | `PUT /api/v1/admin/staff-applications/:applicationId/review` | `ADMIN_TOKEN` | 服务人员审核通过或驳回。 |
+
+#### 3.3.8 后台机构与权限模块（`admin`）
+
+模块归属：`apps/backend/src/modules/admin`
+
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 获取机构管理页数据 | `GET /api/v1/admin/institutions` | `ADMIN_TOKEN` | 机构管理页接口，支持区域和发布状态筛选。 |
+| 获取机构详情 | `GET /api/v1/admin/institutions/:institutionId` | `ADMIN_TOKEN` | 机构编辑态详情。 |
+| 创建机构 | `POST /api/v1/admin/institutions` | `ADMIN_TOKEN` | 新增机构。 |
+| 更新机构 | `PUT /api/v1/admin/institutions/:institutionId` | `ADMIN_TOKEN` | 编辑机构。 |
+| 发布机构 | `POST /api/v1/admin/institutions/:institutionId/publish` | `ADMIN_TOKEN` | 机构发布动作。 |
+| 下架机构 | `POST /api/v1/admin/institutions/:institutionId/unpublish` | `ADMIN_TOKEN` | 机构下架动作。 |
+| 批量删除机构 | `POST /api/v1/admin/institutions/batch-delete` | `ADMIN_TOKEN` | 批量下架并标记关闭。 |
+| 获取后台账号列表 | `GET /api/v1/admin/accounts` | `ADMIN_TOKEN` | 角色管理页账号列表。 |
+| 创建后台账号 | `POST /api/v1/admin/accounts` | `ADMIN_TOKEN` | 新增后台账号。 |
+| 更新后台账号 | `PUT /api/v1/admin/accounts/:accountId` | `ADMIN_TOKEN` | 编辑后台账号。 |
+| 启停后台账号 | `PUT /api/v1/admin/accounts/:accountId/status` | `ADMIN_TOKEN` | 单账号启停。 |
+| 批量启停后台账号 | `POST /api/v1/admin/accounts/batch-status` | `ADMIN_TOKEN` | 批量启停账号。 |
+| 删除后台账号 | `DELETE /api/v1/admin/accounts/:accountId` | `ADMIN_TOKEN` | 删除账号，当前为禁用。 |
+| 获取角色定义列表 | `GET /api/v1/admin/roles` | `ADMIN_TOKEN` | 账号编辑弹窗和权限配置使用。 |
+| 创建角色定义 | `POST /api/v1/admin/roles` | `ADMIN_TOKEN` | 新增角色。 |
+| 更新角色定义 | `PUT /api/v1/admin/roles/:roleId` | `ADMIN_TOKEN` | 编辑角色。 |
+| 删除角色定义 | `DELETE /api/v1/admin/roles/:roleId` | `ADMIN_TOKEN` | 删除未绑定账号的角色。 |
+
+#### 3.3.9 后台消息与会话模块（`messaging` / admin）
+
+模块归属：`apps/backend/src/modules/messaging`
+
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 获取群发消息列表 | `GET /api/v1/admin/message-campaigns` | `ADMIN_TOKEN` | 消息群发列表页接口。 |
+| 获取群发消息创建页初始化数据 | `GET /api/v1/admin/message-campaigns/options` | `ADMIN_TOKEN` | 新增消息页初始化接口。 |
+| 获取群发消息详情 | `GET /api/v1/admin/message-campaigns/:campaignId` | `ADMIN_TOKEN` | 群发活动详情。 |
+| 创建群发消息 | `POST /api/v1/admin/message-campaigns` | `ADMIN_TOKEN` | 新增群发消息。 |
+| 更新群发消息 | `PUT /api/v1/admin/message-campaigns/:campaignId` | `ADMIN_TOKEN` | 编辑草稿或定时群发。 |
+| 删除群发消息 | `DELETE /api/v1/admin/message-campaigns/:campaignId` | `ADMIN_TOKEN` | 删除群发活动。 |
+| 撤回群发消息 | `POST /api/v1/admin/message-campaigns/:campaignId/withdraw` | `ADMIN_TOKEN` | 撤回已发送或计划发送消息。 |
+| 批量处理群发消息 | `POST /api/v1/admin/message-campaigns/batch` | `ADMIN_TOKEN` | 批量删除或撤回。 |
+| 获取后台会话列表 | `GET /api/v1/admin/conversations` | `ADMIN_TOKEN` | 会话页左侧列表接口。 |
+| 获取后台会话详情 | `GET /api/v1/admin/conversations/:conversationId` | `ADMIN_TOKEN` | 会话详情、客户摘要、订单和推荐商品侧栏。 |
+| 获取后台会话消息列表 | `GET /api/v1/admin/conversations/:conversationId/messages` | `ADMIN_TOKEN` | 会话消息明细。 |
+| 后台发送会话消息 | `POST /api/v1/admin/conversations/:conversationId/messages` | `ADMIN_TOKEN` | 客服或医生发送消息。 |
+| 结束后台会话 | `POST /api/v1/admin/conversations/:conversationId/end` | `ADMIN_TOKEN` | 标记会话结束。 |
+
+#### 3.3.10 后台文件上传模块（`files` / admin）
+
+模块归属：`apps/backend/src/modules/files`
+
+| API 名称 | 方法与路径 | 鉴权 | 含义与使用方式 |
+| --- | --- | --- | --- |
+| 获取后台上传凭证 | `POST /api/v1/admin/files/presign` | `ADMIN_TOKEN` | 商品图、机构图、头像、证件/证书上传前获取上传 URL。 |
+| 通知后台上传完成并落库 | `POST /api/v1/admin/files/complete` | `ADMIN_TOKEN` | MinIO 上传完成后登记文件资产。 |
+| 获取后台文件信息 | `GET /api/v1/admin/files/:fileId` | `ADMIN_TOKEN` | 获取后台文件元数据和可访问 URL。 |
 
 ### 3.4 内部治理层
 
@@ -595,7 +725,7 @@ Bearer <accessToken>
 | --- | --- | --- |
 | 系统层 | 系统检查、公开协议 | `/system/*`、`/app/agreements/*` |
 | 用户端 | 用户认证、用户中心、首页、定位、搜索、家庭与地址、健康档案、健康数据与设备、健康膳食与自测、服务目录、订单与预约、支付、体检报告、文件上传、消息与咨询、健康内容、社区与活动、AI 助手 | `/app/*` |
-| 后台端 | 后台认证、后台工作台、后台订单调度、后台报告审核 | `/admin/*` |
+| 后台端 | 后台认证与账号、后台运营分析、后台长者档案、后台报告审核、后台订单履约、后台售后与评价、后台商品与服务人员、后台机构与权限、后台消息与会话、后台文件上传 | `/admin/*` |
 | 内部治理层 | 智能体定义、任务管理、人工复核、审计日志、RAG 检索、RAG 评测 | `/internal/agents/*` |
 
 ### 4.2 Swagger 对齐说明
@@ -607,7 +737,7 @@ Bearer <accessToken>
 ### 4.3 推荐阅读顺序
 
 1. 用户端联调先阅读：用户认证、用户中心、健康档案、健康数据与设备、服务目录、订单与预约、支付、AI 助手。
-2. 后台联调先阅读：后台认证、后台工作台、后台订单调度、后台报告审核。
+2. 后台联调先阅读：后台认证与账号、后台订单履约、后台长者档案、后台售后与评价、后台商品与服务人员、后台机构与权限、后台消息与会话。
 3. 智能体治理和 RAG 联调先阅读：AI 助手模块、内部智能体与 RAG 管理模块。
 
 ### 4.4 补充说明

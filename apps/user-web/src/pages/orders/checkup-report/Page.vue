@@ -1,8 +1,34 @@
 <script setup lang="ts">
+import { computed, onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
+import { useReportCenter } from "@/pages/healthdocs/report-center";
 
 const props = defineProps<PageComponentProps>();
+const { currentReport, ensureReportsLoaded, ensureCurrentReportReady, isCurrentReportLoading } =
+  useReportCenter();
+
+const reportMetrics = computed(() =>
+  (currentReport.value?.metrics || []).map((item) => {
+    const reference = item.reference || "--";
+    const result = item.result || "--";
+    const status =
+      reference !== "--" && result !== "--" && result !== reference ? "关注" : "正常";
+
+    return {
+      item: item.name,
+      result,
+      unit: item.unit || "",
+      reference,
+      status
+    };
+  })
+);
+
+onMounted(async () => {
+  await ensureReportsLoaded();
+  await ensureCurrentReportReady();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -39,14 +65,18 @@ function openAiEvaluation() {
         <button type="button" @click="openAiEvaluation">AI评估</button>
       </section>
 
-      <article class="report-paper">
+      <article v-if="isCurrentReportLoading && !currentReport" class="empty-card">
+        <p>正在加载报告...</p>
+      </article>
+
+      <article v-else-if="currentReport" class="report-paper">
         <header class="paper-header">
-          <h2>{{ mock.hospital }}</h2>
-          <p>{{ mock.reportName }}</p>
+          <h2>{{ currentReport.hospital }}</h2>
+          <p>{{ currentReport.reportName }}</p>
         </header>
 
         <section class="patient-grid">
-          <p v-for="item in mock.patient" :key="item.label">
+          <p v-for="item in currentReport.patient.slice(0, 6)" :key="item.label">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
           </p>
@@ -59,7 +89,7 @@ function openAiEvaluation() {
             <span>参考值</span>
             <span>状态</span>
           </div>
-          <div v-for="item in mock.metrics" :key="item.item" class="table-row">
+          <div v-for="item in reportMetrics" :key="`${item.item}-${item.result}`" class="table-row">
             <span>{{ item.item }}</span>
             <strong>{{ item.result }}<small>{{ item.unit }}</small></strong>
             <span>{{ item.reference }}</span>
@@ -69,13 +99,19 @@ function openAiEvaluation() {
 
         <section class="conclusion-card">
           <h3>体检结论</h3>
-          <p>{{ mock.conclusion }}</p>
+          <p>{{ currentReport.conclusion }}</p>
         </section>
 
         <footer class="paper-footer">
-          <p><span>报告医生：</span>{{ mock.doctor }}</p>
-          <p><span>审核医生：</span>{{ mock.reviewer }}</p>
+          <p v-for="item in currentReport.doctors" :key="item.label">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </p>
         </footer>
+      </article>
+
+      <article v-else class="empty-card">
+        <p>暂无体检报告</p>
       </article>
     </main>
   </section>
@@ -86,9 +122,9 @@ function openAiEvaluation() {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #ffffff;
@@ -140,6 +176,22 @@ function openAiEvaluation() {
 
 .report-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.empty-card {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  border-radius: 18px;
+  background: #f8fbfc;
+  box-shadow: 0 14px 34px rgba(70, 110, 140, 0.08);
+}
+
+.empty-card p {
+  margin: 0;
+  color: rgba(48, 52, 63, 0.62);
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .report-paper {
@@ -197,7 +249,8 @@ function openAiEvaluation() {
   margin-top: 18px;
 }
 
-.patient-grid p {
+.patient-grid p,
+.paper-footer p {
   min-width: 0;
   margin: 0;
   padding: 10px;
@@ -213,7 +266,8 @@ function openAiEvaluation() {
   font-weight: 900;
 }
 
-.patient-grid strong {
+.patient-grid strong,
+.paper-footer strong {
   display: block;
   margin-top: 5px;
   color: #30343f;
@@ -301,15 +355,5 @@ function openAiEvaluation() {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-top: 18px;
-}
-
-.paper-footer p {
-  margin: 0;
-  padding: 12px;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #30343f;
-  font-size: 14px;
-  font-weight: 900;
 }
 </style>

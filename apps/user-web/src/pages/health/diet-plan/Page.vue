@@ -183,9 +183,9 @@ const visibleRecipes = computed(() => {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   padding: 16px 18px 28px;
   box-sizing: border-box;
@@ -597,8 +597,8 @@ const visibleRecipes = computed(() => {
 
 @media (min-width: 561px) {
   .diet-page {
-    height: 874px;
-    min-height: 874px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

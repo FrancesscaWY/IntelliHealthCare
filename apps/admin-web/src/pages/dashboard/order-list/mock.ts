@@ -15,6 +15,7 @@ export interface OrderFooterAction {
 export interface AdminOrderRecord {
   id: string;
   orderTime: string;
+  orderDate?: string;
   settleLabel: string;
   settleAmount: string;
   title: string;
@@ -54,6 +55,9 @@ export interface AdminOrderRecord {
   afterSaleNo?: string;
   afterSaleReason?: string;
   afterSaleStatus?: string;
+  healthSummary?: unknown;
+  aiSummary?: unknown;
+  agentDispatchSuggestion?: unknown;
   paymentDeadlineAt?: string;
   detailTitle: string;
   detailDescription: string;
@@ -63,21 +67,18 @@ export interface AdminOrderRecord {
 
 export const orderDetailStorageKey = "admin:dashboard:selected-order-id";
 export const orderDetailPendingActionStorageKey = "admin:dashboard:selected-order-action";
+const remoteOrdersStorageKey = "admin:dashboard:api-orders";
 
-const cleaningImage =
-  "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=320";
-const rehabImage =
-  "https://images.pexels.com/photos/5793996/pexels-photo-5793996.jpeg?auto=compress&cs=tinysrgb&w=320";
-const buyerAvatarA =
-  "https://images.pexels.com/photos/6129501/pexels-photo-6129501.jpeg?auto=compress&cs=tinysrgb&w=240";
-const buyerAvatarB =
-  "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=240";
+const cleaningImage = "/api/v1/assets/demo/services/service-cleaning.jpg";
+const rehabImage = "/api/v1/assets/demo/services/service-rehab.png";
+const buyerAvatarA = "/api/v1/assets/demo/avatars/avatar-1.jpg";
+const buyerAvatarB = "/api/v1/assets/demo/avatars/avatar-4.jpg";
 
 function createFutureIso(secondsFromNow: number) {
   return new Date(Date.now() + secondsFromNow * 1000).toISOString();
 }
 
-const orders: AdminOrderRecord[] = [
+const fallbackOrders: AdminOrderRecord[] = [
   {
     id: "2400126670",
     orderTime: "2026-04-22 10:12:07",
@@ -409,16 +410,51 @@ const orders: AdminOrderRecord[] = [
   },
 ];
 
+export function readRemoteOrders() {
+  if (typeof window === "undefined") {
+    return [] as AdminOrderRecord[];
+  }
+
+  const rawValue = window.sessionStorage.getItem(remoteOrdersStorageKey);
+
+  if (!rawValue) {
+    return [] as AdminOrderRecord[];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? (parsed as AdminOrderRecord[]) : [];
+  } catch {
+    window.sessionStorage.removeItem(remoteOrdersStorageKey);
+    return [] as AdminOrderRecord[];
+  }
+}
+
+export function saveRemoteOrders(orders: AdminOrderRecord[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(remoteOrdersStorageKey, JSON.stringify(orders));
+}
+
+export function getOrderRecords() {
+  const remoteOrders = readRemoteOrders();
+  return remoteOrders.length > 0 ? remoteOrders : fallbackOrders;
+}
+
 const mock = {
   title: "全部订单",
   serviceTypes: ["全部类型", "家政护工", "康复理疗", "上门体检"],
   paymentOptions: ["全部方式", "支付宝", "微信支付", "银行卡"],
   statusTabs: ["全部", "待付款", "待接单", "待服务", "已完成", "退款售后", "已关闭"],
-  orders,
+  get orders() {
+    return getOrderRecords();
+  }
 };
 
 export function getOrderById(orderId: string) {
-  return orders.find((order) => order.id === orderId);
+  return getOrderRecords().find((order) => order.id === orderId);
 }
 
 export function updateOrderById(orderId: string, patch: Partial<AdminOrderRecord>) {
@@ -429,6 +465,7 @@ export function updateOrderById(orderId: string, patch: Partial<AdminOrderRecord
   }
 
   Object.assign(targetOrder, patch);
+  saveRemoteOrders(getOrderRecords());
   return targetOrder;
 }
 

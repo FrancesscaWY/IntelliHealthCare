@@ -1,20 +1,107 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import heroIllustration from "@/assets/auth/medical-care-storyset.svg";
+import {
+  getCurrentAdmin,
+  getPrivacyAgreement,
+  loginWithPassword
+} from "@/shared/api/auth";
+import {
+  saveAdminAuthSession
+} from "@/shared/auth/session";
+import { resolvePostLoginPageId } from "@/shared/auth/navigation";
 import mock from "./mock";
 
 type LoginRole = (typeof mock.roles)[number];
+type LoginRoleKey = LoginRole["key"];
 
 const props = defineProps<PageComponentProps>();
 const phonePattern = /^1\d{10}$/;
+const roleIconMarkup: Record<string, string> = {
+  shield: `
+    <path d="M24 10.8 34.8 15v8.1c0 7.1-4.4 11.5-10.8 14.1-6.4-2.6-10.8-7-10.8-14.1V15L24 10.8Z" />
+    <path d="M19.4 24.4 22.4 27.4 28.8 21" fill="none" stroke="currentColor" stroke-width="2.5" />
+  `,
+  headset: `
+    <path d="M14.6 23.8v-1.6c0-5.2 4.2-9.4 9.4-9.4s9.4 4.2 9.4 9.4v1.6" />
+    <rect x="11.2" y="22.6" width="5.8" height="10.4" rx="2.4" />
+    <rect x="31" y="22.6" width="5.8" height="10.4" rx="2.4" />
+    <path d="M31 33.2c0 2.2-1.8 4-4 4h-4.2" fill="none" stroke="currentColor" stroke-width="2.5" />
+  `,
+  building: `
+    <path d="M15 36.6V14.2h18v22.4" />
+    <path d="M12 36.6h24" fill="none" stroke="currentColor" stroke-width="2.5" />
+    <path d="M20 18.6h2.8M25.2 18.6H28M20 24.2h2.8M25.2 24.2H28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+    <path d="M22 36.6v-6.5h4v6.5" fill="none" stroke="currentColor" stroke-width="2.5" />
+  `
+};
 
 const defaultRole = mock.roles[0]!;
-const phone = ref(mock.phone);
-const password = ref(mock.password);
+const account = ref(defaultRole.demoPhone || mock.phone);
+const password = ref(defaultRole.demoPassword || mock.password);
 const remember = ref(mock.remember);
+const agreePolicy = ref(mock.agreePolicy);
+const selectedRole = ref<LoginRoleKey>(defaultRole.key);
+const submitting = ref(false);
+const submitButtonText = computed(() => (submitting.value ? "登录中..." : "进入后台"));
+const currentRole = computed(
+  () => mock.roles.find((role) => role.key === selectedRole.value) ?? defaultRole
+);
+const showQuickEntries = computed(() => props.mode === "page");
+const currentRoleDemo = computed(() => `${currentRole.value.demoPhone} / ${currentRole.value.demoPassword}`);
 
-function submitLogin() {
-  props.navigation.reLaunch("dashboard/overview");
+function getRoleIconMarkup(icon: string) {
+  return roleIconMarkup[icon] ?? roleIconMarkup.shield;
+}
+
+function selectRole(roleKey: LoginRoleKey) {
+  selectedRole.value = roleKey;
+  const role = mock.roles.find((item) => item.key === roleKey) ?? defaultRole;
+  account.value = role.demoPhone || "";
+  password.value = role.demoPassword || "";
+}
+
+function createDeviceId() {
+  const userAgent =
+    typeof window === "undefined" ? "unknown" : window.navigator.userAgent;
+  return `admin-web-${userAgent.slice(0, 24).replace(/\W+/g, "-") || "browser"}`;
+}
+
+function getErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "登录失败，请稍后重试";
+  }
+
+  if (/invalid credentials|invalid phone or password/i.test(error.message)) {
+    return `账号或密码错误，请确认当前角色使用 ${currentRoleDemo.value}`;
+  }
+
+  return error.message;
+}
+
+async function redirectAfterLogin() {
+  void getCurrentAdmin().catch(() => undefined);
+  props.navigation.reLaunch(resolvePostLoginPageId());
+}
+
+async function openPolicy() {
+  try {
+    const agreement = await getPrivacyAgreement();
+    props.showToast(`${agreement.title} ${agreement.version}`);
+  } catch (error) {
+    props.showToast(getErrorMessage(error));
+  }
+}
+
+function openPage(pageId: string, label: string) {
+  if (props.mode !== "page") {
+    props.showToast("请先完成登录后再进入后台");
+    return;
+  }
+
+  props.showToast(`正在跳转到${label}`);
+  props.navigation.reLaunch(pageId);
 }
 
 async function submitLogin() {
@@ -23,6 +110,10 @@ async function submitLogin() {
   }
 
   try {
+    if (!agreePolicy.value) {
+      throw new Error("请先阅读并同意隐私政策");
+    }
+
     if (!phonePattern.test(account.value.trim())) {
       throw new Error("请输入正确的后台手机号");
     }
@@ -42,7 +133,7 @@ async function submitLogin() {
     saveAdminAuthSession(session, {
       persist: remember.value
     });
-    await redirectToDashboard();
+    await redirectAfterLogin();
     props.showToast("后台登录成功");
   } catch (error) {
     props.showToast(getErrorMessage(error));
@@ -50,18 +141,6 @@ async function submitLogin() {
     submitting.value = false;
   }
 }
-
-onMounted(async () => {
-  if (!hasAdminAuthSession()) {
-    return;
-  }
-
-  try {
-    await redirectToDashboard();
-  } catch {
-    clearAdminAuthSession();
-  }
-});
 </script>
 
 <template>
@@ -73,11 +152,20 @@ onMounted(async () => {
       <div class="showcase-copy">
         <p class="showcase-kicker">IntelliHealthCare Admin</p>
         <h1>{{ mock.brandTitle }}</h1>
+        <p class="showcase-summary">{{ mock.brandSummary }}</p>
       </div>
 
-      <div class="showcase-illustration">
-        <div class="illustration-frame">
-          <img :src="heroIllustration" alt="智慧养老管理平台插画" draggable="false" />
+      <div class="showcase-panel">
+        <div class="showcase-panel__meta">
+          <span class="showcase-panel__eyebrow">当前登录角色</span>
+          <strong>{{ currentRole.label }}</strong>
+          <p>{{ currentRole.description }}</p>
+        </div>
+
+        <div class="showcase-illustration">
+          <div class="illustration-frame">
+            <img :src="heroIllustration" alt="智慧养老管理平台插画" draggable="false" />
+          </div>
         </div>
       </div>
     </section>
@@ -126,14 +214,28 @@ onMounted(async () => {
         </button>
       </div>
 
+      <p class="login-card__tip">联调账号：{{ currentRoleDemo }}</p>
+
       <label class="field">
         <span>账号</span>
-        <input v-model="account" type="text" placeholder="可留空或输入任意账号" />
+        <input
+          v-model="account"
+          type="text"
+          placeholder="请输入后台手机号"
+          :disabled="submitting"
+          @keyup.enter="submitLogin"
+        />
       </label>
 
       <label class="field">
         <span>密码</span>
-        <input v-model="password" type="password" placeholder="可留空或输入任意密码" />
+        <input
+          v-model="password"
+          type="password"
+          placeholder="请输入登录密码"
+          :disabled="submitting"
+          @keyup.enter="submitLogin"
+        />
       </label>
 
       <label class="agreement-line">
@@ -142,21 +244,27 @@ onMounted(async () => {
         <button type="button" class="agreement-link" @click="openPolicy">{{ mock.policyName }}</button>
       </label>
 
-      <button class="login-btn" type="button" @click="submitLogin">直接进入后台</button>
+      <button class="login-btn" type="button" :disabled="submitting" @click="submitLogin">
+        {{ submitButtonText }}
+      </button>
 
       <footer class="login-card__foot">
-        <span>单页调试入口</span>
-        <div class="quick-links">
-          <button
-            v-for="item in mock.quickEntries"
-            :key="item.pageId"
-            type="button"
-            class="quick-link"
-            @click="openPage(item.pageId, item.label)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
+        <template v-if="showQuickEntries">
+          <span>单页调试入口</span>
+          <div class="quick-links">
+            <button
+              v-for="item in mock.quickEntries"
+              :key="`${item.pageId}-${item.label}`"
+              type="button"
+              class="quick-link"
+              @click="openPage(item.pageId, item.label)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </template>
+        <p v-else class="login-card__tip">请输入后台账号密码完成登录。</p>
+        <p class="login-card__hint">{{ mock.forgotPasswordText }}</p>
       </footer>
     </section>
 
@@ -177,20 +285,25 @@ onMounted(async () => {
   --line-soft: rgba(158, 198, 180, 0.2);
   --card-border: rgba(210, 233, 223, 0.8);
   --card-shadow: 0 32px 70px rgba(57, 103, 82, 0.14);
-  --primary: #2f9b6e;
-  --primary-soft: #eaf7f0;
+  --primary: #59b886;
+  --primary-soft: #effbf3;
   --surface-soft: #f7fcf9;
   position: relative;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(420px, 520px);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 500px);
   align-items: center;
+  justify-content: center;
+  gap: clamp(28px, 4vw, 60px);
   width: 100%;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100svh;
   min-height: max(720px, 100svh);
-  padding: 40px 56px 68px;
+  padding: 40px clamp(24px, 5vw, 72px) 68px;
+  box-sizing: border-box;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
   background:
     radial-gradient(circle at top left, rgba(115, 192, 156, 0.18), transparent 30%),
     radial-gradient(circle at 30% 18%, rgba(208, 241, 224, 0.86), transparent 24%),
@@ -232,21 +345,24 @@ onMounted(async () => {
 .login-card,
 .login-footer {
   position: relative;
+  min-width: 0;
   z-index: 1;
 }
 
 .login-showcase {
   display: grid;
   align-content: center;
-  justify-items: center;
-  gap: 26px;
+  justify-items: stretch;
+  gap: 24px;
+  width: 100%;
+  align-self: center;
   padding-right: 0;
   min-height: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .showcase-copy {
-  max-width: 500px;
+  max-width: 100%;
 }
 
 .showcase-kicker {
@@ -261,55 +377,123 @@ onMounted(async () => {
 .showcase-copy h1 {
   margin: 14px 0 0;
   color: #1c2b3a;
-  font-size: 34px;
+  font-size: clamp(34px, 3.2vw, 46px);
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.22;
   letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+
+.showcase-summary {
+  margin: 16px 0 0;
+  max-width: 460px;
+  color: #698094;
+  font-size: 15px;
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+
+.showcase-panel {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  padding: 24px 24px 18px;
+  border: 1px solid rgba(206, 228, 218, 0.9);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(240, 250, 244, 0.72));
+  box-shadow: 0 24px 56px rgba(48, 93, 72, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.showcase-panel__meta {
+  display: grid;
+  gap: 8px;
+}
+
+.showcase-panel__eyebrow {
+  color: #7a917f;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.showcase-panel__meta strong {
+  color: #203242;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.showcase-panel__meta p {
+  margin: 0;
+  max-width: 420px;
+  color: #7a8f9f;
+  font-size: 14px;
+  line-height: 1.75;
+  text-wrap: pretty;
 }
 
 .showcase-illustration {
   display: grid;
   place-items: center;
-  width: min(100%, 520px);
-  min-height: 320px;
+  width: 100%;
+  min-height: 0;
+  padding: 14px 14px 0;
+  border-radius: 26px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(224, 245, 232, 0.78), rgba(224, 245, 232, 0) 54%),
+    linear-gradient(180deg, rgba(250, 253, 251, 0.96), rgba(229, 244, 236, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(162, 206, 182, 0.18);
 }
 
 .illustration-frame {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(100%, 500px);
-  aspect-ratio: 1 / 0.92;
+  width: 100%;
+  aspect-ratio: 1.18 / 0.82;
+  overflow: hidden;
 }
 
 .illustration-frame::before {
   content: "";
   position: absolute;
-  inset: 12% 10% 8%;
+  inset: 14% 14% 10%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(214, 241, 225, 0.72) 0%, rgba(214, 241, 225, 0.28) 48%, rgba(214, 241, 225, 0) 74%);
-  filter: blur(10px);
+  background: radial-gradient(circle, rgba(209, 239, 220, 0.68) 0%, rgba(209, 239, 220, 0.24) 50%, rgba(209, 239, 220, 0) 76%);
+  filter: blur(14px);
   pointer-events: none;
 }
 
 .showcase-illustration img {
   position: relative;
   z-index: 1;
-  width: min(100%, 470px);
-  height: auto;
-  object-fit: contain;
+  width: 114%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
   user-select: none;
-  filter: drop-shadow(0 18px 28px rgba(51, 102, 76, 0.1));
+  mix-blend-mode: multiply;
+  transform: translateX(-1.5%) scale(1.03);
+  filter: drop-shadow(0 18px 28px rgba(51, 102, 76, 0.12));
 }
 
 .login-card {
-  width: min(100%, 520px);
+  width: 100%;
+  max-width: 500px;
   padding: 40px 42px 32px;
   border: 1px solid var(--card-border);
   border-radius: 26px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 252, 249, 0.84));
   box-shadow: var(--card-shadow);
   backdrop-filter: blur(14px);
+  justify-self: end;
+  align-self: center;
 }
 
 .login-card__logo {
@@ -323,9 +507,9 @@ onMounted(async () => {
   width: 56px;
   height: 56px;
   border-radius: 18px;
-  background: linear-gradient(180deg, #58bb84 0%, #2f9b6e 100%);
+  background: linear-gradient(180deg, #a7e8bf 0%, #59b886 100%);
   color: #ffffff;
-  box-shadow: 0 14px 28px rgba(47, 155, 110, 0.2);
+  box-shadow: 0 14px 28px rgba(89, 184, 134, 0.22);
 }
 
 .logo-mark svg {
@@ -453,6 +637,11 @@ onMounted(async () => {
   box-shadow: 0 0 0 4px rgba(47, 155, 110, 0.1);
 }
 
+.field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .agreement-line {
   display: flex;
   align-items: center;
@@ -495,6 +684,11 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+.login-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .login-card__foot {
   margin-top: 20px;
   padding-top: 18px;
@@ -507,6 +701,19 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.6;
   text-align: center;
+}
+
+.login-footer {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  color: #8ea1b2;
+  font-size: 12px;
+  line-height: 1.6;
+  flex-wrap: wrap;
 }
 
 .quick-links {
@@ -523,13 +730,18 @@ onMounted(async () => {
 
 @media (max-width: 1200px) {
   .login-page {
-    grid-template-columns: minmax(0, 1fr) minmax(380px, 480px);
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 472px);
+    gap: 32px;
     padding-right: 36px;
     padding-left: 36px;
   }
 
   .showcase-copy h1 {
     font-size: 30px;
+  }
+
+  .showcase-panel {
+    max-width: 100%;
   }
 }
 
@@ -556,21 +768,35 @@ onMounted(async () => {
     font-size: 28px;
   }
 
+  .showcase-summary {
+    max-width: 100%;
+  }
+
+  .showcase-panel {
+    width: 100%;
+    max-width: 100%;
+    padding: 18px 18px 14px;
+    text-align: left;
+  }
+
   .showcase-illustration {
-    min-height: auto;
     place-items: center;
+    padding: 10px 10px 0;
   }
 
   .illustration-frame {
-    width: min(100%, 360px);
+    width: 100%;
+    aspect-ratio: 1 / 0.84;
   }
 
   .showcase-illustration img {
-    width: min(100%, 340px);
+    width: 110%;
+    object-position: center 20%;
   }
 
   .login-card {
     width: 100%;
+    justify-self: stretch;
     padding: 28px 18px 24px;
   }
 

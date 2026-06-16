@@ -1,6 +1,17 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { normalizePageId, resolveInitialPage } from "@ihc/page-core/runtime";
 import type { NavigationApi, PageEntry } from "@ihc/page-core/types";
+import { currentUserAuthSession, hasUserAuthSession } from "@/shared/auth/session";
+import {
+  LOGIN_PAGE_ID,
+  isPublicPageId,
+  rememberPostLoginPageId,
+  requiresUserAuth
+} from "@/shared/auth/navigation";
+import {
+  loadLastAuthenticatedPageId,
+  saveLastAuthenticatedPageId
+} from "@/shared/auth/page-session";
 
 interface UsePageNavigationOptions {
   manifest: PageEntry[];
@@ -11,8 +22,6 @@ interface UsePageNavigationOptions {
 
 export function usePageNavigation(options: UsePageNavigationOptions) {
   const { manifest, preferredPageId, pathname, fallbackPageId } = options;
-  const initialPageId = resolveInitialPage(manifest, preferredPageId, pathname, fallbackPageId);
-  const stack = ref<string[]>(initialPageId ? [initialPageId] : []);
 
   const hasPage = (pageId: string) => {
     const normalizedPageId = normalizePageId(pageId);
@@ -24,14 +33,48 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
     return manifest.find((entry) => entry.id === normalizedPageId);
   };
 
+  const resolveAccessiblePageId = (pageId: string, rememberRedirect = false) => {
+    const normalizedPageId = normalizePageId(pageId);
+
+    if (!normalizedPageId || !hasPage(normalizedPageId)) {
+      return "";
+    }
+
+    if (!requiresUserAuth(normalizedPageId) || hasUserAuthSession()) {
+      return normalizedPageId;
+    }
+
+    if (rememberRedirect) {
+      rememberPostLoginPageId(normalizedPageId);
+    }
+
+    return hasPage(LOGIN_PAGE_ID) ? LOGIN_PAGE_ID : normalizedPageId;
+  };
+
+  const resolvedInitialPageId = resolveInitialPage(
+    manifest,
+    preferredPageId,
+    pathname,
+    fallbackPageId
+  );
+  const lastAuthenticatedPageId = loadLastAuthenticatedPageId();
+  const preferredInitialPageId =
+    hasUserAuthSession() &&
+    lastAuthenticatedPageId &&
+    (!resolvedInitialPageId || isPublicPageId(resolvedInitialPageId))
+      ? lastAuthenticatedPageId
+      : resolvedInitialPageId;
+  const initialPageId = resolveAccessiblePageId(preferredInitialPageId, true);
+  const stack = ref<string[]>(initialPageId ? [initialPageId] : []);
+
   const setStack = (nextStack: string[]) => {
     const validStack = nextStack.map((pageId) => normalizePageId(pageId)).filter((pageId) => hasPage(pageId));
     stack.value = validStack.length > 0 ? validStack : initialPageId ? [initialPageId] : [];
   };
 
   const navigate = (pageId: string) => {
-    const normalizedPageId = normalizePageId(pageId);
-    if (!getPageEntry(normalizedPageId)) {
+    const normalizedPageId = resolveAccessiblePageId(pageId, true);
+    if (!normalizedPageId || !getPageEntry(normalizedPageId)) {
       return false;
     }
 
@@ -46,8 +89,8 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
       navigate(pageId);
     },
     redirectTo(pageId) {
-      const normalizedPageId = normalizePageId(pageId);
-      if (!getPageEntry(normalizedPageId)) {
+      const normalizedPageId = resolveAccessiblePageId(pageId, true);
+      if (!normalizedPageId || !getPageEntry(normalizedPageId)) {
         return;
       }
 
@@ -55,8 +98,8 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
       setStack(nextStack);
     },
     reLaunch(pageId) {
-      const normalizedPageId = normalizePageId(pageId);
-      if (!getPageEntry(normalizedPageId)) {
+      const normalizedPageId = resolveAccessiblePageId(pageId, true);
+      if (!normalizedPageId || !getPageEntry(normalizedPageId)) {
         return;
       }
 
@@ -77,6 +120,38 @@ export function usePageNavigation(options: UsePageNavigationOptions) {
       return [...stack.value];
     },
   };
+
+  watch(
+    activePage,
+    (pageEntry) => {
+      const currentPageId = pageEntry?.id || "";
+
+      if (!hasUserAuthSession() || !requiresUserAuth(currentPageId)) {
+        return;
+      }
+
+      saveLastAuthenticatedPageId(currentPageId);
+    },
+    { immediate: true, flush: "sync" }
+  );
+
+  watch(
+    currentUserAuthSession,
+    (session) => {
+      if (session?.accessToken) {
+        return;
+      }
+
+      const currentPageId = activePage.value?.id || "";
+      if (!requiresUserAuth(currentPageId)) {
+        return;
+      }
+
+      rememberPostLoginPageId(currentPageId);
+      setStack([LOGIN_PAGE_ID]);
+    },
+    { flush: "sync" }
+  );
 
   return {
     stack,

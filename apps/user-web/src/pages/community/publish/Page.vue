@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import { AtSign, Close, LocalTwo, Pound } from "@icon-park/vue-next";
+import AtSign from "@icon-park/vue-next/es/icons/AtSign";
+import Close from "@icon-park/vue-next/es/icons/Close";
+import LocalTwo from "@icon-park/vue-next/es/icons/LocalTwo";
+import Pound from "@icon-park/vue-next/es/icons/Pound";
 import blossomCover from "@/assets/community/publish/blossom.jpg";
 import { savePublishedProfilePost } from "@/pages/home/profile/published-post";
+import { uploadAppFile } from "@/shared/api/files";
 import mock from "./mock";
 
 type UploadImage = {
   id: string;
   src: string;
+  fileId?: string;
 };
 
 type VisibilityOption = (typeof mock.visibilityOptions)[number];
@@ -22,6 +27,7 @@ const content = ref("");
 const visibility = ref<VisibilityOption>(mock.visibilityOptions[0]);
 const showVisibilityPanel = ref(false);
 const uploadedImages = ref<UploadImage[]>([]);
+const isUploadingImages = ref(false);
 
 const canSubmit = computed(() => title.value.trim().length > 0 && content.value.trim().length > 0);
 const remainingImageSlots = computed(() => Math.max(MAX_UPLOAD_IMAGES - uploadedImages.value.length, 0));
@@ -36,16 +42,9 @@ function goBack() {
 }
 
 function triggerUpload() {
-  fileInput.value?.click();
-}
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+  if (!isUploadingImages.value) {
+    fileInput.value?.click();
+  }
 }
 
 async function handleFileChange(event: Event) {
@@ -61,19 +60,30 @@ async function handleFileChange(event: Event) {
     return;
   }
 
+  isUploadingImages.value = true;
+
   try {
     const nextImages = await Promise.all(
-      selectedFiles.map(async (file, index) => ({
-        id: `${file.name}-${file.lastModified}-${uploadedImages.value.length + index}`,
-        src: await readFileAsDataUrl(file),
-      })),
+      selectedFiles.map(async (file, index) => {
+        const uploaded = await uploadAppFile("POST_IMAGE", file, {
+          sourcePage: "community/publish"
+        });
+
+        return {
+          id: `${file.name}-${file.lastModified}-${uploadedImages.value.length + index}`,
+          src: uploaded.url,
+          fileId: uploaded.fileId
+        };
+      })
     );
 
     uploadedImages.value = [...uploadedImages.value, ...nextImages].slice(0, MAX_UPLOAD_IMAGES);
+    props.showToast(`已上传 ${nextImages.length} 张图片`);
   } catch (error) {
-    console.error("read image failed", error);
-    props.showToast("读取图片失败，请重试");
+    console.error("upload image failed", error);
+    props.showToast(error instanceof Error ? error.message : "图片上传失败，请重试");
   } finally {
+    isUploadingImages.value = false;
     target.value = "";
   }
 
@@ -128,7 +138,8 @@ function submitPost() {
     gallery: uploadedImages.value.map((item) => ({
       src: item.src,
       position: "center",
-    })),
+      fileId: item.fileId
+    }))
   });
 
   props.showToast(`${visibility.value.label}发布成功`);
@@ -175,6 +186,7 @@ function submitPost() {
           v-if="canAddMoreImages"
           class="gallery-card gallery-card--adder"
           type="button"
+          :disabled="isUploadingImages"
           @click.stop="triggerUpload"
         >
           <span class="adder-icon" aria-hidden="true">
@@ -184,7 +196,7 @@ function submitPost() {
             <span class="adder-plus adder-plus--horizontal"></span>
             <span class="adder-plus adder-plus--vertical"></span>
           </span>
-          <strong>添加图片</strong>
+          <strong>{{ isUploadingImages ? "上传中" : "添加图片" }}</strong>
           <small>{{ uploadedImages.length }}/{{ MAX_UPLOAD_IMAGES }}</small>
         </button>
 
@@ -239,9 +251,9 @@ function submitPost() {
   position: relative;
   left: 50%;
   width: min(402px, 100vw);
-  height: min(874px, calc(100vh - 36px));
-  min-height: min(874px, calc(100vh - 36px));
-  max-height: 874px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   transform: translateX(-50%);
   overflow: hidden;

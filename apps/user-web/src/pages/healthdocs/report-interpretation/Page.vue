@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
 import mock from "./mock";
 import { useReportCenter } from "../report-center";
 
 const props = defineProps<PageComponentProps>();
-const { currentReport } = useReportCenter();
+const { currentReport, ensureCurrentReportReady, isCurrentReportLoading } = useReportCenter();
+
+onMounted(() => {
+  void ensureCurrentReportReady();
+});
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -23,24 +28,28 @@ function goBack() {
     </header>
 
     <main class="page-scroll">
-      <article v-if="currentReport" class="paper-card">
+      <article v-if="isCurrentReportLoading && !currentReport" class="empty-card">
+        <p>正在生成报告解读...</p>
+      </article>
+
+      <article v-else-if="currentReport" class="paper-card">
         <header class="paper-header">
           <h2>{{ currentReport.interpretationHeading }}</h2>
         </header>
 
         <section class="meta-block">
-          <p><span>报告医生： </span>{{ currentReport.interpretationDoctor }}</p>
-          <p><span>报告时间： </span>{{ currentReport.interpretationTime }}</p>
+          <p><span>解读来源：</span>{{ currentReport.interpretationDoctor }}</p>
+          <p><span>解读时间：</span>{{ currentReport.interpretationTime }}</p>
         </section>
 
         <section class="section-block">
-          <h3>指标说明</h3>
+          <h3>重点说明</h3>
           <article
             v-for="item in currentReport.interpretationNotes"
             :key="item.title"
             class="note-item"
           >
-            <h4>{{ item.title }}：</h4>
+            <h4>{{ item.title }}</h4>
             <p>{{ item.content }}</p>
           </article>
         </section>
@@ -63,9 +72,9 @@ function goBack() {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background:
@@ -218,8 +227,8 @@ function goBack() {
 
 @media (min-width: 561px) {
   .interpret-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 

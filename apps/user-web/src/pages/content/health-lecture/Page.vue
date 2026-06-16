@@ -1,13 +1,58 @@
-<script setup lang="ts">
-import { computed, ref } from "vue";
+﻿<script setup lang="ts">
+import { onMounted, ref, watch } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock, { type LectureTabKey } from "./mock";
-import { lectureDetailTarget } from "./state";
+import {
+  favoriteHealthLecture,
+  likeHealthLecture,
+  listHealthLectures,
+  shareHealthLecture,
+  type HealthLectureListItem
+} from "@/shared/api/content";
+import mock, { type LectureCard, type LectureTabKey } from "./mock";
+import { lectureDetailTarget, selectedLectureId } from "./state";
+import { resolveLectureImage } from "@/shared/utils/healthLectureMedia";
 
 const props = defineProps<PageComponentProps>();
 const activeTab = ref<LectureTabKey>("hot");
+const cards = ref<LectureCard[]>([]);
 
-const cards = computed(() => mock.cards[activeTab.value]);
+function createFallbackCards(tabKey: LectureTabKey) {
+  return mock.cards[tabKey].map((item) => ({ ...item }));
+}
+
+function mapLectureCard(item: HealthLectureListItem, index: number): LectureCard {
+  const lectureId = item.lectureId || item.id || `lecture-${index + 1}`;
+
+  return {
+    id: item.id || lectureId,
+    lectureId,
+    title: item.title,
+    imageUrl: resolveLectureImage(lectureId, item.title, item.imageUrl, item.coverUrl),
+    likes: item.likesCount ?? item.stats?.likes ?? 0,
+    stars: item.favoritesCount ?? item.stats?.stars ?? 0,
+    comments: item.commentsCount ?? item.stats?.comments ?? 0,
+    isLiked: false,
+    isStarred: false
+  };
+}
+
+async function loadCards() {
+  try {
+    const response = await listHealthLectures({
+      page: 1,
+      pageSize: 10,
+      sort: activeTab.value === "latest" ? "LATEST" : "HOT"
+    });
+
+    cards.value = response.list.map(mapLectureCard);
+
+    if (cards.value.length === 0) {
+      cards.value = createFallbackCards(activeTab.value);
+    }
+  } catch {
+    cards.value = createFallbackCards(activeTab.value);
+  }
+}
 
 function goBack() {
   if (!props.navigation.navigateBack()) {
@@ -19,19 +64,75 @@ function selectTab(tabKey: LectureTabKey) {
   activeTab.value = tabKey;
 }
 
-function openDetail() {
-  lectureDetailTarget.value = "default";
+function openDetail(lectureId: string, target: "default" | "comments" = "default") {
+  selectedLectureId.value = lectureId;
+  lectureDetailTarget.value = target;
   props.navigation.navigateTo("content/health-lecture-detail");
 }
 
-function openDetailComments() {
-  lectureDetailTarget.value = "comments";
-  props.navigation.navigateTo("content/health-lecture-detail");
+async function handleShare(card: LectureCard) {
+  if (card.lectureId.startsWith("mock-")) {
+    props.showToast("分享功能待接入");
+    return;
+  }
+
+  try {
+    await shareHealthLecture(card.lectureId);
+    props.showToast("分享记录已更新");
+  } catch {
+    props.showToast("分享失败，请稍后再试");
+  }
 }
 
-function showPending(label: string) {
-  props.showToast(`${label}功能待接入`);
+async function handleLike(card: LectureCard) {
+  if (card.isLiked) {
+    props.showToast("已点赞");
+    return;
+  }
+
+  if (card.lectureId.startsWith("mock-")) {
+    card.isLiked = true;
+    card.likes += 1;
+    return;
+  }
+
+  try {
+    await likeHealthLecture(card.lectureId);
+    card.isLiked = true;
+    card.likes += 1;
+  } catch {
+    props.showToast("点赞失败，请稍后再试");
+  }
 }
+
+async function handleFavorite(card: LectureCard) {
+  if (card.isStarred) {
+    props.showToast("已收藏");
+    return;
+  }
+
+  if (card.lectureId.startsWith("mock-")) {
+    card.isStarred = true;
+    card.stars += 1;
+    return;
+  }
+
+  try {
+    await favoriteHealthLecture(card.lectureId);
+    card.isStarred = true;
+    card.stars += 1;
+  } catch {
+    props.showToast("收藏失败，请稍后再试");
+  }
+}
+
+onMounted(() => {
+  void loadCards();
+});
+
+watch(activeTab, () => {
+  void loadCards();
+});
 </script>
 
 <template>
@@ -61,7 +162,7 @@ function showPending(label: string) {
         <article v-for="card in cards" :key="card.id" class="lecture-card">
           <h2>{{ card.title }}</h2>
 
-          <button class="cover-btn" type="button" :aria-label="`播放${card.title}`" @click="openDetail">
+          <button class="cover-btn" type="button" :aria-label="`播放${card.title}`" @click="openDetail(card.lectureId)">
             <img :src="card.imageUrl" :alt="card.title" draggable="false" />
             <span class="play-btn" aria-hidden="true">
               <span class="play-icon"></span>
@@ -69,7 +170,7 @@ function showPending(label: string) {
           </button>
 
           <footer class="card-actions">
-            <button class="action-btn action-btn--share" type="button" aria-label="分享" @click="openDetail">
+            <button class="action-btn action-btn--share" type="button" aria-label="分享" @click.stop="handleShare(card)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M14 3h7v7" />
                 <path d="M10 14 21 3" />
@@ -77,21 +178,21 @@ function showPending(label: string) {
               </svg>
             </button>
 
-            <button class="action-btn" type="button" @click="showPending('点赞')">
+            <button class="action-btn" type="button" @click.stop="handleLike(card)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 20.8 5.25 14.1C3.55 12.4 2.4 10.85 2.4 8.65 2.4 5.75 4.65 3.6 7.5 3.6c1.65 0 3.15.78 4.5 2.28 1.35-1.5 2.85-2.28 4.5-2.28 2.85 0 5.1 2.15 5.1 5.05 0 2.2-1.15 3.75-2.85 5.45L12 20.8Z" />
               </svg>
               <span>{{ card.likes }}</span>
             </button>
 
-            <button class="action-btn" type="button" @click="showPending('收藏')">
+            <button class="action-btn" type="button" @click.stop="handleFavorite(card)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m12 3.15 2.68 5.43 5.99.87-4.33 4.22 1.02 5.96L12 16.82l-5.36 2.81 1.02-5.96-4.33-4.22 5.99-.87L12 3.15Z" />
               </svg>
               <span>{{ card.stars }}</span>
             </button>
 
-            <button class="action-btn" type="button" @click="openDetailComments">
+            <button class="action-btn" type="button" @click.stop="openDetail(card.lectureId, 'comments')">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M20.3 11.3c0 4.1-3.55 7.35-8.25 7.35-1.05 0-2.05-.17-2.97-.5L4.2 20.7l1.42-4.18C4.45 15.2 3.8 13.4 3.8 11.3c0-4.1 3.55-7.35 8.25-7.35s8.25 3.25 8.25 7.35Z" />
               </svg>
@@ -109,9 +210,9 @@ function showPending(label: string) {
   position: relative;
   left: 50%;
   width: min(390px, 100vw);
-  height: min(844px, calc(100vh - 36px));
-  min-height: min(844px, calc(100vh - 36px));
-  max-height: 844px;
+  height: auto;
+  min-height: var(--ihc-page-min-height);
+  max-height: none;
   margin: -18px 0;
   overflow: hidden;
   background: #f5f5f5;
@@ -292,8 +393,8 @@ function showPending(label: string) {
 
 @media (min-width: 561px) {
   .health-lecture-page {
-    height: 844px;
-    min-height: 844px;
+    height: auto;
+    min-height: var(--ihc-page-min-height);
   }
 }
 
@@ -317,3 +418,4 @@ function showPending(label: string) {
   }
 }
 </style>
+

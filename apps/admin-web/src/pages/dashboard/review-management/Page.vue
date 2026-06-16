@@ -1,42 +1,116 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
-import mock from "./mock";
+import { getAdminStaffApplications } from "@/shared/api/catalog";
+import { handleAdminPageError } from "@/shared/api/error";
+import { deriveDateRange, extractDatePart } from "@/shared/date-range";
+import mockSeed from "./mock";
 
 const props = defineProps<PageComponentProps>();
+const mock = ref<typeof mockSeed>(mockSeed);
+const reviewDetailStorageKey = "admin:dashboard:selected-application-id";
 
-const selectedStatus = ref(mock.statuses[0]);
-const selectedServiceType = ref(mock.serviceTypes[0]);
-const applyStart = ref("2024-10-01");
-const applyEnd = ref("2024-10-31");
-const reviewStart = ref("2024-10-01");
-const reviewEnd = ref("2024-10-31");
+const selectedStatus = ref(mockSeed.statuses[0]);
+const selectedServiceType = ref(mockSeed.serviceTypes[0]);
+const applyStart = ref("");
+const applyEnd = ref("");
+const reviewStart = ref("");
+const reviewEnd = ref("");
 const keyword = ref("");
 
 const filteredRows = computed(() =>
-  mock.rows.filter((row) => {
-    const matchesStatus = selectedStatus.value === "全部状态" || row.status === selectedStatus.value;
-    const matchesType = selectedServiceType.value === "全部类型" || row.serviceType === selectedServiceType.value;
+  mock.value.rows.filter((row) => {
+    const matchesStatus = selectedStatus.value === mock.value.statuses[0] || row.status === selectedStatus.value;
+    const matchesType = selectedServiceType.value === mock.value.serviceTypes[0] || row.serviceType === selectedServiceType.value;
     const keywordValue = keyword.value.trim();
     const matchesKeyword =
       !keywordValue || `${row.name}${row.staffId}${row.phone}${row.reviewer}`.includes(keywordValue);
+    const applyDate = extractDatePart(row.applyTime);
+    const reviewDate = row.reviewTime === "-" ? "" : extractDatePart(row.reviewTime);
+    const matchesApplyDate =
+      (!applyStart.value || applyDate >= applyStart.value) && (!applyEnd.value || applyDate <= applyEnd.value);
+    const matchesReviewDate =
+      !reviewDate ||
+      ((!reviewStart.value || reviewDate >= reviewStart.value) && (!reviewEnd.value || reviewDate <= reviewEnd.value));
 
-    return matchesStatus && matchesType && matchesKeyword;
+    return matchesStatus && matchesType && matchesKeyword && matchesApplyDate && matchesReviewDate;
   }),
 );
 
-function searchRows() {
+function syncDateRanges(nextRows = mock.value.rows, force = false) {
+  if (force || !applyStart.value || !applyEnd.value) {
+    const range = deriveDateRange(nextRows.map((row) => row.applyTime));
+    applyStart.value = range.start;
+    applyEnd.value = range.end;
+  }
+
+  if (force || !reviewStart.value || !reviewEnd.value) {
+    const reviewDates = nextRows
+      .map((row) => (row.reviewTime === "-" ? "" : row.reviewTime))
+      .filter((value) => Boolean(extractDatePart(value)));
+
+    if (reviewDates.length > 0) {
+      const range = deriveDateRange(reviewDates);
+      reviewStart.value = range.start;
+      reviewEnd.value = range.end;
+      return;
+    }
+
+    reviewStart.value = "";
+    reviewEnd.value = "";
+  }
+}
+
+function mapStatusLabelToCode(status: string) {
+  if (status === "待审核") {
+    return "PENDING";
+  }
+
+  if (status === "已通过") {
+    return "APPROVED";
+  }
+
+  if (status === "已驳回") {
+    return "REJECTED";
+  }
+
+  return undefined;
+}
+
+async function syncPageData(options: { resetDateRanges?: boolean } = {}) {
+  try {
+    mock.value = (await getAdminStaffApplications({
+      page: 1,
+      pageSize: 100,
+      status: mapStatusLabelToCode(selectedStatus.value),
+      serviceType: selectedServiceType.value !== mock.value.serviceTypes[0] ? selectedServiceType.value : undefined,
+    })) as typeof mockSeed;
+    syncDateRanges(mock.value.rows, options.resetDateRanges);
+  } catch (error) {
+    handleAdminPageError(error, {
+      navigation: props.navigation,
+      showToast: props.showToast,
+      fallbackMessage: "审核管理列表加载失败，已回退到演示数据",
+    });
+  }
+}
+
+async function searchRows() {
+  await syncPageData();
   props.showToast(`已筛选 ${filteredRows.value.length} 条审核记录`);
 }
 
 function resetFilters() {
-  selectedStatus.value = mock.statuses[0];
-  selectedServiceType.value = mock.serviceTypes[0];
-  applyStart.value = "2024-10-01";
-  applyEnd.value = "2024-10-31";
-  reviewStart.value = "2024-10-01";
-  reviewEnd.value = "2024-10-31";
+  selectedStatus.value = mock.value.statuses[0];
+  selectedServiceType.value = mock.value.serviceTypes[0];
+  applyStart.value = "";
+  applyEnd.value = "";
+  reviewStart.value = "";
+  reviewEnd.value = "";
   keyword.value = "";
+  void syncPageData({
+    resetDateRanges: true,
+  });
   props.showToast("筛选条件已重置");
 }
 
@@ -44,9 +118,19 @@ function triggerAction(label: string, id?: string) {
   props.showToast(id ? `${label}：${id}` : `${label}功能为演示状态`);
 }
 
-function openReviewDetail() {
+function openReviewDetail(applicationId: string) {
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(reviewDetailStorageKey, applicationId);
+  }
+
   props.navigation.navigateTo("dashboard/review-detail");
 }
+
+onMounted(() => {
+  void syncPageData({
+    resetDateRanges: true,
+  });
+});
 </script>
 
 <template>
@@ -180,7 +264,7 @@ function openReviewDetail() {
           <div class="cell">{{ row.applyTime }}</div>
           <div class="cell">{{ row.reviewTime }}</div>
           <div class="cell cell--action">
-            <button type="button" class="action-link" @click="openReviewDetail()">审核</button>
+            <button type="button" class="action-link" @click="openReviewDetail(row.id)">审核</button>
           </div>
         </article>
       </div>

@@ -25,13 +25,13 @@ const mock = {
     { key: "activity", label: "我参加的活动", icon: "star" },
     { key: "review", label: "我的评价", icon: "comment" },
     { key: "support", label: "帮助与支持", icon: "help" },
-    { key: "settings", label: "设置", icon: "setting" },
+    { key: "settings", label: "设置", icon: "setting", pageId: "home/MyJ/setting" },
   ],
   tabs: [
     { key: "home", label: "首页", pageId: "home/dashboard" },
     { key: "circle", label: "生活圈", pageId: "community/circle" },
     { key: "publish", label: "", pageId: "community/publish" },
-    { key: "message", label: "消息", pageId: "" },
+    { key: "message", label: "消息", pageId: "home/message" },
     { key: "mine", label: "我的", pageId: "home/mine" },
   ],
 };

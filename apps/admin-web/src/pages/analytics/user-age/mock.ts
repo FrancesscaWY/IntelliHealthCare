@@ -1,9 +1,9 @@
 const ageItems = [
-  { label: "50岁以下", value: 100, color: "#6467df" },
-  { label: "50-60岁", value: 240, color: "#41d1a7" },
-  { label: "60-70岁", value: 120, color: "#2f80ed" },
-  { label: "70-80岁", value: 200, color: "#ffd86a" },
-  { label: "80岁以上", value: 340, color: "#ff6f67" },
+  { label: "50岁以下", value: 100, color: "#78d6d3", highlightColor: "#b8f4ed" },
+  { label: "50-60岁", value: 240, color: "#80c9f5", highlightColor: "#c7e8ff" },
+  { label: "60-70岁", value: 120, color: "#82d8ae", highlightColor: "#c4f3d6" },
+  { label: "70-80岁", value: 200, color: "#ff9caf", highlightColor: "#ffd1dc" },
+  { label: "80岁以上", value: 340, color: "#bba3ee", highlightColor: "#ded1ff" },
 ] as const;
 
 const total = ageItems.reduce((sum, item) => sum + item.value, 0);
@@ -16,6 +16,9 @@ const mock = {
   chartTitle: "用户年龄构成",
   totalLabel: "用户总数",
   total,
+  chartHeight: 280,
+  chartRadius: ["48%", "72%"],
+  chartCenter: ["50%", "44%"],
   items: ageItems,
   columns: [
     { key: "index", label: "序号", align: "center" },

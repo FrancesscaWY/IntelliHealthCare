@@ -1,25 +1,167 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { PageComponentProps } from "@ihc/page-core/types";
+import { getAdminWorkOrders, type AdminWorkOrderListItem } from "@/shared/api/work-orders";
+import { clearAdminAuthSession } from "@/shared/auth/session";
+import { deriveDateRange, extractDatePart } from "@/shared/date-range";
 import mock from "./mock";
 
+const localServiceCoverFallback = "/api/v1/assets/demo/services/service-rehab.png";
+const localAvatarFallback = "/api/v1/assets/demo/avatars/avatar-2.jpg";
+
 const props = defineProps<PageComponentProps>();
+const rows = ref(mock.rows);
 
 const selectedType = ref(mock.serviceTypes[0]);
-const assignStart = ref("2024-10-01");
-const assignEnd = ref("2024-10-31");
-const bookingStart = ref("2024-10-01");
-const bookingEnd = ref("2024-10-31");
+const assignStart = ref("");
+const assignEnd = ref("");
+const bookingStart = ref("");
+const bookingEnd = ref("");
 const keyword = ref("");
 const activeStatus = ref(mock.statusTabs[0]);
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hour = `${date.getUTCHours()}`.padStart(2, "0");
+  const minute = `${date.getUTCMinutes()}`.padStart(2, "0");
+  const second = `${date.getUTCSeconds()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function formatMoney(value: number | null | undefined) {
+  return Number(value || 0).toFixed(2);
+}
+
+function buildActions(status: string) {
+  if (status === "待服务") {
+    return [
+      { label: "改单", tone: "green" as const },
+      { label: "取消预约", tone: "red" as const },
+      { label: "工单详情", tone: "green" as const },
+      { label: "备注", tone: "green" as const }
+    ];
+  }
+
+  if (status === "服务中") {
+    return [
+      { label: "工单详情", tone: "green" as const },
+      { label: "备注", tone: "green" as const }
+    ];
+  }
+
+  return [
+    { label: "工单详情", tone: "green" as const },
+    { label: "备注", tone: "green" as const }
+  ];
+}
+
+function adaptRow(item: AdminWorkOrderListItem) {
+  return {
+    id: item.workOrderId,
+    orderNo: item.orderNo,
+    title: item.serviceTitle,
+    cover:
+      item.serviceCover ||
+      localServiceCoverFallback,
+    project: `${item.serviceCategoryText}${item.serviceSummary ? `｜${item.serviceSummary}` : ""}`,
+    amount: formatMoney(item.payableAmount),
+    staff: item.assigneeName || "待分配",
+    customerName: item.customerName,
+    customerPhone: item.customerPhone,
+    customerAvatar:
+      item.customerAvatar ||
+      localAvatarFallback,
+    assignTime: formatDateTime(item.createdAt),
+    assignDate: extractDatePart(item.createdAt),
+    bookingDate: extractDatePart(item.bookingDate),
+    status: item.statusText,
+    actions: buildActions(item.statusText)
+  };
+}
+
+function syncDateRanges(nextRows = rows.value, force = false) {
+  if (force || !assignStart.value || !assignEnd.value) {
+    const range = deriveDateRange(nextRows.map((row) => row.assignDate));
+    assignStart.value = range.start;
+    assignEnd.value = range.end;
+  }
+
+  if (force || !bookingStart.value || !bookingEnd.value) {
+    const bookingDates = nextRows
+      .map((row) => row.bookingDate)
+      .filter((value) => Boolean(value));
+
+    if (bookingDates.length > 0) {
+      const range = deriveDateRange(bookingDates);
+      bookingStart.value = range.start;
+      bookingEnd.value = range.end;
+      return;
+    }
+
+    bookingStart.value = "";
+    bookingEnd.value = "";
+  }
+}
+
+async function syncWorkOrdersFromApi(options: { resetDateRanges?: boolean } = {}) {
+  try {
+    const response = await getAdminWorkOrders({
+      page: 1,
+      pageSize: 100
+    });
+    const nextRows = response.list.map(adaptRow);
+
+    if (nextRows.length > 0) {
+      rows.value = nextRows;
+      syncDateRanges(nextRows, options.resetDateRanges);
+    }
+  } catch (error) {
+    const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+
+    if (status === 401 || status === 403) {
+      clearAdminAuthSession();
+      props.showToast(error instanceof Error ? error.message : "后台鉴权失败，请重新登录");
+      props.navigation.reLaunch("auth/login");
+      return;
+    }
+
+    props.showToast(error instanceof Error ? error.message : "工单列表加载失败，已回退到演示数据");
+  }
+}
+
+onMounted(() => {
+  void syncWorkOrdersFromApi({
+    resetDateRanges: true,
+  });
+});
+
 const filteredRows = computed(() =>
-  mock.rows.filter((row) => {
+  rows.value.filter((row) => {
     const matchesType = selectedType.value === "全部类型" || row.project.includes(selectedType.value) || row.title.includes(selectedType.value);
     const matchesKeyword =
       !keyword.value.trim() || `${row.id}${row.orderNo}${row.title}${row.customerName}${row.customerPhone}`.includes(keyword.value.trim());
     const matchesStatus = row.status === activeStatus.value;
-    return matchesType && matchesKeyword && matchesStatus;
+    const matchesAssignDate =
+      (!assignStart.value || !row.assignDate || row.assignDate >= assignStart.value) &&
+      (!assignEnd.value || !row.assignDate || row.assignDate <= assignEnd.value);
+    const matchesBookingDate =
+      !row.bookingDate ||
+      ((!bookingStart.value || row.bookingDate >= bookingStart.value) &&
+        (!bookingEnd.value || row.bookingDate <= bookingEnd.value));
+    return matchesType && matchesKeyword && matchesStatus && matchesAssignDate && matchesBookingDate;
   }),
 );
 
@@ -29,12 +171,13 @@ function searchRows() {
 
 function resetFilters() {
   selectedType.value = mock.serviceTypes[0];
-  assignStart.value = "2024-10-01";
-  assignEnd.value = "2024-10-31";
-  bookingStart.value = "2024-10-01";
-  bookingEnd.value = "2024-10-31";
+  assignStart.value = "";
+  assignEnd.value = "";
+  bookingStart.value = "";
+  bookingEnd.value = "";
   keyword.value = "";
   activeStatus.value = mock.statusTabs[0];
+  syncDateRanges(rows.value, true);
   props.showToast("筛选条件已重置");
 }
 
