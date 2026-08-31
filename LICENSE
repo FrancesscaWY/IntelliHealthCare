@@ -1,6 +1,6 @@
 Copyright 2026 FrancesscaWY
 
-                                 Apache License
+Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
 
@@ -88,21 +88,22 @@ Copyright 2026 FrancesscaWY
       granted to You under this License for that Work shall terminate
       as of the date such litigation is filed.
 
-   4. Redistribution. You may reproduce and distribute copies of the Work
-      or Derivative Works thereof in any medium, with or without modifications,
-      and in Source or Object form, provided that You meet the following
-      conditions:
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
 
-      (a) You must give any other recipients of the Work or Derivative Works
-          a copy of this License; and
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
 
       (b) You must cause any modified files to carry prominent notices
           stating that You changed the files; and
 
-      (c) You must retain, in the Source form of any Derivative Works that
-          You distribute, all copyright, patent, trademark, and attribution
-          notices from the Source form of the Work, excluding those notices
-          that do not pertain to any part of the Derivative Works; and
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
 
       (d) If the Work includes a "NOTICE" text file as part of its
           distribution, then any Derivative Works that You distribute must
@@ -132,6 +133,9 @@ Copyright 2026 FrancesscaWY
       any Contribution intentionally submitted for inclusion in the Work
       by You to the Licensor shall be under the terms and conditions of
       this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
 
    6. Trademarks. This License does not grant permission to use the trade
       names, trademarks, service marks, or product names of the Licensor,
@@ -178,7 +182,7 @@ Copyright 2026 FrancesscaWY
       To apply the Apache License to your work, attach the following
       boilerplate notice, with the fields enclosed by brackets "[]"
       replaced with your own identifying information. (Don't include
-      the brackets!) The text should be enclosed in the appropriate
+      the brackets!)  The text should be enclosed in the appropriate
       comment syntax for the file format. We also recommend that a
       file or class name and description of purpose be included on the
       same "printed page" as the copyright notice for easier
