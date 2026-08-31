@@ -1,5 +1,7 @@
 # IntelliHealthCare
 
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+
 IntelliHealthCare（智诊康养）是一个面向长者、家属与机构运营团队的智慧康养平台。仓库采用 `npm workspaces` 管理的 Monorepo 结构，统一维护用户端、后台端、NestJS 后端以及共享脚本与文档，目标是把健康档案、健康监测、服务预约、内容社区和智能体能力落到同一套业务底座中。
 
 ## 项目组成
@@ -238,9 +240,9 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 
 - [项目架构说明](./docs/项目架构文档.md)
 - [后端架构说明](./docs/backend-architecture.md)
-- [后端开发文档](./docs/智诊康养后端开发文档.md)
+- [后端设计文档](./docs/后端设计文档.md)
 - [后端 API 手册](./docs/backend-api-manual.md)
-- [前端 Swagger 联调手册](./docs/frontend-api-integration-guide.md)
+- [前端设计文档](./docs/前端设计文档.md)
 - [Hermes 多智能体实施文档](./docs/hermes-multi-agent-implementation.md)
 - [IntelliHealthCare Agent 卡片](./docs/intellihealthcare-agent-cards.md)
 
@@ -249,3 +251,7 @@ npm run create:admin-page -- --group elder --page member-list --title "长者档
 - 提交前至少执行一次 `npm run check`，后端改动建议补跑 `npm run test:backend`。
 - 涉及后端模型、接口、RAG 或智能体能力的修改时，请同步更新 `docs/智诊康养后端开发文档.md` 与 `docs/backend-api-manual.md`。
 - 新增页面优先使用脚手架命令，避免遗漏 `Page.vue`、`mock.ts` 与 `pages.manifest.json` 登记。
+
+## 许可证
+
+本项目采用 [Apache License 2.0](./LICENSE) 开源。版权所有者：FrancesscaWY。
